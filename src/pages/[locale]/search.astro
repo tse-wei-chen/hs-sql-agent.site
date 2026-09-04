@@ -7,6 +7,7 @@ import Header from "@/components/Header.astro";
 import Breadcrumb from "@/components/Breadcrumb.astro";
 import Main from "@/components/Main.astro";
 import Footer from "@/components/Footer.astro";
+import { docsVersions } from "@/data/docsVersions";
 import { getAssetPath } from "@/utils/withBase";
 import { useTranslations } from "@/i18n";
 import config from "@/config";
@@ -28,7 +29,7 @@ const backUrl = config.features.showBackButton
   : getRelativeLocaleUrl(locale, "");
 
 const pagefindBundlePath = getAssetPath("pagefind/");
-
+const knownDocsVersions = docsVersions.versions.map(item => item.version).join(",");
 const t = useTranslations(locale);
 ---
 
@@ -43,6 +44,9 @@ const t = useTranslations(locale);
       transition:persist
       data-backurl={backUrl}
       data-bundle-path={pagefindBundlePath}
+      data-search-locale={locale}
+      data-current-docs-version={docsVersions.current}
+      data-known-docs-versions={knownDocsVersions}
     >
     </div>
   </Main>
@@ -57,10 +61,39 @@ const t = useTranslations(locale);
 
     if (!pageFindSearch) return;
 
-    const bundlePath = pageFindSearch?.dataset?.bundlePath;
+    const bundlePath = pageFindSearch.dataset.bundlePath;
     if (!bundlePath) return;
 
     const params = new URLSearchParams(window.location.search);
+    const locale = pageFindSearch.dataset.searchLocale ?? document.documentElement.lang;
+    const currentDocsVersion = pageFindSearch.dataset.currentDocsVersion ?? "";
+    const knownDocsVersions = new Set(
+      (pageFindSearch.dataset.knownDocsVersions ?? "")
+        .split(",")
+        .filter(Boolean)
+    );
+
+    const filters: Record<string, string[]> = {
+      locale: [locale],
+      searchSurface: ["default"],
+    };
+
+    if (params.get("scope") === "docs") {
+      filters.contentType = ["docs"];
+      const requestedVersion = params.get("version") ?? "latest";
+
+      if (requestedVersion === "latest") {
+        filters.searchSurface = ["default"];
+        if (currentDocsVersion) filters.docsVersion = [currentDocsVersion];
+      } else if (knownDocsVersions.has(requestedVersion)) {
+        filters.searchSurface = ["versioned"];
+        filters.docsVersion = [requestedVersion];
+      } else {
+        params.set("version", "latest");
+        history.replaceState(history.state, "", `?${params.toString()}`);
+        if (currentDocsVersion) filters.docsVersion = [currentDocsVersion];
+      }
+    }
 
     const onIdle = window.requestIdleCallback || (cb => setTimeout(cb, 1));
 
@@ -68,7 +101,6 @@ const t = useTranslations(locale);
       // @ts-expect-error — Missing types for @pagefind/default-ui package.
       const { PagefindUI } = await import("@pagefind/default-ui");
 
-      // Display warning inn dev mode
       if (import.meta.env.DEV) {
         pageFindSearch.innerHTML = `
             <div class="bg-muted/75 rounded p-4 space-y-4 mb-4">
@@ -78,31 +110,30 @@ const t = useTranslations(locale);
           `;
       }
 
-      // Init pagefind ui
       const search = new PagefindUI({
         element: "#pagefind-search",
         bundlePath,
         showImages: false,
         showSubResults: true,
         processTerm: function (term: string) {
-          params.set("q", term); // Update the `q` parameter in the URL
-          history.replaceState(history.state, "", "?" + params.toString()); // Push the new URL without reloading
+          params.set("q", term);
+          history.replaceState(history.state, "", "?" + params.toString());
 
           const backUrl =
-            pageFindSearch?.dataset?.backurl ?? window.location.pathname;
+            pageFindSearch.dataset.backurl ?? window.location.pathname;
           sessionStorage.setItem("backUrl", `${backUrl}?${params.toString()}`);
 
           return term;
         },
       });
 
-      // If search param exists (eg: search?q=astro), trigger search
+      search.triggerFilters(filters);
+
       const query = params.get("q");
       if (query) {
         search.triggerSearch(query);
       }
 
-      // Reset search param if search input is cleared
       const searchInput = document.querySelector(".pagefind-ui__search-input");
       const clearButton = document.querySelector(".pagefind-ui__search-clear");
       searchInput?.addEventListener("input", resetSearchParam);
@@ -110,7 +141,13 @@ const t = useTranslations(locale);
 
       function resetSearchParam(e: Event) {
         if ((e.target as HTMLInputElement)?.value.trim() === "") {
-          history.replaceState(history.state, "", window.location.pathname);
+          params.delete("q");
+          const next = params.toString();
+          history.replaceState(
+            history.state,
+            "",
+            next ? `?${next}` : window.location.pathname
+          );
         }
       }
     });
@@ -118,10 +155,7 @@ const t = useTranslations(locale);
 
   document.addEventListener("astro:after-swap", () => {
     const pagefindSearch = document.querySelector("#pagefind-search");
-
-    // if pagefind search form already exists, don't initialize search component
     if (pagefindSearch && pagefindSearch.querySelector("form")) return;
-
     initSearch();
   });
   initSearch();
@@ -151,6 +185,10 @@ const t = useTranslations(locale);
 
     input:focus-visible {
       outline: 1px solid var(--accent);
+    }
+
+    .pagefind-ui__filter-panel {
+      display: none;
     }
 
     .pagefind-ui__result-title a {
