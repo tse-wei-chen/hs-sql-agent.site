@@ -1,0 +1,48 @@
+---
+title: Introduction
+description: Découvrez le rôle de hs-sql-agent, sa place entre les clients MCP et les bases de données, et le fonctionnement de sa frontière de sécurité.
+sidebar:
+  group: Prise en main
+  order: 10
+---
+
+import Callout from "@/components/docs/mdx/Callout.astro";
+import CardGrid from "@/components/docs/mdx/CardGrid.astro";
+import DocCard from "@/components/docs/mdx/DocCard.astro";
+import Flow from "@/components/docs/mdx/Flow.astro";
+
+hs-sql-agent est un serveur MCP HTTP destiné à fournir un **accès SQL gouverné**. Il relie les clients MCP à PostgreSQL, MySQL, SQL Server, Oracle, SQLite et Firebird, tout en laissant l’authentification, les politiques d’accès, la validation SQL et l’approbation des modifications côté serveur.
+
+<Flow items={["Client MCP", "Portée de la clé MCP", "Compilateur SQL", "Vérification des politiques et capacités", "Base de données"]} />
+
+<Callout type="danger" title="Ne faites pas du LLM la frontière de sécurité de la base de données">
+Le SQL généré est une entrée non fiable. Le modèle peut proposer une instruction SQL, mais seul le serveur décide si la requête est autorisée, si sa sémantique est prise en charge et si elle peut être exécutée en sécurité.
+</Callout>
+
+## Ce que le serveur prend en charge
+
+<CardGrid columns={2}>
+  <DocCard title="Identité et périmètre" icon="KEY" description="Associer un client à une base gérée et limiter les outils, tables et contraintes d’exécution qui lui sont accessibles." />
+  <DocCard title="Sémantique SQL" icon="AST" description="Analyser le SQL pris en charge en structures typées, valider sa sémantique source, vérifier les capacités de la cible puis compiler du SQL propre au moteur." />
+  <DocCard title="Approbation des modifications" icon="DML" description="Traiter les écritures comme une classe de risque distincte, avec prévisualisation, approbation à usage unique, revérification et validation exacte de la transaction." />
+  <DocCard title="Exploitation et audit" icon="OPS" description="Maintenir les limites de débit et de concurrence, les journaux d’audit, l’état de santé, la télémétrie et les notifications opérationnelles hors du modèle." />
+</CardGrid>
+
+## La frontière du compilateur
+
+Le SQL généré est analysé et validé avant toute exécution. hs-sql-agent vérifie les capacités nécessaires pour préserver la sémantique de l’instruction et ne produit du SQL propre au moteur qu’après validation des frontières source, cible et de politique d’accès.
+
+Une syntaxe ou une sémantique non prise en charge est refusée au lieu d’être réécrite silencieusement en une construction simplement « équivalente en apparence ».
+
+<Callout type="info" title="Six moteurs ne signifient pas un relais arbitraire du SQL propre à chaque fournisseur">
+La prise en charge dépend des capacités réellement représentées par le compilateur. Une construction doit pouvoir être représentée, validée et rendue en sécurité pour le contrat source/cible concerné. Consultez la référence de prise en charge SQL au lieu de supposer que toutes les extensions d’un fournisseur sont acceptées.
+</Callout>
+
+## Pour continuer
+
+<CardGrid columns={2}>
+  <DocCard title="Démarrage rapide" icon="01" href="/fr/docs/getting-started/quick-start" description="Lancer la configuration Compose par défaut et créer votre première clé MCP." />
+  <DocCard title="Connexion d’un client MCP" icon="02" href="/fr/docs/mcp/client-onboarding" description="Connecter correctement un client MCP distant via Streamable HTTP." />
+  <DocCard title="Modèle d’exécution SQL" icon="03" href="/fr/docs/sql-compiler/execution-model" description="Comprendre les frontières d’analyse, de validation, de vérification des capacités, de compilation et d’exécution." />
+  <DocCard title="Safe DML" icon="04" href="/fr/docs/sql-compiler/safe-dml" description="Comprendre le protocole de modification soumis à approbation humaine." />
+</CardGrid>

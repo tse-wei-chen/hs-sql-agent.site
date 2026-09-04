@@ -1,0 +1,41 @@
+---
+title: Modèle d’exécution SQL
+description: Comment hs-sql-agent transforme du SQL non fiable en instructions validées et adaptées au moteur avant exécution.
+sidebar:
+  group: Compilateur SQL
+  order: 40
+---
+
+hs-sql-agent ne traite jamais le SQL généré comme une commande fiable. La frontière d’exécution repose sur l’analyse, la validation, la vérification des capacités, les politiques d’accès et la compilation propre au moteur de base de données.
+
+## Chemin d’une requête
+
+À haut niveau, une requête suit les étapes suivantes :
+
+1. Authentifier la clé MCP et appliquer son périmètre de base de données, de tables, d’outils et d’exécution.
+2. Analyser le SQL pris en charge pour produire une définition structurée / AST.
+3. Valider l’instruction et la sémantique source prise en charge.
+4. Vérifier les capacités de la cible nécessaires pour préserver cette sémantique.
+5. Compiler et produire le SQL adapté au moteur configuré.
+6. Exécuter dans les limites d’exécution configurées.
+
+Le compilateur SQL contient des étapes explicites de validation de la source et de vérification des capacités de la cible. Une syntaxe non prise en charge, ou une capacité qui ne peut pas être démontrée, est refusée au lieu d’être remplacée silencieusement par une construction simplement similaire.
+
+## Pourquoi refuser par défaut ?
+
+Le SQL multi-base comporte de nombreuses constructions qui semblent équivalentes mais diffèrent par leur comportement avec `NULL`, leurs règles de type, la sémantique des opérateurs, la pagination, les identifiants, les fonctions ou encore le comportement DML.
+
+Sur une surface d’exécution destinée à l’IA, une réécriture « au mieux » est dangereuse : une instruction peut rester syntaxiquement valide tout en changeant de sens. hs-sql-agent préfère donc un refus visible à une dégradation implicite de la sémantique. C’est le principe de fonctionnement fail-closed appliqué au compilateur.
+
+## Sortie propre au moteur
+
+L’interface MCP publique est commune, mais le SQL final dépend du moteur ciblé. Les moteurs actuellement pris en charge sont :
+
+- PostgreSQL
+- MySQL
+- SQL Server
+- Oracle
+- SQLite
+- Firebird
+
+La prise en charge est volontairement bornée. Le fait qu’un moteur soit pris en charge ne signifie pas que toutes les syntaxes proposées par cette base sont acceptées ; les capacités du compilateur ne sont étendues que lorsque leur sémantique peut être représentée et validée.
