@@ -2,10 +2,7 @@
 import { getCollection } from "astro:content";
 import { getRelativeLocaleUrl } from "astro:i18n";
 import { locales, localeLabels } from "@/utils/getPostsByLocale";
-import {
-  getDocsForVersion,
-  hasDocInVersion,
-} from "@/utils/contentRouting";
+import { getDocsForVersion, hasDocInVersion } from "@/utils/contentRouting";
 import { docsVersions, isDocsVersion } from "@/data/docsVersions";
 import { isMarketingSection } from "@/data/marketing";
 import { stripBase, stripLocale } from "@/utils/withBase";
@@ -26,7 +23,9 @@ if (firstSegment === "docs") {
   const firstDocsSegment = docsSegments[0] ?? "";
   const versioned = isDocsVersion(firstDocsSegment);
   const docsVersion = versioned ? firstDocsSegment : docsVersions.current;
-  const currentSlug = (versioned ? docsSegments.slice(1) : docsSegments).join("/");
+  const currentSlug = (versioned ? docsSegments.slice(1) : docsSegments).join(
+    "/"
+  );
 
   if (currentSlug) {
     translatedLocales = new Set(
@@ -36,7 +35,9 @@ if (firstSegment === "docs") {
     );
   } else {
     translatedLocales = new Set(
-      locales.filter(locale => getDocsForVersion(docs, locale, docsVersion).length > 0)
+      locales.filter(
+        locale => getDocsForVersion(docs, locale, docsVersion).length > 0
+      )
     );
   }
 
@@ -55,21 +56,72 @@ function getLocaleHref(locale: string): string {
   return getRelativeLocaleUrl(locale, localeFreePath);
 }
 ---
+
 <div class="relative">
-  <button id="locale-btn" type="button" class="focus-outline hover:text-accent flex cursor-pointer items-center gap-1 px-2 py-1 text-sm font-medium transition" aria-label="Switch language">
-    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="size-4"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1 4-10z"/></svg>
+  <button
+    id="locale-btn"
+    type="button"
+    class="focus-outline hover:text-accent flex cursor-pointer items-center gap-1 px-2 py-1 text-sm font-medium transition"
+    aria-label="Switch language"
+  >
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      width="16"
+      height="16"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="2"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+      class="size-4"
+      ><circle cx="12" cy="12" r="10"></circle><line
+        x1="2"
+        y1="12"
+        x2="22"
+        y2="12"></line><path
+        d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1 4-10z"
+      ></path></svg
+    >
     <span class="max-sm:sr-only">{localeLabels[currentLocale]}</span>
-    <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="size-3"><polyline points="6 9 12 15 18 9"/></svg>
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      width="12"
+      height="12"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="2"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+      class="size-3"><polyline points="6 9 12 15 18 9"></polyline></svg
+    >
   </button>
-  <div id="locale-menu" class="bg-background border-border absolute end-0 z-50 mt-1 hidden min-w-32 rounded-md border p-1 shadow-lg" role="menu">
-    {locales.map(locale => {
-      const active = locale === currentLocale;
-      return (
-        <a href={active ? "#" : getLocaleHref(locale)} role="menuitem" class:list={["block rounded-sm px-3 py-1.5 text-sm no-underline transition", active ? "bg-accent text-white dark:text-accent-foreground pointer-events-none" : "text-foreground hover:bg-muted"]} aria-current={active ? "page" : undefined}>
-          {localeLabels[locale]}
-        </a>
-      );
-    })}
+  <div
+    id="locale-menu"
+    class="bg-background border-border absolute end-0 z-50 mt-1 hidden min-w-32 rounded-md border p-1 shadow-lg"
+    role="menu"
+  >
+    {
+      locales.map(locale => {
+        const active = locale === currentLocale;
+        return (
+          <a
+            href={active ? "#" : getLocaleHref(locale)}
+            role="menuitem"
+            class:list={[
+              "block rounded-sm px-3 py-1.5 text-sm no-underline transition",
+              active
+                ? "bg-accent dark:text-accent-foreground pointer-events-none text-white"
+                : "text-foreground hover:bg-muted",
+            ]}
+            aria-current={active ? "page" : undefined}
+          >
+            {localeLabels[locale]}
+          </a>
+        );
+      })
+    }
   </div>
 </div>
 
