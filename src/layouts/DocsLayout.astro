@@ -4,6 +4,7 @@ import Layout from "./Layout.astro";
 import Header from "@/components/Header.astro";
 import Footer from "@/components/Footer.astro";
 import DocHero from "@/components/docs/DocHero.astro";
+import DocsMobileNav from "@/components/docs/DocsMobileNav.astro";
 import DocsVersionSwitcher from "@/components/docs/DocsVersionSwitcher.astro";
 import { docsVersions } from "@/data/docsVersions";
 import { useTranslations } from "@/i18n";
@@ -96,7 +97,14 @@ const latestDocsPrefix = `${getDocsIndexUrl(locale).replace(/\/$/, "")}/`;
 const versionedDocsPrefix = `${getDocsIndexUrl(locale, docsVersion).replace(/\/$/, "")}/`;
 ---
 
-<Layout title={`${title} | ${config.site.title}`} {description} {canonicalURL}>
+<Layout
+  title={`${title} | ${config.site.title}`}
+  {description}
+  {canonicalURL}
+  pagefindContentType="docs"
+  pagefindSearchSurface={versioned ? "versioned" : "default"}
+  pagefindDocsVersion={docsVersion}
+>
   <Fragment slot="head">
     {alternates.map(alternate => (
       <link rel="alternate" hreflang={alternate.locale} href={new URL(alternate.href, urlBase)} />
@@ -109,8 +117,17 @@ const versionedDocsPrefix = `${getDocsIndexUrl(locale, docsVersion).replace(/\/$
 
   <Header />
 
+  <DocsMobileNav
+    {locale}
+    {currentSlug}
+    {docs}
+    {allDocs}
+    {docsVersion}
+    {versioned}
+  />
+
   <div class="docs-shell mx-auto grid w-full max-w-7xl flex-1 grid-cols-1 gap-8 px-4 py-8 sm:px-6 lg:grid-cols-[15rem_minmax(0,1fr)] xl:grid-cols-[15rem_minmax(0,1fr)_13rem]">
-    <aside class="doc-sidebar border-border lg:sticky lg:top-20 lg:h-[calc(100svh-6rem)] lg:overflow-y-auto lg:border-r lg:pr-5">
+    <aside class="doc-sidebar border-border hidden lg:sticky lg:top-20 lg:block lg:h-[calc(100svh-6rem)] lg:overflow-y-auto lg:border-r lg:pr-5">
       <DocsVersionSwitcher
         {locale}
         version={docsVersion}
