@@ -1,0 +1,111 @@
+---
+title: クイックスタート
+description: セットアップ方法を選び、hs-sql-agent を起動して、最初の MCP クライアントを接続します。
+sidebar:
+  group: はじめに
+  order: 20
+---
+
+import Callout from "@/components/docs/mdx/Callout.astro";
+import CardGrid from "@/components/docs/mdx/CardGrid.astro";
+import DocCard from "@/components/docs/mdx/DocCard.astro";
+import Steps from "@/components/docs/mdx/Steps.astro";
+import Step from "@/components/docs/mdx/Step.astro";
+
+<CardGrid columns={3}>
+  <DocCard
+    title="Docker Compose"
+    eyebrow="推奨"
+    badge="約 5 分"
+    icon="▣"
+    description="リポジトリに含まれる Compose 構成を使って、セルフホスト環境をまとめて起動します。"
+    href="#docker-compose"
+  />
+  <DocCard
+    title="ASP.NET Core / NuGet"
+    badge="約 10 分"
+    icon=".NET"
+    description="既存の ASP.NET Core アプリケーションへ MCP ランタイムと任意の管理画面を組み込みます。"
+    href="/en/docs/integration/aspnet-core"
+  />
+  <DocCard
+    title="MCP クライアントを接続"
+    badge="起動後"
+    icon="MCP"
+    description="権限を絞ったキーを発行し、Claude Desktop、Cursor、または別の Streamable HTTP クライアントを接続します。"
+    href="/ja/docs/mcp/client-onboarding"
+  />
+</CardGrid>
+
+<Callout type="info" title="既存のホストアプリケーションへ組み込む必要がなければ Docker から始めてください">
+Docker Compose が最短です。リポジトリにサービス構成と環境変数の対応付けが用意されています。NuGet は、既存の ASP.NET Core ホストへ hs-sql-agent を組み込みたい場合に使用します。
+</Callout>
+
+## Docker Compose
+
+<Steps>
+  <Step title="環境設定ファイルを作成" description="管理しやすいよう、リポジトリに含まれるサンプルをコピーして明示的に設定します。">
+
+```bash
+cp .env.example .env
+```
+
+  </Step>
+  <Step title="署名用シークレットを変更" description="HMAC_KEY と JWT_KEY には、それぞれ異なる 32 バイト以上の値を設定します。">
+`.env.example` の値はサンプルです。そのまま本番環境へ配置しないでください。
+  </Step>
+  <Step title="サービスを起動" description="標準の単一インスタンス構成を起動します。">
+
+```bash
+docker compose up -d
+```
+
+  </Step>
+  <Step title="管理画面を開く" description="標準ではポート 8080 で待ち受けます。">
+ローカル環境では `http://localhost:8080` を開き、最初の管理者設定を完了します。
+  </Step>
+</Steps>
+
+## 最初の MCP キーを発行
+
+<Steps>
+  <Step title="Runtime → MCP Keys を開く" description="MCP キーはクライアントの識別と認可の境界になります。" />
+  <Step title="データベースとツールの権限範囲を選ぶ" description="キーを 1 つの Database Management 設定へ結び付け、クライアントが必要とするツールだけを公開します。" />
+  <Step title="平文のキーをコピー" description="発行直後のダイアログに表示されるシークレットをコピーし、クライアント側の安全な保管場所へ保存します。" />
+  <Step title="生成されたクライアント設定を使う" description="または Streamable HTTP エンドポイントへの要求に X-MCP-Server-Key ヘッダーを付けます。" />
+</Steps>
+
+標準の MCP エンドポイントは `/mcp` です。別の端末から接続する場合は、`MCP_PUBLIC_ENDPOINT` に外部から到達できる HTTP または HTTPS の絶対 URL を `/mcp` まで含めて設定してください。
+
+<Callout type="warning" title="DML には MCP Elicitation への対応が必要です">
+MCP ツールを呼び出せるという理由だけで `execute_dml_sql` を有効にしないでください。DML では、人が実際の変更内容を確認して承認できるよう、クライアント側も MCP の form Elicitation に対応している必要があります。
+</Callout>
+
+## 次に読むドキュメント
+
+<CardGrid columns={2}>
+  <DocCard
+    title="MCP クライアントの接続"
+    icon="01"
+    description="要求ヘッダー、Streamable HTTP、公開エンドポイント、DML で必要な Elicitation 対応を確認します。"
+    href="/ja/docs/mcp/client-onboarding"
+  />
+  <DocCard
+    title="SQL 実行モデル"
+    icon="02"
+    description="AI エージェントへ SQL を公開する前に、解析 → 検証 → 対応能力の確認 → コンパイルという実行境界を理解します。"
+    href="/ja/docs/sql-compiler/execution-model"
+  />
+  <DocCard
+    title="Database Management"
+    icon="03"
+    description="データベース接続を作成し、接続確認を行い、MCP キーとデータベースの関連付けを理解します。"
+    href="/en/docs/administration/database-management"
+  />
+  <DocCard
+    title="本番環境の設定"
+    icon="04"
+    description="認証、レート制限、保存期間、分散状態、テレメトリ、シークレットの設定を確認します。"
+    href="/en/docs/operations/configuration"
+  />
+</CardGrid>

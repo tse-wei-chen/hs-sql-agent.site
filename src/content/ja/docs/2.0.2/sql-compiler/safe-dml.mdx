@@ -1,0 +1,75 @@
+---
+title: Safe DML
+description: 変更内容を事前確認し、承認内容を固定し、対象行を再検証して、人が承認したデータ変更だけをコミットする仕組みを説明します。
+sidebar:
+  group: SQL Compiler
+  order: 50
+---
+
+import Callout from "@/components/docs/mdx/Callout.astro";
+import CardGrid from "@/components/docs/mdx/CardGrid.astro";
+import DocCard from "@/components/docs/mdx/DocCard.astro";
+import Flow from "@/components/docs/mdx/Flow.astro";
+import Steps from "@/components/docs/mdx/Steps.astro";
+import Step from "@/components/docs/mdx/Step.astro";
+
+DML では通常のクエリ実行よりも厳格な手順を使います。人が承認した変更内容と、コミット直前に実行される内容が**同一であること**を保証するためです。
+
+<Flow items={["コンパイル", "事前確認", "承認", "再検証", "コミット"]} />
+
+<CardGrid columns={3}>
+  <DocCard title="まず影響範囲を確認" icon="01" description="UPDATE/DELETE は変更を適用せず、事前確認用のトランザクション内で現在対象になる行を読み取ります。" />
+  <DocCard title="承認内容を固定" icon="02" description="1 回限りの承認チャレンジに、検証済み実行計画、ポリシーのバージョン、対象行数、行集合のフィンガープリントを結び付けます。" />
+  <DocCard title="コミット前に再確認" icon="03" description="コミット用トランザクションで対象行を再取得し、承認時の状態と一致しなければ処理を中止します。" />
+</CardGrid>
+
+<Callout type="danger" title="承認は、後から別のデータ変更を実行するための権限ではありません">
+承認チャレンジは、検証済みの処理内容と、その時点で確認した影響範囲に結び付いています。コミット前に実行計画、ポリシー、チャレンジ、対象行数、行集合のフィンガープリントのいずれかが変わった場合、hs-sql-agent は変更を適用せずに中止します。
+</Callout>
+
+## UPDATE と DELETE
+
+<Steps>
+  <Step title="データ変更をコンパイル">
+承認を求める前に、要求された SQL を解析、検証、認可し、実行可能な形へコンパイルします。
+  </Step>
+  <Step title="対象行を事前確認">
+事前確認用のトランザクションを開き、変更を実行せず、現在条件に一致する行を読み取ります。
+  </Step>
+  <Step title="1 回限りの承認情報を作成">
+承認チャレンジに、検証済み実行計画、ポリシーのバージョン、対象行数、行集合のフィンガープリントを結び付けます。
+  </Step>
+  <Step title="MCP Elicitation で人に承認を求める">
+`elicitation/create` を送信し、MCP クライアントからフォームによる明示的な承認を要求します。
+  </Step>
+  <Step title="承認済みチャレンジを使い切る">
+承認後に 1 回限りのチャレンジを検証して消費し、汎用的な権限トークンとして再利用できないようにします。
+  </Step>
+  <Step title="コミット用トランザクションで再取得">
+対象行をもう一度読み取り、現在のフィンガープリントと行数を、承認時の事前確認結果と比較します。
+  </Step>
+  <Step title="すべて一致した場合だけコミット">
+実行計画、ポリシー、チャレンジ、行数、対象行集合が変わっていない場合にだけ、承認済みのデータ変更を実行します。
+  </Step>
+</Steps>
+
+## INSERT VALUES
+
+`INSERT ... VALUES` には、変更前から存在する「条件に一致した行集合」がありません。そのため承認時には、行集合の事前確認ではなく、変更不能な挿入データと、検証済みの実行計画を結び付けます。
+
+<Callout type="info" title="変更の種類が違っても、安全原則は同じです">
+既存行を更新する場合と新しい行を挿入する場合では、承認時に固定する情報が異なります。それでも「人が確認して承認した内容だけを実行する」という不変条件は同じです。
+</Callout>
+
+## Elicitation は必須です
+
+`execute_dml_sql` と公開済みの DML Custom Tools を使うには、MCP クライアントが **form Elicitation** に対応している必要があります。承認操作を実行できないクライアントからは、これらのデータ変更経路を利用できません。
+
+これは単なる UI の確認ダイアログとは異なります。承認チャレンジはサーバー側のデータ更新プロトコルの一部として扱われ、実行直前にも再検証されます。
+
+## 関連ドキュメント
+
+<CardGrid columns={2}>
+  <DocCard title="MCP クライアントの接続" icon="MCP" href="/ja/docs/mcp/client-onboarding" description="DML を有効にする前に、実際に使う MCP クライアントのバージョンが form Elicitation に対応していることを確認します。" />
+  <DocCard title="SQL 実行モデル" icon="AST" href="/ja/docs/sql-compiler/execution-model" description="解析、検証、対応能力の確認、アクセスポリシー、コンパイル、実行までの境界を理解します。" />
+</CardGrid>

@@ -1,0 +1,48 @@
+---
+title: はじめに
+description: hs-sql-agent の役割、MCP クライアントとデータベースの間で担う責務、セキュリティ境界の考え方を説明します。
+sidebar:
+  group: はじめに
+  order: 10
+---
+
+import Callout from "@/components/docs/mdx/Callout.astro";
+import CardGrid from "@/components/docs/mdx/CardGrid.astro";
+import DocCard from "@/components/docs/mdx/DocCard.astro";
+import Flow from "@/components/docs/mdx/Flow.astro";
+
+hs-sql-agent は、**統制された SQL アクセス**を提供する HTTP MCP サーバーです。MCP クライアントから PostgreSQL、MySQL、SQL Server、Oracle、SQLite、Firebird へ接続しつつ、認証、アクセスポリシー、SQL の検証、データ更新の承認はサーバー側で管理します。
+
+<Flow items={["MCP クライアント", "MCP キーの権限範囲", "SQL コンパイラ", "ポリシーと対応能力の検証", "データベース"]} />
+
+<Callout type="danger" title="LLM をデータベースのセキュリティ境界にしない">
+AI が生成した SQL は信頼できない入力として扱います。モデルは SQL を提案できますが、その要求を実行してよいか、意味を安全に扱えるか、実行して問題ないかを判断するのはサーバーです。
+</Callout>
+
+## サーバーが担う責務
+
+<CardGrid columns={2}>
+  <DocCard title="認証と権限範囲" icon="KEY" description="クライアントを管理対象のデータベースに結び付け、利用できるツール、テーブル、実行上限を制限します。" />
+  <DocCard title="SQL の意味を検証" icon="AST" description="対応する SQL を構造化された表現へ解析し、入力側の意味を検証したうえで、対象データベースで意味を保てることを確認して専用 SQL を生成します。" />
+  <DocCard title="データ更新の承認" icon="DML" description="書き込み処理は別のリスクとして扱い、事前確認、1 回限りの承認、再検証を経て、承認した内容だけを確定します。" />
+  <DocCard title="運用と監査" icon="OPS" description="レート制限、同時実行数、監査記録、ヘルスチェック、テレメトリ、運用通知をモデルの外側で管理します。" />
+</CardGrid>
+
+## コンパイラによる実行境界
+
+生成された SQL は実行前に解析・検証されます。hs-sql-agent は文の意味を保つために必要な機能を確認し、入力側の意味、出力先データベースの対応能力、アクセスポリシーのすべてを満たした場合にだけ、そのデータベース向けの SQL を生成します。
+
+対応していない構文や意味は、見た目だけ似た別の SQL に暗黙変換せず、明示的に拒否します。
+
+<Callout type="info" title="6 種類のデータベース対応は、ベンダー固有 SQL の無制限な通過を意味しません">
+対応可否はコンパイラが安全に扱える機能単位で決まります。構文を内部表現として保持でき、意味を検証でき、対象データベース向けに安全に生成できることが必要です。各ベンダーの拡張構文をすべて受け入れる前提ではなく、SQL 対応範囲の資料を確認してください。
+</Callout>
+
+## 次に読むドキュメント
+
+<CardGrid columns={2}>
+  <DocCard title="クイックスタート" icon="01" href="/ja/docs/getting-started/quick-start" description="Docker Compose で起動し、最初の MCP キーを発行します。" />
+  <DocCard title="MCP クライアントの接続" icon="02" href="/ja/docs/mcp/client-onboarding" description="Streamable HTTP を使うリモート MCP クライアントを正しく接続します。" />
+  <DocCard title="SQL 実行モデル" icon="03" href="/ja/docs/sql-compiler/execution-model" description="解析、検証、対応能力の確認、コンパイル、実行までの境界を理解します。" />
+  <DocCard title="Safe DML" icon="04" href="/ja/docs/sql-compiler/safe-dml" description="人の承認を必須にするデータ更新プロトコルを理解します。" />
+</CardGrid>

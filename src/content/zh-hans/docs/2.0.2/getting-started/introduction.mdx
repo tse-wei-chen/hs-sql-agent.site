@@ -1,0 +1,48 @@
+---
+title: 简介
+description: 了解 hs-sql-agent 的作用、它在 MCP 客户端与数据库之间承担的职责，以及安全边界如何工作。
+sidebar:
+  group: 开始使用
+  order: 10
+---
+
+import Callout from "@/components/docs/mdx/Callout.astro";
+import CardGrid from "@/components/docs/mdx/CardGrid.astro";
+import DocCard from "@/components/docs/mdx/DocCard.astro";
+import Flow from "@/components/docs/mdx/Flow.astro";
+
+hs-sql-agent 是一个为**受控 SQL 访问**设计的 HTTP MCP 服务器。它让 MCP 客户端连接 PostgreSQL、MySQL、SQL Server、Oracle、SQLite 和 Firebird，同时把身份验证、访问策略、SQL 验证以及数据修改审批都保留在服务器端。
+
+<Flow items={["MCP 客户端", "MCP 密钥权限范围", "SQL 编译器", "策略与功能支持检查", "数据库"]} />
+
+<Callout type="danger" title="不要让 LLM 成为数据库的安全边界">
+AI 生成的 SQL 应视为不可信输入。模型可以提出 SQL，但请求是否有权限、语义是否受支持、是否可以安全执行，都由服务器决定。
+</Callout>
+
+## 服务器负责什么
+
+<CardGrid columns={2}>
+  <DocCard title="身份与权限范围" icon="KEY" description="把客户端绑定到一个受管数据库，并限制它可以使用的工具、表以及运行时上限。" />
+  <DocCard title="SQL 语义验证" icon="AST" description="把受支持的 SQL 解析为结构化定义，验证输入语义，再确认目标数据库能够保持相同含义，最后生成对应数据库的 SQL。" />
+  <DocCard title="数据修改审批" icon="DML" description="把写操作作为单独的风险等级处理，经过影响预览、一次性审批和重新验证后，只提交用户实际批准的修改。" />
+  <DocCard title="运维与审计" icon="OPS" description="请求速率、并发限制、审计记录、健康检查、遥测和运维通知都在模型之外管理。" />
+</CardGrid>
+
+## 编译器形成的执行边界
+
+AI 生成的 SQL 会在执行前经过解析和验证。hs-sql-agent 会检查保持语句原有含义所需的能力，只有输入语义、目标数据库支持范围和访问策略全部满足要求时，才会生成对应数据库的 SQL。
+
+不支持的语法或语义会被明确拒绝，而不是静默改写成一个看似相近但含义可能不同的 SQL。
+
+<Callout type="info" title="支持六种数据库，并不等于任意厂商 SQL 都能直接透传">
+支持范围按编译器能够安全处理的功能逐项确定。一个语法结构必须能被内部表示、验证，并能为目标数据库安全生成等价 SQL，才算真正受支持。不要假设数据库自身接受的所有扩展语法都会被 hs-sql-agent 接受，应以 SQL 支持范围文档为准。
+</Callout>
+
+## 接下来阅读
+
+<CardGrid columns={2}>
+  <DocCard title="快速开始" icon="01" href="/zh-hans/docs/getting-started/quick-start" description="使用 Docker Compose 启动服务并签发第一把 MCP 密钥。" />
+  <DocCard title="连接 MCP 客户端" icon="02" href="/zh-hans/docs/mcp/client-onboarding" description="正确连接使用 Streamable HTTP 的远程 MCP 客户端。" />
+  <DocCard title="SQL 执行模型" icon="03" href="/zh-hans/docs/sql-compiler/execution-model" description="理解解析、验证、功能支持检查、编译与执行之间的边界。" />
+  <DocCard title="Safe DML" icon="04" href="/zh-hans/docs/sql-compiler/safe-dml" description="了解必须经过人工审批的数据修改协议。" />
+</CardGrid>

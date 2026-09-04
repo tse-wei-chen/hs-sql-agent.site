@@ -1,6 +1,6 @@
 ---
 title: 快速開始
-description: 選擇安裝方式、啟動 hs-sql-agent，並連接第一個 MCP client。
+description: 選擇部署方式、啟動 hs-sql-agent，並連接第一個 MCP 用戶端。
 sidebar:
   group: 開始使用
   order: 20
@@ -18,94 +18,94 @@ import Step from "@/components/docs/mdx/Step.astro";
     eyebrow="建議"
     badge="約 5 分鐘"
     icon="▣"
-    description="直接使用 repository 已提供的 Compose 設定啟動完整 self-hosted service。"
+    description="使用儲存庫內建的 Compose 設定執行完整的自架服務。"
     href="#docker-compose"
   />
   <DocCard
     title="ASP.NET Core / NuGet"
     badge="約 10 分鐘"
     icon=".NET"
-    description="把 MCP runtime 與選用 Admin UI 嵌入既有 ASP.NET Core application。"
+    description="把 MCP 執行階段與選用的管理介面嵌入既有 ASP.NET Core 應用程式。"
     href="/zh-hant/docs/integration/aspnet-core"
   />
   <DocCard
-    title="連接 MCP client"
-    badge="安裝後"
+    title="連接 MCP 用戶端"
+    badge="安裝完成後"
     icon="MCP"
-    description="簽發 scoped key，連接 Claude Desktop、Cursor 或其他 Streamable HTTP client。"
+    description="發行權限受限的金鑰，並連接 Claude Desktop、Cursor 或其他 Streamable HTTP 用戶端。"
     href="/zh-hant/docs/mcp/client-onboarding"
   />
 </CardGrid>
 
-<Callout type="info" title="除非你已經有自己的 host application，否則先用 Docker">
-Docker Compose 是最短路徑，因為 repository 已經準備好 service wiring 與 environment-variable mapping。NuGet 路徑比較適合要把 hs-sql-agent 嵌入既有 ASP.NET Core host 的團隊。
+<Callout type="info" title="如果不需要嵌入既有主機應用程式，建議從 Docker 開始">
+Docker Compose 是最短路徑，因為儲存庫已經包含服務連接設定與環境變數對應。NuGet 方式適合要把 hs-sql-agent 嵌入既有 ASP.NET Core 主機的團隊。
 </Callout>
 
 ## Docker Compose
 
 <Steps>
-  <Step title="建立環境設定檔" description="先複製 checked-in example，讓 configuration 保持明確且可 review。">
+  <Step title="建立環境設定檔" description="複製儲存庫中的範例檔，讓設定保持明確並方便審查。">
 
 ```bash
 cp .env.example .env
 ```
 
   </Step>
-  <Step title="更換 signing secrets" description="HMAC_KEY 與 JWT_KEY 請使用彼此不同、至少 32 bytes 的唯一 secret。">
-`.env.example` 裡的值只是 placeholder，不要原封不動部署到 production。
+  <Step title="更換簽章密鑰" description="HMAC_KEY 與 JWT_KEY 請分別使用不同、至少 32 位元組的唯一密鑰。">
+`.env.example` 中的值只是範例，請勿原樣部署到正式環境。
   </Step>
-  <Step title="啟動服務" description="啟動預設 single-instance stack。">
+  <Step title="啟動服務" description="啟動預設的單一執行個體服務。">
 
 ```bash
 docker compose up -d
 ```
 
   </Step>
-  <Step title="開啟 Admin Panel" description="預設 application listener 是 8080。">
-本機環境開啟 `http://localhost:8080`，完成第一位 administrator 初始化。
+  <Step title="開啟管理介面" description="應用程式預設監聽 8080 連接埠。">
+本機環境可開啟 `http://localhost:8080`，然後完成第一個管理員設定。
   </Step>
 </Steps>
 
-## 簽發第一把 MCP key
+## 發行第一把 MCP 金鑰
 
 <Steps>
-  <Step title="前往 Runtime → MCP Keys" description="MCP key 是 MCP identity 與 authorization boundary。" />
-  <Step title="選擇 database 與 tool scope" description="將 key 綁定到單一 Database Management entry，並只暴露 client 真正需要的 tools。" />
-  <Step title="複製 plaintext key" description="新 key 的 lifecycle dialog 會顯示 secret，請立即保存到 client 的 secret store。" />
-  <Step title="使用產生的 client configuration" description="也可以直接以 X-MCP-Server-Key 呼叫 Streamable HTTP endpoint。" />
+  <Step title="開啟 Runtime → MCP Keys" description="MCP 金鑰是用戶端身分與授權檢查的邊界。" />
+  <Step title="選擇資料庫與工具權限範圍" description="把金鑰綁定到一個 Database Management 項目，並且只開放用戶端實際需要的工具。" />
+  <Step title="複製明文金鑰" description="金鑰發行後會在生命週期對話框中顯示一次，請複製並保存到用戶端的安全憑證儲存位置。" />
+  <Step title="使用自動產生的用戶端設定" description="也可以透過 X-MCP-Server-Key 要求標頭，把密鑰傳送到 Streamable HTTP 端點。" />
 </Steps>
 
-預設 MCP endpoint 是 `/mcp`。若 client 位於外部網路，請將 `MCP_PUBLIC_ENDPOINT` 設成 client 真正可連到的 absolute HTTP/HTTPS URL，而且要包含 `/mcp`。
+預設 MCP 端點是 `/mcp`。如果用戶端不在本機，請把 `MCP_PUBLIC_ENDPOINT` 設為外部可存取的 HTTP 或 HTTPS 絕對 URL，並包含 `/mcp` 路徑。
 
-<Callout type="warning" title="DML 還需要 client 支援 Elicitation">
-不要因為 client 能呼叫 MCP tool 就直接打開 `execute_dml_sql`。Client 還必須相容 MCP form Elicitation，才能讓真人檢視並核准精確 mutation impact。
+<Callout type="warning" title="DML 需要用戶端支援 MCP Elicitation">
+不要只因為用戶端能呼叫 MCP 工具就直接啟用 `execute_dml_sql`。為了讓使用者能查看並核准實際修改內容，用戶端還必須支援 MCP form Elicitation。
 </Callout>
 
-## 接下來看什麼
+## 接下來閱讀
 
 <CardGrid columns={2}>
   <DocCard
-    title="MCP client onboarding"
+    title="連接 MCP 用戶端"
     icon="01"
-    description="了解 headers、Streamable HTTP、public endpoint 與 DML Elicitation 相容性。"
+    description="了解要求標頭、Streamable HTTP 設定、公開端點規則，以及 DML 所需的 Elicitation 支援。"
     href="/zh-hant/docs/mcp/client-onboarding"
   />
   <DocCard
     title="SQL 執行模型"
     icon="02"
-    description="在把 SQL 暴露給 agent 前，先理解 parse → validate → capability proof → compile 的安全邊界。"
+    description="在向 AI Agent 開放 SQL 前，理解解析 → 驗證 → 功能支援檢查 → 編譯的執行邊界。"
     href="/zh-hant/docs/sql-compiler/execution-model"
   />
   <DocCard
     title="資料庫管理"
     icon="03"
-    description="建立 provider connection、測試連線，並理解 MCP key 如何綁定 database。"
+    description="建立資料庫連線、測試連通性，並了解 MCP 金鑰如何綁定資料庫。"
     href="/zh-hant/docs/administration/database-management"
   />
   <DocCard
-    title="Production configuration"
+    title="正式環境設定"
     icon="04"
-    description="檢查 identity、rate limiting、retention、distributed state、telemetry 與 secret settings。"
+    description="檢查身分驗證、速率限制、保留期間、分散式狀態、遙測與密鑰設定。"
     href="/zh-hant/docs/operations/configuration"
   />
 </CardGrid>

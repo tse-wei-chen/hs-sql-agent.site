@@ -1,35 +1,42 @@
 ---
-title: Security 概覽
-description: 把資料庫 governance 留在 server side 的控制，以及保護這些控制的 operational settings。
+title: 安全性概觀
+description: 說明如何透過伺服器端控制把資料庫治理留在 LLM 之外，以及保護這些控制措施的維運設定。
 sidebar:
-  group: 安全性
+  group: 安全
   order: 120
 ---
 
-hs-sql-agent 的設計前提是：AI model 不是 security boundary。Authentication、database scope、table policy、tool restriction、SQL validation 與 mutation approval 都由 server 執行。
+hs-sql-agent 的設計原則是：AI 模型本身不能成為安全邊界。身分驗證、資料庫範圍、資料表存取政策、工具限制、SQL 驗證與資料修改核准，都由伺服器強制執行。
 
-## MCP access boundary
+## MCP 存取邊界
 
-MCP client 使用 issued key 驗證。Runtime policy 可以把 key 綁到特定 database，並限制可用 table 與 tool。
+MCP 用戶端使用已發行的金鑰進行身分驗證。執行階段政策可以把金鑰綁定到指定資料庫，並限制它可存取的資料表與工具。
 
-Query-only client 應限制 allowed-tool list，而不是期待 client 自願不呼叫 DML。
+對於唯讀用戶端，應直接限制允許工具清單，而不是依賴用戶端「自行避免」呼叫 DML。
 
-## SQL boundary
+## SQL 執行邊界
 
-Generated SQL 執行前必須 parse / validate，再進行 provider-specific compilation。無法支援或證明的 language / target capability 會 fail closed。
+AI 產生的 SQL 會先解析與驗證，之後才編譯成目標資料庫對應的 SQL。不支援的語法，或無法確認能在目標資料庫安全維持相同語意的功能，都會依「失敗即拒絕」原則拒絕，不會偷偷降級成別的含義。
 
-DML 還有額外 approval protocol：human acceptance 綁定 validated mutation plan，row-set mutation 在 commit transaction 裡再次驗證後才執行。
+DML 使用獨立的核准協定。人工核准會綁定到已驗證的資料修改計畫；對於修改既有資料列的操作，真正執行前還會在認可交易中重新驗證目標資料列。
 
-## Administrative identity
+## 管理員身分驗證
 
-Server 支援 local authentication，以及可選的 OIDC/SSO 與 TOTP MFA 相關設定。OIDC configuration 包含 authority、client credential、claim mapping、scope、role mapping、verified-email requirement 與 auto-provisioning。
+伺服器支援本機身分驗證，也可以選擇設定 OIDC/SSO 與 TOTP MFA。OIDC 設定包含 Authority、用戶端認證資訊、宣告對應、權限範圍、角色對應、已驗證電子郵件要求與自動建立使用者等選項。
 
-需要跨 restart 保留 protected login/MFA state 時，必須 persist data-protection key path。
+如果受保護的登入狀態或 MFA 狀態需要在應用程式重新啟動後繼續有效，請把設定的資料保護金鑰路徑放在永久儲存空間中。
 
-## Operational protection
+## 維運保護
 
-Runtime 還包含 sign-in lockout、rate limiting、distributed security-policy sync、signed alert/SIEM webhook、audit retention，以及 distributed control 的 fail-closed coordination mode。
+與安全相關的主要執行階段設定包括：
 
-## 回報漏洞
+- 登入失敗鎖定門檻與鎖定時間
+- 全域與要求層級的速率限制
+- 分散式環境中的安全政策同步
+- 帶簽章的警示與 SIEM Webhook
+- 稽核資料保留期間與封存／備援路徑
+- 分散式控制異常時的「失敗即拒絕」協調方式
 
-不要在 public Issue 公開安全漏洞。請使用 repository 的 GitHub Security Advisory **Report a Vulnerability** 流程進行 responsible disclosure。
+## 回報安全漏洞
+
+請勿在公開 Issue 中揭露安全漏洞。應使用儲存庫 GitHub Security Advisory 中的 **Report a Vulnerability** 流程，讓問題依負責任揭露方式進行調查與修正。

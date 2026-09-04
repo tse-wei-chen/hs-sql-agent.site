@@ -1,6 +1,6 @@
 ---
-title: MCP Client Onboarding
-description: 連接 Streamable HTTP MCP client、設定 public endpoint，並在啟用 DML 前確認 Elicitation 能力。
+title: 連接 MCP 用戶端
+description: 連接 Streamable HTTP MCP 用戶端、設定公開端點，並在啟用 DML 前確認 Elicitation 支援情況。
 sidebar:
   group: MCP
   order: 30
@@ -12,28 +12,28 @@ import DocCard from "@/components/docs/mdx/DocCard.astro";
 import Steps from "@/components/docs/mdx/Steps.astro";
 import Step from "@/components/docs/mdx/Step.astro";
 
-hs-sql-agent 在 `/mcp` 提供 **Streamable HTTP** MCP endpoint。
+hs-sql-agent 在 `/mcp` 提供 **Streamable HTTP** MCP 端點。
 
 <CardGrid columns={3}>
-  <DocCard title="Endpoint" icon="HTTP" description="使用 MCP client 真正可連線的 public endpoint，通常以 /mcp 結尾。" />
-  <DocCard title="Authentication" icon="KEY" description="每個 MCP request 都透過 X-MCP-Server-Key header 傳送 issued MCP key。" />
-  <DocCard title="DML readiness" icon="FORM" description="Mutation tools 額外要求實際部署的 MCP client 版本支援 form Elicitation。" />
+  <DocCard title="端點" icon="HTTP" description="使用外部可存取的 MCP 公開 URL，通常以 /mcp 結尾。" />
+  <DocCard title="身分驗證" icon="KEY" description="透過 X-MCP-Server-Key 要求標頭傳送已發行的 MCP 金鑰。" />
+  <DocCard title="DML 使用條件" icon="FORM" description="使用資料修改工具時，實際部署的 MCP 用戶端版本還必須支援 form Elicitation。" />
 </CardGrid>
 
-## 連接 client
+## 連接用戶端
 
 <Steps>
-  <Step title="Issue 一把 MCP key">
-在 Admin Panel 建立綁定目標 database 的 key。若 client 不需要 unrestricted access，直接限制 allowed tools 與 tables。
+  <Step title="發行 MCP 金鑰">
+在管理介面建立一把綁定目標資料庫的金鑰。如果用戶端不需要完整權限，請限制它可使用的工具與資料表。
   </Step>
-  <Step title="使用 public MCP endpoint">
-Endpoint 必須是 client 能實際連線的 URL。不要假設 Admin UI origin 與 MCP origin 一定相同。
+  <Step title="使用公開 MCP 端點">
+這個位址必須讓用戶端實際存取。不要假設管理介面與 MCP 端點一定使用相同的主機或連接埠。
   </Step>
-  <Step title="每個 request 都要驗證">
-使用下方 header 傳送 MCP key。Plaintext key 必須視為 secret；關閉 lifecycle dialog 後不會再次顯示同一個 secret。
+  <Step title="驗證每一個要求">
+使用下方 MCP 要求標頭傳送金鑰。請把明文金鑰視為敏感憑證；發行或更新對話框關閉後，同一個金鑰不會再次顯示。
   </Step>
-  <Step title="驗證實際安裝的 client">
-先確認 schema discovery 與 query execution。若要啟用 DML，production 前還必須另外測 form Elicitation behavior。
+  <Step title="驗證實際安裝的用戶端">
+先確認結構描述探索與查詢執行正常。如果準備啟用 DML，還應在正式使用前另外測試用戶端的 form Elicitation 行為。
   </Step>
 </Steps>
 
@@ -41,9 +41,9 @@ Endpoint 必須是 client 能實際連線的 URL。不要假設 Admin UI origin 
 X-MCP-Server-Key: <MCP key>
 ```
 
-## Public endpoint
+## 公開端點
 
-UI 顯示與產生 client configuration 時使用的 URL 來自 server setting：
+維運介面與自動產生的用戶端設定會使用下列伺服器設定中的 URL：
 
 ```json
 {
@@ -53,34 +53,34 @@ UI 顯示與產生 client configuration 時使用的 URL 來自 server setting�
 }
 ```
 
-等價 environment variable 是 `Mcp__PublicEndpoint`；repository 提供的 Compose 會把 `MCP_PUBLIC_ENDPOINT` 映射到它。
+對應的環境變數是 `Mcp__PublicEndpoint`。儲存庫提供的 Compose 設定會把 `MCP_PUBLIC_ENDPOINT` 對應到這個值。
 
-<Callout type="warning" title="不要從 Admin UI URL 推導 MCP connectivity">
-Admin UI 與 MCP endpoint 可以使用不同 host、port 或 reverse-proxy path。非 Development 環境要求 absolute HTTP/HTTPS public endpoint。請設定 MCP client 真正可到達的 URL。
+<Callout type="warning" title="不要從管理介面的 URL 推測 MCP 連線位址">
+管理介面與 MCP 端點可能使用不同的主機、連接埠或反向代理路徑。在非 Development 環境中，伺服器要求設定 HTTP 或 HTTPS 絕對 URL。請填入 MCP 用戶端真正可以存取的位址。
 </Callout>
 
-## Generated client configuration
+## 自動產生的用戶端設定
 
-在 MCP key issue、rotate 或 duplicate 後，Admin Panel 會立即提供 Claude Desktop、Cursor 與 generic Streamable HTTP client 的 direct HTTP configuration。
+發行、輪替或複製 MCP 金鑰後，管理介面可以立即為 Claude Desktop、Cursor 與一般 Streamable HTTP 用戶端產生直接連線設定。
 
-Plaintext key 是刻意短暫顯示的；關閉 lifecycle dialog 後，server 不會再顯示同一個 secret。
+明文金鑰只會短暫顯示。關閉金鑰生命週期對話框後，伺服器無法再次顯示同一個密鑰值。
 
-## DML compatibility 必須另外驗證
+## DML 相容性需要另外確認
 
-Client 能成功連線 `/mcp`，**不代表**它支援 DML approval。
+成功連接 `/mcp`，**不代表用戶端也支援 DML 核准**。
 
-`execute_dml_sql` 與 published DML Custom Tools 都需要 form Elicitation。允許 production DML 前，請用實際部署的 client version 測兩條路徑：
+`execute_dml_sql` 與已發布的 DML Custom Tools 需要 form Elicitation。正式環境允許 DML 前，請使用實際安裝的用戶端版本驗證以下兩種情況：
 
-1. Decline elicitation，確認 mutation 不會 commit。
-2. Accept elicitation，確認核准的 mutation 可以完成。
+1. 拒絕 Elicitation 要求，確認資料修改沒有被認可。
+2. 接受 Elicitation 要求，確認只有已核准的資料修改會完成。
 
-<Callout type="danger" title="沒有 Elicitation 就沒有 governed DML">
-若 client 沒有宣告並實作 form Elicitation，hs-sql-agent 會拒絕 DML。對 query-only client，應直接把 mutation tools 排除在 MCP key allowed-tool list 外，而不是讓 key 保持 unrestricted。
+<Callout type="danger" title="不支援 Elicitation，就不能使用 Safe DML">
+如果用戶端沒有宣告並實作 form Elicitation，hs-sql-agent 會拒絕 DML 操作。對於唯讀用戶端，應直接從 MCP 金鑰的允許工具清單中移除資料修改工具，而不是依賴用戶端自行避免呼叫 DML。
 </Callout>
 
-## 下一步
+## 接下來閱讀
 
 <CardGrid columns={2}>
-  <DocCard title="MCP Tools Reference" icon="REF" href="/zh-hant/docs/mcp/tools-reference" description="查看正式 built-in discovery、query 與 DML tool contracts。" />
-  <DocCard title="Safe DML" icon="DML" href="/zh-hant/docs/sql-compiler/safe-dml" description="理解 preview、approval binding、row-set revalidation 與 commit。" />
+  <DocCard title="MCP 工具參考" icon="REF" href="/zh-hant/docs/mcp/tools-reference" description="查看內建探索、查詢與 DML 工具的正式介面約定。" />
+  <DocCard title="Safe DML" icon="DML" href="/zh-hant/docs/sql-compiler/safe-dml" description="了解影響預覽、核准內容綁定、目標資料列重新驗證與交易認可流程。" />
 </CardGrid>

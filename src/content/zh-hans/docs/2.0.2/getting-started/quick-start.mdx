@@ -1,0 +1,111 @@
+---
+title: 快速开始
+description: 选择部署方式，启动 hs-sql-agent，并连接第一个 MCP 客户端。
+sidebar:
+  group: 开始使用
+  order: 20
+---
+
+import Callout from "@/components/docs/mdx/Callout.astro";
+import CardGrid from "@/components/docs/mdx/CardGrid.astro";
+import DocCard from "@/components/docs/mdx/DocCard.astro";
+import Steps from "@/components/docs/mdx/Steps.astro";
+import Step from "@/components/docs/mdx/Step.astro";
+
+<CardGrid columns={3}>
+  <DocCard
+    title="Docker Compose"
+    eyebrow="推荐"
+    badge="约 5 分钟"
+    icon="▣"
+    description="使用仓库内置的 Compose 配置运行完整的自托管服务。"
+    href="#docker-compose"
+  />
+  <DocCard
+    title="ASP.NET Core / NuGet"
+    badge="约 10 分钟"
+    icon=".NET"
+    description="把 MCP 运行时和可选的管理界面嵌入现有 ASP.NET Core 应用。"
+    href="/en/docs/integration/aspnet-core"
+  />
+  <DocCard
+    title="连接 MCP 客户端"
+    badge="安装完成后"
+    icon="MCP"
+    description="签发权限受限的密钥，并连接 Claude Desktop、Cursor 或其他 Streamable HTTP 客户端。"
+    href="/zh-hans/docs/mcp/client-onboarding"
+  />
+</CardGrid>
+
+<Callout type="info" title="如果不需要嵌入现有宿主应用，建议从 Docker 开始">
+Docker Compose 是最短路径，因为仓库已经包含服务连接配置和环境变量映射。NuGet 方式更适合把 hs-sql-agent 嵌入现有 ASP.NET Core 宿主的团队。
+</Callout>
+
+## Docker Compose
+
+<Steps>
+  <Step title="创建环境配置文件" description="复制仓库中的示例文件，让配置保持明确并便于审查。">
+
+```bash
+cp .env.example .env
+```
+
+  </Step>
+  <Step title="替换签名密钥" description="为 HMAC_KEY 和 JWT_KEY 分别设置不同且至少 32 字节的唯一密钥。">
+`.env.example` 中的值只是占位示例，请勿原样部署到生产环境。
+  </Step>
+  <Step title="启动服务" description="启动默认的单实例服务栈。">
+
+```bash
+docker compose up -d
+```
+
+  </Step>
+  <Step title="打开管理界面" description="应用默认监听 8080 端口。">
+本地环境可以打开 `http://localhost:8080`，然后完成首个管理员设置。
+  </Step>
+</Steps>
+
+## 签发第一把 MCP 密钥
+
+<Steps>
+  <Step title="打开 Runtime → MCP Keys" description="MCP 密钥是客户端身份识别和授权检查的边界。" />
+  <Step title="选择数据库和工具权限范围" description="把密钥绑定到一个 Database Management 条目，并且只开放客户端实际需要的工具。" />
+  <Step title="复制明文密钥" description="密钥签发后会在生命周期对话框中显示一次，请复制并保存到客户端的安全凭据存储中。" />
+  <Step title="使用自动生成的客户端配置" description="也可以通过 X-MCP-Server-Key 请求头把密钥发送到 Streamable HTTP 端点。" />
+</Steps>
+
+默认 MCP 端点是 `/mcp`。如果客户端不在本机，请把 `MCP_PUBLIC_ENDPOINT` 设置为外部可以访问的 HTTP 或 HTTPS 绝对 URL，并包含 `/mcp` 路径。
+
+<Callout type="warning" title="DML 需要客户端支持 MCP Elicitation">
+不要因为客户端能够调用 MCP 工具就直接启用 `execute_dml_sql`。为了让用户能够查看并批准实际修改内容，客户端还必须支持 MCP form Elicitation。
+</Callout>
+
+## 接下来阅读
+
+<CardGrid columns={2}>
+  <DocCard
+    title="连接 MCP 客户端"
+    icon="01"
+    description="了解请求头、Streamable HTTP 配置、公开端点规则以及 DML 所需的 Elicitation 支持。"
+    href="/zh-hans/docs/mcp/client-onboarding"
+  />
+  <DocCard
+    title="SQL 执行模型"
+    icon="02"
+    description="在向 AI 智能体开放 SQL 前，理解解析 → 验证 → 功能支持检查 → 编译这一执行边界。"
+    href="/zh-hans/docs/sql-compiler/execution-model"
+  />
+  <DocCard
+    title="Database Management"
+    icon="03"
+    description="创建数据库连接、测试连通性，并了解 MCP 密钥如何绑定数据库。"
+    href="/en/docs/administration/database-management"
+  />
+  <DocCard
+    title="生产环境配置"
+    icon="04"
+    description="检查身份验证、速率限制、保留周期、分布式状态、遥测和密钥设置。"
+    href="/en/docs/operations/configuration"
+  />
+</CardGrid>

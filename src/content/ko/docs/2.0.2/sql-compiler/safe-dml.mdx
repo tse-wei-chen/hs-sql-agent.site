@@ -1,0 +1,75 @@
+---
+title: Safe DML
+description: 변경 내용을 미리 확인하고 승인 내용을 고정한 뒤 대상 행을 다시 검증해, 사람이 승인한 데이터 변경만 커밋하는 방식을 설명합니다.
+sidebar:
+  group: SQL Compiler
+  order: 50
+---
+
+import Callout from "@/components/docs/mdx/Callout.astro";
+import CardGrid from "@/components/docs/mdx/CardGrid.astro";
+import DocCard from "@/components/docs/mdx/DocCard.astro";
+import Flow from "@/components/docs/mdx/Flow.astro";
+import Steps from "@/components/docs/mdx/Steps.astro";
+import Step from "@/components/docs/mdx/Step.astro";
+
+DML은 일반 쿼리보다 더 엄격한 절차를 거칩니다. 사용자가 승인한 변경 내용과 커밋 직전에 실제로 실행되는 내용이 **동일해야 하기 때문입니다**.
+
+<Flow items={["컴파일", "미리보기", "승인", "재검증", "커밋"]} />
+
+<CardGrid columns={3}>
+  <DocCard title="먼저 영향 범위 확인" icon="01" description="UPDATE/DELETE는 변경을 적용하지 않고 미리보기용 트랜잭션에서 현재 대상이 되는 행을 먼저 읽습니다." />
+  <DocCard title="승인 내용 고정" icon="02" description="일회성 승인 챌린지에 검증된 실행 계획, 정책 버전, 대상 행 수, 행 집합의 핑거프린트를 연결합니다." />
+  <DocCard title="커밋 직전 재확인" icon="03" description="커밋 트랜잭션에서 대상 행을 다시 조회하고 승인 당시 상태와 다르면 작업을 취소합니다." />
+</CardGrid>
+
+<Callout type="danger" title="승인은 나중에 다른 데이터 변경을 실행할 수 있는 권한이 아닙니다">
+승인 챌린지는 검증된 작업 내용과 그때 확인한 영향 범위에 연결됩니다. 커밋 전에 실행 계획, 정책, 챌린지, 대상 행 수, 행 집합 핑거프린트 중 하나라도 바뀌면 hs-sql-agent는 변경을 적용하지 않고 작업을 취소합니다.
+</Callout>
+
+## UPDATE와 DELETE
+
+<Steps>
+  <Step title="데이터 변경 컴파일">
+승인을 요청하기 전에 SQL을 파싱하고 검증하며 권한을 확인한 뒤 실행 가능한 형태로 컴파일합니다.
+  </Step>
+  <Step title="대상 행 미리보기">
+미리보기용 트랜잭션을 열고 변경을 실행하지 않은 상태에서 현재 조건에 맞는 행을 읽습니다.
+  </Step>
+  <Step title="일회성 승인 정보 생성">
+승인 챌린지에 검증된 실행 계획, 정책 버전, 대상 행 수, 행 집합 핑거프린트를 연결합니다.
+  </Step>
+  <Step title="MCP Elicitation으로 사용자 승인 요청">
+`elicitation/create`를 보내 MCP 클라이언트에서 폼을 통한 명시적 승인을 요구합니다.
+  </Step>
+  <Step title="승인된 챌린지를 한 번만 사용">
+승인 후 일회성 챌린지를 검증하고 소비해 일반 권한 토큰처럼 재사용할 수 없게 합니다.
+  </Step>
+  <Step title="커밋 트랜잭션에서 다시 조회">
+대상 행을 다시 읽고 현재 핑거프린트와 행 수를 승인 당시 미리보기 결과와 비교합니다.
+  </Step>
+  <Step title="모든 항목이 같을 때만 커밋">
+실행 계획, 정책, 챌린지, 행 수, 대상 행 집합이 바뀌지 않았을 때만 승인된 데이터 변경을 실행합니다.
+  </Step>
+</Steps>
+
+## INSERT VALUES
+
+`INSERT ... VALUES`에는 변경 전에 이미 존재하는 대상 행 집합이 없습니다. 따라서 승인 시 행 집합 미리보기 대신 변경할 수 없는 삽입 페이로드와 검증된 실행 계획을 함께 고정합니다.
+
+<Callout type="info" title="변경 방식이 달라도 안전 원칙은 같습니다">
+기존 행을 수정하는 경우와 새 행을 삽입하는 경우에는 승인 시 고정하는 정보가 다릅니다. 하지만 사용자가 확인하고 승인한 정확한 내용만 실행한다는 불변 조건은 같습니다.
+</Callout>
+
+## Elicitation은 필수입니다
+
+`execute_dml_sql`과 공개된 DML Custom Tools를 사용하려면 MCP 클라이언트가 **form Elicitation**을 지원해야 합니다. 승인 상호작용을 수행할 수 없는 클라이언트는 이러한 데이터 변경 경로를 사용할 수 없습니다.
+
+이는 단순한 UI 확인 대화상자와 다릅니다. 승인 챌린지는 서버 측 데이터 변경 프로토콜의 일부이며 실제 실행 직전에도 다시 검증됩니다.
+
+## 관련 문서
+
+<CardGrid columns={2}>
+  <DocCard title="MCP 클라이언트 연결" icon="MCP" href="/ko/docs/mcp/client-onboarding" description="DML을 활성화하기 전에 실제 사용하는 MCP 클라이언트 버전이 form Elicitation을 지원하는지 확인합니다." />
+  <DocCard title="SQL 실행 모델" icon="AST" href="/ko/docs/sql-compiler/execution-model" description="파싱, 검증, 지원 기능 확인, 접근 정책, 컴파일, 실행까지의 경계를 이해합니다." />
+</CardGrid>

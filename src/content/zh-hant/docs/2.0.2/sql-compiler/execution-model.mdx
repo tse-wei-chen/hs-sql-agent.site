@@ -1,34 +1,41 @@
 ---
 title: SQL 執行模型
-description: hs-sql-agent 如何把不可信 SQL 轉成通過驗證的 provider-specific statement，再進入執行階段。
+description: 說明 hs-sql-agent 如何把不可信 SQL 轉換成經過驗證、符合目標資料庫的語句後再執行。
 sidebar:
   group: SQL Compiler
   order: 40
 ---
 
-hs-sql-agent 不會把 AI 產生的 SQL 視為可信指令。執行邊界建立在 parsing、validation、capability check、access policy 與 provider-specific compilation 上。
+hs-sql-agent 不會把 AI 產生的 SQL 直接當成可信任指令執行。真正執行前，SQL 會先經過解析、驗證、功能支援檢查、存取政策檢查，以及針對目標資料庫的編譯。
 
-## Query 路徑
+## 查詢執行流程
 
-大致流程如下：
+查詢大致會依照以下順序處理：
 
-1. 驗證 MCP key，套用 database、table、tool 與 execution scope。
-2. 把支援的 SQL parse 成結構化 definition / AST。
-3. 驗證 statement 與 source semantics。
-4. 確認 target/provider 有能力保留需要的語意。
-5. 為設定的 database provider compile / render 最終 SQL。
-6. 在 runtime limits 內執行。
+1. 驗證 MCP 金鑰，並套用該金鑰限定的資料庫、資料表、工具與執行權限範圍。
+2. 把支援的 SQL 解析成結構化定義 / AST。
+3. 驗證語句與輸入 SQL 的語意是否位於支援範圍內。
+4. 檢查目標資料庫能否安全表達維持這些語意所需的功能。
+5. 為設定的資料庫編譯並產生對應 SQL。
+6. 在設定的執行限制內執行 SQL。
 
-SQL compiler 內有明確的 source validation 與 target capability 概念。無法表示的語法或無法證明的 capability 會直接被拒絕，而不是用看似相近的 construct 偷偷替代。
+SQL 編譯器明確區分「驗證輸入 SQL 語意」與「確認目標資料庫支援能力」兩個階段。不支援的語法，或無法確認能安全維持相同語意的功能，會直接拒絕，不會偷偷替換成表面相似的結構。
 
-## 為什麼要 fail closed？
+## 為什麼採用「失敗即拒絕」（fail-closed）？
 
-跨資料庫 SQL 裡有大量「看起來相同、語意卻不同」的細節，例如 null behavior、type rules、operator semantics、pagination、identifier、function 與 DML 行為。
+跨資料庫 SQL 有很多「看起來相同、實際含義不同」的情況，例如 NULL 行為、型別規則、運算子語意、分頁、識別項、函式與 DML 行為。
 
-對 AI-facing execution surface 來說，best-effort rewrite 可能讓 statement 保持 syntactically valid，卻改變真正含義。因此 hs-sql-agent 寧可明確拒絕，也不做隱性 semantic downgrade。
+對 AI 開放的 SQL 執行入口若採用「盡力改寫」，可能讓語法仍然正確，卻在背景改變原意。因此 hs-sql-agent 寧可明確拒絕，也不會默默降低語意保證。
 
-## Provider-specific output
+## 依資料庫產生 SQL
 
-MCP surface 是共用的，但最後輸出的 SQL 仍依 provider 區分。目前支援 PostgreSQL、MySQL、SQL Server、Oracle、SQLite 與 Firebird。
+MCP 的公開介面是統一的，但最後產生的 SQL 會依資料庫而異。目前支援的資料庫包括：
 
-「支援 provider」不代表該資料庫所有語法都可直接通過；compiler capability 會在語意能被表示與驗證後逐步擴充。
+- PostgreSQL
+- MySQL
+- SQL Server
+- Oracle
+- SQLite
+- Firebird
+
+支援範圍是刻意限定的。某個資料庫出現在支援清單中，不代表該產品提供的所有 SQL 語法都可以使用。只有當某項功能的語意能被內部表示並驗證時，編譯器才會把它納入支援範圍。

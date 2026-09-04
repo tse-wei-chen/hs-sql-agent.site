@@ -1,23 +1,32 @@
 ---
-title: 資料庫 Dialect
-description: 單一 MCP surface 背後的六種資料庫 provider，以及 bounded dialect support 的真正含義。
+title: 資料庫方言
+description: 介紹統一 MCP 介面背後的六種資料庫支援，以及 SQL 方言「有限支援」的具體含義。
 sidebar:
   group: SQL Compiler
   order: 60
 ---
 
-hs-sql-agent 目前支援六種 relational database provider：PostgreSQL、MySQL、SQL Server、Oracle、SQLite 與 Firebird。
+hs-sql-agent 目前支援以下六種關聯式資料庫：
 
-## 一個 MCP surface，不代表只有一種 SQL dialect
+| 資料庫 | 角色 |
+| --- | --- |
+| PostgreSQL | 輸入與輸出 SQL 方言 |
+| MySQL | 輸入與輸出 SQL 方言 |
+| SQL Server | 輸入與輸出 SQL 方言 |
+| Oracle | 輸入與輸出 SQL 方言 |
+| SQLite | 輸入與輸出 SQL 方言 |
+| Firebird | 輸入與輸出 SQL 方言 |
 
-MCP client 面對的是共用 server contract，但 SQL semantics 仍然是 provider-specific。Compiler 必須替設定的 database provider 保留「已支援 statement」的原始語意。
+## MCP 介面統一，不代表 SQL 方言統一
 
-這會影響 operator、type、cast、function、identifier、pagination、null semantics 與 DML behavior 等能力。
+MCP 用戶端使用的是統一伺服器介面，但 SQL 的實際語意仍取決於資料庫。編譯器負責確保支援的語句在目標資料庫上維持原本含義。
 
-## Bounded support
+這類差異會影響運算子、資料型別、CAST、函式、識別項、分頁、NULL 語意與 DML 行為。
 
-Provider 出現在支援清單中，不代表該 database 的所有 vendor syntax 都會被接受。
+## 支援範圍是明確限定的
 
-如果 source construct 尚未被表示，或 target equivalent capability 無法被證明，compiler 會 fail closed。Capability coverage 可以持續擴充，但不需要因此放棄這條規則。
+資料庫出現在支援清單中，不代表該資料庫提供的所有 SQL 語法都能使用。
 
-Production 使用時，應把 compiler acceptance 視為真正 contract，而不是假設 vendor CLI 能跑的任意 SQL 都會直接被 hs-sql-agent 接受。
+如果輸入語法無法被安全地內部表示，或無法確認目標資料庫能維持等價語意，編譯器就會依「失敗即拒絕」原則拒絕要求。支援範圍可以持續擴大，但不會放棄這項規則。
+
+在正式環境中，應把 hs-sql-agent 編譯器實際接受的 SQL 視為正式契約，不要假設資料庫命令列工具可以執行的任意 SQL 都會被 hs-sql-agent 接受。

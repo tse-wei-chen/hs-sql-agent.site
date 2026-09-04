@@ -1,6 +1,6 @@
 ---
-title: 專案介紹
-description: 認識 hs-sql-agent 位於 MCP Client 與資料庫之間的角色，以及整體安全邊界。
+title: 簡介
+description: 說明 hs-sql-agent 的用途、它在 MCP 用戶端與資料庫之間負責的工作，以及安全邊界如何運作。
 sidebar:
   group: 開始使用
   order: 10
@@ -11,38 +11,38 @@ import CardGrid from "@/components/docs/mdx/CardGrid.astro";
 import DocCard from "@/components/docs/mdx/DocCard.astro";
 import Flow from "@/components/docs/mdx/Flow.astro";
 
-hs-sql-agent 是一個提供**受治理 SQL 存取**的 HTTP MCP Server。它可以連接 PostgreSQL、MySQL、SQL Server、Oracle、SQLite 與 Firebird，同時把 authentication、access policy、SQL validation 與 mutation approval 留在 server side。
+hs-sql-agent 是一套提供**受控 SQL 存取**的 HTTP MCP 伺服器。它讓 MCP 用戶端連接 PostgreSQL、MySQL、SQL Server、Oracle、SQLite 與 Firebird，同時把身分驗證、存取政策、SQL 驗證與資料修改核准留在伺服器端執行。
 
-<Flow items={["MCP client", "MCP key scope", "SQL compiler", "Policy & capability checks", "Database"]} />
+<Flow items={["MCP 用戶端", "MCP 金鑰權限範圍", "SQL 編譯器", "政策與功能支援檢查", "資料庫"]} />
 
 <Callout type="danger" title="不要讓 LLM 成為資料庫的安全邊界">
-AI 產生的 SQL 是不可信輸入。Model 可以提出 SQL，但真正決定 request 是否被授權、語意是否受支援、是否能安全執行的是 server。
+AI 產生的 SQL 應視為不可信輸入。模型可以提出 SQL，但這項要求是否有權限、語意是否受支援、能否安全執行，都由伺服器判斷。
 </Callout>
 
-## Server 負責哪些邊界？
+## 伺服器負責的工作
 
 <CardGrid columns={2}>
-  <DocCard title="Identity & scope" icon="KEY" description="把 client 綁定到 managed database，並限制 allowed tools、tables 與 runtime limits。" />
-  <DocCard title="SQL semantics" icon="AST" description="將支援的 SQL parse 成 structured definitions，驗證 source semantics、證明 target capability，再 compile provider-specific SQL。" />
-  <DocCard title="Mutation approval" icon="DML" description="把 write operation 當成獨立 risk class，經過 preview、one-time approval、revalidation 與 exact commit。" />
-  <DocCard title="Operations & audit" icon="OPS" description="Rate/concurrency control、audit records、health、telemetry 與 outbound operational delivery 都留在 model 外。" />
+  <DocCard title="身分與權限範圍" icon="KEY" description="把用戶端綁定到一個受管資料庫，並限制可使用的工具、資料表與執行上限。" />
+  <DocCard title="SQL 語意驗證" icon="AST" description="把支援的 SQL 解析成結構化定義，驗證輸入語意，再確認目標資料庫能維持相同含義，最後產生對應資料庫的 SQL。" />
+  <DocCard title="資料修改核准" icon="DML" description="把寫入操作視為獨立風險類別，先預覽影響範圍、取得一次性核准並重新驗證，只認可使用者實際核准的修改。" />
+  <DocCard title="維運與稽核" icon="OPS" description="請求速率、同時執行數、稽核紀錄、健康檢查、遙測與維運通知都在模型之外管理。" />
 </CardGrid>
 
-## Compiler boundary
+## 編譯器建立的執行邊界
 
-Generated SQL 會先被 parse 與 validate。hs-sql-agent 會確認維持 statement 語意所需的 capabilities，只有 request 通過 source、target 與 policy boundaries 後，才會產生 provider-specific SQL。
+AI 產生的 SQL 會在執行前先解析與驗證。hs-sql-agent 會檢查維持原始語意所需的能力，只有輸入語意、目標資料庫支援範圍與存取政策全部符合時，才產生對應資料庫的 SQL。
 
-不支援的 syntax 或 semantics 會被拒絕，而不是偷偷改寫成「看起來差不多」的 SQL。
+不支援的語法或語意會被明確拒絕，不會在背景偷偷改寫成看似相近、實際含義可能不同的 SQL。
 
-<Callout type="info" title="支援六種 provider 不代表 arbitrary vendor SQL passthrough">
-Provider support 是 capability-driven。某個 construct 必須能被表示、驗證，並依 source/target contract 安全 render。請以 SQL Support Reference 為準，不要假設所有 vendor extension 都會被接受。
+<Callout type="info" title="支援六種資料庫，不代表任意廠商 SQL 都能直接通過">
+支援範圍是依編譯器能安全處理的功能逐項決定。語法結構必須能被內部表示、驗證，並能為目標資料庫安全產生等價 SQL，才算真正支援。不要假設資料庫本身接受的所有擴充語法都能使用，請以 SQL 支援範圍文件為準。
 </Callout>
 
-## 下一步
+## 接下來閱讀
 
 <CardGrid columns={2}>
-  <DocCard title="快速開始" icon="01" href="/zh-hant/docs/getting-started/quick-start" description="啟動預設 Compose 環境並簽發第一把 MCP key。" />
-  <DocCard title="MCP Client Onboarding" icon="02" href="/zh-hant/docs/mcp/client-onboarding" description="正確連接遠端 Streamable HTTP MCP client。" />
-  <DocCard title="SQL 執行模型" icon="03" href="/zh-hant/docs/sql-compiler/execution-model" description="理解 parse、validation、capability proof、compile 與 execution boundaries。" />
-  <DocCard title="Safe DML" icon="04" href="/zh-hant/docs/sql-compiler/safe-dml" description="理解人工核准 mutation protocol。" />
+  <DocCard title="快速開始" icon="01" href="/zh-hant/docs/getting-started/quick-start" description="使用 Docker Compose 啟動服務並發行第一把 MCP 金鑰。" />
+  <DocCard title="連接 MCP 用戶端" icon="02" href="/zh-hant/docs/mcp/client-onboarding" description="正確連接使用 Streamable HTTP 的遠端 MCP 用戶端。" />
+  <DocCard title="SQL 執行模型" icon="03" href="/zh-hant/docs/sql-compiler/execution-model" description="理解解析、驗證、功能支援檢查、編譯與執行之間的邊界。" />
+  <DocCard title="Safe DML" icon="04" href="/zh-hant/docs/sql-compiler/safe-dml" description="了解必須經過人工核准的資料修改協定。" />
 </CardGrid>

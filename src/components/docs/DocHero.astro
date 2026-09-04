@@ -1,6 +1,8 @@
 ---
 import DocVisual from "./DocVisual.astro";
+import LocalizedDocVisual from "./LocalizedDocVisual.astro";
 import { getDocSectionLabel, getDocVisualKind } from "@/data/docsVisuals";
+import { useDocsUi } from "@/i18n/docs";
 
 type Props = {
   title: string;
@@ -12,13 +14,13 @@ type Props = {
 const { title, description, locale, currentSlug = "" } = Astro.props;
 const visualKind = getDocVisualKind(currentSlug);
 const sectionLabel = getDocSectionLabel(currentSlug, locale);
-const isZh = locale === "zh-hant";
+const docsUi = useDocsUi(locale);
 ---
 
-<header class:list={["doc-hero", { "doc-hero-has-visual": visualKind }]}> 
+<header class:list={["doc-hero", { "doc-hero-has-visual": visualKind }]}>
   <div class="doc-hero-copy">
     <div class="doc-kicker-row">
-      <span>{isZh ? "文件" : "Docs"}</span>
+      <span>{docsUi.kicker}</span>
       <span aria-hidden="true">/</span>
       <span>{sectionLabel}</span>
     </div>
@@ -26,5 +28,12 @@ const isZh = locale === "zh-hant";
     {description && <p>{description}</p>}
   </div>
 
-  {visualKind && <DocVisual kind={visualKind} {locale} />}
+  {
+    visualKind &&
+      (locale === "en" ? (
+        <DocVisual kind={visualKind} {locale} />
+      ) : (
+        <LocalizedDocVisual kind={visualKind} {locale} />
+      ))
+  }
 </header>
