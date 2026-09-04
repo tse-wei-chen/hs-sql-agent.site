@@ -6,9 +6,36 @@ sidebar:
   order: 30
 ---
 
-hs-sql-agent exposes a Streamable HTTP MCP endpoint at `/mcp`.
+import Callout from "@/components/docs/mdx/Callout.astro";
+import CardGrid from "@/components/docs/mdx/CardGrid.astro";
+import DocCard from "@/components/docs/mdx/DocCard.astro";
+import Steps from "@/components/docs/mdx/Steps.astro";
+import Step from "@/components/docs/mdx/Step.astro";
 
-Authenticate requests with:
+hs-sql-agent exposes a **Streamable HTTP** MCP endpoint at `/mcp`.
+
+<CardGrid columns={3}>
+  <DocCard title="Endpoint" icon="HTTP" description="Use the externally reachable MCP public endpoint, normally ending in /mcp." />
+  <DocCard title="Authentication" icon="KEY" description="Send the issued MCP key in the X-MCP-Server-Key request header." />
+  <DocCard title="DML readiness" icon="FORM" description="Mutation tools additionally require form Elicitation support from the exact MCP client version you deploy." />
+</CardGrid>
+
+## Connect a client
+
+<Steps>
+  <Step title="Issue an MCP key">
+Use the Admin Panel to create a key bound to the intended database. Restrict its allowed tools and tables when the client does not need unrestricted access.
+  </Step>
+  <Step title="Use the public MCP endpoint">
+The endpoint must be reachable by the client. Do not assume the Admin UI origin and MCP origin are the same.
+  </Step>
+  <Step title="Authenticate every request">
+Send the key with the MCP request header shown below. Treat the plaintext key as a secret; the lifecycle dialog will not display the same secret again after it is closed.
+  </Step>
+  <Step title="Verify the installed client">
+Confirm schema discovery and query execution first. If DML will be enabled, test the client’s form Elicitation behavior separately before production use.
+  </Step>
+</Steps>
 
 ```http
 X-MCP-Server-Key: <MCP key>
@@ -28,7 +55,9 @@ The URL shown to operators and generated client configurations comes from the se
 
 The equivalent environment variable is `Mcp__PublicEndpoint`; the provided Compose configuration maps `MCP_PUBLIC_ENDPOINT` to it.
 
-Do not derive the MCP endpoint from the Admin UI origin. The UI and MCP endpoint may be exposed through different hosts, ports, or reverse-proxy paths. In non-Development environments the server requires an absolute HTTP or HTTPS public endpoint.
+<Callout type="warning" title="Do not derive MCP connectivity from the Admin UI URL">
+The Admin UI and MCP endpoint may use different hosts, ports, or reverse-proxy paths. In non-Development environments the server requires an absolute HTTP or HTTPS public endpoint. Configure the URL the MCP client can actually reach.
+</Callout>
 
 ## Generated client configuration
 
@@ -45,6 +74,13 @@ A client successfully connecting to `/mcp` does **not** prove that it supports D
 1. Decline an elicitation request and confirm the mutation is not committed.
 2. Accept an elicitation request and confirm the approved mutation completes.
 
-If a client does not declare and implement form Elicitation, hs-sql-agent refuses the DML operation.
+<Callout type="danger" title="No Elicitation means no governed DML">
+If a client does not declare and implement form Elicitation, hs-sql-agent refuses the DML operation. For query-only clients, prefer an MCP key whose allowed-tool list excludes mutation tools instead of leaving the key unrestricted.
+</Callout>
 
-For query-only clients, prefer an MCP key whose allowed-tool list excludes mutation tools instead of leaving the key unrestricted.
+## Next steps
+
+<CardGrid columns={2}>
+  <DocCard title="MCP Tools Reference" icon="REF" href="/en/docs/mcp/tools-reference" description="Review the official built-in discovery, query, and DML tool contracts." />
+  <DocCard title="Safe DML" icon="DML" href="/en/docs/sql-compiler/safe-dml" description="Understand preview, approval binding, row-set revalidation, and commit." />
+</CardGrid>

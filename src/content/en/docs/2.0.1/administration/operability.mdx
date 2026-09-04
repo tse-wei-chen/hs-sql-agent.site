@@ -1,0 +1,91 @@
+---
+title: Operability
+description: Inspect runtime execution metrics, database health, MCP-key usage, and outbound deliveries in hs-sql-agent 2.0.1.
+sidebar:
+  group: Administration
+  order: 84
+---
+
+import Callout from "@/components/docs/mdx/Callout.astro";
+import CardGrid from "@/components/docs/mdx/CardGrid.astro";
+import DocCard from "@/components/docs/mdx/DocCard.astro";
+
+<CardGrid columns={2}>
+  <DocCard title="Execution metrics" icon="P95" description="Query/DML counts, success rate, sampled latency, slow-query counts, and rate-limit rejections." />
+  <DocCard title="Database health" icon="DB" description="Last probe status, latency, failure streak, outage start, and latest provider error." />
+  <DocCard title="MCP-key usage" icon="KEY" description="Requests, successes/failures, last use, and per-key rate-limit rejection rate." />
+  <DocCard title="Outbound delivery" icon="OUT" description="Inspect webhook/SIEM delivery state and retry failed or pending records when authorized." />
+</CardGrid>
+
+Operability is the Admin surface for understanding **how the governed runtime is behaving now**. It complements Audit, which focuses on individual security/execution events, and OpenTelemetry/Prometheus, which export telemetry to external systems.
+
+## Execution metrics
+
+The metrics endpoint can return:
+
+- query and DML counts;
+- success and failure counts plus success rate;
+- p50 and p95 latency;
+- latency sample size and whether latency is sampled;
+- slow-query count;
+- IP rate-limit count;
+- MCP-key rate-limit count.
+
+Filters can narrow the view by time range, database, access key, and tool name.
+
+<Callout type="info" title="Read sampled latency as sampled latency">
+The response explicitly reports sample size and whether the latency values are sampled. Do not interpret p50/p95 as an exhaustive timing distribution when the runtime says sampling was used.
+</Callout>
+
+## Database health
+
+Database health items expose operational state for each managed connection:
+
+| Field | Meaning |
+| --- | --- |
+| `Status` | current health state |
+| `LastCheckedAt` | latest probe time |
+| `LastSuccessAt` | latest successful probe |
+| `LatencyMs` | probe latency when available |
+| `ConsecutiveFailures` | current failure streak |
+| `OutageStartedAt` | start of the current outage window when known |
+| `LastError` | most recent provider/probe error |
+
+Health probing is controlled by the `HEALTH_PROBE_*` settings. A disabled background probe means this surface should not be interpreted as a continuously refreshed external monitoring system.
+
+## MCP-key usage
+
+Key-usage results report the key identity/name, last use time, request count, successes/failures, rate-limit count, and rate-limit rejection rate.
+
+Use this data to identify stale credentials, unexpectedly noisy agents, and keys that routinely hit their configured limit. Then inspect [MCP Keys](/en/docs/administration/mcp-keys) before changing scope or limits.
+
+## Outbound deliveries
+
+The runtime records outbound delivery attempts such as configured alert/SIEM webhooks. Delivery items expose:
+
+- category and status;
+- attempt count;
+- creation/delivery/last-attempt time;
+- latest error.
+
+The list endpoint accepts a `limit` parameter with a default of `100`.
+
+## Retry a delivery
+
+| Operation | Permission |
+| --- | --- |
+| metrics / DB health / key usage / delivery list | `/runtime/operability` → `view` |
+| retry delivery | `/runtime/operability` → `edit` |
+
+Retry is an explicit operator mutation. It is useful after correcting a transient destination/network problem, but repeated retries are not a substitute for fixing an invalid endpoint, secret, or downstream service.
+
+<Callout type="warning" title="A delivery retry can send the event again">
+Before retrying, confirm the destination can tolerate duplicate or delayed delivery and that the original attempt did not succeed without the local state being updated as expected.
+</Callout>
+
+## Where to investigate next
+
+- [Audit](/en/docs/administration/audit) — exact actors/actions/results and SQL execution context.
+- [Security Policies](/en/docs/administration/security-policies) — runtime limits that may explain rejections.
+- [Observability](/en/docs/operations/observability) — Prometheus, OTLP, traces, and external telemetry integration.
+- [Distributed Deployment](/en/docs/operations/distributed-deployment) — shared coordination when several nodes must agree on limits/state.

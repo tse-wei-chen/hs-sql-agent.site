@@ -1,0 +1,91 @@
+---
+title: Operability
+description: 檢視 hs-sql-agent 2.0.1 runtime execution metrics、database health、MCP-key usage 與 outbound deliveries。
+sidebar:
+  group: 管理
+  order: 84
+---
+
+import Callout from "@/components/docs/mdx/Callout.astro";
+import CardGrid from "@/components/docs/mdx/CardGrid.astro";
+import DocCard from "@/components/docs/mdx/DocCard.astro";
+
+<CardGrid columns={2}>
+  <DocCard title="Execution metrics" icon="P95" description="Query/DML counts、success rate、sampled latency、slow-query 與 rate-limit rejections。" />
+  <DocCard title="Database health" icon="DB" description="最近 probe 狀態、latency、failure streak、outage start 與 provider error。" />
+  <DocCard title="MCP-key usage" icon="KEY" description="Requests、success/failure、last use 與 per-key rate-limit rejection rate。" />
+  <DocCard title="Outbound delivery" icon="OUT" description="檢視 webhook/SIEM delivery state，並在有權限時 retry failed/pending records。" />
+</CardGrid>
+
+Operability 是理解 **受治理 runtime 現在運作狀況** 的 Admin surface。Audit 著重 individual security/execution event；OpenTelemetry/Prometheus 則把 telemetry 輸出到外部系統。
+
+## Execution metrics
+
+Metrics endpoint 可以回報：
+
+- query / DML counts；
+- success / failure counts 與 success rate；
+- p50 / p95 latency；
+- latency sample size 與是否 sampled；
+- slow-query count；
+- IP rate-limit count；
+- MCP-key rate-limit count。
+
+Filter 可依 time range、database、access key、tool name 縮小範圍。
+
+<Callout type="info" title="Sampled latency 就要當 sampled latency 解讀">
+Response 明確回報 sample size 與 latency 是否 sampled。Runtime 說有 sampling 時，不要把 p50/p95 當成完整 timing distribution。
+</Callout>
+
+## Database health
+
+Database health item 會暴露每個 managed connection 的 operational state：
+
+| Field | 意義 |
+| --- | --- |
+| `Status` | 目前 health state |
+| `LastCheckedAt` | 最近 probe time |
+| `LastSuccessAt` | 最近成功 probe |
+| `LatencyMs` | 有資料時的 probe latency |
+| `ConsecutiveFailures` | 目前 failure streak |
+| `OutageStartedAt` | 已知時的 current outage start |
+| `LastError` | 最近 provider/probe error |
+
+Health probe 由 `HEALTH_PROBE_*` settings 控制。若 background probe 關閉，就不能把這頁當成持續更新的 external monitoring system。
+
+## MCP-key usage
+
+Key usage 會回報 key identity/name、last use、request count、success/failure、rate-limit count 與 rejection rate。
+
+它適合拿來找 stale credential、異常 noisy agent、或長期撞到 limit 的 key。要調整 scope/limit 前，先看 [MCP Keys](/zh-hant/docs/administration/mcp-keys)。
+
+## Outbound deliveries
+
+Runtime 會保存 configured alert/SIEM webhook 等 outbound delivery attempts。Delivery item 包含：
+
+- category / status；
+- attempt count；
+- created/delivered/last-attempt time；
+- latest error。
+
+List endpoint 的 `limit` 預設是 `100`。
+
+## Retry delivery
+
+| Operation | Permission |
+| --- | --- |
+| metrics / DB health / key usage / delivery list | `/runtime/operability` → `view` |
+| retry delivery | `/runtime/operability` → `edit` |
+
+Retry 是明確的 operator mutation。修好 temporary network/destination problem 後可以使用，但 repeated retry 不能取代修正 invalid endpoint、secret 或 downstream service。
+
+<Callout type="warning" title="Retry 可能再次送出同一事件">
+執行前先確認 destination 可以接受 duplicate/delayed delivery，並確認不是 remote 已成功但 local state 沒如預期更新的情況。
+</Callout>
+
+## 接下來去哪裡查
+
+- [Audit](/zh-hant/docs/administration/audit) — actor/action/result 與 SQL execution context。
+- [Security Policies](/zh-hant/docs/administration/security-policies) — 可能造成 rejection 的 runtime limits。
+- [Observability](/zh-hant/docs/operations/observability) — Prometheus、OTLP、traces 與 external telemetry。
+- [Distributed Deployment](/zh-hant/docs/operations/distributed-deployment) — 多節點 shared coordination。

@@ -1,0 +1,171 @@
+---
+title: Admin HTTP API Reference
+description: Source-backed hs-sql-agent 2.0.1 HTTP controller surface used by the bundled Admin UI.
+sidebar:
+  group: Reference
+  order: 142
+---
+
+import Callout from "@/components/docs/mdx/Callout.astro";
+import CardGrid from "@/components/docs/mdx/CardGrid.astro";
+import DocCard from "@/components/docs/mdx/DocCard.astro";
+
+<CardGrid columns={3}>
+  <DocCard title="Auth & identity" icon="AUTH" description="Sign-in, refresh, OIDC, MFA, password recovery, account, sessions, members, and roles." />
+  <DocCard title="Runtime control" icon="OPS" description="Databases, MCP keys, semantic metadata, custom tools, security policy, audit, and operability." />
+  <DocCard title="MCP is separate" icon="MCP" description="The /mcp Streamable HTTP transport is not part of this Admin REST reference." />
+</CardGrid>
+
+This page documents the **actual controller routes in the hs-sql-agent 2.0.1 source**. The bundled Admin UI uses this surface.
+
+<Callout type="warning" title="This is a 2.0.1 source contract, not a separately versioned REST standard">
+The 2.0.1 server does not expose these controllers under a `/v1` compatibility namespace. Integrations outside the bundled Admin UI should pin the hs-sql-agent version and re-check this reference when upgrading.
+</Callout>
+
+## Authentication and authorization
+
+Most Admin routes require an authenticated Admin identity. Protected runtime actions additionally use path/action permission checks such as `/runtime/db-management` → `view` or `/auth/role` → `edit`.
+
+Anonymous exceptions exist for flows that must begin before an Admin session exists, including first-run/sign-in/sign-up, selected OIDC endpoints, password recovery, and MFA challenge completion.
+
+See [Permissions](/en/docs/administration/permissions).
+
+## Auth — `/api/Auth`
+
+| Method | Route | Purpose |
+| --- | --- | --- |
+| GET | `/api/Auth/first-run` | inspect initial-setup state |
+| POST | `/api/Auth/sign-in` | authenticate Admin credentials |
+| POST | `/api/Auth/sign-up` | create the first Admin during allowed first-run flow |
+| POST | `/api/Auth/refresh-token` | exchange a refresh credential |
+| POST | `/api/Auth/sign-out` | end the current session |
+| GET | `/api/Auth/sessions` | list current user's sessions |
+| DELETE | `/api/Auth/sessions/{sessionId}` | revoke one session |
+| DELETE | `/api/Auth/sessions` | revoke other sessions |
+| GET | `/api/Auth/oidc/status` | inspect OIDC availability |
+| GET | `/api/Auth/oidc/login` | start OIDC login |
+| GET | `/api/Auth/oidc/callback` | external-login callback |
+| POST | `/api/Auth/oidc/exchange` | exchange the short-lived OIDC login code |
+| GET | `/api/Auth/mfa/status` | inspect MFA state |
+| POST | `/api/Auth/mfa/setup` | begin TOTP setup |
+| POST | `/api/Auth/mfa/confirm` | confirm TOTP setup |
+| POST | `/api/Auth/mfa/disable` | disable TOTP after validation |
+| POST | `/api/Auth/mfa/verify` | complete an MFA sign-in challenge |
+| POST | `/api/Auth/forgot-password` | request password reset |
+| POST | `/api/Auth/reset-password` | consume reset token and set new password |
+| GET | `/api/Auth/account` | read current account profile |
+| PUT | `/api/Auth/account` | update username/email |
+| PUT | `/api/Auth/account/password` | change current password |
+
+## Members — `/api/Member`
+
+| Method | Route | Permission |
+| --- | --- | --- |
+| POST | `/api/Member` | `/auth/user` → `create` |
+| GET | `/api/Member` | `/auth/user` → `view` |
+| PUT | `/api/Member/{id}/roles` | `/auth/user` → `edit` |
+| PUT | `/api/Member/{id}/status` | `/auth/user` → `edit` |
+| DELETE | `/api/Member/{id}/sessions` | `/auth/user` → `edit` |
+| PUT | `/api/Member/{id}/password-change-required` | `/auth/user` → `edit` |
+| DELETE | `/api/Member/{id}` | `/auth/user` → `delete` |
+
+See [Members & Roles](/en/docs/administration/members-roles) for self-lockout and lifecycle guardrails.
+
+## Roles — `/api/Role`
+
+| Method | Route | Permission |
+| --- | --- | --- |
+| GET | `/api/Role` | `/auth/role` → `view` |
+| POST | `/api/Role` | `/auth/role` → `create` |
+| PUT | `/api/Role/{id}` | `/auth/role` → `edit` |
+| DELETE | `/api/Role/{id}?force=false` | `/auth/role` → `delete` |
+| GET | `/api/Role/{id}/dependencies` | `/auth/role` → `view` |
+| GET | `/api/Role/permission-action-templates` | `/auth/role` → `view` |
+
+## Database Management — `/api/DbManagement`
+
+| Method | Route | Permission |
+| --- | --- | --- |
+| GET | `/api/DbManagement` | `/runtime/db-management` → `view` |
+| GET | `/api/DbManagement/{id}` | `/runtime/db-management` → `view` |
+| POST | `/api/DbManagement` | `/runtime/db-management` → `create` |
+| PUT | `/api/DbManagement/{id}` | `/runtime/db-management` → `edit` |
+| DELETE | `/api/DbManagement/{id}` | `/runtime/db-management` → `delete` |
+| GET | `/api/DbManagement/{id}/schemas` | `/runtime/db-management` → `view` |
+| GET | `/api/DbManagement/{id}/tables?schema=...` | `/runtime/db-management` → `view` |
+| GET | `/api/DbManagement/{id}/columns?schema=...&table=...` | `/runtime/db-management` → `view` |
+
+## Semantic metadata — `/api/DbSemantic`
+
+| Method | Route | Permission |
+| --- | --- | --- |
+| GET | `/api/DbSemantic/{dbManagementId}` | semantic `view` |
+| GET | `/api/DbSemantic/{dbManagementId}/model` | semantic `view` |
+| POST | `/api/DbSemantic` | semantic `edit` |
+| DELETE | `/api/DbSemantic/{id}` | semantic `edit` |
+| POST | `/api/DbSemantic/relationship` | semantic `edit` |
+| DELETE | `/api/DbSemantic/relationship/{id}` | semantic `edit` |
+| POST | `/api/DbSemantic/metric` | semantic `edit` |
+| DELETE | `/api/DbSemantic/metric/{id}` | semantic `edit` |
+
+Here `semantic` means `/runtime/db-management/semantic`.
+
+## MCP-key runtime — `/api/runtime`
+
+| Method | Route | Permission |
+| --- | --- | --- |
+| GET | `/api/runtime/mcp-keys` | MCP keys `view` |
+| GET | `/api/runtime/mcp-keys/available-tools?dbManagementId=...` | MCP keys `view` |
+| POST | `/api/runtime/mcp-keys` | MCP keys `create` |
+| PUT | `/api/runtime/mcp-keys/{id}` | MCP keys `edit` |
+| POST | `/api/runtime/mcp-keys/{id}/rotate` | MCP keys `edit` |
+| POST | `/api/runtime/mcp-keys/{id}/clone` | MCP keys `create` |
+| POST | `/api/runtime/mcp-keys/{id}/revoke` | MCP keys `revoke` |
+| POST | `/api/runtime/mcp-keys/test-db-connection` | one of the configured MCP-key/DB create-edit permissions |
+| GET | `/api/runtime/client-config` | MCP keys `view` |
+
+The client-config endpoint returns the configured MCP public endpoint used to generate client setup.
+
+## Custom Tools — `/api/CustomSqlTool`
+
+| Method | Route | Purpose |
+| --- | --- | --- |
+| GET | `/api/CustomSqlTool` | list tools |
+| GET | `/api/CustomSqlTool/{id}` | get one tool |
+| POST | `/api/CustomSqlTool` | create draft |
+| PUT | `/api/CustomSqlTool/{id}` | edit draft |
+| DELETE | `/api/CustomSqlTool/{id}` | delete tool |
+| GET | `/api/CustomSqlTool/{id}/revisions` | list revisions |
+| GET | `/api/CustomSqlTool/{id}/impact` | inspect impact/dependencies |
+| POST | `/api/CustomSqlTool/{id}/publish` | validate and publish |
+| POST | `/api/CustomSqlTool/{id}/disable` | disable published tool |
+| POST | `/api/CustomSqlTool/{id}/rollback/{revisionId}` | validate and roll back |
+| POST | `/api/CustomSqlTool/test-execute` | test execution; DML test path previews and does not commit |
+
+These routes use `/runtime/custom-tools` with `view`, `create`, `edit`, or `delete` as appropriate.
+
+## Audit and operability — `/api/runtime`
+
+| Area | Routes |
+| --- | --- |
+| Audit | `/audit`, `/audit/daily-summary`, `/audit/export`, `/audit/retention`, `/audit/retention/dry-run`, `/audit/retention/execute` |
+| Operability | `/operability/metrics`, `/operability/db-health`, `/operability/key-usage`, `/operability/deliveries`, `/operability/deliveries/{id}/retry` |
+
+See [Audit](/en/docs/administration/audit) and [Operability](/en/docs/administration/operability) for filters, response fields, and permissions.
+
+## Security Policy — `/api/runtime/security`
+
+| Method | Route | Permission |
+| --- | --- | --- |
+| GET | `/api/runtime/security` | `/runtime/security` → `view` |
+| PUT | `/api/runtime/security` | `/runtime/security` → `edit` |
+
+## Credential status
+
+`GET /api/Credential/status` exists in 2.0.1 and returns a simple Credential API running status. The controller itself has no `[Authorize]` attribute. Treat it as a narrow status endpoint, not as an authenticated credential-management API.
+
+## Errors and compatibility
+
+Controllers use ordinary HTTP status codes such as 400 for validation, 401/403 for authentication/authorization, 404 for missing resources, 409 for conflicting tool/role state, 413 for oversized audit export, and 429 for bounded SQL-operation pressure where applicable.
+
+For client automation, pin to 2.0.1 and validate the actual response model you consume. This page intentionally documents routes and important contracts without pretending that every Admin view model is a permanently versioned external SDK.

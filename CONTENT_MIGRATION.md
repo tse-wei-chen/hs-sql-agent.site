@@ -7,7 +7,7 @@ The site is organized by user journey and product capability so URLs can remain 
 | --- | --- | --- |
 | Getting Started | `getting-started/*` | Split installation from MCP onboarding. |
 | Configuration | `operations/configuration` | Group by runtime responsibility instead of one flat environment-variable page. |
-| Admin Panel | `administration/*` | Start with an overview; split databases, MCP keys, custom tools, audit, operability, and security as content grows. |
+| Admin Panel | `administration/*` | Start with an operator hub; split databases, MCP keys, semantic metadata, custom tools, audit, operability, and security as content grows. |
 | MCP Tools Reference | `mcp/*` + `sql-compiler/*` | Separate transport/tool usage from SQL language/compiler guarantees. |
 | Security Governance | `security/*` | Separate access boundary, identity/MFA, and operational security when source material is available. |
 | Deployment | `operations/deployment` | Keep single-instance production deployment focused. |
@@ -19,9 +19,11 @@ The site is organized by user journey and product capability so URLs can remain 
 
 ## Content-source rule
 
-Migration is source-driven. Content may be rewritten, split, or merged, but factual behavior must be traceable to the current hs-sql-agent repository (README, source code, checked-in guides, configuration examples, or the legacy Wiki itself).
+Migration is source-driven. Content may be rewritten, split, merged, or presented through reusable MDX components, but factual behavior must be traceable to the matching hs-sql-agent source/release (README, source code, checked-in guides, configuration examples, or the legacy Wiki where appropriate).
 
-If a legacy Wiki page cannot be retrieved reliably, do not invent its details. Migrate the parts that can be verified from the current repository first, then fill the remaining sections when the original source is available.
+For version-specific documentation, prefer the corresponding product tag. The `2.0.1` baseline should describe behavior supported by `v2.0.1`, not silently inherit later `main` behavior.
+
+If a legacy Wiki page cannot be retrieved reliably, do not invent its details. Migrate the parts that can be verified from the product repository first, then fill remaining sections when authoritative source material is available.
 
 ## Documentation version rule
 
@@ -41,10 +43,21 @@ A version manifest may declare:
 - `removed`: inherited slugs that must not reappear through fallback;
 - `redirects`: old slugs that moved to a new slug in that version.
 
-Do not put `version` or inheritance metadata in individual Markdown frontmatter.
+Do not put `version` or inheritance metadata in individual MDX frontmatter.
 
 Public `/docs/*` URLs always represent the configured current version. `/docs/<version>/*` URLs are immutable version-specific routes. This separation lets external links target latest documentation while preserving stable historical documentation once a newer version becomes current.
 
-## Theme boundary
+## MDX and theme boundary
 
-Documentation Markdown contains technical content and semantic metadata only. SVG diagrams, animation, code chrome, step presentation, version switching, and other visual behavior belong to the Astro documentation renderer/theme. Product and marketing pages are not documentation Markdown.
+Documentation is **MDX-first**, but that does not mean every paragraph should become JSX.
+
+Normal explanatory prose, headings, lists, tables, and code should remain ordinary Markdown syntax inside `.mdx` files. Reusable visual semantics may use the shared components under `src/components/docs/mdx/`, including cards, callouts, steps, flows, badges, and reference surfaces.
+
+The boundary is:
+
+- **content MDX** owns technical meaning and intentional documentation structure;
+- **shared MDX components** own reusable documentation presentation patterns;
+- **DocsLayout/theme** owns site-wide navigation, hero treatment, code chrome, SVG visuals, version switching, search metadata, responsive behavior, and global styling;
+- **product/marketing pages** remain Astro product UI, not documentation content.
+
+Do not put one-off theme settings in frontmatter, and do not build product landing pages inside the docs content collection.

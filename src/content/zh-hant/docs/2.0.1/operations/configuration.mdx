@@ -1,39 +1,220 @@
 ---
-title: Configuration
-description: 從 local development 進入 production 前，先理解 hs-sql-agent 主要 runtime configuration 群組。
+title: 設定參考
+description: hs-sql-agent 2.0.1 的 source-backed environment 與 runtime configuration reference。
 sidebar:
   group: 維運
   order: 90
 ---
 
-Repository 的 `.env.example` 是目前 runtime configuration 最直接的 inventory，並依責任分組。
+import Callout from "@/components/docs/mdx/Callout.astro";
+import CardGrid from "@/components/docs/mdx/CardGrid.astro";
+import DocCard from "@/components/docs/mdx/DocCard.astro";
 
-## Core hosting 與 control plane
+<CardGrid columns={3}>
+  <DocCard title="單一 instance" icon="1" description="從 .env.example 開始；除非 runtime state 必須跨 instance 共用，否則可先使用 process-local provider。" />
+  <DocCard title="Distributed" icon="N" description="使用 Postgres control-plane storage，加上 Redis-backed cache、limits、policy sync、delivery sync 與 SQL concurrency。" />
+  <DocCard title="Embedded .NET" icon=".NET" description="HsSqlAgentServiceOptions 是 code-level contract；其預設值不一定與 Docker .env.example 完全相同。" />
+</CardGrid>
 
-主要群組包含：
+Checked-in 的 **v2.0.1 `.env.example`** 是預設 Compose deployment path 的 environment inventory。本頁以該檔案的 environment variable 名稱為基準；若 sample comment 與 v2.0.1 runtime validation 不一致，則以 executable runtime code 為準。
 
-- **Application hosting** — `ASPNETCORE_URLS`、allowed hosts。
-- **Admin database** — 儲存 accounts、roles、keys、audit records 與 control-plane state 的 provider / connection string。
-- **MCP** — issued key 的 HMAC protection 與 externally reachable `MCP_PUBLIC_ENDPOINT`。
-- **Bootstrap** — 可選的初始 database connection / MCP key provisioning。
-- **Authentication** — JWT signing、token lifetime、sign-in lockout。
+<Callout type="warning" title="Production 啟動前請先產生真正的 secrets">
+`HMAC_KEY` 與 `JWT_KEY` 都必須至少 32 bytes，而且應使用彼此獨立的值。Repository 內的字串只是 placeholder。若啟用 webhook URL，對應 webhook secret 也必須至少 32 bytes。
+</Callout>
 
-`HMAC_KEY` 與 `JWT_KEY` 應使用彼此獨立、至少 32 bytes 的唯一值；checked-in example 不是 production secret。
+## Application 與 control plane
 
-## Identity 與 account recovery
+| Variable | `.env.example` 範例/預設 | 用途 |
+| --- | --- | --- |
+| `ASPNETCORE_URLS` | `http://+:8080` | Main ASP.NET Core listener |
+| `ALLOWED_HOSTS` | `*` | ASP.NET Core host filtering |
+| `ADMIN_DATABASE_PROVIDER` | `Sqlite` | Admin/control-plane database provider |
+| `ADMIN_DATABASE_CONNECTION_STRING` | `Data Source=/app/data/hsqlagent.db` | 儲存 accounts、roles、keys、audit records、policies 與其他 control-plane state |
+| `HMAC_KEY` | placeholder | 保護/驗證 issued MCP keys 的 HMAC secret；至少 32 bytes |
+| `MCP_PUBLIC_ENDPOINT` | `http://localhost:8080/mcp` | 產生 MCP client configuration 時使用的 absolute endpoint |
 
-可選設定包含 SMTP/password reset、OIDC authority/client credential、claims/scopes、role mappings、auto-provisioning、TOTP issuer 與 ASP.NET Core data-protection key path。
+`MCP_PUBLIC_ENDPOINT` 必須是 absolute HTTP/HTTPS URL。Production 應填入 **client 真正可連線**的 URL，並包含 `/mcp`；不要填只有 container internal network 才能解析的位址。
 
-Production OIDC 通常應保持 HTTPS metadata validation 開啟。
+### Admin database topology
 
-## Operability
+Single-instance example 使用 SQLite；distributed example 使用 PostgreSQL：
 
-Runtime 也提供 health probe、slow-query threshold、signed alert/SIEM webhook、delivery retry/concurrency、audit retention/archive、Prometheus 與 OTLP telemetry 設定。
+```text
+ADMIN_DATABASE_PROVIDER=Postgres
+ADMIN_DATABASE_CONNECTION_STRING=Host=postgres;Port=5432;Database=hsqlagent;Username=postgres;Password=...
+```
 
-Prometheus metrics 使用獨立 listener，不與 main application API port 共用。
+當多個 hs-sql-agent instances 必須共用 identities、keys、policies 與 audit/control-plane records 時，應使用 shared Admin database。
 
-## Shared-state provider
+## Cache
 
-Cache、rate limiter、security-policy synchronization、outbound-delivery synchronization 與 SQL concurrency 都可依 topology 選擇 Memory 或 Redis-backed provider。
+| Variable | Single-instance | Distributed | 用途 |
+| --- | --- | --- | --- |
+| `CACHE_PROVIDER` | `Memory` | `Redis` | Runtime cache provider |
+| `CACHE_CONNECTION_STRING` | empty | `redis:6379` | 選擇 Redis 時的 connection |
+| `CACHE_KEY_PREFIX` | `hsqlagent:cache:` | 相同 | Cache key namespace |
 
-多 instance 若必須對同一個 runtime decision 達成一致，就不能假設 process-local memory 是共享的。
+只有在 cache state 不需要跨 application instance 共用時，process-local `Memory` 才適合。
+
+## Bootstrap / auto-provisioning
+
+| Variable | 範例 | 用途 |
+| --- | --- | --- |
+| `BOOTSTRAP_ENABLED` | `false` | 啟用 startup provisioning/synchronization |
+| `BOOTSTRAP_DB_ID` | `default-db` | Initial database 的 stable bootstrap identity |
+| `BOOTSTRAP_DB_NAME` | `Default DB` | Admin-facing database name |
+| `BOOTSTRAP_DB_PROVIDER` | empty | 要 provision 的 provider |
+| `BOOTSTRAP_DB_HOST` | `localhost` | Database host |
+| `BOOTSTRAP_DB_PORT` | `5432` | Database port |
+| `BOOTSTRAP_DB_DATABASE` | `mydb` | Database/catalog/file value |
+| `BOOTSTRAP_DB_USERNAME` | `myuser` | Database username |
+| `BOOTSTRAP_DB_PASSWORD` | `mypassword` | Database password |
+| `BOOTSTRAP_DB_EXTRA_SETTINGS` | empty | Provider-specific connection settings |
+| `BOOTSTRAP_MCP_KEY_ID` | `default-key` | Initial MCP key 的 stable bootstrap identity |
+| `BOOTSTRAP_MCP_KEY_NAME` | `Default MCP Key` | Admin-facing key name |
+| `BOOTSTRAP_MCP_KEY` | placeholder | Initial raw key value |
+| `BOOTSTRAP_MCP_ALLOWED_TOOLS` | empty | Bootstrap key 的 tool restriction |
+
+Bootstrap-managed MCP key 不走一般 key lifecycle；不能透過正常 UI 流程 edit、rotate 或 revoke。要修改時應改其 source configuration。
+
+## Admin authentication
+
+| Variable | 範例 | 用途 |
+| --- | --- | --- |
+| `JWT_KEY` | placeholder | JWT signing secret；至少 32 bytes |
+| `JWT_ISS` | `HS-Agent` | JWT issuer |
+| `JWT_AUD` | `HS-Agent-Users` | JWT audience |
+| `JWT_ACCESS_TOKEN_EXPIRATION_MINUTES` | `10` | Access-token lifetime |
+| `JWT_REFRESH_TOKEN_EXPIRATION_DAYS` | `1` | Refresh-token lifetime |
+| `AUTH_LOCKOUT_THRESHOLD` | `5` | 暫時 lockout 前允許的 failed sign-ins；小於 1 會視為 1 |
+| `AUTH_LOCKOUT_MINUTES` | `15` | Temporary lockout duration |
+
+這組設定管理的是 **Admin authentication**，不是 MCP-key authentication。
+
+## Password reset 與 SMTP
+
+若 SMTP host 或 sender 為空，password-reset mail 實際上不會送出。
+
+| Variable | 範例 | 用途 |
+| --- | --- | --- |
+| `PASSWORD_RESET_BASE_URL` | `http://localhost:3000/reset-password` | 對外可到達的 reset page；server 會附加 `?token=...` |
+| `PASSWORD_RESET_EXPIRATION_MINUTES` | `30` | One-time reset-token lifetime |
+| `SMTP_HOST` | `smtp.example.com` | SMTP host |
+| `SMTP_PORT` | `587` | SMTP port |
+| `SMTP_ENABLE_SSL` | `true` | Mail sender 使用的 SSL/STARTTLS behavior |
+| `SMTP_USERNAME` | example | SMTP credential |
+| `SMTP_PASSWORD` | example | SMTP credential |
+| `SMTP_FROM` | `no-reply@example.com` | SMTP provider 接受的 sender address |
+
+## OIDC / SSO 與 MFA
+
+| Variable | 範例 | 用途 |
+| --- | --- | --- |
+| `OIDC_ENABLED` | `false` | 啟用 OIDC authentication |
+| `OIDC_AUTHORITY` | empty | Identity-provider authority |
+| `OIDC_CLIENT_ID` | empty | OIDC client ID |
+| `OIDC_CLIENT_SECRET` | empty | OIDC client secret |
+| `OIDC_REQUIRE_HTTPS_METADATA` | `true` | 要求 HTTPS discovery metadata |
+| `OIDC_EMAIL_CLAIM` | `email` | Email claim name |
+| `OIDC_NAME_CLAIM` | `name` | Display-name claim |
+| `OIDC_ROLE_CLAIM` | `roles` | Role claim |
+| `OIDC_EMAIL_VERIFIED_CLAIM` | `email_verified` | Verified-email claim |
+| `OIDC_REQUIRE_VERIFIED_EMAIL` | `true` | 依設定 claim 拒絕未驗證 email 的 identity |
+| `OIDC_SCOPE_0..2` | `openid`, `profile`, `email` | Default scopes |
+| `OIDC_ROLE_MAPPING_SQL_ADMINS` | `SuperUser` | External-role → local-role mapping 範例 |
+| `OIDC_AUTO_PROVISION` | `true` | External identity 成功解析後自動 provision user |
+| `OIDC_FRONTEND_CALLBACK_URL` | `/sso-callback` | Frontend completion route |
+| `OIDC_LOGIN_CODE_EXPIRATION_MINUTES` | `2` | Short-lived login-code lifetime |
+| `OIDC_TOTP_ISSUER` | `HS SQL Agent` | TOTP issuer label |
+| `DATA_PROTECTION_KEY_PATH` | `/app/data/data-protection-keys` | Persistent ASP.NET Core data-protection key directory |
+
+<Callout type="danger" title="使用 protected identity state 時必須持久化 data-protection keys">
+若 restart 後 data-protection key ring 消失，受保護的 MFA secrets 與 external-login state 可能無法再次解密。Production 請將 `DATA_PROTECTION_KEY_PATH` 掛載到 durable storage。
+</Callout>
+
+請參考 [OIDC 與 MFA](/zh-hant/docs/security/oidc-mfa)。
+
+## Health、slow query、delivery 與 audit retention
+
+| Variable | 範例 | 用途 |
+| --- | --- | --- |
+| `HEALTH_PROBE_ENABLED` | `false` | 啟用 background DB health probing |
+| `HEALTH_PROBE_INTERVAL_SECONDS` | `60` | Probe cadence |
+| `HEALTH_PROBE_TIMEOUT_SECONDS` | `10` | Per-probe timeout |
+| `HEALTH_PROBE_MAX_CONCURRENCY` | `4` | 限制 concurrent probe work |
+| `SLOW_QUERY_THRESHOLD_MS` | `1000` | Duration 大於等於此值的 query 會記錄為 slow |
+| `ALERT_WEBHOOK_URL` | empty | Optional signed alert destination |
+| `ALERT_WEBHOOK_SECRET` | empty | HMAC/signing secret；URL 啟用時至少 32 bytes |
+| `SIEM_WEBHOOK_URL` | empty | Optional signed SIEM destination |
+| `SIEM_WEBHOOK_SECRET` | empty | HMAC/signing secret；URL 啟用時至少 32 bytes |
+| `DELIVERY_MAX_ATTEMPTS` | `6` | Outbound delivery retry bound |
+| `DELIVERY_MAX_CONCURRENCY` | `4` | 限制 concurrent outbound deliveries |
+| `AUDIT_RETENTION_DAYS` | `90` | Retention period；`0` 代表停用 automatic retention |
+| `AUDIT_RETENTION_MODE` | `Archive` | **Runtime 合法值：`Archive` 或 `Purge`** |
+| `AUDIT_ARCHIVE_PATH` | `/app/data/audit-archive` | Archive mode 的 destination |
+| `AUDIT_FALLBACK_PATH` | `/app/data/audit-fallback.jsonl` | Audit fallback path；startup validation 要求存在設定 |
+| `AUDIT_RETENTION_RUN_HOUR_UTC` | `2` | Scheduled UTC hour；runtime 會 clamp 到 0–23 |
+
+<Callout type="warning" title="v2.0.1 sample comment 提到 Delete，但 runtime code 使用 Purge">
+`AuditRetentionService` 只接受 `Archive` 與 `Purge`。其他非 Archive 值（包含 `Delete`）會觸發 `AuditRetentionMode must be Purge or Archive.`。本 reference 以可執行的 v2.0.1 runtime code 為準，而不是 stale sample comment。
+</Callout>
+
+`Archive` 會先將過期 audit rows 寫入 JSONL archive，再從 Admin database 刪除；`Purge` 則直接刪除符合 retention 條件的 records，不建立該 archive。
+
+## Global 與 per-key rate limiting
+
+| Variable | Single-instance | Distributed | 用途 |
+| --- | --- | --- | --- |
+| `RATE_LIMITING_PERMIT_LIMIT` | `0` | `0` | Global IP permit limit；limit/window 都為 0 時代表 unlimited |
+| `RATE_LIMITING_WINDOW_SECONDS` | `0` | `0` | Global IP window |
+| `RATE_LIMITER_PROVIDER` | `Memory` | `Redis` | Shared limiter implementation |
+| `RATE_LIMITER_CONNECTION_STRING` | empty | `redis:6379` | Redis connection |
+| `RATE_LIMITER_FAILURE_MODE` | `FailClosed` | `FailClosed` | Distributed limiter unavailable 時的 behavior |
+| `RATE_LIMITER_KEY_PREFIX` | `hsqlagent:ratelimit:` | 相同 | Redis key namespace |
+
+MCP key 另外可以 inherit、override 或 disable 自己的 per-key limit。請參考 [MCP Keys](/zh-hant/docs/administration/mcp-keys)。
+
+## Runtime policy synchronization
+
+| Variable | Single-instance | Distributed | 用途 |
+| --- | --- | --- | --- |
+| `SECURITY_POLICY_SYNC_PROVIDER` | `Memory` | `Redis` | Runtime policy synchronization provider |
+| `SECURITY_POLICY_SYNC_CONNECTION_STRING` | empty | `redis:6379` | Redis connection |
+| `SECURITY_POLICY_SYNC_KEY_PREFIX` | `hsqlagent:security-policy:` | 相同 | Key namespace |
+| `SECURITY_POLICY_SYNC_REFRESH_INTERVAL_SECONDS` | `30` | `30` | Refresh interval |
+
+當 policy changes 必須跨多個 hs-sql-agent instances 傳播時，請使用 Redis。
+
+## Outbound-delivery synchronization
+
+| Variable | Single-instance | Distributed | 用途 |
+| --- | --- | --- | --- |
+| `OUTBOUND_DELIVERY_SYNC_PROVIDER` | `Memory` | `Redis` | Delivery signal coordination |
+| `OUTBOUND_DELIVERY_SYNC_CONNECTION_STRING` | empty | `redis:6379` | Redis connection |
+| `OUTBOUND_DELIVERY_SYNC_KEY_PREFIX` | `hsqlagent:outbound-delivery:` | 相同 | Key namespace |
+
+## SQL concurrency coordination
+
+| Variable | Single-instance | Distributed | 用途 |
+| --- | --- | --- | --- |
+| `SQL_CONCURRENCY_PROVIDER` | `Memory` | `Redis` | SQL concurrency limiter provider |
+| `SQL_CONCURRENCY_CONNECTION_STRING` | empty | `redis:6379` | Redis connection |
+| `SQL_CONCURRENCY_FAILURE_MODE` | `FailClosed` | `FailClosed` | Distributed coordination 失敗時的 behavior |
+| `SQL_CONCURRENCY_KEY` | `hsqlagent:sql-concurrency` | 相同 | Shared coordination key |
+| `SQL_CONCURRENCY_LEASE_SECONDS` | `30` | `30` | Lease duration |
+
+Metadata discovery、query、DML planning/execution 與 health-related SQL work 都會走 bounded runtime paths。若 concurrency limit 必須跨整個 cluster 生效，而不是各 process 分別計算，就應使用 distributed SQL concurrency。
+
+## Observability
+
+| Variable | 範例 | 用途 |
+| --- | --- | --- |
+| `PROMETHEUS_ENABLED` | `false` | 啟用 Prometheus HTTP listener |
+| `PROMETHEUS_HOST` | `0.0.0.0` | Metrics listener bind host |
+| `PROMETHEUS_PORT` | `9000` | 獨立 metrics listener port；啟用時需介於 1–65535 |
+| `OTLP_ENDPOINT` | empty | Absolute HTTP(S) OTLP collector endpoint |
+| `OTEL_SERVICE_NAME` | `hs-sql-agent` | OpenTelemetry service name；不可為 blank |
+
+Prometheus 刻意使用 **獨立 listener**，不與 Admin/MCP application port 共用。當 `OTLP_ENDPOINT` 有設定時，v2.0.1 會匯出 telemetry，包含 SQL compile-evidence tracing/log integration。
+
+請參考 [Observability](/zh-hant/docs/operations/observability)。

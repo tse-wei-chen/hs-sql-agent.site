@@ -1,0 +1,94 @@
+---
+title: Upgrade Guide
+description: A safe upgrade checklist for installations moving from the hs-sql-agent 2.0.1 documentation baseline to a later release.
+sidebar:
+  group: Reference
+  order: 144
+---
+
+import Callout from "@/components/docs/mdx/Callout.astro";
+import CardGrid from "@/components/docs/mdx/CardGrid.astro";
+import DocCard from "@/components/docs/mdx/DocCard.astro";
+import Steps from "@/components/docs/mdx/Steps.astro";
+import Step from "@/components/docs/mdx/Step.astro";
+
+<CardGrid columns={3}>
+  <DocCard title="Control-plane state" icon="DB" description="Protect the Admin database that stores identities, roles, MCP keys, policy, audit, and other runtime state." />
+  <DocCard title="Secrets & protected state" icon="KEY" description="Preserve HMAC/JWT configuration and durable ASP.NET Core data-protection keys." />
+  <DocCard title="Behavior contracts" icon="MCP" description="Re-test client transport, SQL capability, key scope, and DML Elicitation after changing versions." />
+</CardGrid>
+
+Documentation versioning begins at **2.0.1**. There is intentionally no site-hosted pre-2.0.1 upgrade matrix. This page defines the operational checklist for leaving the 2.0.1 baseline; destination-specific breaking changes belong in the documentation for that later version.
+
+<Callout type="warning" title="Do not infer a future release's migration requirements from this page">
+Before upgrading, read the destination release notes and its versioned documentation. If a later release changes storage schema, configuration, SQL capability, or API contracts, that release is authoritative.
+</Callout>
+
+## Before changing the running version
+
+<Steps>
+  <Step title="Record the current deployment" description="Capture the exact hs-sql-agent version, container/package version, topology, Admin database provider, and shared-state providers." />
+  <Step title="Back up control-plane state" description="Create a recoverable backup of the Admin database before a newer binary can change persistent state." />
+  <Step title="Preserve protected key material" description="Keep HMAC_KEY, JWT_KEY, webhook secrets, and the durable DATA_PROTECTION_KEY_PATH material available to the upgraded deployment." />
+  <Step title="Diff configuration" description="Compare the destination release's example/options against the active 2.0.1 configuration rather than copying a new sample over production values." />
+  <Step title="Inventory integrations" description="List MCP clients, Custom Tools, OIDC, SMTP, webhooks/SIEM, Prometheus/OTLP, Redis/shared-state, reverse proxy, and external Admin API consumers." />
+</Steps>
+
+## State that must not be casually regenerated
+
+### HMAC and JWT secrets
+
+`HMAC_KEY` protects MCP-key verification and `JWT_KEY` signs Admin authentication tokens. Treat secret rotation as a deliberate security migration, not as a side effect of deploying a new image.
+
+### Data-protection key ring
+
+When protected identity/MFA state uses ASP.NET Core data protection, keep `DATA_PROTECTION_KEY_PATH` on durable storage. Replacing the key ring can make previously protected values unreadable.
+
+### Admin database
+
+The Admin database carries the control plane: identities/roles, database registrations, MCP key records, policies, semantic metadata, Custom Tool definitions/revisions, audit data, and other operational state. Back it up using the procedure appropriate to SQLite or PostgreSQL before an upgrade that may change persistence.
+
+## Configuration diff checklist
+
+Do not start from an empty new `.env`. Compare categories explicitly:
+
+- application host and public MCP endpoint;
+- Admin database provider/connection;
+- HMAC/JWT and identity settings;
+- bootstrap configuration;
+- OIDC/MFA/data protection;
+- audit retention and outbound delivery;
+- rate limiting and security-policy sync;
+- cache / SQL concurrency / other Redis-backed coordination;
+- Prometheus and OTLP.
+
+See [Configuration Reference](/en/docs/operations/configuration) for the 2.0.1 baseline.
+
+## Validate after upgrade
+
+<Steps>
+  <Step title="Admin authentication" description="Sign in and verify expected roles/permissions; confirm OIDC/MFA if enabled." />
+  <Step title="Database connectivity" description="Verify managed connections and schema metadata browsing for each provider you use." />
+  <Step title="MCP key scope" description="Confirm representative keys still resolve the expected database, tools, table whitelist, and effective limits." />
+  <Step title="Read-only SQL" description="Run representative supported query shapes and confirm compiler/output behavior." />
+  <Step title="Safe DML" description="With a non-production target, test both Decline and Accept Elicitation paths and confirm commit-time behavior." />
+  <Step title="Operations" description="Inspect audit, health, key usage, telemetry export, and outbound-delivery state." />
+</Steps>
+
+## Custom Tools and semantic metadata
+
+For each published Custom Tool, verify it still validates under the destination compiler/policy and that its intended database/key exposure remains correct. For semantic metadata, verify table/column descriptions, relationships, and metrics still appear through schema discovery as expected.
+
+## API consumers
+
+The 2.0.1 Admin controllers are not namespaced under a versioned `/v1` contract. If external automation calls Admin HTTP routes directly, treat route/request/response compatibility as an explicit upgrade test.
+
+See [Admin HTTP API Reference](/en/docs/reference/api-reference).
+
+## Rollback planning
+
+<Callout type="danger" title="Binary rollback is not automatically a data rollback">
+If the newer release changes persistent control-plane schema or state, simply starting the old binary against the modified database may be unsafe. Keep a pre-upgrade database backup and follow the destination release's rollback guidance.
+</Callout>
+
+A useful rollout keeps the old deployment artifacts/configuration, the pre-upgrade Admin database backup, and protected key material available until the new version has passed functional and operational smoke tests.

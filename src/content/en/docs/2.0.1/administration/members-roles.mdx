@@ -1,0 +1,75 @@
+---
+title: Members & Roles
+description: Manage Admin users, sessions, role assignment, and role lifecycle in hs-sql-agent 2.0.1.
+sidebar:
+  group: Administration
+  order: 78
+---
+
+import Callout from "@/components/docs/mdx/Callout.astro";
+import CardGrid from "@/components/docs/mdx/CardGrid.astro";
+import DocCard from "@/components/docs/mdx/DocCard.astro";
+import Flow from "@/components/docs/mdx/Flow.astro";
+
+<CardGrid columns={3}>
+  <DocCard title="Members" icon="USR" description="Create Admin users, activate or disable accounts, and inspect assigned roles and active sessions." />
+  <DocCard title="Roles" icon="ROL" description="Bundle allowed permission/action pairs into reusable authorization roles." />
+  <DocCard title="Session invalidation" icon="REV" description="Security-sensitive member or role changes invalidate affected runtime authorization state." />
+</CardGrid>
+
+Admin members are identities for the **control plane**. They are separate from MCP keys, which authenticate `/mcp` clients.
+
+## Member lifecycle
+
+<Flow items={["Create member", "Assign roles", "Operate Admin UI", "Change access", "Revoke sessions when needed"]} />
+
+A new member requires a valid email and a password of at least 8 characters. Username is optional and limited to 100 characters. At creation time an operator can assign explicit role IDs or request all roles.
+
+The member list can be filtered by search text, active status, and role, and is paginated. The 2.0.1 member view reports account state, creation/last-login time, active session count, and current role IDs/names.
+
+## Administrative member actions
+
+| Action | Permission | Important guardrail |
+| --- | --- | --- |
+| create member | `/auth/user` → `create` | email/password validation applies |
+| list/search members | `/auth/user` → `view` | supports status/role/search filters |
+| replace member roles | `/auth/user` → `edit` | you cannot change your own roles |
+| activate / disable account | `/auth/user` → `edit` | you cannot disable yourself |
+| revoke all member sessions | `/auth/user` → `edit` | immediately invalidates that member's sessions |
+| require password change | `/auth/user` → `edit` | flag is enforced on the next sign-in |
+| delete member | `/auth/user` → `delete` | you cannot delete yourself |
+
+<Callout type="warning" title="Self-lockout operations are rejected">
+The 2.0.1 controller explicitly prevents an administrator from changing their own roles, disabling their own account, or deleting their own member record through these management endpoints.
+</Callout>
+
+## Roles
+
+A role has a unique name, optional description, and a set of permission/action selections. Role assignment is many-to-many: a member may hold multiple roles and a role may be assigned to multiple members.
+
+The built-in `SuperUser` role is protected. It cannot be modified or deleted, and a new or renamed role cannot use that protected identity.
+
+## Editing a role changes active authorization state
+
+When a role's permission set changes, 2.0.1 identifies members assigned to that role, increments their security version, and performs the mutation through the auth runtime-state cache barrier. This prevents an already authenticated session from continuing indefinitely with stale role authorization.
+
+The same principle applies when a role assigned to members is removed.
+
+## Delete dependencies before deleting a role
+
+The role dependency endpoint reports both:
+
+- permission/action entries attached to the role; and
+- members currently assigned to it.
+
+Deleting a role that still has assigned members is rejected by default. An explicit `force=true` path exists, but operators should inspect dependencies first because affected members lose that role and their security state is invalidated.
+
+<Callout type="danger" title="Treat forced role deletion as an authorization change">
+Do not use forced deletion as routine cleanup. Review the member dependency list and confirm those users will still retain the access they need through their remaining roles.
+</Callout>
+
+## Password and session response
+
+Member administration can mark an account as requiring password change on next sign-in and can revoke all sessions for a target member. Users can also manage their own sessions through the Auth API.
+
+For the authorization model behind roles, continue with [Permissions](/en/docs/administration/permissions).

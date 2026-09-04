@@ -1,0 +1,94 @@
+---
+title: Upgrade Guide
+description: 從 hs-sql-agent 2.0.1 documentation baseline 升到後續 release 時的安全升級 checklist。
+sidebar:
+  group: Reference
+  order: 144
+---
+
+import Callout from "@/components/docs/mdx/Callout.astro";
+import CardGrid from "@/components/docs/mdx/CardGrid.astro";
+import DocCard from "@/components/docs/mdx/DocCard.astro";
+import Steps from "@/components/docs/mdx/Steps.astro";
+import Step from "@/components/docs/mdx/Step.astro";
+
+<CardGrid columns={3}>
+  <DocCard title="Control-plane state" icon="DB" description="保護保存 identities、roles、MCP keys、policy、audit 與其他 runtime state 的 Admin database。" />
+  <DocCard title="Secrets & protected state" icon="KEY" description="保留 HMAC/JWT configuration 與 durable ASP.NET Core data-protection keys。" />
+  <DocCard title="Behavior contracts" icon="MCP" description="更版後重新驗證 client transport、SQL capability、key scope 與 DML Elicitation。" />
+</CardGrid>
+
+Documentation versioning 從 **2.0.1** 開始，本站刻意不提供更早版本的 upgrade matrix。這頁定義的是「離開 2.0.1 baseline」時的 operational checklist；真正 destination-specific breaking changes 應由後續版本自己的文件說明。
+
+<Callout type="warning" title="不要從這頁推測未來 release 的 migration requirements">
+升級前一定要閱讀 target release notes 與該版本 docs。若後續版本改了 storage schema、configuration、SQL capability 或 API contract，以該 release 為準。
+</Callout>
+
+## 切換 running version 前
+
+<Steps>
+  <Step title="記錄目前 deployment" description="保存精確 hs-sql-agent/container/package version、topology、Admin DB provider 與 shared-state providers。" />
+  <Step title="備份 control-plane state" description="在新 binary 有機會改 persistent state 前，先建立可還原的 Admin database backup。" />
+  <Step title="保存 protected key material" description="確保 HMAC_KEY、JWT_KEY、webhook secrets 與 durable DATA_PROTECTION_KEY_PATH material 能被新 deployment 延續使用。" />
+  <Step title="Diff configuration" description="拿 target release 的 example/options 跟目前 2.0.1 production config 比對，不要用新 sample 直接蓋掉 production values。" />
+  <Step title="盤點 integrations" description="列出 MCP clients、Custom Tools、OIDC、SMTP、webhooks/SIEM、Prometheus/OTLP、Redis/shared state、reverse proxy 與 external Admin API consumers。" />
+</Steps>
+
+## 不應隨便重新產生的 state
+
+### HMAC / JWT secrets
+
+`HMAC_KEY` 參與 MCP-key verification，`JWT_KEY` 用於 Admin authentication token。Secret rotation 應該是明確的 security migration，不應只是部署新 image 時的副作用。
+
+### Data-protection key ring
+
+Protected identity/MFA state 使用 ASP.NET Core data protection 時，`DATA_PROTECTION_KEY_PATH` 必須放 durable storage。若 key ring 被替換，先前 protected values 可能無法再讀取。
+
+### Admin database
+
+Admin database 是 control plane，保存 identities/roles、database registrations、MCP key records、policies、semantic metadata、Custom Tool definitions/revisions、audit data 與其他 operational state。任何可能改 persistence 的 upgrade 前，都要依 SQLite/PostgreSQL topology 做正式 backup。
+
+## Configuration diff checklist
+
+不要從空白新 `.env` 重建 production config，逐組比對：
+
+- application host / public MCP endpoint；
+- Admin database provider/connection；
+- HMAC/JWT / identity；
+- bootstrap；
+- OIDC/MFA/data protection；
+- audit retention / outbound delivery；
+- rate limiting / security-policy sync；
+- cache / SQL concurrency / Redis-backed coordination；
+- Prometheus / OTLP。
+
+2.0.1 baseline 請見 [Configuration Reference](/zh-hant/docs/operations/configuration)。
+
+## Upgrade 後驗證
+
+<Steps>
+  <Step title="Admin authentication" description="登入並確認 expected roles/permissions；有啟用時也驗證 OIDC/MFA。" />
+  <Step title="Database connectivity" description="對實際使用的 providers 驗證 managed connections 與 schema metadata browsing。" />
+  <Step title="MCP key scope" description="確認代表性 keys 仍解析到正確 database、tools、table whitelist 與 effective limits。" />
+  <Step title="Read-only SQL" description="跑代表性的 supported query shapes，確認 compiler/output behavior。" />
+  <Step title="Safe DML" description="用非 production target 同時測 Decline/Accept Elicitation，確認 commit-time behavior。" />
+  <Step title="Operations" description="檢查 audit、health、key usage、telemetry export 與 outbound-delivery state。" />
+</Steps>
+
+## Custom Tools / semantic metadata
+
+對每個 published Custom Tool，確認 target compiler/policy 仍能 validate，且 database/key exposure 沒有漂移。Semantic metadata 則確認 table/column descriptions、relationships、metrics 仍能如預期出現在 schema discovery。
+
+## API consumers
+
+2.0.1 Admin controllers 沒有放在 versioned `/v1` contract 下。外部 automation 若直接呼叫 Admin HTTP routes，route/request/response compatibility 必須列入 upgrade test。
+
+請見 [Admin HTTP API Reference](/zh-hant/docs/reference/api-reference)。
+
+## Rollback planning
+
+<Callout type="danger" title="Binary rollback 不等於 data rollback">
+如果新 release 改了 persistent control-plane schema/state，把舊 binary 直接接回已修改的 database 不一定安全。保留 pre-upgrade database backup，並遵循 target release 的 rollback guidance。
+</Callout>
+
+實際 rollout 應保留舊 deployment artifacts/configuration、pre-upgrade Admin DB backup 與 protected key material，直到新版本完成 functional / operational smoke test。

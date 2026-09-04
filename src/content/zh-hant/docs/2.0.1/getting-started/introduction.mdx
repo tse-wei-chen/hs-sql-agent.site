@@ -6,32 +6,43 @@ sidebar:
   order: 10
 ---
 
-hs-sql-agent 是一個提供受治理 SQL 存取的 HTTP MCP Server。它可連接 PostgreSQL、MySQL、SQL Server、Oracle、SQLite 與 Firebird，同時把 authentication、access policy、SQL validation 與 mutation approval 留在 server side。
+import Callout from "@/components/docs/mdx/Callout.astro";
+import CardGrid from "@/components/docs/mdx/CardGrid.astro";
+import DocCard from "@/components/docs/mdx/DocCard.astro";
+import Flow from "@/components/docs/mdx/Flow.astro";
 
-## 核心概念
+hs-sql-agent 是一個提供**受治理 SQL 存取**的 HTTP MCP Server。它可以連接 PostgreSQL、MySQL、SQL Server、Oracle、SQLite 與 Firebird，同時把 authentication、access policy、SQL validation 與 mutation approval 留在 server side。
 
-不要讓 LLM 成為資料庫的安全邊界。
+<Flow items={["MCP client", "MCP key scope", "SQL compiler", "Policy & capability checks", "Database"]} />
 
-AI 產生的 SQL 會被視為不可信輸入。執行前，hs-sql-agent 會先套用 MCP key scope，把支援的 SQL 解析成結構化 definition / AST，驗證 statement，確認所需 capability 能保留原本語意，最後才產生 provider-specific SQL。
+<Callout type="danger" title="不要讓 LLM 成為資料庫的安全邊界">
+AI 產生的 SQL 是不可信輸入。Model 可以提出 SQL，但真正決定 request 是否被授權、語意是否受支援、是否能安全執行的是 server。
+</Callout>
 
-不支援的語法會被拒絕，而不是偷偷改寫成「看起來差不多」的 SQL。
+## Server 負責哪些邊界？
 
-## 哪些治理不交給模型？
+<CardGrid columns={2}>
+  <DocCard title="Identity & scope" icon="KEY" description="把 client 綁定到 managed database，並限制 allowed tools、tables 與 runtime limits。" />
+  <DocCard title="SQL semantics" icon="AST" description="將支援的 SQL parse 成 structured definitions，驗證 source semantics、證明 target capability，再 compile provider-specific SQL。" />
+  <DocCard title="Mutation approval" icon="DML" description="把 write operation 當成獨立 risk class，經過 preview、one-time approval、revalidation 與 exact commit。" />
+  <DocCard title="Operations & audit" icon="OPS" description="Rate/concurrency control、audit records、health、telemetry 與 outbound operational delivery 都留在 model 外。" />
+</CardGrid>
 
-Runtime 可以在模型之外執行：
+## Compiler boundary
 
-- 每把 MCP key 的 database binding
-- table allowlist 與 execution policy
-- allowed MCP tools
-- rate / concurrency limits
-- DML 人工核准
-- audit 與 operational delivery
+Generated SQL 會先被 parse 與 validate。hs-sql-agent 會確認維持 statement 語意所需的 capabilities，只有 request 通過 source、target 與 policy boundaries 後，才會產生 provider-specific SQL。
 
-Admin Panel 則是 databases、MCP keys、custom tools、audit、operability 與 security 設定的控制面。
+不支援的 syntax 或 semantics 會被拒絕，而不是偷偷改寫成「看起來差不多」的 SQL。
+
+<Callout type="info" title="支援六種 provider 不代表 arbitrary vendor SQL passthrough">
+Provider support 是 capability-driven。某個 construct 必須能被表示、驗證，並依 source/target contract 安全 render。請以 SQL Support Reference 為準，不要假設所有 vendor extension 都會被接受。
+</Callout>
 
 ## 下一步
 
-- [快速開始](/zh-hant/docs/getting-started/quick-start) — 跑起預設 Compose 環境。
-- [MCP Client Onboarding](/zh-hant/docs/mcp/client-onboarding) — 正確連接遠端 client。
-- [SQL 執行模型](/zh-hant/docs/sql-compiler/execution-model) — 理解 compiler boundary。
-- [Safe DML](/zh-hant/docs/sql-compiler/safe-dml) — 理解人工核准 mutation。
+<CardGrid columns={2}>
+  <DocCard title="快速開始" icon="01" href="/zh-hant/docs/getting-started/quick-start" description="啟動預設 Compose 環境並簽發第一把 MCP key。" />
+  <DocCard title="MCP Client Onboarding" icon="02" href="/zh-hant/docs/mcp/client-onboarding" description="正確連接遠端 Streamable HTTP MCP client。" />
+  <DocCard title="SQL 執行模型" icon="03" href="/zh-hant/docs/sql-compiler/execution-model" description="理解 parse、validation、capability proof、compile 與 execution boundaries。" />
+  <DocCard title="Safe DML" icon="04" href="/zh-hant/docs/sql-compiler/safe-dml" description="理解人工核准 mutation protocol。" />
+</CardGrid>

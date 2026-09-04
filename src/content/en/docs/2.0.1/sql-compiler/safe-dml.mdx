@@ -6,28 +6,70 @@ sidebar:
   order: 50
 ---
 
-DML uses a stricter path than query execution because an approval must still describe the same mutation at commit time.
+import Callout from "@/components/docs/mdx/Callout.astro";
+import CardGrid from "@/components/docs/mdx/CardGrid.astro";
+import DocCard from "@/components/docs/mdx/DocCard.astro";
+import Flow from "@/components/docs/mdx/Flow.astro";
+import Steps from "@/components/docs/mdx/Steps.astro";
+import Step from "@/components/docs/mdx/Step.astro";
+
+DML uses a stricter path than query execution because an approval must still describe the **same mutation** at commit time.
+
+<Flow items={["Compile", "Preview", "Approve", "Revalidate", "Commit"]} />
+
+<CardGrid columns={3}>
+  <DocCard title="Preview, not mutate" icon="01" description="UPDATE/DELETE first read the currently matched rows inside a preview transaction without applying the mutation." />
+  <DocCard title="Approval is bound" icon="02" description="A one-time challenge binds the validated plan, policy version, affected-row count, and row-set fingerprint." />
+  <DocCard title="Commit re-checks reality" icon="03" description="The commit transaction re-queries the row set and cancels if the approved facts no longer match." />
+</CardGrid>
+
+<Callout type="danger" title="Approval is not permission to run a later, different mutation">
+The approval challenge is tied to the validated operation and observed impact. If the plan, policy, challenge, affected-row count, or row-set fingerprint changes before commit, hs-sql-agent cancels the operation instead of applying it.
+</Callout>
 
 ## UPDATE and DELETE
 
-For row-set mutations, hs-sql-agent:
-
-1. Parses, validates, and compiles the mutation.
-2. Opens a preview transaction and reads the rows that currently match without executing the mutation.
-3. Creates a one-time approval challenge bound to the validated compiled plan, policy version, affected-row count, and row-set fingerprint.
-4. Sends MCP `elicitation/create` and requires explicit human approval.
-5. After acceptance, validates and consumes the one-time challenge.
-6. Opens the commit transaction, re-queries the matched rows, and compares the current fingerprint with the approved one.
-7. Executes the exact compiled mutation only if the plan, policy, challenge, row count, and row set still match.
-
-If any bound input changes, the operation is cancelled instead of being committed.
+<Steps>
+  <Step title="Compile the mutation">
+Parse, validate, authorize, and compile the requested mutation before any approval is requested.
+  </Step>
+  <Step title="Preview the affected row set">
+Open a preview transaction and read the rows that currently match without executing the mutation.
+  </Step>
+  <Step title="Create one-time approval evidence">
+Bind the challenge to the validated compiled plan, policy version, affected-row count, and row-set fingerprint.
+  </Step>
+  <Step title="Ask a human through MCP Elicitation">
+Send `elicitation/create` and require explicit form approval from the MCP client.
+  </Step>
+  <Step title="Consume the approved challenge">
+After acceptance, validate and consume the one-time challenge so it cannot be replayed as a generic permission token.
+  </Step>
+  <Step title="Re-query inside the commit transaction">
+Read the matched rows again and compare the current fingerprint and count with the approved preview.
+  </Step>
+  <Step title="Commit only if everything still matches">
+Execute the exact compiled mutation only when the plan, policy, challenge, row count, and row set are unchanged.
+  </Step>
+</Steps>
 
 ## INSERT VALUES
 
-An INSERT VALUES statement has no pre-existing matched row set. The preview therefore uses the immutable insert payload and binds approval to that exact compiled plan.
+An `INSERT ... VALUES` statement has no pre-existing matched row set. The approval protocol therefore binds the immutable insert payload and exact compiled plan rather than a row-set preview.
+
+<Callout type="info" title="Different mutation shape, same principle">
+The evidence being approved differs between row-set mutations and an insert payload, but the invariant is the same: commit only the exact validated mutation that the approval described.
+</Callout>
 
 ## Elicitation is required
 
-`execute_dml_sql` and published DML Custom Tools require form Elicitation support from the MCP client. A client that cannot perform the approval interaction cannot use those mutation paths.
+`execute_dml_sql` and published DML Custom Tools require **form Elicitation** support from the MCP client. A client that cannot perform the approval interaction cannot use those mutation paths.
 
 This is intentionally different from a UI-only confirmation dialog: the approval challenge participates in the server-side mutation protocol and is checked again before execution.
+
+## Related documentation
+
+<CardGrid columns={2}>
+  <DocCard title="MCP Client Onboarding" icon="MCP" href="/en/docs/mcp/client-onboarding" description="Verify that the exact MCP client version can handle form Elicitation before enabling DML." />
+  <DocCard title="SQL Execution Model" icon="AST" href="/en/docs/sql-compiler/execution-model" description="Understand the broader parse, validation, capability, policy, compile, and execution boundary." />
+</CardGrid>
