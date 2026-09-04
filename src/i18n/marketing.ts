@@ -195,13 +195,13 @@ const marketingUi: Record<string, MarketingUiStrings> = {
       "Eine Sicherheitsgrenze für Kompilierung, Zugriffsrichtlinien und menschliche Freigaben zwischen KI-generiertem SQL und Ihren Datenbanken.",
     footerNavigation: "Fußzeilennavigation",
     homeLabel: "Startseite",
-    breadcrumbLabel: "Brotkrümelnavigation",
+    breadcrumbLabel: "Breadcrumb-Navigation",
     learnMore: "Mehr erfahren",
     integrations: {
       claudeDesktop:
-        "Direkte MCP-Verbindung über Streamable HTTP mit einem Server-Schlüssel mit begrenztem Umfang.",
+        "Direkte MCP-Verbindung über Streamable HTTP mit einem Server-Schlüssel mit eingeschränktem Berechtigungsumfang.",
       cursor:
-        "Entferntes MCP mit benutzerdefinierten Anforderungsheadern; Zugriffsrichtlinien bleiben serverseitig.",
+        "Remote-MCP-Verbindung mit benutzerdefinierten Anforderungsheadern; Zugriffsrichtlinien bleiben serverseitig.",
       aspNetCore:
         "Mit dem NuGet-Paket HsSqlAgent.Server in einen vorhandenen .NET-Host einbetten.",
     },

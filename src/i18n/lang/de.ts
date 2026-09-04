@@ -33,7 +33,8 @@ export default {
     featured: "Empfohlen",
     recentPosts: "Neueste Beiträge",
     allPosts: "Alle Beiträge",
-    heroKicker: "Für MCP entwickelt · bei Unsicherheit ablehnen · sechs SQL-Dialekte",
+    heroKicker:
+      "Für MCP entwickelt · bei Unsicherheit ablehnen · sechs SQL-Dialekte",
     heroTitle: "Sichere SQL-Ausführung für KI-Agenten.",
     heroDesc:
       "Setzen Sie einen Compiler und eine Governance-Grenze zwischen generiertem SQL und Ihren Datenbanken. hs-sql-agent parst, validiert, prüft erforderliche Fähigkeiten, wendet Zugriffsrichtlinien an und führt erst danach datenbankspezifisches SQL aus.",
@@ -87,7 +88,8 @@ export default {
     integrationDesc:
       "Verbinden Sie entfernte MCP-Clients wie Claude Desktop und Cursor oder betten Sie dieselbe kontrollierte Servergrenze in eine ASP.NET-Core-Anwendung ein.",
     docsKicker: "Dokumentation",
-    docsTitle: "Vom ersten MCP-Schlüssel bis zur Governance im Produktivbetrieb.",
+    docsTitle:
+      "Vom ersten MCP-Schlüssel bis zur Governance im Produktivbetrieb.",
     docsDesc:
       "Die Dokumentation folgt dem tatsächlichen Einführungsweg von hs-sql-agent: Einrichtung, MCP, Compiler-Garantien, Administration, Integrationen, Betrieb und Entwicklung.",
     docsCta: "Dokumentation öffnen",
