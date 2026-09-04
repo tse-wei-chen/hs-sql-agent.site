@@ -1,5 +1,6 @@
 ---
 import DocVisual from "./DocVisual.astro";
+import LocalizedDocVisual from "./LocalizedDocVisual.astro";
 import { getDocSectionLabel, getDocVisualKind } from "@/data/docsVisuals";
 import { useDocsUi } from "@/i18n/docs";
 
@@ -27,5 +28,12 @@ const docsUi = useDocsUi(locale);
     {description && <p>{description}</p>}
   </div>
 
-  {visualKind && <DocVisual kind={visualKind} {locale} />}
+  {
+    visualKind &&
+      (locale === "en" ? (
+        <DocVisual kind={visualKind} {locale} />
+      ) : (
+        <LocalizedDocVisual kind={visualKind} {locale} />
+      ))
+  }
 </header>
