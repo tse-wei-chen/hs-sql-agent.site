@@ -8,6 +8,7 @@ import IconMoon from "@/assets/icons/IconMoon.svg";
 import IconX from "@/assets/icons/IconX.svg";
 import LinkButton from "./LinkButton.astro";
 import LocaleSwitcher from "./LocaleSwitcher.astro";
+import { isDocsVersion } from "@/data/docsVersions";
 import { stripBase, stripLocale } from "@/utils/withBase";
 import { useTranslations } from "@/i18n";
 import config from "@/config";
@@ -22,6 +23,16 @@ const pathWithoutTrailingSlash =
     ? relativePath.slice(0, -1)
     : relativePath;
 const currentPath = stripLocale(pathWithoutTrailingSlash, locale);
+const currentPathSegments = currentPath.split("/").filter(Boolean);
+const isDocsPath = currentPathSegments[0] === "docs";
+const explicitDocsVersion =
+  isDocsPath && isDocsVersion(currentPathSegments[1] ?? "")
+    ? currentPathSegments[1]
+    : null;
+const searchBaseHref = getRelativeLocaleUrl(locale, "search");
+const searchHref = isDocsPath
+  ? `${searchBaseHref}?scope=docs&version=${encodeURIComponent(explicitDocsVersion ?? "latest")}`
+  : searchBaseHref;
 
 const isActive = (path: string) => {
   const currentPathArray = currentPath.split("/").filter(p => p.trim());
@@ -68,7 +79,7 @@ const navItems = [
         </li>
         {features.search !== false && (
           <li class="flex items-center">
-            <LinkButton href={getRelativeLocaleUrl(locale, "search")} class:list={["focus-outline relative size-9"]} title={t.nav.search} aria-label={t.nav.search}>
+            <LinkButton href={searchHref} class:list={["focus-outline relative size-9"]} title={t.nav.search} aria-label={t.nav.search}>
               <IconSearch class="absolute top-1/2 left-1/2 size-5 -translate-x-1/2 -translate-y-1/2" />
               <span class="sr-only">{t.nav.search}</span>
               {isActive("/search") && <IconUnderline aria-hidden="true" class="absolute bottom-0 w-5 scale-125" />}
