@@ -6,6 +6,7 @@ import {
   getDocsVersionLineage,
   isDocsVersion,
 } from "@/data/docsVersions";
+import { useDocsUi } from "@/i18n/docs";
 
 export type LocalizedContentIdentity = {
   locale: string;
@@ -147,9 +148,13 @@ export function getDocSection(doc: CollectionEntry<"docs">): string {
 }
 
 export function getDocGroupLabel(doc: CollectionEntry<"docs">): string {
+  const section = getDocSection(doc);
+  const locale = getContentLocale(doc.id);
+  const localizedSection = useDocsUi(locale).sections[section];
+  if (localizedSection) return localizedSection;
   if (doc.data.sidebar?.group) return doc.data.sidebar.group;
 
-  return getDocSection(doc)
+  return section
     .split("-")
     .filter(Boolean)
     .map(word => word.charAt(0).toUpperCase() + word.slice(1))
