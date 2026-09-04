@@ -1,0 +1,104 @@
+---
+title: MCP Keys
+description: 在 hs-sql-agent 2.0.1 簽發、限制、rotate、clone 與 revoke MCP credentials。
+sidebar:
+  group: Administration
+  order: 74
+---
+
+import Callout from "@/components/docs/mdx/Callout.astro";
+import CardGrid from "@/components/docs/mdx/CardGrid.astro";
+import DocCard from "@/components/docs/mdx/DocCard.astro";
+import Steps from "@/components/docs/mdx/Steps.astro";
+import Step from "@/components/docs/mdx/Step.astro";
+
+<CardGrid columns={3}>
+  <DocCard title="Database boundary" icon="DB" description="每把 production key 都綁定到一個 Database Management entry。" />
+  <DocCard title="Tool boundary" icon="T" description="只暴露 client 真正需要的 built-in 與 published Custom Tools。" />
+  <DocCard title="Table boundary" icon="▦" description="需要時再以 qualified-table whitelist 限制 key 可見資料表。" />
+</CardGrid>
+
+MCP key 用來驗證 `/mcp` request，並攜帶 hs-sql-agent runtime authorization scope。它與 Admin user session、OIDC identity 是不同的身份邊界。
+
+## 2.0.1 正式 built-in tool surface
+
+Key-management service 正式辨識五個 built-in tools：
+
+| Tool | Scope |
+| --- | --- |
+| `get_schemas` | schema discovery |
+| `get_tables` | table discovery |
+| `get_columns` | column discovery |
+| `execute_query_sql` | governed `SELECT` execution |
+| `execute_dml_sql` | governed Safe DML |
+
+同一 database 下已 publish 的 Custom Tools 也可以依名稱加入 allowlist。請見 [Custom Tools](/zh-hant/docs/administration/custom-tools)。
+
+<Callout type="info" title="空白 tool scope 代表 unrestricted，不是沒有 tools">
+Runtime 對空白 `AllowedTools` 的解讀是「不限制 tool name」。Production agent 建議明確選出最小必要 tool set，不要依賴 unrestricted 形式。
+</Callout>
+
+## 簽發 key
+
+<Steps>
+  <Step title="設定名稱" description="Request 必須有非空白 name，且上限 100 characters。" />
+  <Step title="綁定 database" description="2.0.1 issuance validator 要求 DbManagementId。" />
+  <Step title="選擇 tools" description="選取 built-in tools，以及該 database 已 publish 的 Custom Tools。" />
+  <Step title="限制 data access" description="如果 client 只能看部分資料表，啟用 table whitelist。" />
+  <Step title="設定 lifecycle controls" description="需要時設定 expiration、CORS origins 與 rate-limit mode/overrides。" />
+  <Step title="複製 plaintext secret" description="Lifecycle dialog 關閉前，把新 key 保存到 client secret store。" />
+</Steps>
+
+## Issuance 欄位
+
+| Field | 意義 |
+| --- | --- |
+| `Name` | 操作者辨識 key 的名稱 |
+| `ExpiresAt` | 選用 expiration；有設定時必須在未來 |
+| `AllowedTools` | comma-separated tool names；空白代表 unrestricted |
+| `CorsAllowedOrigins` | 選用的 browser-origin MCP CORS restriction |
+| `DbManagementId` | 綁定 database entry；簽發時必填 |
+| `TableWhitelist` | 選用 comma-separated qualified-table allowlist |
+| `RateLimitMode` | `Inherit`、`Custom` 或 `Unlimited` |
+| `PermitLimitOverride` | Custom per-key rate limit 使用 |
+| `WindowSecondsOverride` | Custom per-key rate limit 使用 |
+
+保存的 key record 只暴露短 prefix 供辨識。Raw secret 透過 server HMAC secret 驗證，不應被設計成日後再次顯示。
+
+## Rotate key
+
+Rotation 會建立 replacement key，並繼承舊 key 的 database/tool/table/CORS/rate-limit scope。
+
+Grace period 可以設 `0` 到 `1440` 分鐘：
+
+- `0` 會立即 revoke 舊 key；
+- 正值會在需要時把舊 key expiration 縮短到 grace deadline；
+- replacement 會拿到全新產生的 plaintext secret。
+
+<Callout type="tip" title="Rotation 用來換 secret，不要拿來偷偷改 scope">
+如果新 client 應該取得明顯不同的 database 或 table boundary，請把 scope change 當成獨立 authorization review，而不是普通 secret rotation。
+</Callout>
+
+## Clone key
+
+Clone 會建立新 key，複製 source key 的 runtime scope，但使用新的 name 與 secret。兩個 client 權限相同但不應共用 credential 時很適合使用。
+
+Clone 後 lifecycle 完全獨立，可以單獨 revoke 或 rotate，不會讓 source key 一起失效。
+
+## Revoke key
+
+Revocation 會把 key 標成 inactive，並在 DB commit 前先把 revocation tombstone 寫入 validation-cache path，目的是避免剛 revoke 的 credential 因 stale cache 繼續被接受。
+
+Bootstrap-managed key 不能走一般 UI lifecycle 做 edit、rotate 或 revoke；它的 lifecycle 由 bootstrap configuration 控制。
+
+## Rate-limit behavior
+
+Key 可以繼承 runtime key rate-limit policy、使用 custom override，或明確 unlimited。Admin list view 會把 key mode 與目前 security policy 合併後顯示 effective rate limit。
+
+多節點 deployment 若要全域協調限制，請使用 distributed rate-limiter configuration。
+
+## DML 與 Elicitation
+
+選取 `execute_dml_sql` 後，client compatibility requirement 也會改變。MCP client 必須支援 mutation approval 使用的 form Elicitation flow。
+
+授權新 client 使用 DML 前，請先讀 [MCP client onboarding](/zh-hant/docs/mcp/client-onboarding)。
