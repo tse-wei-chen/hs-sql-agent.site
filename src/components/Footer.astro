@@ -3,6 +3,7 @@ import type { HTMLAttributes } from "astro/types";
 import { getRelativeLocaleUrl } from "astro:i18n";
 import Socials from "./Socials.astro";
 import { useTranslations } from "@/i18n";
+import { useMarketingUi } from "@/i18n/marketing";
 import config from "@/config";
 
 type Props = {
@@ -12,6 +13,7 @@ type Props = {
 const { noMarginTop = false, class: className, ...attrs } = Astro.props;
 const locale = Astro.currentLocale ?? config.site.lang;
 const t = useTranslations(locale);
+const marketingUi = useMarketingUi(locale);
 const currentYear = new Date().getFullYear();
 const links = [
   { label: t.nav.features, href: "features" },
@@ -21,22 +23,49 @@ const links = [
 ];
 ---
 
-<footer class:list={["border-border border-t", { "mt-auto": !noMarginTop }, className]} {...attrs}>
+<footer
+  class:list={["border-border border-t", { "mt-auto": !noMarginTop }, className]}
+  {...attrs}
+>
   <div class="site-shell grid gap-8 px-4 py-10 sm:px-6 md:grid-cols-[1fr_auto] md:items-end">
     <div>
-      <a href={getRelativeLocaleUrl(locale, "")} class="text-lg font-semibold no-underline">hs-sql-agent</a>
+      <a
+        href={getRelativeLocaleUrl(locale, "")}
+        class="text-lg font-semibold no-underline"
+        >hs-sql-agent</a
+      >
       <p class="text-muted-foreground mt-2 max-w-xl text-sm leading-6">
-        {locale === "zh-hant" ? "在 AI-generated SQL 與資料庫之間建立 compiler、policy 與 human approval boundary。" : "A compiler, policy, and human-approval boundary between AI-generated SQL and your databases."}
+        {marketingUi.footerTagline}
       </p>
-      <nav class="mt-5 flex flex-wrap gap-x-5 gap-y-2 text-sm" aria-label="Footer navigation">
-        {links.map(link => <a class="text-muted-foreground hover:text-primary no-underline" href={getRelativeLocaleUrl(locale, link.href)}>{link.label}</a>)}
-        <a class="text-muted-foreground hover:text-primary no-underline" href="https://github.com/tse-wei-chen/hs-sql-agent" rel="external">GitHub</a>
+      <nav
+        class="mt-5 flex flex-wrap gap-x-5 gap-y-2 text-sm"
+        aria-label={marketingUi.footerNavigation}
+      >
+        {
+          links.map(link => (
+            <a
+              class="text-muted-foreground hover:text-primary no-underline"
+              href={getRelativeLocaleUrl(locale, link.href)}
+            >
+              {link.label}
+            </a>
+          ))
+        }
+        <a
+          class="text-muted-foreground hover:text-primary no-underline"
+          href="https://github.com/tse-wei-chen/hs-sql-agent"
+          rel="external">GitHub</a
+        >
       </nav>
     </div>
 
     <div class="md:text-right">
       <Socials />
-      <p class="text-muted-foreground mt-4 text-xs">{t.footer.copyright} © {currentYear} TSE-WEI CHEN · {t.footer.allRightsReserved}</p>
+      <p class="text-muted-foreground mt-4 text-xs">
+        {t.footer.copyright} © {currentYear} TSE-WEI CHEN · {
+          t.footer.allRightsReserved
+        }
+      </p>
     </div>
   </div>
 </footer>
