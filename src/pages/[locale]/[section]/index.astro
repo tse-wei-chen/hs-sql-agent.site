@@ -6,7 +6,6 @@ import Footer from "@/components/Footer.astro";
 import { locales } from "@/utils/getPostsByLocale";
 import {
   getMarketingPages,
-  hasMarketingPage,
   isMarketingSection,
   type MarketingSection,
 } from "@/data/marketing";
@@ -44,9 +43,7 @@ const defaultAlternate =
   alternates.find(item => item.locale === config.site.lang) ?? alternates[0];
 
 function getMarketingHref(pageSection: MarketingSection, slug: string): string {
-  const targetLocale = hasMarketingPage(locale, pageSection, slug)
-    ? locale
-    : "en";
+  const targetLocale = locale === "zh-hant" ? "zh-hant" : "en";
   return getRelativeLocaleUrl(targetLocale, `${pageSection}/${slug}`);
 }
 ---

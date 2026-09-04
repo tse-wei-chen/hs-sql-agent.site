@@ -7,7 +7,7 @@ import {
   hasDocInVersion,
 } from "@/utils/contentRouting";
 import { docsVersions, isDocsVersion } from "@/data/docsVersions";
-import { hasMarketingPage, isMarketingSection } from "@/data/marketing";
+import { isMarketingSection } from "@/data/marketing";
 import { stripBase, stripLocale } from "@/utils/withBase";
 
 const currentLocale = Astro.currentLocale ?? "en";
@@ -42,9 +42,8 @@ if (firstSegment === "docs") {
 
   fallbackPath = versioned ? `docs/${docsVersion}` : "docs";
 } else if (isMarketingSection(firstSegment) && restSegments.length > 0) {
-  const marketingSlug = restSegments.join("/");
   translatedLocales = new Set(
-    locales.filter(locale => hasMarketingPage(locale, firstSegment, marketingSlug))
+    locales.filter(locale => locale === "en" || locale === "zh-hant")
   );
   fallbackPath = firstSegment;
 }
@@ -58,7 +57,7 @@ function getLocaleHref(locale: string): string {
 ---
 <div class="relative">
   <button id="locale-btn" type="button" class="focus-outline hover:text-accent flex cursor-pointer items-center gap-1 px-2 py-1 text-sm font-medium transition" aria-label="Switch language">
-    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="size-4"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="size-4"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1 4-10z"/></svg>
     <span class="max-sm:sr-only">{localeLabels[currentLocale]}</span>
     <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="size-3"><polyline points="6 9 12 15 18 9"/></svg>
   </button>

@@ -6,7 +6,7 @@ import Footer from "@/components/Footer.astro";
 import { locales } from "@/utils/getPostsByLocale";
 import { useTranslations } from "@/i18n";
 import { useMarketingUi } from "@/i18n/marketing";
-import { hasMarketingPage, type MarketingSection } from "@/data/marketing";
+import type { MarketingSection } from "@/data/marketing";
 import config from "@/config";
 import "@/styles/landing.css";
 import "@/styles/landing-links.css";
@@ -50,7 +50,7 @@ const integrations = [
 ];
 
 function getMarketingHref(section: MarketingSection, slug: string): string {
-  const targetLocale = hasMarketingPage(locale, section, slug) ? locale : "en";
+  const targetLocale = locale === "zh-hant" ? "zh-hant" : "en";
   return getRelativeLocaleUrl(targetLocale, `${section}/${slug}`);
 }
 ---
