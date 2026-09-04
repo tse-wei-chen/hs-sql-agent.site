@@ -1,0 +1,21 @@
+---
+type Props = { columns?: 2 | 3 };
+const { columns = 2 } = Astro.props;
+---
+
+<div class:list={["docs-card-grid not-prose", `docs-card-grid-${columns}`]}>
+  <slot />
+</div>
+
+<style>
+  .docs-card-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: .9rem;
+    margin: 1.25rem 0 1.6rem;
+  }
+  @media (min-width: 680px) {
+    .docs-card-grid-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .docs-card-grid-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  }
+</style>
