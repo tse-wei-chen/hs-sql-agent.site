@@ -1,42 +1,42 @@
 ---
 title: 보안 개요
-description: 데이터베이스 거버넌스를 LLM 밖에 유지하는 server-side control과 이를 보호하는 operational setting을 설명합니다.
+description: 데이터베이스 통제를 LLM 밖에 두기 위한 서버 측 보호 기능과 이를 지키는 운영 설정을 설명합니다.
 sidebar:
   group: 보안
   order: 120
 ---
 
-hs-sql-agent는 AI model 자체를 security boundary로 사용하지 않도록 설계되어 있습니다. Authentication, database scope, table policy, tool restriction, SQL validation, mutation approval은 server가 강제합니다.
+hs-sql-agent는 AI 모델 자체를 보안 경계로 사용하지 않도록 설계되었습니다. 인증, 데이터베이스 범위, 테이블 정책, 도구 제한, SQL 검증, 데이터 변경 승인은 모두 서버에서 강제됩니다.
 
-## MCP access boundary
+## MCP 접근 경계
 
-MCP client는 발급된 key로 authenticate합니다. Runtime policy는 key를 database에 bind하고 사용할 수 있는 table과 tool을 제한할 수 있습니다.
+MCP 클라이언트는 발급된 키로 인증합니다. 실행 정책을 통해 키를 특정 데이터베이스에 연결하고 사용할 수 있는 테이블과 도구를 제한할 수 있습니다.
 
-query-only client에서는 client가 자발적으로 DML을 피할 것이라고 기대하지 말고 allowed-tool list를 제한하세요.
+읽기 전용 클라이언트는 클라이언트가 스스로 DML을 피할 것이라고 기대하지 말고, 허용 도구 목록에서 데이터 변경 도구를 제외하세요.
 
-## SQL boundary
+## SQL 실행 경계
 
-생성된 SQL은 provider-specific compilation 전에 parse와 validate를 거칩니다. 지원하지 않는 language 또는 target capability는 조용히 downgrade되지 않고 fail closed합니다.
+생성된 SQL은 대상 데이터베이스용으로 컴파일되기 전에 파싱되고 검증됩니다. 지원하지 않는 구문이나 대상 데이터베이스에서 같은 의미를 안전하게 보존할 수 있다고 확인되지 않은 기능은 조용히 다른 의미로 바꾸지 않고 fail-closed 방식으로 거부합니다.
 
-DML에는 별도의 approval protocol이 추가됩니다. Human acceptance는 validated mutation plan에 binding되고, row-set mutation은 execution 전에 commit transaction 안에서 revalidate됩니다.
+DML에는 별도의 승인 프로토콜이 적용됩니다. 사람의 승인은 검증된 데이터 변경 계획에 연결되며, 기존 행을 수정하는 작업은 실행 전에 커밋 트랜잭션 안에서 대상 행을 다시 검증합니다.
 
-## Administrative identity
+## 관리자 인증
 
-Server는 local authentication과 함께 선택적 OIDC/SSO 및 TOTP MFA 관련 설정을 지원합니다. OIDC settings에는 authority, client credential, claim mapping, scope, role mapping, verified-email requirement, auto-provisioning이 포함됩니다.
+서버는 로컬 인증과 함께 선택적으로 OIDC/SSO 및 TOTP MFA를 설정할 수 있습니다. OIDC 설정에는 Authority, 클라이언트 자격 증명, 클레임 매핑, 범위, 역할 매핑, 확인된 이메일 요구 사항, 자동 사용자 생성 등이 포함됩니다.
 
-보호된 login 또는 MFA state를 application restart 이후에도 유지해야 한다면 구성한 data-protection key path를 영속화하세요.
+보호된 로그인 상태나 MFA 상태를 애플리케이션 재시작 후에도 유지해야 한다면 설정된 데이터 보호 키 경로를 영구 저장소에 보관하세요.
 
-## Operational protection
+## 운영 환경 보호
 
-Security-related runtime setting에는 다음이 포함됩니다.
+보안과 관련된 주요 실행 설정은 다음과 같습니다.
 
-- sign-in lockout threshold와 duration
-- global/request rate limiting
-- distributed security-policy synchronization
-- signed alert와 SIEM webhook
-- audit retention과 archive/fallback path
-- distributed control용 fail-closed coordination mode
+- 로그인 실패 잠금 기준과 잠금 시간
+- 전체 및 요청 단위 속도 제한
+- 분산 환경의 보안 정책 동기화
+- 서명된 경고 및 SIEM Webhook
+- 감사 기록 보존 기간과 보관·대체 경로
+- 분산 제어에 문제가 생겼을 때의 fail-closed 동작
 
-## 취약점 보고
+## 취약점 신고
 
-Security vulnerability를 public issue로 공개하지 마세요. Repository의 GitHub Security Advisory에 있는 **Report a Vulnerability** flow를 사용해 responsible disclosure 방식으로 조사와 수정을 진행하세요.
+보안 취약점을 공개 Issue에 게시하지 마세요. 저장소의 GitHub Security Advisory에 있는 **Report a Vulnerability** 절차를 사용해 책임 있는 공개 방식으로 조사하고 수정할 수 있도록 신고해 주세요.

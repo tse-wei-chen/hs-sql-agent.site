@@ -60,8 +60,8 @@ const docsUi: Record<string, DocsUiStrings> = {
     versionLabel: "文件版本",
     latest: "最新",
     supported: "支援中",
-    archived: "封存",
-    humanApproval: "真人核准",
+    archived: "已封存",
+    humanApproval: "人工核准",
     sections: {
       administration: "管理",
       development: "開發",
@@ -71,7 +71,7 @@ const docsUi: Record<string, DocsUiStrings> = {
       operations: "維運",
       reference: "參考",
       security: "安全",
-      "sql-compiler": "SQL Compiler",
+      "sql-compiler": "SQL 編譯器",
     },
   },
   "zh-hans": {
@@ -99,7 +99,7 @@ const docsUi: Record<string, DocsUiStrings> = {
       operations: "运维",
       reference: "参考",
       security: "安全",
-      "sql-compiler": "SQL Compiler",
+      "sql-compiler": "SQL 编译器",
     },
   },
   ja: {
@@ -116,7 +116,7 @@ const docsUi: Record<string, DocsUiStrings> = {
     versionLabel: "ドキュメントバージョン",
     latest: "最新",
     supported: "サポート中",
-    archived: "アーカイブ",
+    archived: "アーカイブ済み",
     humanApproval: "人による承認",
     sections: {
       administration: "管理",
@@ -127,7 +127,7 @@ const docsUi: Record<string, DocsUiStrings> = {
       operations: "運用",
       reference: "リファレンス",
       security: "セキュリティ",
-      "sql-compiler": "SQL Compiler",
+      "sql-compiler": "SQL コンパイラ",
     },
   },
   ko: {
@@ -155,7 +155,7 @@ const docsUi: Record<string, DocsUiStrings> = {
       operations: "운영",
       reference: "참조",
       security: "보안",
-      "sql-compiler": "SQL Compiler",
+      "sql-compiler": "SQL 컴파일러",
     },
   },
 };

@@ -1,42 +1,42 @@
 ---
 title: 安全概览
-description: 了解将数据库治理保留在 LLM 之外的 server-side controls，以及保护这些控制的 operational settings。
+description: 了解如何通过服务器端控制把数据库治理放在 LLM 之外，以及保护这些控制措施的运维配置。
 sidebar:
   group: 安全
   order: 120
 ---
 
-hs-sql-agent 的设计目标是不让 AI model 成为安全边界。Authentication、database scope、table policy、tool restrictions、SQL validation 与 mutation approval 都由 server 强制执行。
+hs-sql-agent 的设计原则是：AI 模型本身不能成为安全边界。身份验证、数据库范围、表访问策略、工具限制、SQL 验证以及数据修改审批都由服务器强制执行。
 
-## MCP access boundary
+## MCP 访问边界
 
-MCP client 使用已签发的 key 进行认证。Runtime policy 可以把 key 绑定到一个 database，并限制它可使用的 tables 与 tools。
+MCP 客户端使用已签发的密钥进行身份验证。运行时策略可以把密钥绑定到指定数据库，并限制它可以访问的表和工具。
 
-对于 query-only client，应收紧 allowed-tool list，而不是依赖 client 自觉不执行 DML。
+对于只读客户端，应直接限制允许工具列表，而不是依赖客户端“自觉”不调用 DML。
 
-## SQL boundary
+## SQL 执行边界
 
-生成的 SQL 会在 provider-specific compilation 前被 parse 与 validate。不受支持的 language 或 target capability 会 fail closed，而不是被静默降级。
+AI 生成的 SQL 会先经过解析和验证，然后才会编译为目标数据库对应的 SQL。不支持的语法或无法确认能够在目标数据库安全保持相同语义的功能，会按照 fail-closed 原则被拒绝，而不是静默降级。
 
-DML 还有独立的 approval protocol。人工接受会绑定到 validated mutation plan；row-set mutation 会在执行前于 commit transaction 内重新验证。
+DML 使用独立的审批协议。人工批准会绑定到已经验证的数据修改计划；对于修改既有行的操作，真正执行前还会在提交事务中重新验证目标行。
 
-## Administrative identity
+## 管理员身份验证
 
-Server 支持 local authentication，并提供可选的 OIDC/SSO 与 TOTP MFA 相关配置。OIDC settings 包括 authority、client credentials、claim mappings、scopes、role mappings、verified-email requirements 与 auto-provisioning。
+服务器支持本地身份验证，也可以选择配置 OIDC/SSO 和 TOTP MFA。OIDC 设置包括 Authority、客户端凭据、声明映射、作用域、角色映射、已验证邮箱要求以及自动创建用户等选项。
 
-如果受保护的 login 或 MFA state 必须跨 application restart 保留，请持久化已配置的 data-protection key path。
+如果受保护的登录状态或 MFA 状态需要在应用重启后继续有效，请把配置的数据保护密钥路径放在持久化存储中。
 
-## Operational protection
+## 运维保护
 
-与安全相关的 runtime settings 包括：
+与安全相关的主要运行时设置包括：
 
-- sign-in lockout threshold 与 duration
-- global/request rate limiting
-- distributed security-policy synchronization
-- signed alert 与 SIEM webhooks
-- audit retention 与 archive/fallback paths
-- distributed controls 的 fail-closed coordination modes
+- 登录失败锁定阈值和锁定时长
+- 全局及请求级速率限制
+- 分布式环境中的安全策略同步
+- 带签名的告警和 SIEM Webhook
+- 审计数据保留周期以及归档/备用路径
+- 分布式控制异常时的 fail-closed 协调方式
 
 ## 报告安全漏洞
 
-不要在 public issue 中披露 security vulnerability。请使用 repository 的 GitHub Security Advisory **Report a Vulnerability** 流程，让问题通过 responsible disclosure 被调查与修复。
+请勿在公开 Issue 中披露安全漏洞。应使用仓库 GitHub Security Advisory 中的 **Report a Vulnerability** 流程，让问题通过负责任披露方式完成调查和修复。

@@ -1,32 +1,32 @@
 ---
 title: 数据库方言
-description: 共享 MCP surface 背后的六种 database provider，以及“有边界的 dialect support”具体意味着什么。
+description: 介绍统一 MCP 接口背后的六种数据库支持，以及 SQL 方言“有限支持”的具体含义。
 sidebar:
   group: SQL Compiler
   order: 60
 ---
 
-hs-sql-agent 目前面向六种 relational database provider：
+hs-sql-agent 当前支持以下六种关系型数据库：
 
-| Provider | Role |
+| 数据库 | 作用 |
 | --- | --- |
-| PostgreSQL | Source and target SQL dialect |
-| MySQL | Source and target SQL dialect |
-| SQL Server | Source and target SQL dialect |
-| Oracle | Source and target SQL dialect |
-| SQLite | Source and target SQL dialect |
-| Firebird | Source and target SQL dialect |
+| PostgreSQL | 输入与输出 SQL 方言 |
+| MySQL | 输入与输出 SQL 方言 |
+| SQL Server | 输入与输出 SQL 方言 |
+| Oracle | 输入与输出 SQL 方言 |
+| SQLite | 输入与输出 SQL 方言 |
+| Firebird | 输入与输出 SQL 方言 |
 
-## 一个 MCP surface 不代表只有一种 SQL dialect
+## MCP 接口统一，不代表 SQL 方言统一
 
-MCP client 使用共享的 server contract，但 SQL semantics 仍然与 provider 有关。Compiler 负责为已配置的 database provider 保留受支持 statement 的语义。
+MCP 客户端使用的是统一服务器接口，但 SQL 的具体语义仍然取决于数据库。编译器负责确保受支持的语句在目标数据库上保持原有含义。
 
-这个区别会影响 operators、types、casts、functions、identifiers、pagination、null semantics 与 DML behavior 等功能。
+这类差异会影响运算符、数据类型、CAST、函数、标识符、分页、NULL 语义以及 DML 行为。
 
-## 有边界的支持范围
+## 支持范围是明确限定的
 
-某个 database 出现在 provider list 中，并不代表该数据库提供的每一种 syntax feature 都会被接受。
+数据库出现在支持列表中，并不意味着该数据库提供的所有 SQL 语法都可以使用。
 
-当 source construct 无法被表示，或无法证明等价的 target capability 时，compiler 会明确 fail closed。Capability coverage 可以持续扩展，但不会因此削弱这条规则。
+如果输入语法无法被安全地内部表示，或者无法确认目标数据库能够保持等价语义，编译器就会按照 fail-closed 原则拒绝请求。支持范围可以继续扩大，但不会放弃这一规则。
 
-在 production 使用时，应把 compiler acceptance 当成 contract，而不要假设 vendor CLI 能接受的 arbitrary SQL 也一定会被 hs-sql-agent 接受。
+在生产环境中，应把 hs-sql-agent 编译器实际接受的 SQL 作为正式契约，不要假设数据库命令行工具能够执行的任意 SQL 都会被 hs-sql-agent 接受。

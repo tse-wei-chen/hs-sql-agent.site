@@ -1,32 +1,32 @@
 ---
-title: Database Dialects
-description: 共通の MCP surface の背後にある 6 つの database provider と、bounded dialect support の意味を説明します。
+title: データベース方言
+description: 共通の MCP インターフェースの背後にある 6 種類のデータベース対応と、SQL 方言の対応範囲を説明します。
 sidebar:
   group: SQL Compiler
   order: 60
 ---
 
-hs-sql-agent は現在、次の 6 つの relational database provider を対象にしています。
+hs-sql-agent は現在、次の 6 種類のリレーショナルデータベースを対象にしています。
 
-| Provider | Role |
+| データベース | 役割 |
 | --- | --- |
-| PostgreSQL | Source and target SQL dialect |
-| MySQL | Source and target SQL dialect |
-| SQL Server | Source and target SQL dialect |
-| Oracle | Source and target SQL dialect |
-| SQLite | Source and target SQL dialect |
-| Firebird | Source and target SQL dialect |
+| PostgreSQL | 入力・出力の SQL 方言 |
+| MySQL | 入力・出力の SQL 方言 |
+| SQL Server | 入力・出力の SQL 方言 |
+| Oracle | 入力・出力の SQL 方言 |
+| SQLite | 入力・出力の SQL 方言 |
+| Firebird | 入力・出力の SQL 方言 |
 
-## 1つの MCP surface は 1つの SQL dialect を意味しません
+## MCP の入口が共通でも、SQL 方言は共通ではありません
 
-MCP client は共通の server contract を利用しますが、SQL semantics は provider-specific のままです。Compiler は、設定された database provider に対してサポート対象 statement の意味を維持する責任を持ちます。
+MCP クライアントから見えるサーバー契約は共通ですが、SQL の意味はデータベースごとに異なります。コンパイラは、設定されたデータベース上で、対応済みの SQL が同じ意味を保つように処理します。
 
-この違いは、operator、type、cast、function、identifier、pagination、null semantics、DML behavior などで重要になります。
+この違いは、演算子、型、CAST、関数、識別子、ページング、NULL の意味、DML の動作などに影響します。
 
-## Bounded support
+## 対応範囲は明示的に限定されています
 
-Database が provider list に含まれているからといって、その database が提供するすべての syntax feature を受け入れるわけではありません。
+対応データベースの一覧に製品名があるからといって、その製品が提供するすべての SQL 構文を受け付けるわけではありません。
 
-Compiler は source construct を表現できない場合、または equivalent target capability を証明できない場合に意図的に fail closed します。Capability coverage はこのルールを弱めずに拡張できます。
+入力された構文を内部表現として安全に扱えない場合や、出力先で同じ意味を保てると確認できない場合、コンパイラは fail-closed で拒否します。この原則を崩さずに、対応機能は段階的に増やせます。
 
-Production では、vendor CLI が受け入れる arbitrary SQL も hs-sql-agent が受け入れると仮定せず、compiler acceptance を contract として扱ってください。
+本番環境では、各データベースの CLI が受け付ける SQL をそのまま実行できると考えず、hs-sql-agent のコンパイラが受理する範囲を正式な契約として扱ってください。

@@ -1,35 +1,35 @@
 ---
 title: SQL 実行モデル
-description: hs-sql-agent が信頼できない SQL を、実行前に検証済みの provider-specific statement へ変換する流れを説明します。
+description: hs-sql-agent が信頼できない SQL を検証し、接続先データベース向けの SQL へ変換してから実行する仕組みを説明します。
 sidebar:
   group: SQL Compiler
   order: 40
 ---
 
-hs-sql-agent は生成された SQL を信頼済み command として扱いません。実行境界は parse、validation、capability check、access policy、provider-specific compilation を中心に設計されています。
+hs-sql-agent は、AI が生成した SQL をそのまま信頼済みコマンドとして扱いません。実行前に解析、検証、対応能力の確認、アクセスポリシーの適用、接続先データベース向けのコンパイルを行います。
 
-## Query path
+## クエリの実行経路
 
-Query execution は概ね次の順序で進みます。
+クエリは大きく次の順序で処理されます。
 
-1. MCP key を認証し、その database、table、tool、execution scope を適用する。
-2. サポート対象の SQL を structured definition / AST に parse する。
-3. statement と source semantics を validate する。
-4. semantics を維持するために必要な target/provider capability を確認する。
-5. 設定された database provider 向けの SQL を compile/render する。
-6. 設定された runtime limit の範囲で実行する。
+1. MCP キーを認証し、そのキーに設定されたデータベース、テーブル、ツール、実行上限を適用する。
+2. 対応している SQL を構造化された定義 / AST へ解析する。
+3. 文と入力側 SQL の意味がサポート範囲内にあるか検証する。
+4. 同じ意味を保つために必要な機能を、接続先データベースが安全に表現できるか確認する。
+5. 設定されたデータベース向けに SQL をコンパイルして出力する。
+6. 設定された実行上限の範囲内で SQL を実行する。
 
-SQL compiler implementation には source-validation と target-capability の明示的な stage があります。サポートされていない syntax や証明できない capability は、表面的に似た construct へ暗黙変換されるのではなく拒否されます。
+SQL コンパイラには、入力側の意味を検証する段階と、出力先の対応能力を確認する段階が明示的に分かれています。対応していない構文や、安全に同じ意味を表現できると確認できない機能は、見た目だけ似た別の構文へ置き換えずに拒否します。
 
-## なぜ fail closed なのか
+## なぜ fail-closed なのか
 
-Cross-database SQL には、見た目は同等でも null behavior、type rule、operator semantics、pagination、identifier、function、DML behavior が異なる construct が多数あります。
+複数のデータベースで SQL を扱うと、見た目が似ていても NULL の扱い、型規則、演算子の意味、ページング、識別子、関数、DML の動作が異なる構文が数多くあります。
 
-AI-facing execution surface での "best effort" rewrite は危険です。構文的に有効なまま意味だけが変わる可能性があるため、hs-sql-agent は暗黙の semantic downgrade より明示的な rejection を優先します。
+AI から SQL を受け付ける実行基盤で「可能な範囲で書き換える」方式を採ると、構文としては正しくても意味が変わる危険があります。hs-sql-agent はそのため、暗黙の意味変更よりも明示的な拒否を選びます。
 
-## Provider-specific output
+## データベースごとの SQL 出力
 
-公開される MCP surface は共通ですが、最終的な SQL は provider-specific です。現在の database provider は次の 6 つです。
+MCP の公開インターフェースは共通ですが、最終的に生成される SQL はデータベースごとに異なります。現在対応しているデータベースは次のとおりです。
 
 - PostgreSQL
 - MySQL
@@ -38,4 +38,4 @@ AI-facing execution surface での "best effort" rewrite は危険です。構�
 - SQLite
 - Firebird
 
-Support は意図的に bounded です。Provider がサポートされていることは、その database の全 syntax feature が受け入れられることを意味しません。個々の compiler capability は、その semantics を表現・検証できる場合にだけ拡張されます。
+対応範囲は意図的に限定されています。データベース自体が対応一覧にあるからといって、その製品が提供するすべての SQL 構文を受け付けるわけではありません。個々の機能は、その意味を内部表現として保持し、検証できるようになった段階で追加されます。

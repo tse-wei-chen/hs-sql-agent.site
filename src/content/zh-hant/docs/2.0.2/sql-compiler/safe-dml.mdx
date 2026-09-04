@@ -1,6 +1,6 @@
 ---
 title: Safe DML
-description: 先 preview、把 approval 綁定到 validated plan、重新驗證 row set，最後才 commit。
+description: 預覽修改範圍、固定核准內容、重新驗證目標資料列，只認可使用者實際核准的那一次資料修改。
 sidebar:
   group: SQL Compiler
   order: 50
@@ -13,63 +13,63 @@ import Flow from "@/components/docs/mdx/Flow.astro";
 import Steps from "@/components/docs/mdx/Steps.astro";
 import Step from "@/components/docs/mdx/Step.astro";
 
-DML 比 query 使用更嚴格的流程，因為真正 commit 時，人工核准的內容仍必須描述**同一個 mutation**。
+DML 採用比一般查詢更嚴格的執行流程，因為系統必須確保最後認可的修改與使用者實際核准的內容**完全一致**。
 
-<Flow items={["Compile", "Preview", "Approve", "Revalidate", "Commit"]} />
+<Flow items={["編譯", "預覽", "核准", "重新驗證", "認可"]} />
 
 <CardGrid columns={3}>
-  <DocCard title="Preview，不先 mutate" icon="01" description="UPDATE/DELETE 先在 preview transaction 讀取目前 matching rows，不執行 mutation。" />
-  <DocCard title="Approval 有綁定證據" icon="02" description="One-time challenge 會綁定 validated plan、policy version、affected-row count 與 row-set fingerprint。" />
-  <DocCard title="Commit 會重新確認現況" icon="03" description="Commit transaction 重新查 row set；只要與核准時 facts 不一致就取消。" />
+  <DocCard title="先預覽影響範圍" icon="01" description="UPDATE/DELETE 不會立即修改資料，而是先在預覽交易中讀取目前會受影響的目標資料列。" />
+  <DocCard title="固定核准內容" icon="02" description="一次性核准挑戰值會綁定已驗證的執行計畫、政策版本、目標資料列數與目標資料列集合指紋。" />
+  <DocCard title="認可前再次核對" icon="03" description="認可交易會重新查詢目標資料列；如果目前狀態與核准時不一致，就取消操作。" />
 </CardGrid>
 
-<Callout type="danger" title="核准不是允許日後執行另一個 mutation">
-Approval challenge 綁定的是已驗證 operation 與當下觀察到的 impact。若 commit 前 plan、policy、challenge、affected-row count 或 row-set fingerprint 有任何改變，hs-sql-agent 會取消，而不是照樣執行。
+<Callout type="danger" title="一次核准不能拿來執行之後的另一項資料修改">
+核准挑戰值只對應已驗證的操作與使用者當時看到的影響範圍。如果認可前執行計畫、政策、挑戰值、目標資料列數或資料列集合指紋發生變化，hs-sql-agent 會取消操作，而不是繼續修改資料。
 </Callout>
 
 ## UPDATE 與 DELETE
 
 <Steps>
-  <Step title="Compile mutation">
-在要求 approval 前，先完成 parse、validation、authorization 與 compile。
+  <Step title="編譯資料修改">
+在要求使用者核准前，先解析、驗證並授權這段 SQL，再把它編譯成可執行計畫。
   </Step>
-  <Step title="Preview affected row set">
-開啟 preview transaction，只讀目前 matching rows，不執行 mutation。
+  <Step title="預覽目標資料列">
+開啟預覽交易，在不執行修改的情況下讀取目前符合條件的目標資料列。
   </Step>
-  <Step title="建立 one-time approval evidence">
-把 validated compiled plan、policy version、affected-row count 與 row-set fingerprint 綁到 challenge。
+  <Step title="建立一次性核准資訊">
+把核准挑戰值綁定到已驗證的執行計畫、政策版本、目標資料列數與資料列集合指紋。
   </Step>
-  <Step title="透過 MCP Elicitation 請真人核准">
-送出 `elicitation/create`，要求 MCP client 明確完成 form approval。
+  <Step title="透過 MCP Elicitation 要求使用者核准">
+傳送 `elicitation/create`，要求 MCP 用戶端透過表單明確取得使用者核准。
   </Step>
-  <Step title="Consume approved challenge">
-Accept 後驗證並 consume one-time challenge，避免它被當成 generic permission token 重放。
+  <Step title="用完已核准的挑戰值">
+使用者接受後驗證並消耗這次性挑戰值，避免它被重複利用成通用權限憑證。
   </Step>
-  <Step title="在 commit transaction 重新查詢">
-再次讀取 matching rows，比較目前 fingerprint/count 與 approval preview 是否一致。
+  <Step title="在認可交易中重新查詢">
+再次讀取目標資料列，並把目前的集合指紋與資料列數和核准時的預覽結果比較。
   </Step>
-  <Step title="全部一致才 commit">
-只有 plan、policy、challenge、row count 與 row set 都未改變，才執行原本那個 compiled mutation。
+  <Step title="只有全部一致才認可">
+只有執行計畫、政策、核准挑戰值、資料列數與目標資料列集合都沒有變化時，才執行使用者核准的那項資料修改。
   </Step>
 </Steps>
 
 ## INSERT VALUES
 
-`INSERT ... VALUES` 沒有既存 matching row set，因此 approval protocol 會綁定 immutable insert payload 與 exact compiled plan，而不是 row-set preview。
+`INSERT ... VALUES` 在修改前不存在一組「已經符合條件的目標資料列」。因此核准協定不會綁定資料列集合預覽，而是綁定不可變的插入資料與已驗證的執行計畫。
 
-<Callout type="info" title="Mutation shape 不同，但 invariant 相同">
-Row-set mutation 與 insert payload 所核准的 evidence 不同，但核心原則一樣：只 commit approval 所描述的 exact validated mutation。
+<Callout type="info" title="修改方式不同，安全原則相同">
+修改既有資料列與插入新資料列時，需要固定的核准資訊不同；但不變條件相同：只執行使用者實際查看並核准的那一項資料修改。
 </Callout>
 
 ## Elicitation 是必要條件
 
-`execute_dml_sql` 與 published DML Custom Tools 都需要 MCP client 支援 **form Elicitation**。無法完成 approval interaction 的 client 不能使用這些 mutation paths。
+`execute_dml_sql` 與已發布的 DML Custom Tools 要求 MCP 用戶端支援 **form Elicitation**。無法完成核准互動的用戶端不能使用這些資料修改流程。
 
-這不是單純 UI confirmation：approval challenge 是 server-side mutation protocol 的一部分，執行前還會再次被驗證。
+這與一般 UI 確認視窗不同。核准挑戰值是伺服器端資料修改協定的一部分，而且會在真正執行前再次驗證。
 
 ## 相關文件
 
 <CardGrid columns={2}>
-  <DocCard title="MCP Client Onboarding" icon="MCP" href="/zh-hant/docs/mcp/client-onboarding" description="在啟用 DML 前，先確認實際 MCP client 版本能處理 form Elicitation。" />
-  <DocCard title="SQL 執行模型" icon="AST" href="/zh-hant/docs/sql-compiler/execution-model" description="理解完整 parse、validation、capability、policy、compile 與 execution boundary。" />
+  <DocCard title="連接 MCP 用戶端" icon="MCP" href="/zh-hant/docs/mcp/client-onboarding" description="啟用 DML 前，確認實際使用的 MCP 用戶端版本能處理 form Elicitation。" />
+  <DocCard title="SQL 執行模型" icon="AST" href="/zh-hant/docs/sql-compiler/execution-model" description="理解解析、驗證、功能支援檢查、存取政策、編譯與執行之間的完整邊界。" />
 </CardGrid>

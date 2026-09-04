@@ -1,35 +1,35 @@
 ---
 title: SQL 실행 모델
-description: hs-sql-agent가 신뢰할 수 없는 SQL을 실행 전에 검증된 provider-specific statement로 바꾸는 흐름을 설명합니다.
+description: hs-sql-agent가 신뢰할 수 없는 SQL을 검증하고 대상 데이터베이스용 SQL로 변환한 뒤 실행하는 과정을 설명합니다.
 sidebar:
   group: SQL Compiler
   order: 40
 ---
 
-hs-sql-agent는 생성된 SQL을 신뢰된 command로 취급하지 않습니다. 실행 경계는 parse, validation, capability check, access policy, provider-specific compilation을 중심으로 설계되어 있습니다.
+hs-sql-agent는 AI가 생성한 SQL을 신뢰된 명령으로 바로 실행하지 않습니다. 실행 전에 파싱, 검증, 지원 기능 확인, 접근 정책 적용, 대상 데이터베이스용 컴파일을 거칩니다.
 
-## Query path
+## 쿼리 실행 경로
 
-Query execution은 대략 다음 순서로 진행됩니다.
+쿼리는 대략 다음 순서로 처리됩니다.
 
-1. MCP key를 인증하고 database, table, tool, execution scope를 적용합니다.
-2. 지원하는 SQL을 structured definition / AST로 parse합니다.
-3. statement와 source semantics를 validate합니다.
-4. semantics를 보존하는 데 필요한 target/provider capability를 확인합니다.
-5. 설정된 database provider용 SQL을 compile/render합니다.
-6. 설정된 runtime limit 안에서 실행합니다.
+1. MCP 키를 인증하고 해당 키에 설정된 데이터베이스, 테이블, 도구, 실행 한도를 적용합니다.
+2. 지원하는 SQL을 구조화된 정의 / AST로 파싱합니다.
+3. 문장과 입력 SQL의 의미가 지원 범위 안에 있는지 검증합니다.
+4. 같은 의미를 유지하는 데 필요한 기능을 대상 데이터베이스에서 안전하게 표현할 수 있는지 확인합니다.
+5. 설정된 데이터베이스용 SQL을 컴파일하고 생성합니다.
+6. 설정된 실행 한도 안에서 SQL을 실행합니다.
 
-SQL compiler implementation에는 명시적인 source-validation과 target-capability stage가 있습니다. 지원하지 않는 syntax나 증명할 수 없는 capability는 겉보기만 비슷한 construct로 조용히 바뀌지 않고 거부됩니다.
+SQL 컴파일러에는 입력 SQL의 의미를 검증하는 단계와 대상 데이터베이스의 지원 기능을 확인하는 단계가 명확히 구분되어 있습니다. 지원하지 않는 구문이나 같은 의미를 안전하게 보존할 수 있다고 확인되지 않은 기능은 겉보기만 비슷한 구문으로 바꾸지 않고 거부합니다.
 
-## 왜 fail closed인가
+## 왜 fail-closed 방식인가요?
 
-Cross-database SQL에는 겉으로는 비슷하지만 null behavior, type rule, operator semantics, pagination, identifier, function, DML behavior가 다른 construct가 많습니다.
+여러 데이터베이스에서 SQL을 다루면 겉보기에는 비슷해도 NULL 처리, 형식 규칙, 연산자 의미, 페이지 처리, 식별자, 함수, DML 동작이 다른 경우가 많습니다.
 
-AI-facing execution surface에서 "best effort" rewrite는 위험합니다. 구문은 유효한 상태로 의미만 바뀔 수 있기 때문에 hs-sql-agent는 암묵적인 semantic downgrade보다 명시적인 rejection을 우선합니다.
+AI가 SQL을 제출하는 실행 환경에서 "가능한 범위에서 알아서 바꾸는" 방식은 위험합니다. 문법상 올바른 SQL이더라도 의미가 달라질 수 있기 때문입니다. hs-sql-agent는 이런 암묵적 의미 변경보다 명확한 거부를 선택합니다.
 
-## Provider-specific output
+## 데이터베이스별 SQL 출력
 
-공개 MCP surface는 공통이지만 최종 SQL은 provider-specific입니다. 현재 database provider는 다음 6개입니다.
+MCP 공개 인터페이스는 공통이지만 최종 SQL은 데이터베이스별로 생성됩니다. 현재 지원하는 데이터베이스는 다음과 같습니다.
 
 - PostgreSQL
 - MySQL
@@ -38,4 +38,4 @@ AI-facing execution surface에서 "best effort" rewrite는 위험합니다. 구�
 - SQLite
 - Firebird
 
-Support는 의도적으로 bounded되어 있습니다. Provider가 지원된다는 사실은 해당 database의 모든 syntax feature가 허용된다는 뜻이 아닙니다. 개별 compiler capability는 semantics를 표현하고 검증할 수 있을 때만 확장됩니다.
+지원 범위는 의도적으로 제한되어 있습니다. 데이터베이스가 지원 목록에 있다고 해서 해당 제품의 모든 SQL 구문을 허용하는 것은 아닙니다. 개별 기능은 그 의미를 내부 표현으로 나타내고 검증할 수 있을 때만 추가됩니다.
