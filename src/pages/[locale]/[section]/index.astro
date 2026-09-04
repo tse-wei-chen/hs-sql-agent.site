@@ -5,6 +5,7 @@ import Header from "@/components/Header.astro";
 import Footer from "@/components/Footer.astro";
 import { locales } from "@/utils/getPostsByLocale";
 import { getMarketingPages, isMarketingSection, type MarketingSection } from "@/data/marketing";
+import { getAspNetCoreMarketingPage } from "@/data/marketingAspNetCore";
 import config from "@/config";
 import "@/styles/marketing.css";
 
@@ -32,7 +33,11 @@ if (!isMarketingSection(sectionParam)) {
   throw new Error(`Unknown marketing section: ${sectionParam}`);
 }
 const section: MarketingSection = sectionParam;
-const pages = getMarketingPages(locale, section);
+const pages = getMarketingPages(locale, section).map(page =>
+  page.section === "integrations" && page.slug === "aspnet-core"
+    ? getAspNetCoreMarketingPage(locale)
+    : page
+);
 const langCopy = locale === "zh-hant" ? copy["zh-hant"] : copy.en;
 const [title, description] = langCopy[section];
 const urlBase = Astro.site ?? Astro.url;
