@@ -1,6 +1,6 @@
 ---
 title: Safe DML
-description: Auswirkungen vorab prüfen, die Freigabe binden, die Zielzeilen erneut prüfen und nur die exakt freigegebene Änderung committen.
+description: Auswirkungen vorab prüfen, die Freigabe binden, die Zielzeilen erneut prüfen und nur die exakt freigegebene Änderung per Commit übernehmen.
 sidebar:
   group: SQL-Compiler
   order: 50
@@ -24,7 +24,7 @@ DML folgt einem strengeren Pfad als die Ausführung von Abfragen, weil die Freig
 </CardGrid>
 
 <Callout type="danger" title="Eine Freigabe ist keine Erlaubnis für eine spätere, andere Datenänderung">
-Die Freigabe-Challenge ist an die validierte Operation und ihre beobachteten Auswirkungen gebunden. Ändern sich Plan, Richtlinie, Challenge, Anzahl betroffener Zeilen oder Fingerabdruck der Zeilenmenge vor dem Commit, bricht hs-sql-agent die Operation ab, statt sie auszuführen.
+Die Freigabe-Challenge ist an die validierte Operation und ihre beobachteten Auswirkungen gebunden. Ändern sich Plan, Richtlinie, Freigabe-Challenge, Anzahl betroffener Zeilen oder Fingerabdruck der Zeilenmenge vor dem Commit, bricht hs-sql-agent die Operation ab, statt sie auszuführen.
 </Callout>
 
 ## UPDATE und DELETE
@@ -37,19 +37,19 @@ Die angeforderte Änderung parsen, validieren, autorisieren und kompilieren, bev
 Eine Vorschau-Transaktion öffnen und die aktuell passenden Zeilen lesen, ohne die Datenänderung auszuführen.
   </Step>
   <Step title="Einmaligen Freigabenachweis erzeugen">
-Die Challenge an den validierten kompilierten Plan, die Richtlinienversion, die Anzahl betroffener Zeilen und den Fingerabdruck der Zeilenmenge binden.
+Die Freigabe-Challenge an den validierten kompilierten Plan, die Richtlinienversion, die Anzahl betroffener Zeilen und den Fingerabdruck der Zeilenmenge binden.
   </Step>
   <Step title="Menschliche Freigabe über MCP Elicitation anfordern">
 `elicitation/create` senden und eine ausdrückliche Formularfreigabe durch den MCP-Client verlangen.
   </Step>
-  <Step title="Freigegebene Challenge verbrauchen">
-Nach der Annahme die einmalige Challenge validieren und verbrauchen, damit sie nicht als allgemeines Berechtigungstoken wiederverwendet werden kann.
+  <Step title="Freigabe-Challenge verbrauchen">
+Nach der Annahme die einmalige Freigabe-Challenge validieren und verbrauchen, damit sie nicht als allgemeines Berechtigungstoken wiederverwendet werden kann.
   </Step>
   <Step title="In der Commit-Transaktion erneut abfragen">
 Die Zielzeilen erneut lesen und aktuellen Fingerabdruck sowie Zeilenanzahl mit der freigegebenen Vorschau vergleichen.
   </Step>
-  <Step title="Nur bei unverändertem Zustand committen">
-Genau die kompilierte Datenänderung nur dann ausführen, wenn Plan, Richtlinie, Challenge, Zeilenanzahl und Zeilenmenge unverändert sind.
+  <Step title="Nur bei unverändertem Zustand per Commit übernehmen">
+Genau die kompilierte Datenänderung nur dann ausführen, wenn Plan, Richtlinie, Freigabe-Challenge, Zeilenanzahl und Zeilenmenge unverändert sind.
   </Step>
 </Steps>
 
@@ -58,18 +58,18 @@ Genau die kompilierte Datenänderung nur dann ausführen, wenn Plan, Richtlinie,
 Eine Anweisung `INSERT ... VALUES` besitzt keine bereits vorhandene Zielzeilenmenge. Deshalb bindet das Freigabeprotokoll die unveränderliche Einfügenutzlast und den exakten kompilierten Plan statt einer Vorschau vorhandener Zeilen.
 
 <Callout type="info" title="Andere Änderungsform, gleiches Prinzip">
-Der freigegebene Nachweis unterscheidet sich zwischen Änderungen vorhandener Zeilen und einer Einfügenutzlast, das Invariant bleibt jedoch gleich: Commit nur für genau die validierte Datenänderung, die durch die Freigabe beschrieben wurde.
+Der freigegebene Nachweis unterscheidet sich zwischen Änderungen vorhandener Zeilen und einer Einfügenutzlast, die Invariante bleibt jedoch gleich: Commit nur für genau die validierte Datenänderung, die durch die Freigabe beschrieben wurde.
 </Callout>
 
 ## Elicitation ist erforderlich
 
-`execute_dml_sql` und veröffentlichte DML Custom Tools setzen **form Elicitation** im MCP-Client voraus. Ein Client, der diese Freigabeinteraktion nicht ausführen kann, kann diese Änderungspfade nicht verwenden.
+`execute_dml_sql` und veröffentlichte DML Custom Tools setzen **Elicitation per Formular** (`form Elicitation`) im MCP-Client voraus. Ein Client, der diese Freigabeinteraktion nicht ausführen kann, kann diese Änderungspfade nicht verwenden.
 
 Dies unterscheidet sich bewusst von einem reinen Bestätigungsdialog in der Benutzeroberfläche: Die Freigabe-Challenge ist Teil des serverseitigen Änderungsprotokolls und wird vor der Ausführung erneut geprüft.
 
 ## Verwandte Dokumentation
 
 <CardGrid columns={2}>
-  <DocCard title="MCP-Client verbinden" icon="MCP" href="/de/docs/mcp/client-onboarding" description="Vor der DML-Aktivierung prüfen, ob die exakt eingesetzte MCP-Clientversion form Elicitation unterstützt." />
+  <DocCard title="MCP-Client verbinden" icon="MCP" href="/de/docs/mcp/client-onboarding" description="Vor der DML-Aktivierung prüfen, ob die exakt eingesetzte MCP-Clientversion Elicitation per Formular unterstützt." />
   <DocCard title="SQL-Ausführungsmodell" icon="AST" href="/de/docs/sql-compiler/execution-model" description="Die übergreifende Grenze aus Parsing, Validierung, Fähigkeiten, Richtlinien, Kompilierung und Ausführung verstehen." />
 </CardGrid>

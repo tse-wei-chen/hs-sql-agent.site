@@ -27,7 +27,7 @@ hs-sql-agent stellt unter `/mcp` einen **Streamable HTTP** MCP-Endpunkt bereit.
 Erstellen Sie im Admin Panel einen Schlüssel, der an die vorgesehene Datenbank gebunden ist. Wenn der Client keinen uneingeschränkten Zugriff benötigt, begrenzen Sie die zulässigen Werkzeuge und Tabellen.
   </Step>
   <Step title="Öffentlichen MCP-Endpunkt verwenden">
-Der Endpunkt muss vom Client aus erreichbar sein. Gehen Sie nicht davon aus, dass Admin UI und MCP-Endpunkt dieselbe Origin verwenden.
+Der Endpunkt muss vom Client aus erreichbar sein. Gehen Sie nicht davon aus, dass Administrationsoberfläche und MCP-Endpunkt dieselbe Web-Origin verwenden.
   </Step>
   <Step title="Jede Anfrage authentifizieren">
 Senden Sie den Schlüssel mit dem unten gezeigten MCP-Anforderungsheader. Behandeln Sie den Klartextschlüssel als Geheimnis; nach dem Schließen des Lebenszyklusdialogs wird derselbe Wert nicht erneut angezeigt.
@@ -55,8 +55,8 @@ Die für Betreiber angezeigte URL und die generierten Clientkonfigurationen stam
 
 Die entsprechende Umgebungsvariable ist `Mcp__PublicEndpoint`; die mitgelieferte Compose-Konfiguration ordnet `MCP_PUBLIC_ENDPOINT` dieser Einstellung zu.
 
-<Callout type="warning" title="Leiten Sie die MCP-Adresse nicht aus der URL der Admin-Oberfläche ab">
-Admin UI und MCP-Endpunkt können unterschiedliche Hosts, Ports oder Reverse-Proxy-Pfade verwenden. Außerhalb der `Development`-Umgebung verlangt der Server einen absoluten öffentlichen HTTP- oder HTTPS-Endpunkt. Konfigurieren Sie die URL, die der MCP-Client tatsächlich erreichen kann.
+<Callout type="warning" title="Leiten Sie die MCP-Adresse nicht aus der URL der Administrationsoberfläche ab">
+Administrationsoberfläche und MCP-Endpunkt können unterschiedliche Hosts, Ports oder Reverse-Proxy-Pfade verwenden. Außerhalb der `Development`-Umgebung verlangt der Server einen absoluten öffentlichen HTTP- oder HTTPS-Endpunkt. Konfigurieren Sie die URL, die der MCP-Client tatsächlich erreichen kann.
 </Callout>
 
 ## Generierte Clientkonfiguration
@@ -71,7 +71,7 @@ Eine erfolgreiche Verbindung zu `/mcp` **beweist nicht, dass der Client DML-Frei
 
 `execute_dml_sql` und veröffentlichte DML Custom Tools benötigen Elicitation per Formular (`form Elicitation`). Bevor Sie DML in Produktion zulassen, testen Sie die exakt installierte Clientversion und prüfen Sie beide Pfade:
 
-1. Eine Elicitation-Anfrage ablehnen und sicherstellen, dass die Datenänderung nicht committed wird.
+1. Eine Elicitation-Anfrage ablehnen und sicherstellen, dass die Datenänderung nicht per Commit übernommen wird.
 2. Eine Elicitation-Anfrage annehmen und sicherstellen, dass nur die freigegebene Datenänderung abgeschlossen wird.
 
 <Callout type="danger" title="Ohne Elicitation kein kontrolliertes DML">

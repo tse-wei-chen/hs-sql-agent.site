@@ -33,7 +33,7 @@ export default {
     featured: "Empfohlen",
     recentPosts: "Neueste Beiträge",
     allPosts: "Alle Beiträge",
-    heroKicker: "MCP-nativ · bei Unsicherheit ablehnen · sechs SQL-Dialekte",
+    heroKicker: "Für MCP entwickelt · bei Unsicherheit ablehnen · sechs SQL-Dialekte",
     heroTitle: "Sichere SQL-Ausführung für KI-Agenten.",
     heroDesc:
       "Setzen Sie einen Compiler und eine Governance-Grenze zwischen generiertem SQL und Ihren Datenbanken. hs-sql-agent parst, validiert, prüft erforderliche Fähigkeiten, wendet Zugriffsrichtlinien an und führt erst danach datenbankspezifisches SQL aus.",
@@ -54,9 +54,9 @@ export default {
     databaseTitle: "Sechs Datenbankdialekte",
     databaseDesc:
       "PostgreSQL, MySQL, SQL Server, Oracle, SQLite und Firebird hinter einer gemeinsamen MCP-Schnittstelle.",
-    governanceTitle: "Standardmäßig kontrolliert",
+    governanceTitle: "Kontrolle standardmäßig aktiv",
     governanceDesc:
-      "Datenbankumfang pro Schlüssel, Tabellen-Positivlisten, Werkzeugbeschränkungen, Ratenbegrenzungen, Sicherheitsrichtlinien und Auditierbarkeit bleiben außerhalb des LLM.",
+      "Datenbankumfang pro Schlüssel, Tabellen-Zulassungslisten, Werkzeugbeschränkungen, Ratenbegrenzungen, Sicherheitsrichtlinien und Auditierbarkeit bleiben außerhalb des LLM.",
     capabilityKicker: "Compiler-Grenze",
     capabilityTitle:
       "Behandeln Sie generiertes SQL als nicht vertrauenswürdige Eingabe.",
@@ -70,13 +70,13 @@ export default {
     dmlPreviewDesc: "Betroffene Zeilen lesen, ohne die Änderung auszuführen.",
     dmlApproveTitle: "Freigeben",
     dmlApproveDesc:
-      "Eine ausdrückliche MCP form Elicitation durch den menschlichen Bediener verlangen.",
+      "Eine ausdrückliche Freigabe durch den menschlichen Bediener über MCP-Elicitation per Formular verlangen.",
     dmlRevalidateTitle: "Erneut prüfen",
     dmlRevalidateDesc:
       "In der Commit-Transaktion erneut abfragen und die gebundene Zeilenmenge vergleichen.",
     dmlCommitTitle: "Commit",
     dmlCommitDesc:
-      "Nur ausführen, wenn Plan, Richtlinie, Challenge, Zeilenanzahl und Zeilenmenge weiterhin übereinstimmen.",
+      "Nur ausführen, wenn Plan, Richtlinie, Freigabe-Challenge, Zeilenanzahl und Zeilenmenge weiterhin übereinstimmen.",
     databaseKicker: "Eine Schnittstelle, sechs Dialekte",
     databaseSectionTitle:
       "Nutzen Sie die Datenbank weiter, die bereits im Einsatz ist.",
@@ -87,7 +87,7 @@ export default {
     integrationDesc:
       "Verbinden Sie entfernte MCP-Clients wie Claude Desktop und Cursor oder betten Sie dieselbe kontrollierte Servergrenze in eine ASP.NET-Core-Anwendung ein.",
     docsKicker: "Dokumentation",
-    docsTitle: "Vom ersten MCP-Schlüssel bis zur Produktions-Governance.",
+    docsTitle: "Vom ersten MCP-Schlüssel bis zur Governance im Produktivbetrieb.",
     docsDesc:
       "Die Dokumentation folgt dem tatsächlichen Einführungsweg von hs-sql-agent: Einrichtung, MCP, Compiler-Garantien, Administration, Integrationen, Betrieb und Entwicklung.",
     docsCta: "Dokumentation öffnen",

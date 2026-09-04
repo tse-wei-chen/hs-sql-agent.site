@@ -63,13 +63,13 @@ La preuve approuvée diffère entre une modification de lignes existantes et une
 
 ## Elicitation est obligatoire
 
-`execute_dml_sql` et les DML Custom Tools publiés exigent que le client MCP prenne en charge **form Elicitation**. Un client incapable d’effectuer cette interaction d’approbation ne peut pas utiliser ces chemins de modification.
+`execute_dml_sql` et les DML Custom Tools publiés exigent que le client MCP prenne en charge **l’Elicitation par formulaire** (`form Elicitation`). Un client incapable d’effectuer cette interaction d’approbation ne peut pas utiliser ces chemins de modification.
 
 Ce mécanisme est volontairement différent d’une simple boîte de dialogue côté interface : le défi d’approbation fait partie du protocole serveur et est revérifié avant l’exécution.
 
 ## Documentation associée
 
 <CardGrid columns={2}>
-  <DocCard title="Connexion d’un client MCP" icon="MCP" href="/fr/docs/mcp/client-onboarding" description="Vérifier que la version exacte du client MCP sait gérer form Elicitation avant d’activer DML." />
+  <DocCard title="Connexion d’un client MCP" icon="MCP" href="/fr/docs/mcp/client-onboarding" description="Vérifier que la version exacte du client MCP sait gérer l’Elicitation par formulaire avant d’activer DML." />
   <DocCard title="Modèle d’exécution SQL" icon="AST" href="/fr/docs/sql-compiler/execution-model" description="Comprendre la frontière plus large d’analyse, de validation, de capacités, de politiques, de compilation et d’exécution." />
 </CardGrid>

@@ -33,7 +33,7 @@ export default {
     featured: "À la une",
     recentPosts: "Articles récents",
     allPosts: "Tous les articles",
-    heroKicker: "Natif MCP · refus par défaut · six dialectes SQL",
+    heroKicker: "Conçu pour MCP · refus par défaut · six dialectes SQL",
     heroTitle: "Exécution SQL sécurisée pour les agents IA.",
     heroDesc:
       "Placez un compilateur et une frontière de gouvernance entre le SQL généré et vos bases de données. hs-sql-agent analyse, valide, vérifie les capacités, applique les politiques d’accès, puis seulement exécute le SQL propre au moteur ciblé.",
@@ -43,7 +43,7 @@ export default {
     secondaryCta: "Voir sur GitHub",
     copyCommand: "Copier",
     copiedCommand: "Copié",
-    compilerLive: "Frontière de politique active",
+    compilerLive: "Contrôles d’accès actifs",
     compilerResult: "SQL adapté au moteur prêt à l’exécution",
     compilerTitle: "Compilateur SQL à refus par défaut",
     compilerDesc:
@@ -71,7 +71,7 @@ export default {
       "Lire les lignes concernées sans appliquer la modification.",
     dmlApproveTitle: "Approuver",
     dmlApproveDesc:
-      "Exiger une approbation explicite de l’opérateur humain via MCP form Elicitation.",
+      "Exiger une approbation explicite de l’opérateur humain via l’Elicitation MCP par formulaire.",
     dmlRevalidateTitle: "Revérifier",
     dmlRevalidateDesc:
       "Relire les lignes dans la transaction de validation et comparer l’ensemble lié à l’approbation.",
