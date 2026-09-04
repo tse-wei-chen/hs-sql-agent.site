@@ -1,0 +1,86 @@
+---
+title: MCP Client 接入
+description: 连接 Streamable HTTP MCP client、配置 public endpoint，并在启用 DML 前验证 Elicitation。
+sidebar:
+  group: MCP
+  order: 30
+---
+
+import Callout from "@/components/docs/mdx/Callout.astro";
+import CardGrid from "@/components/docs/mdx/CardGrid.astro";
+import DocCard from "@/components/docs/mdx/DocCard.astro";
+import Steps from "@/components/docs/mdx/Steps.astro";
+import Step from "@/components/docs/mdx/Step.astro";
+
+hs-sql-agent 在 `/mcp` 提供 **Streamable HTTP** MCP endpoint。
+
+<CardGrid columns={3}>
+  <DocCard title="Endpoint" icon="HTTP" description="使用外部可访问的 MCP public endpoint，通常以 /mcp 结尾。" />
+  <DocCard title="Authentication" icon="KEY" description="在 X-MCP-Server-Key request header 中发送已签发的 MCP key。" />
+  <DocCard title="DML readiness" icon="FORM" description="Mutation tools 还要求你实际部署的 MCP client 版本支持 form Elicitation。" />
+</CardGrid>
+
+## 连接 client
+
+<Steps>
+  <Step title="签发 MCP key">
+使用 Admin Panel 建立一把绑定到目标 database 的 key。如果 client 不需要无限制访问，请收紧 allowed tools 与 tables。
+  </Step>
+  <Step title="使用 public MCP endpoint">
+Endpoint 必须能被 client 访问。不要假设 Admin UI origin 与 MCP origin 一定相同。
+  </Step>
+  <Step title="每个 request 都要认证">
+按照下方示例在 MCP request header 中发送 key。Plaintext key 应视为 secret；lifecycle dialog 关闭后不会再次显示同一份 secret。
+  </Step>
+  <Step title="验证实际安装的 client">
+先确认 schema discovery 与 query execution。如果准备启用 DML，请在 production 使用前单独测试 client 的 form Elicitation 行为。
+  </Step>
+</Steps>
+
+```http
+X-MCP-Server-Key: <MCP key>
+```
+
+## Public endpoint
+
+向操作员显示并用于生成 client configuration 的 URL 来自以下 server setting：
+
+```json
+{
+  "Mcp": {
+    "PublicEndpoint": "https://sql-agent.example.com/mcp"
+  }
+}
+```
+
+对应的 environment variable 是 `Mcp__PublicEndpoint`；提供的 Compose configuration 会把 `MCP_PUBLIC_ENDPOINT` 映射到它。
+
+<Callout type="warning" title="不要根据 Admin UI URL 推导 MCP connectivity">
+Admin UI 与 MCP endpoint 可能使用不同 host、port 或 reverse-proxy path。在非 Development 环境中，server 要求 public endpoint 是绝对 HTTP 或 HTTPS URL。请配置 MCP client 实际能够访问的 URL。
+</Callout>
+
+## 生成的 client configuration
+
+Admin Panel 会在 MCP key 签发、rotate 或 duplicate 后，立即为 Claude Desktop、Cursor 与通用 Streamable HTTP client 生成直接 HTTP configuration。
+
+Plaintext key 刻意只会短暂出现。Lifecycle dialog 一旦关闭，server 就无法再次显示同一份 secret。
+
+## DML compatibility 需要单独验证
+
+Client 成功连接 `/mcp`，**不代表**它支持 DML approval。
+
+`execute_dml_sql` 与已发布的 DML Custom Tools 需要 form Elicitation。在 production 开放 DML 前，请测试实际安装的 client 版本，并验证两条路径：
+
+1. 拒绝 elicitation request，并确认 mutation 没有 commit。
+2. 接受 elicitation request，并确认获批的 mutation 完成。
+
+<Callout type="danger" title="没有 Elicitation，就没有 governed DML">
+如果 client 没有声明并实现 form Elicitation，hs-sql-agent 会拒绝 DML operation。对于 query-only client，应使用 allowed-tool list 排除 mutation tools 的 MCP key，而不是让 key 保持 unrestricted。
+</Callout>
+
+## 下一步
+
+<CardGrid columns={2}>
+  <DocCard title="MCP Tools Reference" icon="REF" href="/en/docs/mcp/tools-reference" description="查看官方内建 discovery、query 与 DML tool contracts。" />
+  <DocCard title="Safe DML" icon="DML" href="/zh-hans/docs/sql-compiler/safe-dml" description="理解 preview、approval binding、row-set revalidation 与 commit。" />
+</CardGrid>

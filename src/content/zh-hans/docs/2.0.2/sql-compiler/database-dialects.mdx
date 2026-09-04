@@ -1,0 +1,32 @@
+---
+title: 数据库方言
+description: 共享 MCP surface 背后的六种 database provider，以及“有边界的 dialect support”具体意味着什么。
+sidebar:
+  group: SQL Compiler
+  order: 60
+---
+
+hs-sql-agent 目前面向六种 relational database provider：
+
+| Provider | Role |
+| --- | --- |
+| PostgreSQL | Source and target SQL dialect |
+| MySQL | Source and target SQL dialect |
+| SQL Server | Source and target SQL dialect |
+| Oracle | Source and target SQL dialect |
+| SQLite | Source and target SQL dialect |
+| Firebird | Source and target SQL dialect |
+
+## 一个 MCP surface 不代表只有一种 SQL dialect
+
+MCP client 使用共享的 server contract，但 SQL semantics 仍然与 provider 有关。Compiler 负责为已配置的 database provider 保留受支持 statement 的语义。
+
+这个区别会影响 operators、types、casts、functions、identifiers、pagination、null semantics 与 DML behavior 等功能。
+
+## 有边界的支持范围
+
+某个 database 出现在 provider list 中，并不代表该数据库提供的每一种 syntax feature 都会被接受。
+
+当 source construct 无法被表示，或无法证明等价的 target capability 时，compiler 会明确 fail closed。Capability coverage 可以持续扩展，但不会因此削弱这条规则。
+
+在 production 使用时，应把 compiler acceptance 当成 contract，而不要假设 vendor CLI 能接受的 arbitrary SQL 也一定会被 hs-sql-agent 接受。

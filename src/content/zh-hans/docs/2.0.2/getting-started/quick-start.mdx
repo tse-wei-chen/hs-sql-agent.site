@@ -1,0 +1,111 @@
+---
+title: 快速开始
+description: 选择一种安装路径，运行 hs-sql-agent，并连接你的第一个 MCP client。
+sidebar:
+  group: 开始使用
+  order: 20
+---
+
+import Callout from "@/components/docs/mdx/Callout.astro";
+import CardGrid from "@/components/docs/mdx/CardGrid.astro";
+import DocCard from "@/components/docs/mdx/DocCard.astro";
+import Steps from "@/components/docs/mdx/Steps.astro";
+import Step from "@/components/docs/mdx/Step.astro";
+
+<CardGrid columns={3}>
+  <DocCard
+    title="Docker Compose"
+    eyebrow="推荐"
+    badge="~5 分钟"
+    icon="▣"
+    description="使用 repository 内的 Compose 配置运行完整的 self-hosted service。"
+    href="#docker-compose"
+  />
+  <DocCard
+    title="ASP.NET Core / NuGet"
+    badge="~10 分钟"
+    icon=".NET"
+    description="将 MCP runtime 与可选的 Admin UI 嵌入现有 ASP.NET Core application。"
+    href="/en/docs/integration/aspnet-core"
+  />
+  <DocCard
+    title="连接 MCP client"
+    badge="安装后"
+    icon="MCP"
+    description="签发 scoped key，并连接 Claude Desktop、Cursor 或其他 Streamable HTTP client。"
+    href="/zh-hans/docs/mcp/client-onboarding"
+  />
+</CardGrid>
+
+<Callout type="info" title="除非你已经有 host application，否则建议从 Docker 开始">
+Docker Compose 是最短路径，因为 repository 已包含 service wiring 与 environment-variable mapping。NuGet 路径适合需要把 hs-sql-agent 嵌入现有 ASP.NET Core host 的团队。
+</Callout>
+
+## Docker Compose
+
+<Steps>
+  <Step title="建立环境文件" description="复制 repository 内的范例，让 configuration 保持明确且可审查。">
+
+```bash
+cp .env.example .env
+```
+
+  </Step>
+  <Step title="替换签名 secrets" description="将 HMAC_KEY 与 JWT_KEY 设为两个不同、唯一且至少 32 bytes 的 secrets。">
+`.env.example` 中的值只是 placeholder。不要原样部署。
+  </Step>
+  <Step title="启动服务" description="启动默认的 single-instance stack。">
+
+```bash
+docker compose up -d
+```
+
+  </Step>
+  <Step title="打开 Admin Panel" description="默认 application listener 使用 port 8080。">
+本机环境可打开 `http://localhost:8080`，完成第一位 administrator 的设置。
+  </Step>
+</Steps>
+
+## 签发第一把 MCP key
+
+<Steps>
+  <Step title="打开 Runtime → MCP Keys" description="Key 是 MCP identity 与 authorization boundary。" />
+  <Step title="选择 database 与 tool scope" description="将 key 绑定到一个 Database Management entry，并只开放 client 所需的 tools。" />
+  <Step title="复制 plaintext key" description="Lifecycle dialog 会显示新签发的 secret 供你复制；请将它保存到 client secret store。" />
+  <Step title="使用生成的 client configuration" description="也可以把 secret 作为 X-MCP-Server-Key 发送到 Streamable HTTP endpoint。" />
+</Steps>
+
+默认 MCP endpoint 是 `/mcp`。如果 client 位于本机之外，请将 `MCP_PUBLIC_ENDPOINT` 设置为外部可访问的绝对 HTTP 或 HTTPS URL，并包含 `/mcp`。
+
+<Callout type="warning" title="DML 需要 client 支持 Elicitation">
+不要仅因为 client 能调用 MCP tools 就启用 `execute_dml_sql`。Client 还必须兼容 MCP form Elicitation，才能让人工操作员审查并批准具体 mutation impact。
+</Callout>
+
+## 下一步
+
+<CardGrid columns={2}>
+  <DocCard
+    title="MCP Client Onboarding"
+    icon="01"
+    description="了解 headers、Streamable HTTP configuration、public endpoint 规则与 DML Elicitation compatibility。"
+    href="/zh-hans/docs/mcp/client-onboarding"
+  />
+  <DocCard
+    title="SQL 执行模型"
+    icon="02"
+    description="在向 Agent 开放 SQL 前，理解 parse → validate → capability proof → compile boundary。"
+    href="/zh-hans/docs/sql-compiler/execution-model"
+  />
+  <DocCard
+    title="Database Management"
+    icon="03"
+    description="建立 provider connection、测试 connectivity，并理解 MCP key 如何绑定 database。"
+    href="/en/docs/administration/database-management"
+  />
+  <DocCard
+    title="Production configuration"
+    icon="04"
+    description="检查 identity、rate limiting、retention、distributed state、telemetry 与 secret settings。"
+    href="/en/docs/operations/configuration"
+  />
+</CardGrid>

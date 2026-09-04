@@ -1,0 +1,75 @@
+---
+title: Safe DML
+description: 先 preview、绑定 approval、重新验证 row set，只 commit 人工实际批准的那一次 mutation。
+sidebar:
+  group: SQL Compiler
+  order: 50
+---
+
+import Callout from "@/components/docs/mdx/Callout.astro";
+import CardGrid from "@/components/docs/mdx/CardGrid.astro";
+import DocCard from "@/components/docs/mdx/DocCard.astro";
+import Flow from "@/components/docs/mdx/Flow.astro";
+import Steps from "@/components/docs/mdx/Steps.astro";
+import Step from "@/components/docs/mdx/Step.astro";
+
+DML 使用比 query execution 更严格的路径，因为 approval 在 commit 时仍必须描述**同一个 mutation**。
+
+<Flow items={["Compile", "Preview", "Approve", "Revalidate", "Commit"]} />
+
+<CardGrid columns={3}>
+  <DocCard title="Preview，而不是直接 mutate" icon="01" description="UPDATE/DELETE 会先在 preview transaction 中读取当前匹配的 rows，而不会实际执行 mutation。" />
+  <DocCard title="Approval 会被绑定" icon="02" description="One-time challenge 会绑定 validated plan、policy version、affected-row count 与 row-set fingerprint。" />
+  <DocCard title="Commit 会重新检查现实状态" icon="03" description="Commit transaction 会重新查询 row set；如果已批准的事实不再一致，就取消操作。" />
+</CardGrid>
+
+<Callout type="danger" title="Approval 不是执行稍后另一个 mutation 的通行证">
+Approval challenge 绑定的是已经验证的 operation 与当时观察到的 impact。如果 commit 前 plan、policy、challenge、affected-row count 或 row-set fingerprint 发生变化，hs-sql-agent 会取消 operation，而不是继续执行。
+</Callout>
+
+## UPDATE 与 DELETE
+
+<Steps>
+  <Step title="Compile mutation">
+在请求任何 approval 前，先 parse、validate、authorize 并 compile 请求的 mutation。
+  </Step>
+  <Step title="Preview 受影响的 row set">
+打开 preview transaction，读取当前匹配的 rows，但不执行 mutation。
+  </Step>
+  <Step title="建立一次性的 approval evidence">
+将 challenge 绑定到 validated compiled plan、policy version、affected-row count 与 row-set fingerprint。
+  </Step>
+  <Step title="通过 MCP Elicitation 请求人工批准">
+发送 `elicitation/create`，并要求 MCP client 提供明确的 form approval。
+  </Step>
+  <Step title="消费已批准的 challenge">
+接受后验证并消费 one-time challenge，防止它被 replay 成通用 permission token。
+  </Step>
+  <Step title="在 commit transaction 内重新查询">
+再次读取匹配 rows，并将当前 fingerprint 与 count 和已批准的 preview 比较。
+  </Step>
+  <Step title="只有所有内容仍一致才 commit">
+只有 plan、policy、challenge、row count 与 row set 都没有变化时，才执行完全相同的 compiled mutation。
+  </Step>
+</Steps>
+
+## INSERT VALUES
+
+`INSERT ... VALUES` 没有既存的 matched row set。因此 approval protocol 会绑定 immutable insert payload 与 exact compiled plan，而不是 row-set preview。
+
+<Callout type="info" title="Mutation shape 不同，原则相同">
+Row-set mutation 与 insert payload 所批准的 evidence 不同，但 invariant 相同：只 commit approval 所描述的那一个 exact validated mutation。
+</Callout>
+
+## Elicitation 是必要条件
+
+`execute_dml_sql` 与已发布的 DML Custom Tools 都要求 MCP client 支持 **form Elicitation**。无法完成 approval interaction 的 client 不能使用这些 mutation paths。
+
+这刻意不同于只有 UI 的 confirmation dialog：approval challenge 会参与 server-side mutation protocol，并在执行前再次被检查。
+
+## 相关文档
+
+<CardGrid columns={2}>
+  <DocCard title="MCP Client Onboarding" icon="MCP" href="/zh-hans/docs/mcp/client-onboarding" description="启用 DML 前，确认实际使用的 MCP client 版本能够处理 form Elicitation。" />
+  <DocCard title="SQL 执行模型" icon="AST" href="/zh-hans/docs/sql-compiler/execution-model" description="理解更完整的 parse、validation、capability、policy、compile 与 execution boundary。" />
+</CardGrid>

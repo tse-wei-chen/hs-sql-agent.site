@@ -1,0 +1,42 @@
+---
+title: 安全概览
+description: 了解将数据库治理保留在 LLM 之外的 server-side controls，以及保护这些控制的 operational settings。
+sidebar:
+  group: 安全
+  order: 120
+---
+
+hs-sql-agent 的设计目标是不让 AI model 成为安全边界。Authentication、database scope、table policy、tool restrictions、SQL validation 与 mutation approval 都由 server 强制执行。
+
+## MCP access boundary
+
+MCP client 使用已签发的 key 进行认证。Runtime policy 可以把 key 绑定到一个 database，并限制它可使用的 tables 与 tools。
+
+对于 query-only client，应收紧 allowed-tool list，而不是依赖 client 自觉不执行 DML。
+
+## SQL boundary
+
+生成的 SQL 会在 provider-specific compilation 前被 parse 与 validate。不受支持的 language 或 target capability 会 fail closed，而不是被静默降级。
+
+DML 还有独立的 approval protocol。人工接受会绑定到 validated mutation plan；row-set mutation 会在执行前于 commit transaction 内重新验证。
+
+## Administrative identity
+
+Server 支持 local authentication，并提供可选的 OIDC/SSO 与 TOTP MFA 相关配置。OIDC settings 包括 authority、client credentials、claim mappings、scopes、role mappings、verified-email requirements 与 auto-provisioning。
+
+如果受保护的 login 或 MFA state 必须跨 application restart 保留，请持久化已配置的 data-protection key path。
+
+## Operational protection
+
+与安全相关的 runtime settings 包括：
+
+- sign-in lockout threshold 与 duration
+- global/request rate limiting
+- distributed security-policy synchronization
+- signed alert 与 SIEM webhooks
+- audit retention 与 archive/fallback paths
+- distributed controls 的 fail-closed coordination modes
+
+## 报告安全漏洞
+
+不要在 public issue 中披露 security vulnerability。请使用 repository 的 GitHub Security Advisory **Report a Vulnerability** 流程，让问题通过 responsible disclosure 被调查与修复。

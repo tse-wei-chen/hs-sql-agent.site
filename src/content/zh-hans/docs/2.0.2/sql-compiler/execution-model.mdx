@@ -1,0 +1,41 @@
+---
+title: SQL 执行模型
+description: hs-sql-agent 如何在执行前将不可信 SQL 转换为经过验证、面向具体 provider 的 statement。
+sidebar:
+  group: SQL Compiler
+  order: 40
+---
+
+hs-sql-agent 不会把生成的 SQL 当作可信 command。执行边界围绕 parse、validation、capability checks、access policy 与 provider-specific compilation 设计。
+
+## Query path
+
+整体而言，query execution 按以下流程进行：
+
+1. 验证 MCP key，并应用它的 database、table、tool 与 execution scope。
+2. 将受支持的 SQL parse 为 structured definition / AST。
+3. 验证 statement 以及受支持的 source semantics。
+4. 检查保留这些语义所需的 target/provider capabilities。
+5. 为已配置的 database provider compile 并 render SQL。
+6. 在已配置的 runtime limits 内执行。
+
+SQL compiler implementation 包含明确的 source-validation 与 target-capability stages。不受支持的 syntax，或无法证明的 capability，会被拒绝，而不是被静默替换成表面上相似的 construct。
+
+## 为什么 fail closed？
+
+Cross-database SQL 中有大量看似等价、实际却在 null behavior、type rules、operator semantics、pagination、identifiers、functions 或 DML behavior 上不同的 constructs。
+
+面对 AI 的 execution surface，如果采用“best effort” rewrite，statement 可能仍然语法有效，却已经改变原意。hs-sql-agent 因此宁可明确拒绝，也不会隐式降低语义保证。
+
+## Provider-specific output
+
+Public MCP surface 是共享的，但最终 SQL 会针对 provider 生成。目前支持的 database providers 包括：
+
+- PostgreSQL
+- MySQL
+- SQL Server
+- Oracle
+- SQLite
+- Firebird
+
+支持范围刻意保持有边界。支持某个 provider，不代表接受该数据库的所有 syntax feature；只有当 individual compiler capability 的语义能够被表示并验证时，才会扩展支持。

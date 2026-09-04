@@ -1,0 +1,48 @@
+---
+title: 项目介绍
+description: 了解 hs-sql-agent 在 MCP Client 与数据库之间的位置，以及它如何建立安全边界。
+sidebar:
+  group: 开始使用
+  order: 10
+---
+
+import Callout from "@/components/docs/mdx/Callout.astro";
+import CardGrid from "@/components/docs/mdx/CardGrid.astro";
+import DocCard from "@/components/docs/mdx/DocCard.astro";
+import Flow from "@/components/docs/mdx/Flow.astro";
+
+hs-sql-agent 是一个提供**受治理 SQL 访问**的 HTTP MCP Server。它把 MCP Client 连接到 PostgreSQL、MySQL、SQL Server、Oracle、SQLite 与 Firebird，同时将身份验证、访问策略、SQL 验证与 mutation approval 保留在 server side。
+
+<Flow items={["MCP client", "MCP key scope", "SQL compiler", "Policy & capability checks", "Database"]} />
+
+<Callout type="danger" title="不要让 LLM 成为数据库的安全边界">
+生成的 SQL 属于不可信输入。Model 可以提出 SQL，但真正决定 request 是否获得授权、语义是否受支持，以及是否可以安全执行的是 server。
+</Callout>
+
+## Server 负责哪些边界？
+
+<CardGrid columns={2}>
+  <DocCard title="Identity & scope" icon="KEY" description="将 client 绑定到一个 managed database，并限制其 allowed tools、tables 与 runtime limits。" />
+  <DocCard title="SQL semantics" icon="AST" description="将受支持的 SQL parse 为 structured definitions，验证 source semantics、证明 target capability，再 compile provider-specific SQL。" />
+  <DocCard title="Mutation approval" icon="DML" description="将 write operation 视为独立 risk class，经过 preview、one-time approval、revalidation 与 exact commit。" />
+  <DocCard title="Operations & audit" icon="OPS" description="Rate/concurrency controls、audit records、health、telemetry 与 outbound operational delivery 都位于 model 之外。" />
+</CardGrid>
+
+## Compiler boundary
+
+Generated SQL 会先被 parse 与 validate。hs-sql-agent 会检查保持 statement 语义所需的 capabilities；只有 request 通过 source、target 与 policy boundaries 后，才会 compile provider-specific SQL。
+
+不受支持的 syntax 或 semantics 会被拒绝，而不是被静默改写成只是“看起来等价”的 SQL。
+
+<Callout type="info" title="支持六种 provider 不等于 arbitrary vendor SQL passthrough">
+Provider support 是 capability-driven。一个 construct 必须能够被表示、验证，并针对相关 source/target contract 安全 render。请以 SQL support reference 为准，而不要假设每一种 vendor extension 都会被接受。
+</Callout>
+
+## 下一步
+
+<CardGrid columns={2}>
+  <DocCard title="快速开始" icon="01" href="/zh-hans/docs/getting-started/quick-start" description="运行默认 Compose 环境并签发第一把 MCP key。" />
+  <DocCard title="MCP Client Onboarding" icon="02" href="/zh-hans/docs/mcp/client-onboarding" description="正确连接远程 Streamable HTTP MCP client。" />
+  <DocCard title="SQL 执行模型" icon="03" href="/zh-hans/docs/sql-compiler/execution-model" description="理解 parse、validation、capability proof、compile 与 execution boundaries。" />
+  <DocCard title="Safe DML" icon="04" href="/zh-hans/docs/sql-compiler/safe-dml" description="理解由人工批准的 mutation protocol。" />
+</CardGrid>
