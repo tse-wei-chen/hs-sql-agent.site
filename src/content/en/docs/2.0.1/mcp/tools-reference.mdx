@@ -1,37 +1,186 @@
 ---
 title: MCP Tools Reference
-description: Built-in hs-sql-agent MCP tools, their risk boundaries, and how MCP key tool allowlists control exposure.
+description: Formal hs-sql-agent 2.0.1 built-in MCP tool contracts, parameters, responses, authorization, and risk boundaries.
 sidebar:
   group: MCP
   order: 35
 ---
 
-hs-sql-agent exposes a small built-in MCP tool surface. The current built-in names are:
+import Callout from "@/components/docs/mdx/Callout.astro";
+import CardGrid from "@/components/docs/mdx/CardGrid.astro";
+import DocCard from "@/components/docs/mdx/DocCard.astro";
+import Flow from "@/components/docs/mdx/Flow.astro";
 
-| Tool | Purpose | Typical risk |
-| --- | --- | --- |
-| `get_schemas` | Discover schemas available through the bound database connection. | Read metadata |
-| `get_tables` | Discover tables for a schema. | Read metadata |
-| `get_columns` | Discover columns for a table. | Read metadata |
-| `execute_query_sql` | Parse, validate, compile, and execute one supported `SELECT` statement. | Read data |
-| `execute_dml_sql` | Execute a supported mutation through the Safe DML approval flow. | Write data |
+<CardGrid columns={3}>
+  <DocCard title="Schema discovery" icon="▦" badge="low risk" description="get_schemas, get_tables, and get_columns discover the key-bound database before SQL generation." />
+  <DocCard title="Query SQL" icon="SELECT" badge="read" description="execute_query_sql accepts one governed SELECT and returns serialized result rows." />
+  <DocCard title="Safe DML" icon="DML" badge="approval" description="execute_dml_sql accepts supported mutations only through preview, Elicitation, and commit-time revalidation." />
+</CardGrid>
 
-MCP keys can restrict the allowed-tool set. An empty or unrestricted configuration is materially different from explicitly exposing only the read tools an agent needs.
+The **formal 2.0.1 built-in tool surface managed by MCP keys** contains exactly five tool names:
 
-## Schema discovery first
+| Tool | Public input | Result shape | Risk |
+| --- | --- | --- | --- |
+| `get_schemas` | none | comma-separated schema names | metadata read |
+| `get_tables` | `schemaName: string` | comma-separated table descriptions | metadata read |
+| `get_columns` | `schemaName: string`, `tableName: string` | JSON array of column objects | metadata read |
+| `execute_query_sql` | `sql: string` | JSON array of result rows, or an execution error string | data read |
+| `execute_dml_sql` | `sql: string` | approval/execution result text | data mutation |
 
-When the client does not know the database structure, use `get_schemas`, `get_tables`, and `get_columns` before generating SQL. Metadata tools still operate in the context of the authenticated MCP key and its database binding.
+Published Custom Tools can extend the tool collection for a bound database, but they are not additional built-in tools.
+
+<Callout type="warning" title="Tool discovery is still authorization-scoped">
+The MCP session builds its tool collection after MCP-key authentication. When `AllowedTools` is explicitly configured, only matching built-in or published custom tool names are exposed. An empty tool allowlist means unrestricted tool-name access, so production keys should normally select an explicit minimum set.
+</Callout>
+
+## Recommended discovery flow
+
+<Flow items={["get_schemas", "get_tables", "get_columns", "execute_query_sql"]} caption="Discover physical structure before asking the model to generate SQL. DML is intentionally not part of the default read flow." />
+
+Use metadata discovery whenever the client does not already have reliable database structure. Schema tools run inside the authenticated key's database context rather than accepting a client-supplied connection string.
+
+## `get_schemas`
+
+Returns the schemas reported by the provider metadata runtime for the database bound to the MCP key.
+
+**Parameters:** none.
+
+**Success result:** schema names joined as a comma-separated string.
+
+**Authorization and limits:**
+
+- the key must be permitted to use `get_schemas` when an explicit tool allowlist exists;
+- the database provider/connection must have been resolved from the authenticated key;
+- the operation acquires the shared SQL-concurrency limiter;
+- success/failure is written to the audit path as `mcp.get_schemas`.
+
+The tool does not accept a database ID or connection string from the model.
+
+## `get_tables`
+
+```text
+get_tables(schemaName: string)
+```
+
+Returns provider-reported tables in the requested schema, filtered by the MCP key's table whitelist when one is configured.
+
+If semantic metadata exists for the bound Database Management entry, each visible table can also include:
+
+- display name;
+- description;
+- synonyms;
+- metric descriptions scoped to that table.
+
+**Success result:** a comma-separated string. Entries may therefore be richer than raw physical table names.
+
+**Audit action:** `mcp.get_tables`.
+
+<Callout type="info" title="A table whitelist also affects discovery">
+A restricted key should not learn about tables outside its table boundary through `get_tables`. Semantic enrichment does not widen that boundary.
+</Callout>
+
+## `get_columns`
+
+```text
+get_columns(schemaName: string, tableName: string)
+```
+
+The server first checks that the requested qualified table is allowed by the MCP key. It then reads provider column metadata and serializes a JSON array.
+
+Each 2.0.1 `ColumnInfo` object exposes these properties:
+
+| Property | Meaning |
+| --- | --- |
+| `Name` | physical column name |
+| `Column` | alias of the same column-name value |
+| `Type` | provider-reported column type |
+| `Description` | semantic enrichment when available |
+| `IsPrimaryKey` | whether the provider metadata marks the column as part of the primary key |
+| `PrimaryKeyOrdinal` | nullable position within a composite primary key |
+
+Semantic enrichment can add display names, descriptions, synonyms, and relationship descriptions to `Description`. Relationship context is included only when both relationship tables are allowed by the key's table whitelist.
+
+**Audit action:** `mcp.get_columns`.
 
 ## `execute_query_sql`
 
-`execute_query_sql` accepts one `SELECT` statement. SQL enters the F# compiler pipeline directly: parse, bind, table authorization and query-policy validation, immutable command compilation, then execution.
+```text
+execute_query_sql(sql: string)
+```
 
-The current tool description explicitly calls out support for common query shapes including JOIN, WHERE, GROUP BY, HAVING, ORDER BY, LIMIT/OFFSET, DISTINCT, CTEs, subqueries, and UNION/INTERSECT/EXCEPT. That list is not a promise that arbitrary vendor SQL is accepted; the compiler remains the final contract.
+Accepts **one `SELECT` SQL statement**. The public 2.0.1 description explicitly calls out common query forms including JOIN, WHERE, GROUP BY, HAVING, ORDER BY, LIMIT/OFFSET, DISTINCT, CTEs, subqueries, and UNION/INTERSECT/EXCEPT.
+
+<Flow items={["Parse", "Bind", "Authorize tables", "Validate policy", "Compile immutable command", "Execute"]} caption="Raw SQL does not go straight to the provider." />
+
+The request is executed through the F# typed-query runtime. Depending on runtime capabilities, query facts such as referenced tables, CTE presence, and subquery presence are collected during the same governed path and used for audit evidence.
+
+**Success result:** JSON serialization of the returned row collection.
+
+**Failure result:** the tool returns text beginning with `Execution failed:` followed by the failure message. Cancellation requested by the caller is propagated rather than converted into a normal result string.
+
+**Runtime boundaries:**
+
+- MCP tool allowlist;
+- MCP-key database binding;
+- table whitelist;
+- current security/query policy;
+- SQL concurrency limiter;
+- source/target SQL capability checks;
+- audit event `mcp.query.executed` with operation, duration, returned rows, and compiler-derived definition facts.
+
+See [SQL Support Reference](/en/docs/sql-compiler/sql-support) for the human-readable capability summary.
 
 ## `execute_dml_sql`
 
-DML is intentionally a different risk class. The mutation path uses read-only impact preview where applicable, a one-time approval challenge, MCP form Elicitation, and commit-time revalidation. See [Safe DML](/en/docs/sql-compiler/safe-dml) for the protocol rather than treating the tool as a generic SQL passthrough.
+```text
+execute_dml_sql(sql: string)
+```
 
-## Custom tools and allowlists
+The MCP-visible input is SQL. The `McpServer` and cancellation token used by the .NET method are runtime-injected infrastructure, not fields an agent supplies.
 
-Published custom tools can also be exposed through MCP and referenced by name in an MCP key's allowed-tool set. They do not bypass the authenticated database binding, table whitelist, runtime security policy, SQL concurrency limits, audit path, or DML approval flow.
+Supported statement classes in the 2.0.1 MCP DML path are:
+
+| Statement | Status |
+| --- | --- |
+| `UPDATE` | supported when parse, capability, policy, and approval requirements pass |
+| `DELETE` | supported when parse, capability, policy, and approval requirements pass |
+| `INSERT ... VALUES` | supported with immutable-payload approval semantics |
+| `INSERT ... SELECT` | rejected fail-closed in 2.0.1 |
+
+<Flow items={["Parse + verify profile", "Compile mutation", "Preview exact impact", "Human Elicitation", "Transaction revalidation", "Commit"]} caption="Approval is tied to the validated mutation context, not merely to the original SQL text." />
+
+For UPDATE and DELETE, approval binds to the exact primary-key row set and commit-time code revalidates row identities inside the transaction. For INSERT VALUES, approval binds to the immutable literal payload and exact compiled command, and commit verifies the approved payload row count.
+
+If the human declines, or validation cannot complete, the mutation is not committed. Audit events use `mcp.dml.executed` and record operation, processing duration, affected rows, approval status, and error category where applicable.
+
+<Callout type="danger" title="Do not grant DML to a client that lacks compatible MCP form Elicitation">
+Tool-call support alone is insufficient. The client must be able to present and return the interactive approval form used by the Safe DML flow.
+</Callout>
+
+Read [Safe DML](/en/docs/sql-compiler/safe-dml) for the full protocol.
+
+## Errors shared by built-in tools
+
+Common failures include:
+
+- the MCP authorization context is missing;
+- the key's explicit tool allowlist does not contain the tool;
+- database provider or connection configuration is invalid;
+- the SQL-concurrency limit cannot grant a lease (`Server busy`);
+- a requested table is outside the key whitelist;
+- SQL is empty, unsupported, rejected by policy, or rejected by a capability boundary;
+- provider execution fails.
+
+The tools deliberately return bounded error information rather than falling back to unrestricted provider execution.
+
+## Custom Tools
+
+Published Custom Tools are loaded for the MCP key's bound Database Management entry and can be included in the same `AllowedTools` set by name. Their invocation still goes through the runtime database binding, table whitelist, security policy, concurrency controls, audit path, and—when the custom tool is DML—the approval pipeline.
+
+See [Custom Tools](/en/docs/administration/custom-tools).
+
+## Semantic metadata is not documented as a sixth built-in
+
+The 2.0.1 repository contains semantic-management implementation details, but the formal MCP key built-in registry and Admin key-management surface recognize the five tools listed on this page. Official 2.0.1 documentation therefore treats semantic metadata as an **Admin/control-plane capability consumed by schema discovery**, not as an additional formal built-in MCP contract.
+
+See [Semantic Metadata](/en/docs/administration/semantic-metadata).
