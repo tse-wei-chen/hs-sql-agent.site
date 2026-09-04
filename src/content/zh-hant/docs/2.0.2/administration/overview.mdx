@@ -30,7 +30,7 @@ Admin Panel 是 hs-sql-agent 的 **operator control plane**。Operator 在這裡
   <DocCard title="Audit" icon="AUD" href="/zh-hant/docs/administration/audit" description="搜尋、彙總、匯出並執行 runtime/security audit retention。" />
   <DocCard title="Security Policies" icon="POL" href="/zh-hant/docs/administration/security-policies" description="管理 query、DML、per-key rate limit 與 SQL concurrency enforcement。" />
   <DocCard title="Operability" icon="P95" href="/zh-hant/docs/administration/operability" description="檢視 execution metrics、DB health、key usage 與 outbound delivery state。" />
-  <DocCard title="Admin HTTP API" icon="API" href="/zh-hant/docs/reference/api-reference" description="Bundled UI 使用的 2.0.1 source-backed controller routes 與 authorization surface。" />
+  <DocCard title="Admin HTTP API" icon="API" href="/zh-hant/docs/reference/api-reference" description="Bundled UI 使用的 2.0.2 source-backed controller routes 與 authorization surface。" />
 </CardGrid>
 
 ## 建議的 operator flow
@@ -53,8 +53,10 @@ Key 在 issue、rotate 或 duplicate 時，UI 可以產生 supported client form
 
 關閉 dialog 前請先複製需要的 configuration。
 
-## Library consumer 可以不提供 Admin UI
+## Embedded UI 與 built-in identity 都是 optional
 
-將 hs-sql-agent embed 到 ASP.NET Core 時，`UseHsSqlAgent()` 可以只 expose API/MCP pipeline；再呼叫 `.ServeAdminUi()` 才會一併提供 packaged Admin UI。
+ASP.NET Core host 可以只 expose HsSqlAgent Admin API，不提供 packaged Admin UI。Modular integration 使用 `UseHsSqlAgentAdminApi()`，並由 host 自己呼叫 `MapControllers()`；只有需要 packaged UI 時才加 `UseHsSqlAgentAdminUi()`。
 
-請參考 [ASP.NET Core 整合](/zh-hant/docs/integration/aspnet-core) 了解 host setup 與 deployment considerations。
+Host 也可以用 `AddHsSqlAgentHostAuthorization(...)` 沿用自己既有的 login / permission system，而不安裝 HsSqlAgent members、roles、JWT、SMTP 或 OIDC。MCP 則用 `AddHsSqlAgentMcp(...)` / `UseHsSqlAgentMcp()` 獨立選擇與掛載。
+
+完整 2.0.2 composition model 請參考 [ASP.NET Core 整合](/zh-hant/docs/integration/aspnet-core)。

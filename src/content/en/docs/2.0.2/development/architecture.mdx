@@ -6,7 +6,7 @@ sidebar:
   order: 130
 ---
 
-hs-sql-agent is split into a backend, an Admin frontend, and now a separate static documentation/product site.
+hs-sql-agent is split into a backend, an Admin frontend, and a separate static documentation/product site.
 
 ## Repository responsibilities
 
@@ -16,7 +16,7 @@ At a high level:
 - `frontend/` contains the embedded Nuxt Admin Panel.
 - `hs-sql-agent.site` is the independent Astro product/documentation site.
 
-The SQL compiler includes F# modules with explicit rewrite/validation stages and capability-proof concepts. Server hosting is exposed through `HsSqlAgent.Server`, including `AddHsSqlAgent` and `UseHsSqlAgent` integration points.
+The SQL compiler includes F# modules with explicit rewrite/validation stages and capability-proof concepts. Server hosting is exposed through `HsSqlAgent.Server` as a composable ASP.NET Core class library: new integrations start with `AddHsSqlAgentCore()` and select capabilities such as Runtime, AdminStore, HostAuthorization or BuiltInAuth, AdminApi, MCP, and Telemetry. `AddHsSqlAgent()` / `UseHsSqlAgent()` remain compatibility surfaces for existing consumers rather than the primary first-party integration model.
 
 ## Contribution flow
 
@@ -35,11 +35,11 @@ Documentation should describe the behavior of the current code rather than antic
 
 When changing SQL capabilities, DML safety, MCP compatibility, hosting configuration, Admin behavior, or deployment requirements, update the relevant site page in the same workstream whenever possible.
 
-The site uses path-based locale content:
+The site uses path-based locale and documentation version content:
 
 ```text
-src/content/en/docs/<section>/<slug>.md
-src/content/zh-hant/docs/<section>/<slug>.md
+src/content/en/docs/<version>/<section>/<slug>.mdx
+src/content/zh-hant/docs/<version>/<section>/<slug>.mdx
 ```
 
-Both translations intentionally share the same section/slug and are separated by locale-prefixed routes.
+Both translations intentionally share the same version/section/slug and are separated by locale-prefixed routes. The current complete documentation baseline is 2.0.2.

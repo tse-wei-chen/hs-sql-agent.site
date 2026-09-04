@@ -11,8 +11,8 @@ export type DocsVersionDefinition = {
 
 const versionDefinitions = [
   {
-    version: "2.0.1",
-    label: "2.0.1",
+    version: "2.0.2",
+    label: "2.0.2",
     status: "current",
     parent: null,
     removed: [],
@@ -21,7 +21,7 @@ const versionDefinitions = [
 ] as const satisfies readonly DocsVersionDefinition[];
 
 export const docsVersions = {
-  current: "2.0.1",
+  current: "2.0.2",
   versions: versionDefinitions,
 } as const;
 

@@ -16,7 +16,7 @@ hs-sql-agent 目前可分成 backend、Admin frontend，以及獨立的 static p
 - `frontend/`：embedded Nuxt Admin Panel。
 - `hs-sql-agent.site`：獨立 Astro product/documentation site。
 
-SQL compiler 含有 F# modules 與明確 rewrite/validation stage、capability-proof 概念；server hosting 由 `HsSqlAgent.Server` 暴露 `AddHsSqlAgent` / `UseHsSqlAgent` integration point。
+SQL compiler 含有 F# modules 與明確 rewrite/validation stage、capability-proof 概念。Server hosting 由 `HsSqlAgent.Server` 以 composable ASP.NET Core class library 形式提供：新整合從 `AddHsSqlAgentCore()` 開始，再選 Runtime、AdminStore、HostAuthorization 或 BuiltInAuth、AdminApi、MCP、Telemetry 等 capabilities。`AddHsSqlAgent()` / `UseHsSqlAgent()` 保留給既有 consumer 相容，不再是第一方推薦 integration model。
 
 ## Contribution flow
 
@@ -35,11 +35,11 @@ Docs 應描述 current code behavior，而不是尚未實作的預期功能。
 
 SQL capability、DML safety、MCP compatibility、hosting config、Admin behavior 或 deployment requirement 改變時，應同步更新對應 docs。
 
-Site 使用 path-based locale：
+Site 使用 path-based locale 與 documentation version：
 
 ```text
-src/content/en/docs/<section>/<slug>.md
-src/content/zh-hant/docs/<section>/<slug>.md
+src/content/en/docs/<version>/<section>/<slug>.mdx
+src/content/zh-hant/docs/<version>/<section>/<slug>.mdx
 ```
 
-兩種語言刻意共用同 section/slug，再由 locale-prefixed route 隔離。
+兩種語言刻意共用相同 version/section/slug，再由 locale-prefixed route 隔離。目前完整 documentation baseline 為 2.0.2。

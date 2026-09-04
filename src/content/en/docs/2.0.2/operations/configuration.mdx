@@ -1,6 +1,6 @@
 ---
 title: Configuration Reference
-description: Source-backed environment and runtime configuration reference for hs-sql-agent 2.0.1.
+description: Source-backed environment and runtime configuration reference for hs-sql-agent 2.0.2.
 sidebar:
   group: Operations
   order: 90
@@ -13,10 +13,10 @@ import DocCard from "@/components/docs/mdx/DocCard.astro";
 <CardGrid columns={3}>
   <DocCard title="Single instance" icon="1" description="Start from .env.example and keep process-local providers unless state must be shared." />
   <DocCard title="Distributed" icon="N" description="Use Postgres control-plane storage plus Redis-backed cache, limits, policy sync, delivery sync, and SQL concurrency." />
-  <DocCard title="Embedded .NET" icon=".NET" description="HsSqlAgentServiceOptions is the code-level contract; its defaults are not always identical to Docker .env.example." />
+  <DocCard title="Embedded .NET" icon=".NET" description="New integrations configure capability-specific options; HsSqlAgentServiceOptions is retained only for legacy aggregate compatibility." />
 </CardGrid>
 
-The checked-in **v2.0.1 `.env.example`** is the deployment-facing inventory for the default Compose path. This page follows that file for environment names and uses the v2.0.1 runtime code when comments and validation disagree.
+The checked-in **v2.0.2 `.env.example`** is the deployment-facing inventory for the default Compose path. This page follows that file for environment names and uses the v2.0.2 runtime code when comments and validation disagree.
 
 <Callout type="warning" title="Generate real secrets before starting production">
 `HMAC_KEY` and `JWT_KEY` must each contain at least 32 bytes and should be unique values. The checked-in strings are placeholders. Webhook secrets also require at least 32 bytes when their webhook URL is enabled.
@@ -155,8 +155,8 @@ See [OIDC and MFA](/en/docs/security/oidc-mfa).
 | `AUDIT_FALLBACK_PATH` | `/app/data/audit-fallback.jsonl` | Audit fallback path; required by startup validation |
 | `AUDIT_RETENTION_RUN_HOUR_UTC` | `2` | Scheduled UTC hour, runtime-clamped to 0–23 |
 
-<Callout type="warning" title="The v2.0.1 sample comment says Delete, but runtime code says Purge">
-`AuditRetentionService` accepts only `Archive` and `Purge`; any other non-Archive value, including `Delete`, raises `AuditRetentionMode must be Purge or Archive.` This reference follows executable v2.0.1 code rather than the stale sample comment.
+<Callout type="warning" title="The v2.0.2 sample comment says Delete, but runtime code says Purge">
+`AuditRetentionService` accepts only `Archive` and `Purge`; any other non-Archive value, including `Delete`, raises `AuditRetentionMode must be Purge or Archive.` This reference follows executable v2.0.2 code rather than the stale sample comment.
 </Callout>
 
 `Archive` writes expired audit rows to a JSONL archive before deleting them from the Admin database. `Purge` deletes matching expired rows without creating that archive.
@@ -215,7 +215,7 @@ Metadata discovery, queries, DML planning/execution, and health-related SQL work
 | `OTLP_ENDPOINT` | empty | Absolute HTTP(S) OTLP collector endpoint |
 | `OTEL_SERVICE_NAME` | `hs-sql-agent` | OpenTelemetry service name; must not be blank |
 
-Prometheus is intentionally served on a **separate listener**, not the Admin/MCP application port. When `OTLP_ENDPOINT` is configured, v2.0.1 exports telemetry including SQL compile-evidence tracing/log integration.
+Prometheus is intentionally served on a **separate listener**, not the Admin/MCP application port. When `OTLP_ENDPOINT` is configured, v2.0.2 exports telemetry including SQL compile-evidence tracing/log integration.
 
 See [Observability](/en/docs/operations/observability).
 
@@ -229,14 +229,20 @@ See [Observability](/en/docs/operations/observability).
 
 Keeping routine EF Core command logging at `Warning` reduces noisy SQL command traces in normal production operation.
 
-## Docker environment vs `HsSqlAgentServiceOptions`
+## Docker environment vs embedded .NET capability options
 
-The NuGet library exposes `HsSqlAgentServiceOptions` directly. **Do not assume every code default equals `.env.example`.** For example, the 2.0.1 service-options class has code defaults that differ from the Compose example for values such as bootstrap enablement, token lifetimes, health probes, and Prometheus.
+The Docker/ToolBox environment is a complete standalone-server configuration surface. New NuGet integrations are different: `AddHsSqlAgentCore()` is optionless, and each selected capability owns its own options.
 
-When embedding the package:
+For example:
 
-1. treat `HsSqlAgentServiceOptions` as the code-level contract;
-2. explicitly configure production-sensitive values rather than relying on defaults;
-3. use `.env.example` as a deployment example, not as a declaration of every library default.
+- `HsSqlAgentAdminStoreOptions` owns the Admin database provider and connection string;
+- `HsSqlAgentRuntimeOptions` owns cache, rate limiting, synchronization, SQL concurrency, DML approval storage, bootstrap, and operability;
+- `HsSqlAgentBuiltInAuthOptions` owns JWT, password reset/SMTP, and enterprise identity/OIDC;
+- `McpOptions` owns the public MCP endpoint and HMAC secret;
+- `TelemetryOptions` owns Prometheus and OTLP settings.
+
+`HsSqlAgentServiceOptions` remains only as the legacy aggregate compatibility DTO. Unselected capabilities do not allocate or validate their options, so an embedded host using `AddHsSqlAgentHostAuthorization(...)` does not need HsSqlAgent JWT, SMTP, password-reset, or OIDC settings.
+
+The modular API preserves the existing code defaults. `.env.example` remains a deployment example for the standalone ToolBox path and should not be treated as a declaration that every embedded host must configure every capability.
 
 See [ASP.NET Core integration](/en/docs/integration/aspnet-core).
