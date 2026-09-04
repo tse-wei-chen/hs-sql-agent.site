@@ -26,10 +26,13 @@ export default defineAstroPaperConfig({
     search: "pagefind",
     internationalization: {
       enabled: true,
-      locales: ["en", "zh-hant"],
+      locales: ["en", "zh-hant", "ja", "zh-hans", "ko"],
       localeLabels: {
         en: "English",
         "zh-hant": "繁體中文",
+        ja: "日本語",
+        "zh-hans": "简体中文",
+        ko: "한국어",
       },
     },
   },
