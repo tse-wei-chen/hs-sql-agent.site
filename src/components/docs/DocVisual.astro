@@ -1,0 +1,211 @@
+---
+import type { DocVisualKind } from "@/data/docsVisuals";
+
+type Props = { kind: DocVisualKind; locale: string };
+const { kind, locale } = Astro.props;
+const isZh = locale === "zh-hant";
+---
+
+<div class={`doc-visual doc-visual-${kind}`} aria-hidden="true" data-pagefind-ignore>
+  {kind === "overview" && (
+    <svg viewBox="0 0 640 320" role="presentation">
+      <defs><linearGradient id="docs-overview-glow" x1="0" x2="1"><stop offset="0" stop-color="var(--primary)"/><stop offset="1" stop-color="var(--info)"/></linearGradient></defs>
+      <rect class="doc-svg-panel" x="18" y="18" width="604" height="284" rx="22"/>
+      <path class="doc-svg-grid" d="M18 92H622M18 166H622M18 240H622M172 18V302M326 18V302M480 18V302"/>
+      <g class="doc-svg-float doc-svg-delay-1">
+        <rect class="doc-svg-node" x="64" y="70" width="176" height="72" rx="14"/>
+        <text class="doc-svg-kicker" x="84" y="96">GETTING STARTED</text>
+        <text class="doc-svg-label" x="84" y="122">Quick Start</text>
+      </g>
+      <g class="doc-svg-float doc-svg-delay-2">
+        <rect class="doc-svg-node" x="396" y="70" width="176" height="72" rx="14"/>
+        <text class="doc-svg-kicker" x="416" y="96">SQL COMPILER</text>
+        <text class="doc-svg-label" x="416" y="122">Execution Model</text>
+      </g>
+      <g class="doc-svg-float doc-svg-delay-3">
+        <rect class="doc-svg-node" x="230" y="190" width="180" height="72" rx="14"/>
+        <text class="doc-svg-kicker" x="250" y="216">OPERATIONS</text>
+        <text class="doc-svg-label" x="250" y="242">Deployment</text>
+      </g>
+      <path class="doc-svg-flow" d="M240 106H396M320 142V190"/>
+      <circle class="doc-svg-packet" r="5"><animateMotion dur="4s" repeatCount="indefinite" path="M240 106H396"/></circle>
+      <circle class="doc-svg-packet doc-svg-packet-alt" r="4"><animateMotion dur="4.8s" repeatCount="indefinite" path="M320 142V190"/></circle>
+      <rect x="274" y="32" width="92" height="4" rx="2" fill="url(#docs-overview-glow)" class="doc-svg-pulse"/>
+    </svg>
+  )}
+
+  {kind === "compiler" && (
+    <svg viewBox="0 0 700 320" role="presentation">
+      <rect class="doc-svg-panel" x="18" y="18" width="664" height="284" rx="22"/>
+      <text class="doc-svg-kicker" x="48" y="60">TYPED SQL PIPELINE</text>
+      <path class="doc-svg-flow" d="M92 166H608"/>
+      {[
+        [92, "Parse"],
+        [220, "Bind"],
+        [348, "Validate"],
+        [476, "Prove"],
+        [608, "Compile"],
+      ].map(([x, label], index) => (
+        <g class={`doc-svg-stage doc-svg-delay-${(index % 3) + 1}`}>
+          <circle class="doc-svg-stage-ring" cx={x} cy="166" r="34"/>
+          <circle class="doc-svg-stage-core" cx={x} cy="166" r="8"/>
+          <text class="doc-svg-label doc-svg-label-center" x={x} y="222">{label}</text>
+        </g>
+      ))}
+      <circle class="doc-svg-packet" r="6"><animateMotion dur="5s" repeatCount="indefinite" path="M92 166H608"/></circle>
+      <rect class="doc-svg-node doc-svg-terminal" x="72" y="86" width="188" height="42" rx="10"/>
+      <text class="doc-svg-mono" x="90" y="112">SELECT … FROM orders</text>
+      <rect class="doc-svg-node" x="494" y="86" width="126" height="42" rx="10"/>
+      <text class="doc-svg-mono" x="514" y="112">provider SQL</text>
+      <path class="doc-svg-scan" d="M88 278H612"/>
+    </svg>
+  )}
+
+  {kind === "safe-dml" && (
+    <svg viewBox="0 0 700 320" role="presentation">
+      <rect class="doc-svg-panel" x="18" y="18" width="664" height="284" rx="22"/>
+      <text class="doc-svg-kicker" x="48" y="58">SAFE DML PROTOCOL</text>
+      <path class="doc-svg-flow" d="M96 176H602"/>
+      {[
+        [100, "Preview", "01"],
+        [266, "Approve", "02"],
+        [432, "Revalidate", "03"],
+        [598, "Commit", "04"],
+      ].map(([x, label, number], index) => (
+        <g class={`doc-svg-stage doc-svg-delay-${(index % 3) + 1}`}>
+          <circle class="doc-svg-stage-ring" cx={x} cy="176" r="38"/>
+          <text class="doc-svg-kicker doc-svg-label-center" x={x} y="172">{number}</text>
+          <text class="doc-svg-label doc-svg-label-center" x={x} y="238">{label}</text>
+        </g>
+      ))}
+      <circle class="doc-svg-packet" r="6"><animateMotion dur="5.5s" repeatCount="indefinite" path="M100 176H598"/></circle>
+      <g class="doc-svg-human">
+        <circle class="doc-svg-stage-core" cx="266" cy="88" r="12"/>
+        <path class="doc-svg-line" d="M246 120c6-18 34-18 40 0"/>
+        <text class="doc-svg-kicker doc-svg-label-center" x="266" y="142">{isZh ? "真人核准" : "HUMAN APPROVAL"}</text>
+      </g>
+      <path class="doc-svg-approval" d="M266 142V138"/>
+      <circle class="doc-svg-pulse-ring" cx="266" cy="176" r="50"/>
+    </svg>
+  )}
+
+  {kind === "mcp" && (
+    <svg viewBox="0 0 700 320" role="presentation">
+      <rect class="doc-svg-panel" x="18" y="18" width="664" height="284" rx="22"/>
+      <text class="doc-svg-kicker" x="48" y="58">MODEL CONTEXT PROTOCOL</text>
+      <path class="doc-svg-flow" d="M118 166H582"/>
+      {[
+        [118, "AI Client", "client"],
+        [272, "MCP", "mcp"],
+        [428, "Policy", "policy"],
+        [582, "Database", "db"],
+      ].map(([x, label], index) => (
+        <g class={`doc-svg-float doc-svg-delay-${(index % 3) + 1}`}>
+          <rect class="doc-svg-node" x={Number(x) - 60} y="126" width="120" height="80" rx="16"/>
+          <circle class="doc-svg-stage-core" cx={x} cy="150" r="7"/>
+          <text class="doc-svg-label doc-svg-label-center" x={x} y="184">{label}</text>
+        </g>
+      ))}
+      <circle class="doc-svg-packet" r="6"><animateMotion dur="4.6s" repeatCount="indefinite" path="M118 166H582"/></circle>
+      <path class="doc-svg-return" d="M582 232C460 284 240 284 118 232"/>
+      <circle class="doc-svg-packet doc-svg-packet-alt" r="5"><animateMotion dur="6s" repeatCount="indefinite" path="M582 232C460 284 240 284 118 232"/></circle>
+      <text class="doc-svg-kicker doc-svg-label-center" x="350" y="278">TOOLS · KEYS · ELICITATION · AUDIT</text>
+    </svg>
+  )}
+
+  {kind === "databases" && (
+    <svg viewBox="0 0 700 320" role="presentation">
+      <rect class="doc-svg-panel" x="18" y="18" width="664" height="284" rx="22"/>
+      <circle class="doc-svg-orbit" cx="350" cy="160" r="104"/>
+      <circle class="doc-svg-orbit doc-svg-orbit-inner" cx="350" cy="160" r="70"/>
+      <circle class="doc-svg-core-glow" cx="350" cy="160" r="44"/>
+      <text class="doc-svg-label doc-svg-label-center" x="350" y="156">SQL</text>
+      <text class="doc-svg-kicker doc-svg-label-center" x="350" y="177">COMPILER</text>
+      {[
+        [350, 42, "PostgreSQL"],
+        [520, 92, "MySQL"],
+        [520, 228, "SQL Server"],
+        [350, 282, "Oracle"],
+        [180, 228, "SQLite"],
+        [180, 92, "Firebird"],
+      ].map(([x, y, label], index) => (
+        <g class={`doc-svg-float doc-svg-delay-${(index % 3) + 1}`}>
+          <rect class="doc-svg-node" x={Number(x) - 50} y={Number(y) - 15} width="100" height="30" rx="9"/>
+          <text class="doc-svg-micro doc-svg-label-center" x={x} y={Number(y) + 4}>{label}</text>
+        </g>
+      ))}
+      <circle class="doc-svg-packet" r="5"><animateMotion dur="8s" repeatCount="indefinite" path="M350 56a104 104 0 1 1 -1 0"/></circle>
+    </svg>
+  )}
+
+  {kind === "security" && (
+    <svg viewBox="0 0 700 320" role="presentation">
+      <rect class="doc-svg-panel" x="18" y="18" width="664" height="284" rx="22"/>
+      <rect class="doc-svg-boundary" x="180" y="72" width="360" height="190" rx="28"/>
+      <rect class="doc-svg-boundary doc-svg-boundary-inner" x="246" y="112" width="228" height="110" rx="20"/>
+      <text class="doc-svg-kicker" x="202" y="102">SERVER POLICY BOUNDARY</text>
+      <text class="doc-svg-kicker" x="268" y="142">DATABASE SCOPE</text>
+      <rect class="doc-svg-node" x="302" y="158" width="116" height="42" rx="12"/>
+      <text class="doc-svg-label doc-svg-label-center" x="360" y="184">Tables</text>
+      <rect class="doc-svg-node" x="62" y="138" width="90" height="58" rx="14"/>
+      <text class="doc-svg-kicker doc-svg-label-center" x="107" y="158">MCP</text>
+      <text class="doc-svg-label doc-svg-label-center" x="107" y="180">Key</text>
+      <path class="doc-svg-flow" d="M152 167H302"/>
+      <circle class="doc-svg-packet" r="5"><animateMotion dur="3.8s" repeatCount="indefinite" path="M152 167H302"/></circle>
+      <g class="doc-svg-gate">
+        <rect x="200" y="146" width="58" height="42" rx="10" class="doc-svg-node"/>
+        <text class="doc-svg-micro doc-svg-label-center" x="229" y="171">POLICY</text>
+      </g>
+      <text class="doc-svg-kicker doc-svg-label-center" x="360" y="284">AUTH · TOOL SCOPE · TABLE POLICY · RATE LIMIT · AUDIT</text>
+    </svg>
+  )}
+
+  {kind === "distributed" && (
+    <svg viewBox="0 0 700 320" role="presentation">
+      <rect class="doc-svg-panel" x="18" y="18" width="664" height="284" rx="22"/>
+      <text class="doc-svg-kicker" x="48" y="58">DISTRIBUTED RUNTIME</text>
+      {[
+        [116, 108, "Node A"],
+        [116, 212, "Node B"],
+        [584, 108, "Node C"],
+        [584, 212, "Node D"],
+      ].map(([x, y, label], index) => (
+        <g class={`doc-svg-float doc-svg-delay-${(index % 3) + 1}`}>
+          <rect class="doc-svg-node" x={Number(x) - 52} y={Number(y) - 25} width="104" height="50" rx="13"/>
+          <text class="doc-svg-label doc-svg-label-center" x={x} y={Number(y) + 5}>{label}</text>
+        </g>
+      ))}
+      <rect class="doc-svg-node doc-svg-store" x="286" y="82" width="128" height="58" rx="14"/>
+      <text class="doc-svg-kicker doc-svg-label-center" x="350" y="106">POSTGRES</text>
+      <text class="doc-svg-micro doc-svg-label-center" x="350" y="126">control plane</text>
+      <rect class="doc-svg-node doc-svg-store" x="286" y="184" width="128" height="58" rx="14"/>
+      <text class="doc-svg-kicker doc-svg-label-center" x="350" y="208">REDIS</text>
+      <text class="doc-svg-micro doc-svg-label-center" x="350" y="228">shared runtime state</text>
+      <path class="doc-svg-flow doc-svg-flow-dashed" d="M168 108H286M414 108H532M168 212H286M414 212H532"/>
+      <circle class="doc-svg-packet" r="5"><animateMotion dur="4.5s" repeatCount="indefinite" path="M168 108H532"/></circle>
+      <circle class="doc-svg-packet doc-svg-packet-alt" r="4"><animateMotion dur="5.4s" repeatCount="indefinite" path="M532 212H168"/></circle>
+    </svg>
+  )}
+
+  {kind === "observability" && (
+    <svg viewBox="0 0 700 320" role="presentation">
+      <rect class="doc-svg-panel" x="18" y="18" width="664" height="284" rx="22"/>
+      <text class="doc-svg-kicker" x="48" y="58">OBSERVABILITY</text>
+      {[
+        [98, "request"],
+        [148, "auth"],
+        [198, "compiler"],
+        [248, "database"],
+      ].map(([y, label], index) => (
+        <g>
+          <text class="doc-svg-micro" x="58" y={Number(y) + 5}>{label}</text>
+          <line class="doc-svg-trace-lane" x1="144" y1={y} x2="628" y2={y}/>
+          <rect class={`doc-svg-span doc-svg-delay-${(index % 3) + 1}`} x={176 + index * 34} y={Number(y) - 10} width={116 + index * 26} height="20" rx="6"/>
+        </g>
+      ))}
+      <polyline class="doc-svg-metric" points="144,286 196,268 246,276 304,236 354,246 414,214 466,224 526,182 628,190"/>
+      <circle class="doc-svg-packet" r="5"><animateMotion dur="4.4s" repeatCount="indefinite" path="M144 286L196 268L246 276L304 236L354 246L414 214L466 224L526 182L628 190"/></circle>
+      <text class="doc-svg-kicker" x="500" y="280">OTEL · METRICS · AUDIT</text>
+    </svg>
+  )}
+</div>

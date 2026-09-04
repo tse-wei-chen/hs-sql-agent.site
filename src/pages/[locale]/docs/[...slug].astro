@@ -1,0 +1,146 @@
+---
+import { type CollectionEntry, getCollection, render } from "astro:content";
+import DocsLayout from "@/layouts/DocsLayout.astro";
+import { docsVersionDefinitions, docsVersions } from "@/data/docsVersions";
+import { locales } from "@/utils/getPostsByLocale";
+import {
+  getDocsForVersion,
+  getDocsRouteUrl,
+  getLocalizedSlug,
+  hasDocInVersion,
+} from "@/utils/contentRouting";
+
+export async function getStaticPaths() {
+  const allDocs = await getCollection("docs", ({ data }) => !data.draft);
+  const supportedLocales = locales as readonly string[];
+
+  return supportedLocales.flatMap(locale => {
+    const routes: Array<{
+      params: { locale: string; slug: string };
+      props: {
+        locale: string;
+        doc?: CollectionEntry<"docs">;
+        currentSlug: string;
+        docsVersion: string;
+        versioned: boolean;
+        redirectTo?: string;
+      };
+    }> = [];
+
+    for (const definition of docsVersionDefinitions) {
+      const effectiveDocs = getDocsForVersion(allDocs, locale, definition.version);
+
+      for (const doc of effectiveDocs) {
+        const currentSlug = getLocalizedSlug(doc.id, "docs");
+        routes.push({
+          params: { locale, slug: `${definition.version}/${currentSlug}` },
+          props: {
+            locale,
+            doc,
+            currentSlug,
+            docsVersion: definition.version,
+            versioned: true,
+          },
+        });
+
+        if (definition.version === docsVersions.current) {
+          routes.push({
+            params: { locale, slug: currentSlug },
+            props: {
+              locale,
+              doc,
+              currentSlug,
+              docsVersion: definition.version,
+              versioned: false,
+            },
+          });
+        }
+      }
+
+      for (const [sourceSlug, redirectTo] of Object.entries(definition.redirects ?? {})) {
+        routes.push({
+          params: { locale, slug: `${definition.version}/${sourceSlug}` },
+          props: {
+            locale,
+            currentSlug: sourceSlug,
+            docsVersion: definition.version,
+            versioned: true,
+            redirectTo,
+          },
+        });
+
+        if (definition.version === docsVersions.current) {
+          routes.push({
+            params: { locale, slug: sourceSlug },
+            props: {
+              locale,
+              currentSlug: sourceSlug,
+              docsVersion: definition.version,
+              versioned: false,
+              redirectTo,
+            },
+          });
+        }
+      }
+    }
+
+    return routes;
+  });
+}
+
+type Props = {
+  locale: string;
+  doc?: CollectionEntry<"docs">;
+  currentSlug: string;
+  docsVersion: string;
+  versioned: boolean;
+  redirectTo?: string;
+};
+
+const {
+  locale,
+  doc,
+  currentSlug,
+  docsVersion,
+  versioned,
+  redirectTo,
+} = Astro.props;
+const routeVersion = versioned ? docsVersion : null;
+
+if (redirectTo) {
+  return Astro.redirect(getDocsRouteUrl(locale, redirectTo, routeVersion), 301);
+}
+
+if (!doc) {
+  throw new Error(`Documentation route ${currentSlug} resolved without content.`);
+}
+
+const allDocs = await getCollection("docs", ({ data }) => !data.draft);
+const docs = getDocsForVersion(allDocs, locale, docsVersion);
+const alternateRouteVersion =
+  versioned && docsVersion !== docsVersions.current ? docsVersion : null;
+const alternates = (locales as readonly string[])
+  .filter(alternateLocale =>
+    hasDocInVersion(allDocs, alternateLocale, docsVersion, currentSlug)
+  )
+  .map(alternateLocale => ({
+    locale: alternateLocale,
+    href: getDocsRouteUrl(alternateLocale, currentSlug, alternateRouteVersion),
+  }));
+const { Content, headings } = await render(doc);
+---
+
+<DocsLayout
+  title={doc.data.title}
+  description={doc.data.description}
+  {locale}
+  {currentSlug}
+  {docs}
+  {allDocs}
+  {docsVersion}
+  {versioned}
+  {headings}
+  {alternates}
+>
+  <Content />
+</DocsLayout>

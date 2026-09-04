@@ -1,0 +1,67 @@
+---
+import type { CollectionEntry } from "astro:content";
+import { docsVersions } from "@/data/docsVersions";
+import {
+  getDocsIndexUrl,
+  getDocsRouteUrl,
+  hasDocInVersion,
+} from "@/utils/contentRouting";
+
+type Props = {
+  locale: string;
+  version: string;
+  currentSlug?: string;
+  allDocs: CollectionEntry<"docs">[];
+};
+
+const { locale, version, currentSlug = "", allDocs } = Astro.props;
+const isZh = locale === "zh-hant";
+
+function getVersionHref(targetVersion: string): string {
+  const routeVersion = targetVersion === docsVersions.current ? null : targetVersion;
+  if (
+    currentSlug &&
+    hasDocInVersion(allDocs, locale, targetVersion, currentSlug)
+  ) {
+    return getDocsRouteUrl(locale, currentSlug, routeVersion);
+  }
+  return getDocsIndexUrl(locale, routeVersion);
+}
+
+const activeDefinition =
+  docsVersions.versions.find(item => item.version === version) ??
+  docsVersions.versions[0];
+---
+
+<div class="docs-version-switcher">
+  <span class="docs-version-caption">{isZh ? "文件版本" : "Documentation version"}</span>
+  <details>
+    <summary>
+      <span>{activeDefinition.label}</span>
+      {version === docsVersions.current && (
+        <span class="docs-version-current">{isZh ? "最新" : "Latest"}</span>
+      )}
+      <span class="docs-version-chevron" aria-hidden="true">⌄</span>
+    </summary>
+    <div class="docs-version-menu">
+      {docsVersions.versions.map(item => {
+        const active = item.version === version;
+        const label = item.status === "current"
+          ? (isZh ? "最新" : "Latest")
+          : item.status === "supported"
+            ? (isZh ? "支援中" : "Supported")
+            : (isZh ? "封存" : "Archived");
+        return (
+          <a
+            href={getVersionHref(item.version)}
+            aria-current={active ? "page" : undefined}
+            class:list={{ "is-active": active }}
+          >
+            <span>{item.label}</span>
+            <small>{label}</small>
+          </a>
+        );
+      })}
+    </div>
+  </details>
+</div>

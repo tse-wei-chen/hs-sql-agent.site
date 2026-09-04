@@ -1,38 +1,35 @@
 import { defineCollection } from "astro:content";
 import { z } from "astro/zod";
 import { glob } from "astro/loaders";
-import config from "@/config";
 
-export const BLOG_PATH = "src/content/posts";
+export const CONTENT_PATH = "src/content";
 
-const posts = defineCollection({
-  loader: glob({ pattern: "**/[^_]*.{md,mdx}", base: `./${BLOG_PATH}` }),
+const docs = defineCollection({
+  loader: glob({
+    pattern: "*/docs/**/[^_]*.{md,mdx}",
+    base: `./${CONTENT_PATH}`,
+    // Locale, docs/, and source version are part of the content identity:
+    // <locale>/docs/<version>/<slug>. Public routing is resolved separately so
+    // latest aliases can point at an inherited effective documentation set.
+    generateId: ({ entry }) => entry.replace(/\.(md|mdx)$/i, ""),
+  }),
   schema: ({ image }) =>
     z.object({
-      author: z.string().default(config.site.author),
-      pubDatetime: z.date(),
-      modDatetime: z.date().optional().nullable(),
       title: z.string(),
-      featured: z.boolean().optional(),
-      draft: z.boolean().optional(),
-      tags: z.array(z.string()).default(["others"]),
+      description: z.string().optional(),
+      draft: z.boolean().optional().default(false),
       ogImage: image().or(z.string()).optional(),
-      description: z.string(),
       canonicalURL: z.string().optional(),
-      hideEditPost: z.boolean().optional(),
-      timezone: z.string().optional(),
-      locale: z.string().default("en"),
+      sidebar: z
+        .object({
+          label: z.string().optional(),
+          group: z.string().optional(),
+          order: z.number().optional().default(999),
+        })
+        .optional(),
     }),
 });
 
-const pages = defineCollection({
-  loader: glob({ pattern: "**/[^_]*.{md,mdx}", base: "./src/content/pages" }),
-  schema: z.object({
-    title: z.string(),
-    description: z.string().optional(),
-    ogImage: z.string().optional(),
-    canonicalURL: z.string().optional(),
-  }),
-});
-
-export const collections = { posts, pages };
+// Product/marketing pages are deliberately not content collections. Only
+// canonical technical documentation lives under src/content.
+export const collections = { docs };

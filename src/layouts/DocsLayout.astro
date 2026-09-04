@@ -1,0 +1,279 @@
+---
+import type { CollectionEntry } from "astro:content";
+import Layout from "./Layout.astro";
+import Header from "@/components/Header.astro";
+import Footer from "@/components/Footer.astro";
+import DocHero from "@/components/docs/DocHero.astro";
+import DocsVersionSwitcher from "@/components/docs/DocsVersionSwitcher.astro";
+import { docsVersions } from "@/data/docsVersions";
+import { useTranslations } from "@/i18n";
+import {
+  getDocGroupLabel,
+  getDocsIndexUrl,
+  getDocsRouteUrl,
+  getDocUrl,
+  getLocalizedSlug,
+  sortDocs,
+} from "@/utils/contentRouting";
+import config from "@/config";
+import "@/styles/docs.css";
+import "@/styles/docs-versions.css";
+
+type Heading = { depth: number; slug: string; text: string };
+type Alternate = { locale: string; href: string };
+
+type Props = {
+  title: string;
+  description?: string;
+  locale: string;
+  currentSlug?: string;
+  docs: CollectionEntry<"docs">[];
+  allDocs?: CollectionEntry<"docs">[];
+  docsVersion?: string;
+  versioned?: boolean;
+  headings?: Heading[];
+  alternates?: Alternate[];
+};
+
+const {
+  title,
+  description = config.site.description,
+  locale,
+  currentSlug = "",
+  docs,
+  allDocs = docs,
+  docsVersion = docsVersions.current,
+  versioned = false,
+  headings = [],
+  alternates = [],
+} = Astro.props;
+
+const t = useTranslations(locale);
+const sortedDocs = sortDocs(docs, locale);
+const groups = new Map<string, { label: string; docs: CollectionEntry<"docs">[] }>();
+const routeVersion = versioned ? docsVersion : null;
+
+for (const doc of sortedDocs) {
+  const label = getDocGroupLabel(doc);
+  const group = groups.get(label) ?? { label, docs: [] };
+  group.docs.push(doc);
+  groups.set(label, group);
+}
+
+const currentIndex = currentSlug
+  ? sortedDocs.findIndex(doc => getLocalizedSlug(doc.id, "docs") === currentSlug)
+  : -1;
+const previousDoc = currentIndex > 0 ? sortedDocs[currentIndex - 1] : undefined;
+const nextDoc = currentIndex >= 0 && currentIndex < sortedDocs.length - 1
+  ? sortedDocs[currentIndex + 1]
+  : undefined;
+const toc = headings.filter(heading => heading.depth >= 2 && heading.depth <= 3);
+const urlBase = Astro.site ?? Astro.url;
+const defaultAlternate =
+  alternates.find(alternate => alternate.locale === config.site.lang) ?? alternates[0];
+const canonicalPath =
+  versioned && docsVersion === docsVersions.current
+    ? currentSlug
+      ? getDocsRouteUrl(locale, currentSlug)
+      : getDocsIndexUrl(locale)
+    : undefined;
+const canonicalURL = canonicalPath ? new URL(canonicalPath, urlBase).href : undefined;
+const structuredData = {
+  "@context": "https://schema.org",
+  "@type": "TechArticle",
+  headline: title,
+  description,
+  inLanguage: locale,
+  version: docsVersion,
+  isPartOf: {
+    "@type": "WebSite",
+    name: config.site.title,
+    url: config.site.url,
+  },
+};
+const isZh = locale === "zh-hant";
+const latestDocsPrefix = `${getDocsIndexUrl(locale).replace(/\/$/, "")}/`;
+const versionedDocsPrefix = `${getDocsIndexUrl(locale, docsVersion).replace(/\/$/, "")}/`;
+---
+
+<Layout title={`${title} | ${config.site.title}`} {description} {canonicalURL}>
+  <Fragment slot="head">
+    {alternates.map(alternate => (
+      <link rel="alternate" hreflang={alternate.locale} href={new URL(alternate.href, urlBase)} />
+    ))}
+    {defaultAlternate && (
+      <link rel="alternate" hreflang="x-default" href={new URL(defaultAlternate.href, urlBase)} />
+    )}
+    <script type="application/ld+json" is:inline set:html={JSON.stringify(structuredData)} />
+  </Fragment>
+
+  <Header />
+
+  <div class="docs-shell mx-auto grid w-full max-w-7xl flex-1 grid-cols-1 gap-8 px-4 py-8 sm:px-6 lg:grid-cols-[15rem_minmax(0,1fr)] xl:grid-cols-[15rem_minmax(0,1fr)_13rem]">
+    <aside class="doc-sidebar border-border lg:sticky lg:top-20 lg:h-[calc(100svh-6rem)] lg:overflow-y-auto lg:border-r lg:pr-5">
+      <DocsVersionSwitcher
+        {locale}
+        version={docsVersion}
+        {currentSlug}
+        {allDocs}
+      />
+
+      <nav aria-label={t.docs.sidebarLabel}>
+        {[...groups.values()].map(group => (
+          <section class="doc-sidebar-group">
+            <h2 class="doc-sidebar-title text-muted-foreground mb-2 text-xs font-semibold tracking-wider uppercase">{group.label}</h2>
+            <ul class="space-y-1">
+              {group.docs.map(doc => {
+                const slug = getLocalizedSlug(doc.id, "docs");
+                const active = slug === currentSlug;
+                return (
+                  <li>
+                    <a href={getDocUrl(doc, routeVersion)} aria-current={active ? "page" : undefined} class:list={["doc-sidebar-link block rounded-md px-2 py-1.5 text-sm no-underline transition", active ? "bg-muted text-accent font-medium" : "hover:bg-muted/70"]}>
+                      {doc.data.sidebar?.label ?? doc.data.title}
+                    </a>
+                  </li>
+                );
+              })}
+            </ul>
+          </section>
+        ))}
+      </nav>
+    </aside>
+
+    <main
+      id="main-content"
+      class="doc-main doc-page pb-16"
+      data-copy-label={isZh ? "複製" : "Copy"}
+      data-copied-label={isZh ? "已複製" : "Copied"}
+      data-code-label={isZh ? "程式碼" : "Code"}
+      data-versioned={versioned ? "true" : "false"}
+      data-latest-docs-prefix={latestDocsPrefix}
+      data-versioned-docs-prefix={versionedDocsPrefix}
+    >
+      <DocHero {title} {description} {locale} {currentSlug} />
+
+      <article class="app-prose doc-article max-w-none">
+        <slot />
+      </article>
+
+      {currentSlug && (previousDoc || nextDoc) && (
+        <nav class="doc-pager" aria-label={isZh ? "文件分頁" : "Documentation pagination"}>
+          {previousDoc ? (
+            <a href={getDocUrl(previousDoc, routeVersion)}>
+              <span class="doc-pager-label">← {isZh ? "上一篇" : "Previous"}</span>
+              <span class="doc-pager-title">{previousDoc.data.title}</span>
+            </a>
+          ) : <span />}
+          {nextDoc ? (
+            <a href={getDocUrl(nextDoc, routeVersion)}>
+              <span class="doc-pager-label">{isZh ? "下一篇" : "Next"} →</span>
+              <span class="doc-pager-title">{nextDoc.data.title}</span>
+            </a>
+          ) : <span />}
+        </nav>
+      )}
+    </main>
+
+    <aside class="hidden xl:block">
+      <div class="sticky top-20">
+        {toc.length > 0 && (
+          <nav class="doc-toc" aria-label={t.docs.onThisPage}>
+            <h2 class="mb-3 text-sm font-semibold">{t.docs.onThisPage}</h2>
+            <ul class="border-border space-y-2 border-l pl-3 text-sm">
+              {toc.map(heading => (
+                <li class:list={{ "pl-3": heading.depth === 3 }}>
+                  <a class="text-muted-foreground hover:text-accent no-underline" href={`#${heading.slug}`}>{heading.text}</a>
+                </li>
+              ))}
+            </ul>
+          </nav>
+        )}
+      </div>
+    </aside>
+  </div>
+
+  <Footer />
+</Layout>
+
+<script>
+  function detectCodeLabel(pre: HTMLPreElement, fallback: string) {
+    const explicit = pre.dataset.language || pre.getAttribute("data-language");
+    if (explicit) return explicit;
+
+    const code = pre.querySelector("code");
+    const className = code?.className ?? "";
+    const match = className.match(/language-([\w-]+)/);
+    return match?.[1] ?? fallback;
+  }
+
+  function keepVersionedDocLinks(page: HTMLElement) {
+    if (page.dataset.versioned !== "true") return;
+    const latestPrefix = page.dataset.latestDocsPrefix;
+    const versionedPrefix = page.dataset.versionedDocsPrefix;
+    if (!latestPrefix || !versionedPrefix) return;
+
+    page.querySelectorAll<HTMLAnchorElement>(".doc-article a[href]").forEach(link => {
+      const rawHref = link.getAttribute("href");
+      if (!rawHref || rawHref.startsWith("#")) return;
+
+      const url = new URL(rawHref, window.location.origin);
+      if (url.origin !== window.location.origin) return;
+      if (!url.pathname.startsWith(latestPrefix)) return;
+      if (url.pathname.startsWith(versionedPrefix)) return;
+
+      url.pathname = versionedPrefix + url.pathname.slice(latestPrefix.length);
+      link.href = `${url.pathname}${url.search}${url.hash}`;
+    });
+  }
+
+  function enhanceDocCode() {
+    const page = document.querySelector<HTMLElement>(".doc-page");
+    if (!page) return;
+
+    keepVersionedDocLinks(page);
+
+    const copyLabel = page.dataset.copyLabel ?? "Copy";
+    const copiedLabel = page.dataset.copiedLabel ?? "Copied";
+    const fallbackLabel = page.dataset.codeLabel ?? "Code";
+
+    page.querySelectorAll<HTMLPreElement>(".astro-code:not([data-doc-enhanced])").forEach(pre => {
+      pre.dataset.docEnhanced = "true";
+      const parent = pre.parentNode;
+      if (!parent) return;
+
+      const frame = document.createElement("div");
+      frame.className = "doc-code-frame not-prose";
+      parent.insertBefore(frame, pre);
+
+      const toolbar = document.createElement("div");
+      toolbar.className = "doc-code-toolbar";
+
+      const label = document.createElement("span");
+      label.className = "doc-code-label";
+      label.textContent = detectCodeLabel(pre, fallbackLabel);
+
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "doc-copy-button";
+      button.textContent = copyLabel;
+      button.setAttribute("aria-label", copyLabel);
+
+      button.addEventListener("click", async () => {
+        const text = pre.textContent ?? "";
+        try {
+          await navigator.clipboard.writeText(text);
+          button.textContent = copiedLabel;
+          window.setTimeout(() => { button.textContent = copyLabel; }, 1600);
+        } catch {
+          button.textContent = copyLabel;
+        }
+      });
+
+      toolbar.append(label, button);
+      frame.append(toolbar, pre);
+    });
+  }
+
+  document.addEventListener("astro:page-load", enhanceDocCode);
+  enhanceDocCode();
+</script>

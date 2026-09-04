@@ -1,121 +1,265 @@
 ---
-import { locales, getPostsByLocale } from "@/utils/getPostsByLocale";
-import { getCollection } from "astro:content";
 import { getRelativeLocaleUrl } from "astro:i18n";
-import IconRss from "@/assets/icons/IconRss.svg";
-import IconArrowRight from "@/assets/icons/IconArrowRight.svg";
 import Layout from "@/layouts/Layout.astro";
 import Header from "@/components/Header.astro";
 import Footer from "@/components/Footer.astro";
-import Socials from "@/components/Socials.astro";
-import Card from "@/components/Card.astro";
-import LinkButton from "@/components/LinkButton.astro";
-import { getSortedPosts } from "@/utils/getSortedPosts";
+import { locales } from "@/utils/getPostsByLocale";
 import { useTranslations } from "@/i18n";
 import config from "@/config";
+import "@/styles/landing.css";
+import "@/styles/landing-links.css";
 
 export async function getStaticPaths() {
   return locales.map(locale => ({ params: { locale } }));
 }
 
-const { socials, posts: postsConfig } = config;
-
 const locale = Astro.currentLocale ?? config.site.lang;
 const t = useTranslations(locale);
-
-const posts = await getCollection("posts");
-const localePosts = getPostsByLocale(posts, locale);
-const sortedPosts = getSortedPosts(localePosts);
-const featuredPosts = sortedPosts.filter(({ data }) => data.featured);
-const recentPosts = sortedPosts.filter(({ data }) => !data.featured);
-const homePath = getRelativeLocaleUrl(locale, "");
+const docsUrl = getRelativeLocaleUrl(locale, "docs/getting-started/introduction");
+const allDocsUrl = getRelativeLocaleUrl(locale, "docs");
+const databases = [
+  { name: "PostgreSQL", slug: "postgresql" },
+  { name: "MySQL", slug: "mysql" },
+  { name: "SQL Server", slug: "sql-server" },
+  { name: "Oracle", slug: "oracle" },
+  { name: "SQLite", slug: "sqlite" },
+  { name: "Firebird", slug: "firebird" },
+];
+const integrations = [
+  { name: "Claude Desktop", slug: "claude-desktop", desc: locale === "zh-hant" ? "Direct Streamable HTTP MCP，使用 scoped server key。" : "Direct Streamable HTTP MCP with a scoped server key." },
+  { name: "Cursor", slug: "cursor", desc: locale === "zh-hant" ? "Remote MCP + custom header，policy 保留在 server-side。" : "Remote MCP plus custom headers, with policy kept server-side." },
+  { name: "ASP.NET Core", slug: "aspnet-core", desc: locale === "zh-hant" ? "透過 HsSqlAgent.Server NuGet package 嵌入既有 .NET host。" : "Embed with the HsSqlAgent.Server NuGet package." },
+];
 ---
 
-<Layout>
-  <Header />
-  <main
-    id="main-content"
-    data-layout="index"
-    data-home-path={homePath}
-    class="app-layout"
-  >
-    <section id="hero" class="border-border border-b pt-8 pb-6">
-      <h1 class="my-4 inline-block text-4xl font-bold sm:my-8 sm:text-5xl">
-        {t.home.heroTitle}
-      </h1>
-      <a
-        target="_blank"
-        href={`${import.meta.env.BASE_URL.replace(/\/?$/, `/${locale}/`)}rss.xml`}
-        class="inline-block"
-        aria-label="RSS Feed"
-        title="RSS Feed"
-      >
-        <IconRss
-          width={20}
-          height={20}
-          class="stroke-accent scale-125 stroke-3 rtl:-rotate-90"
-        />
-        <span class="sr-only">{t.a11y.rssFeed}</span>
-      </a>
+<Layout title={`${config.site.title} — ${t.home.heroTitle}`} description={t.home.heroDesc}>
+  <noscript>
+    <style is:inline>
+      .reveal { opacity: 1 !important; transform: none !important; }
+      .database-track { animation: none !important; flex-wrap: wrap; width: auto !important; }
+    </style>
+  </noscript>
 
-      <p>
-        {t.home.heroDesc}
-      </p>
+  <Header />
+
+  <main id="main-content" class="landing-page">
+    <section class="landing-hero">
+      <div class="hero-shell">
+        <div class="hero-copy reveal">
+          <p class="hero-kicker">
+            <span class="hero-kicker-dot" aria-hidden="true"></span>
+            {t.home.heroKicker}
+          </p>
+          <h1 class="hero-title hero-title-gradient">{t.home.heroTitle}</h1>
+          <p class="hero-description">{t.home.heroDesc}</p>
+
+          <div class="hero-actions">
+            <a class="landing-button landing-button-primary" href={docsUrl}>
+              {t.home.primaryCta}
+              <span aria-hidden="true">→</span>
+            </a>
+            <a class="landing-button landing-button-secondary" href="https://github.com/tse-wei-chen/hs-sql-agent" rel="external">
+              {t.home.secondaryCta}
+              <span aria-hidden="true">↗</span>
+            </a>
+          </div>
+
+          <div class="quick-command" aria-label="Docker quick start">
+            <span class="quick-command-prefix" aria-hidden="true">$</span>
+            <code>docker compose up -d</code>
+            <button type="button" class="copy-command" data-copy-command="docker compose up -d" data-copy-label={t.home.copyCommand} data-copied-label={t.home.copiedCommand}>
+              {t.home.copyCommand}
+            </button>
+          </div>
+        </div>
+
+        <div class="hero-visual-wrap reveal" role="img" aria-label={t.home.compilerTitle}>
+          <div class="compiler-visual" data-compiler-visual data-pagefind-ignore>
+            <div class="compiler-topbar">
+              <span>hs-sql-agent / compiler</span>
+              <span class="compiler-live">{t.home.compilerLive}</span>
+            </div>
+
+            <div class="compiler-body">
+              <div class="sql-input">
+                <span class="sql-keyword">SELECT</span>
+                <span class="sql-field"> customer_id, total</span><br />
+                <span class="sql-keyword">FROM</span> orders<br />
+                <span class="sql-keyword">WHERE</span> status = <span class="sql-string">'ready'</span>
+              </div>
+
+              <div class="pipeline-row" aria-label="SQL compiler pipeline">
+                <div class="pipeline-node" style="--delay: 0s"><span class="pipeline-index">01</span><strong>Parse</strong><small>Raw SQL → AST</small></div>
+                <div class="pipeline-node" style="--delay: .65s"><span class="pipeline-index">02</span><strong>Validate</strong><small>Source semantics</small></div>
+                <div class="pipeline-node" style="--delay: 1.3s"><span class="pipeline-index">03</span><strong>Prove</strong><small>Capability boundary</small></div>
+                <div class="pipeline-node" style="--delay: 1.95s"><span class="pipeline-index">04</span><strong>Compile</strong><small>Provider SQL</small></div>
+              </div>
+
+              <div class="compiler-result">
+                <span class="compiler-result-status">✓ {t.home.compilerResult}</span>
+                <div class="dialect-stack" aria-label="Supported database providers">
+                  {databases.map(database => (
+                    <a class="dialect-chip dialect-chip-link" href={getRelativeLocaleUrl(locale, `databases/${database.slug}`)}>{database.name}</a>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
     </section>
 
-    {
-      featuredPosts.length > 0 && (
-        <section
-          id="featured"
-          class:list={[
-            "pt-12 pb-6",
-            { "border-border border-b": recentPosts.length > 0 },
-          ]}
-        >
-          <h2 class="text-2xl font-semibold tracking-wide">
-            {t.home.featured}
-          </h2>
-          <ul>
-            {featuredPosts.map(data => (
-              <Card variant="h3" {...data} />
-            ))}
-          </ul>
-        </section>
-      )
-    }
+    <section class="section-shell" aria-labelledby="capability-title">
+      <div class="section-heading reveal">
+        <p class="section-kicker">{t.home.capabilityKicker}</p>
+        <h2 id="capability-title">{t.home.capabilityTitle}</h2>
+        <p>{t.home.capabilityDesc}</p>
+      </div>
 
-    {
-      recentPosts.length > 0 && (
-        <section id="recent-posts" class="pt-12 pb-6">
-          <h2 class="text-2xl font-semibold tracking-wide">
-            {t.home.recentPosts}
-          </h2>
-          <ul>
-            {recentPosts.slice(0, postsConfig.perIndex).map(data => (
-              <Card variant="h3" {...data} />
-            ))}
-          </ul>
-        </section>
-      )
-    }
+      <div class="capability-grid reveal">
+        <a class="capability-card capability-card-link" style="--card-glow: var(--primary)" href={getRelativeLocaleUrl(locale, "features/sql-compiler")}>
+          <span class="capability-number">01 / COMPILER</span><h3>{t.home.compilerTitle}</h3><p>{t.home.compilerDesc}</p>
+        </a>
+        <a class="capability-card capability-card-link" style="--card-glow: var(--secondary)" href={getRelativeLocaleUrl(locale, "features/safe-dml")}>
+          <span class="capability-number">02 / DML</span><h3>{t.home.dmlTitle}</h3><p>{t.home.dmlDesc}</p>
+        </a>
+        <a class="capability-card capability-card-link" style="--card-glow: var(--info)" href={getRelativeLocaleUrl(locale, "databases")}>
+          <span class="capability-number">03 / DIALECTS</span><h3>{t.home.databaseTitle}</h3><p>{t.home.databaseDesc}</p>
+        </a>
+        <a class="capability-card capability-card-link" style="--card-glow: var(--primary)" href={getRelativeLocaleUrl(locale, "features/access-control")}>
+          <span class="capability-number">04 / POLICY</span><h3>{t.home.governanceTitle}</h3><p>{t.home.governanceDesc}</p>
+        </a>
+      </div>
+    </section>
 
-    <div class="my-8 text-center">
-      <LinkButton href={getRelativeLocaleUrl(locale, "posts")}>
-        {t.home.allPosts}
-        <IconArrowRight class="inline-block rtl:-rotate-180" />
-      </LinkButton>
-    </div>
+    <section class="flow-band" aria-labelledby="dml-title">
+      <div class="section-shell flow-grid">
+        <div class="section-heading reveal">
+          <p class="section-kicker">{t.home.dmlKicker}</p>
+          <h2 id="dml-title">{t.home.dmlSectionTitle}</h2>
+          <p>{t.home.dmlSectionDesc}</p>
+          <div class="hero-actions">
+            <a class="landing-button landing-button-secondary" href={getRelativeLocaleUrl(locale, "features/safe-dml")}>
+              {t.home.dmlTitle} <span aria-hidden="true">→</span>
+            </a>
+          </div>
+        </div>
+
+        <div class="flow-track reveal" data-pagefind-ignore>
+          <article class="flow-step"><span class="flow-step-index">01</span><div><strong>{t.home.dmlPreviewTitle}</strong><p>{t.home.dmlPreviewDesc}</p></div></article>
+          <article class="flow-step"><span class="flow-step-index">02</span><div><strong>{t.home.dmlApproveTitle}</strong><p>{t.home.dmlApproveDesc}</p></div></article>
+          <article class="flow-step"><span class="flow-step-index">03</span><div><strong>{t.home.dmlRevalidateTitle}</strong><p>{t.home.dmlRevalidateDesc}</p></div></article>
+          <article class="flow-step"><span class="flow-step-index">04</span><div><strong>{t.home.dmlCommitTitle}</strong><p>{t.home.dmlCommitDesc}</p></div></article>
+        </div>
+      </div>
+    </section>
+
+    <section class="section-shell" aria-labelledby="database-title">
+      <div class="section-heading reveal">
+        <p class="section-kicker">{t.home.databaseKicker}</p>
+        <h2 id="database-title">{t.home.databaseSectionTitle}</h2>
+        <p>{t.home.databaseSectionDesc}</p>
+        <div class="hero-actions">
+          <a class="landing-button landing-button-secondary" href={getRelativeLocaleUrl(locale, "databases")}>{t.nav.databases} <span aria-hidden="true">→</span></a>
+        </div>
+      </div>
+
+      <div class="database-marquee reveal" aria-label="Supported databases">
+        <div class="database-track" data-pagefind-ignore>
+          {[...databases, ...databases].map(database => (
+            <a class="database-chip database-chip-link" href={getRelativeLocaleUrl(locale, `databases/${database.slug}`)}>{database.name}</a>
+          ))}
+        </div>
+      </div>
+    </section>
+
+    <section class="flow-band" aria-labelledby="integration-title">
+      <div class="section-shell">
+        <div class="section-heading reveal">
+          <p class="section-kicker">{t.home.integrationKicker}</p>
+          <h2 id="integration-title">{t.home.integrationTitle}</h2>
+          <p>{t.home.integrationDesc}</p>
+        </div>
+        <div class="capability-grid integration-grid reveal">
+          {integrations.map((integration, index) => (
+            <a class="capability-card capability-card-link" style={`--card-glow: ${index === 0 ? "var(--primary)" : index === 1 ? "var(--info)" : "var(--secondary)"}`} href={getRelativeLocaleUrl(locale, `integrations/${integration.slug}`)}>
+              <span class="capability-number">{String(index + 1).padStart(2, "0")} / INTEGRATION</span>
+              <h3>{integration.name}</h3>
+              <p>{integration.desc}</p>
+            </a>
+          ))}
+        </div>
+      </div>
+    </section>
+
+    <section class="section-shell">
+      <div class="docs-cta reveal">
+        <p class="section-kicker">{t.home.docsKicker}</p>
+        <h2>{t.home.docsTitle}</h2>
+        <p>{t.home.docsDesc}</p>
+        <div class="hero-actions">
+          <a class="landing-button landing-button-primary" href={allDocsUrl}>{t.home.docsCta} <span aria-hidden="true">→</span></a>
+        </div>
+      </div>
+    </section>
   </main>
+
   <Footer />
 </Layout>
 
 <script>
-  document.addEventListener("astro:page-load", () => {
-    const indexLayout = (document.querySelector("#main-content") as HTMLElement)
-      ?.dataset;
-    const baseRoot = import.meta.env.BASE_URL.replace(/\/?$/, "/");
-    if (indexLayout?.layout) {
-      sessionStorage.setItem("backUrl", indexLayout.homePath ?? baseRoot);
+  function initLanding() {
+    const root = document.querySelector<HTMLElement>(".landing-page");
+    if (!root || root.dataset.initialized === "true") return;
+    root.dataset.initialized = "true";
+    root.dataset.motionReady = "true";
+
+    const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const revealItems = root.querySelectorAll<HTMLElement>(".reveal");
+
+    if (reducedMotion || !("IntersectionObserver" in window)) {
+      revealItems.forEach(item => item.classList.add("is-visible"));
+    } else {
+      const observer = new IntersectionObserver(entries => {
+        for (const entry of entries) {
+          if (!entry.isIntersecting) continue;
+          entry.target.classList.add("is-visible");
+          observer.unobserve(entry.target);
+        }
+      }, { rootMargin: "0px 0px -8%", threshold: 0.08 });
+      revealItems.forEach(item => observer.observe(item));
     }
-  });
+
+    const visual = root.querySelector<HTMLElement>("[data-compiler-visual]");
+    if (visual && !reducedMotion) {
+      visual.addEventListener("pointermove", event => {
+        const rect = visual.getBoundingClientRect();
+        const px = (event.clientX - rect.left) / rect.width - 0.5;
+        const py = (event.clientY - rect.top) / rect.height - 0.5;
+        visual.style.setProperty("--tilt-y", `${px * 5}deg`);
+        visual.style.setProperty("--tilt-x", `${py * -5}deg`);
+      });
+      visual.addEventListener("pointerleave", () => {
+        visual.style.setProperty("--tilt-x", "0deg");
+        visual.style.setProperty("--tilt-y", "0deg");
+      });
+    }
+
+    root.querySelectorAll<HTMLButtonElement>("[data-copy-command]").forEach(button => {
+      button.addEventListener("click", async () => {
+        const value = button.dataset.copyCommand;
+        if (!value) return;
+        try {
+          await navigator.clipboard.writeText(value);
+          button.textContent = button.dataset.copiedLabel ?? "Copied";
+          window.setTimeout(() => { button.textContent = button.dataset.copyLabel ?? "Copy"; }, 1400);
+        } catch {
+          button.textContent = button.dataset.copyLabel ?? "Copy";
+        }
+      });
+    });
+  }
+
+  document.addEventListener("astro:page-load", initLanding);
+  initLanding();
 </script>

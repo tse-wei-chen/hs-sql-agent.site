@@ -1,0 +1,45 @@
+---
+import type { CollectionEntry } from "astro:content";
+import { getDocGroupLabel, getDocUrl, sortDocs } from "@/utils/contentRouting";
+import "@/styles/docs-index.css";
+
+type Props = {
+  docs: CollectionEntry<"docs">[];
+  locale: string;
+  routeVersion?: string | null;
+};
+
+const { docs, locale, routeVersion = null } = Astro.props;
+const sortedDocs = sortDocs(docs, locale);
+const groups = new Map<string, typeof sortedDocs>();
+for (const doc of sortedDocs) {
+  const label = getDocGroupLabel(doc);
+  const groupDocs = groups.get(label) ?? [];
+  groupDocs.push(doc);
+  groups.set(label, groupDocs);
+}
+---
+
+<div class="doc-index-groups not-prose">
+  {[...groups.entries()].map(([label, groupDocs], groupIndex) => (
+    <section class="doc-index-group">
+      <div class="doc-index-group-heading">
+        <div>
+          <span>{String(groupIndex + 1).padStart(2, "0")}</span>
+          <h2>{label}</h2>
+        </div>
+        <span>{groupDocs.length}</span>
+      </div>
+      <div class="doc-index-grid">
+        {groupDocs.map((doc, index) => (
+          <a href={getDocUrl(doc, routeVersion)} class="doc-index-card">
+            <span class="doc-index-card-number">{String(index + 1).padStart(2, "0")}</span>
+            <h3>{doc.data.title}</h3>
+            {doc.data.description && <p>{doc.data.description}</p>}
+            <span class="doc-index-card-arrow" aria-hidden="true">↗</span>
+          </a>
+        ))}
+      </div>
+    </section>
+  ))}
+</div>

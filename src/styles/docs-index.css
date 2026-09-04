@@ -1,0 +1,133 @@
+.doc-index-groups {
+  display: grid;
+  gap: 3rem;
+}
+
+.doc-index-group-heading {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1rem;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: .8rem;
+}
+
+.doc-index-group-heading > div {
+  display: flex;
+  align-items: baseline;
+  gap: .75rem;
+}
+
+.doc-index-group-heading > div > span,
+.doc-index-group-heading > span {
+  color: var(--muted-foreground);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: .65rem;
+  font-weight: 800;
+  letter-spacing: .08em;
+}
+
+.doc-index-group-heading > div > span {
+  color: var(--primary);
+}
+
+.doc-index-group-heading h2 {
+  font-size: 1.15rem;
+  font-weight: 740;
+  letter-spacing: -.02em;
+}
+
+.doc-index-grid {
+  display: grid;
+  gap: .75rem;
+}
+
+.doc-index-card {
+  position: relative;
+  min-height: 10rem;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: .85rem;
+  padding: 1.15rem;
+  color: var(--foreground);
+  text-decoration: none;
+  background:
+    linear-gradient(145deg, color-mix(in oklab, var(--card) 82%, transparent), transparent);
+  transition: transform .18s ease, border-color .18s ease, box-shadow .18s ease, background .18s ease;
+}
+
+.doc-index-card::before {
+  position: absolute;
+  inset: auto -20% -55% 30%;
+  height: 8rem;
+  border-radius: 50%;
+  content: "";
+  background: color-mix(in oklab, var(--primary) 9%, transparent);
+  filter: blur(34px);
+  transition: transform .22s ease, opacity .22s ease;
+}
+
+.doc-index-card:hover {
+  transform: translateY(-3px);
+  border-color: color-mix(in oklab, var(--primary) 62%, var(--border));
+  background: color-mix(in oklab, var(--primary) 2.5%, var(--background));
+  box-shadow: 0 1rem 2.6rem color-mix(in oklab, var(--foreground) 5%, transparent);
+}
+
+.doc-index-card:hover::before {
+  transform: translateY(-1rem) scale(1.15);
+}
+
+.doc-index-card-number {
+  color: var(--primary);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: .65rem;
+  font-weight: 850;
+  letter-spacing: .08em;
+}
+
+.doc-index-card h3 {
+  position: relative;
+  z-index: 1;
+  margin-top: 1.65rem;
+  font-size: 1rem;
+  font-weight: 740;
+  letter-spacing: -.012em;
+}
+
+.doc-index-card p {
+  position: relative;
+  z-index: 1;
+  margin-top: .55rem;
+  color: var(--muted-foreground);
+  font-size: .82rem;
+  line-height: 1.65;
+}
+
+.doc-index-card-arrow {
+  position: absolute;
+  inset-block-start: 1rem;
+  inset-inline-end: 1rem;
+  color: var(--muted-foreground);
+  transition: color .18s ease, transform .18s ease;
+}
+
+.doc-index-card:hover .doc-index-card-arrow {
+  transform: translate(2px, -2px);
+  color: var(--primary);
+}
+
+@media (min-width: 640px) {
+  .doc-index-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .doc-index-card,
+  .doc-index-card::before,
+  .doc-index-card-arrow {
+    transition: none !important;
+  }
+}

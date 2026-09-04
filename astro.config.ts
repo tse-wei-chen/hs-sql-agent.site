@@ -21,24 +21,19 @@ import config from "./astro-paper.config";
 
 const i18n = config.features?.internationalization;
 const i18nEnabled = i18n && typeof i18n === "object" ? i18n.enabled : false;
-const i18nLocales = i18n?.enabled ? i18n.locales : ['en']
+const defaultLocale = config.site.lang ?? "en";
+const i18nLocales = i18n?.enabled ? i18n.locales : [defaultLocale];
 
 export default defineConfig({
   site: config.site.url,
-  integrations: [
-    mdx(),
-    sitemap({
-      filter: page =>
-        config.features?.showArchives !== false || !page.endsWith("/archives/"),
-    }),
-  ],
+  integrations: [mdx(), sitemap()],
   i18n: {
     locales: [...i18nLocales],
-    defaultLocale: "en",
+    defaultLocale,
     routing: {
       prefixDefaultLocale: i18nEnabled,
-      redirectToDefaultLocale: i18nEnabled
-    }
+      redirectToDefaultLocale: i18nEnabled,
+    },
   },
   markdown: {
     processor: unified({
@@ -60,9 +55,7 @@ export default defineConfig({
       ],
     },
   },
-  vite: {
-    plugins: [tailwindcss()],
-  },
+  vite: { plugins: [tailwindcss()] },
   fonts: [
     {
       name: "Google Sans Code",
@@ -83,7 +76,5 @@ export default defineConfig({
       }),
     },
   },
-  experimental: {
-    svgOptimizer: svgoOptimizer(),
-  },
+  experimental: { svgOptimizer: svgoOptimizer() },
 });
