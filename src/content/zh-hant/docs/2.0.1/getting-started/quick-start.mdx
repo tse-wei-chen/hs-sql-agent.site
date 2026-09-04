@@ -1,0 +1,111 @@
+---
+title: 快速開始
+description: 選擇安裝方式、啟動 hs-sql-agent，並連接第一個 MCP client。
+sidebar:
+  group: 開始使用
+  order: 20
+---
+
+import Callout from "@/components/docs/mdx/Callout.astro";
+import CardGrid from "@/components/docs/mdx/CardGrid.astro";
+import DocCard from "@/components/docs/mdx/DocCard.astro";
+import Steps from "@/components/docs/mdx/Steps.astro";
+import Step from "@/components/docs/mdx/Step.astro";
+
+<CardGrid columns={3}>
+  <DocCard
+    title="Docker Compose"
+    eyebrow="建議"
+    badge="約 5 分鐘"
+    icon="▣"
+    description="直接使用 repository 已提供的 Compose 設定啟動完整 self-hosted service。"
+    href="#docker-compose"
+  />
+  <DocCard
+    title="ASP.NET Core / NuGet"
+    badge="約 10 分鐘"
+    icon=".NET"
+    description="把 MCP runtime 與選用 Admin UI 嵌入既有 ASP.NET Core application。"
+    href="/zh-hant/docs/integration/aspnet-core"
+  />
+  <DocCard
+    title="連接 MCP client"
+    badge="安裝後"
+    icon="MCP"
+    description="簽發 scoped key，連接 Claude Desktop、Cursor 或其他 Streamable HTTP client。"
+    href="/zh-hant/docs/mcp/client-onboarding"
+  />
+</CardGrid>
+
+<Callout type="info" title="除非你已經有自己的 host application，否則先用 Docker">
+Docker Compose 是最短路徑，因為 repository 已經準備好 service wiring 與 environment-variable mapping。NuGet 路徑比較適合要把 hs-sql-agent 嵌入既有 ASP.NET Core host 的團隊。
+</Callout>
+
+## Docker Compose
+
+<Steps>
+  <Step title="建立環境設定檔" description="先複製 checked-in example，讓 configuration 保持明確且可 review。">
+
+```bash
+cp .env.example .env
+```
+
+  </Step>
+  <Step title="更換 signing secrets" description="HMAC_KEY 與 JWT_KEY 請使用彼此不同、至少 32 bytes 的唯一 secret。">
+`.env.example` 裡的值只是 placeholder，不要原封不動部署到 production。
+  </Step>
+  <Step title="啟動服務" description="啟動預設 single-instance stack。">
+
+```bash
+docker compose up -d
+```
+
+  </Step>
+  <Step title="開啟 Admin Panel" description="預設 application listener 是 8080。">
+本機環境開啟 `http://localhost:8080`，完成第一位 administrator 初始化。
+  </Step>
+</Steps>
+
+## 簽發第一把 MCP key
+
+<Steps>
+  <Step title="前往 Runtime → MCP Keys" description="MCP key 是 MCP identity 與 authorization boundary。" />
+  <Step title="選擇 database 與 tool scope" description="將 key 綁定到單一 Database Management entry，並只暴露 client 真正需要的 tools。" />
+  <Step title="複製 plaintext key" description="新 key 的 lifecycle dialog 會顯示 secret，請立即保存到 client 的 secret store。" />
+  <Step title="使用產生的 client configuration" description="也可以直接以 X-MCP-Server-Key 呼叫 Streamable HTTP endpoint。" />
+</Steps>
+
+預設 MCP endpoint 是 `/mcp`。若 client 位於外部網路，請將 `MCP_PUBLIC_ENDPOINT` 設成 client 真正可連到的 absolute HTTP/HTTPS URL，而且要包含 `/mcp`。
+
+<Callout type="warning" title="DML 還需要 client 支援 Elicitation">
+不要因為 client 能呼叫 MCP tool 就直接打開 `execute_dml_sql`。Client 還必須相容 MCP form Elicitation，才能讓真人檢視並核准精確 mutation impact。
+</Callout>
+
+## 接下來看什麼
+
+<CardGrid columns={2}>
+  <DocCard
+    title="MCP client onboarding"
+    icon="01"
+    description="了解 headers、Streamable HTTP、public endpoint 與 DML Elicitation 相容性。"
+    href="/zh-hant/docs/mcp/client-onboarding"
+  />
+  <DocCard
+    title="SQL 執行模型"
+    icon="02"
+    description="在把 SQL 暴露給 agent 前，先理解 parse → validate → capability proof → compile 的安全邊界。"
+    href="/zh-hant/docs/sql-compiler/execution-model"
+  />
+  <DocCard
+    title="資料庫管理"
+    icon="03"
+    description="建立 provider connection、測試連線，並理解 MCP key 如何綁定 database。"
+    href="/zh-hant/docs/administration/database-management"
+  />
+  <DocCard
+    title="Production configuration"
+    icon="04"
+    description="檢查 identity、rate limiting、retention、distributed state、telemetry 與 secret settings。"
+    href="/zh-hant/docs/operations/configuration"
+  />
+</CardGrid>
