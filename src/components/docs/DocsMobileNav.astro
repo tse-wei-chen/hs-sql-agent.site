@@ -8,6 +8,7 @@ import {
   sortDocs,
 } from "@/utils/contentRouting";
 import { useTranslations } from "@/i18n";
+import { useDocsUi } from "@/i18n/docs";
 import "@/styles/docs-mobile.css";
 
 type Props = {
@@ -28,6 +29,7 @@ const {
   versioned,
 } = Astro.props;
 const t = useTranslations(locale);
+const docsUi = useDocsUi(locale);
 const sortedDocs = sortDocs(docs, locale);
 const routeVersion = versioned ? docsVersion : null;
 const groups = new Map<string, CollectionEntry<"docs">[]>();
@@ -38,8 +40,6 @@ for (const doc of sortedDocs) {
   groupDocs.push(doc);
   groups.set(label, groupDocs);
 }
-
-const isZh = locale === "zh-hant";
 ---
 
 <div class="docs-mobile-bar lg:hidden" data-docs-mobile-nav>
@@ -52,7 +52,7 @@ const isZh = locale === "zh-hant";
     <svg viewBox="0 0 24 24" aria-hidden="true">
       <path d="M4 6h16M4 12h16M4 18h16" />
     </svg>
-    <span>{isZh ? "文件導覽" : "Documentation"}</span>
+    <span>{docsUi.navigation}</span>
   </button>
   <span class="docs-mobile-version">{docsVersion}</span>
 </div>
@@ -61,10 +61,14 @@ const isZh = locale === "zh-hant";
   <div class="docs-mobile-panel">
     <header class="docs-mobile-panel-header">
       <div>
-        <span>{isZh ? "文件" : "Documentation"}</span>
+        <span>{docsUi.kicker}</span>
         <strong>{docsVersion}</strong>
       </div>
-      <button type="button" data-docs-drawer-close aria-label={isZh ? "關閉文件導覽" : "Close documentation navigation"}>
+      <button
+        type="button"
+        data-docs-drawer-close
+        aria-label={docsUi.closeNavigation}
+      >
         <svg viewBox="0 0 24 24" aria-hidden="true">
           <path d="m6 6 12 12M18 6 6 18" />
         </svg>
@@ -82,7 +86,9 @@ const isZh = locale === "zh-hant";
       <nav aria-label={t.docs.sidebarLabel}>
         {[...groups.entries()].map(([label, groupDocs]) => (
           <section class="doc-sidebar-group">
-            <h2 class="doc-sidebar-title text-muted-foreground mb-2 text-xs font-semibold tracking-wider uppercase">{label}</h2>
+            <h2 class="doc-sidebar-title text-muted-foreground mb-2 text-xs font-semibold tracking-wider uppercase">
+              {label}
+            </h2>
             <ul class="space-y-1">
               {groupDocs.map(doc => {
                 const slug = getLocalizedSlug(doc.id, "docs");
@@ -94,7 +100,9 @@ const isZh = locale === "zh-hant";
                       aria-current={active ? "page" : undefined}
                       class:list={[
                         "doc-sidebar-link block rounded-md px-2 py-2 text-sm no-underline transition",
-                        active ? "bg-muted text-accent font-medium" : "hover:bg-muted/70",
+                        active
+                          ? "bg-muted text-accent font-medium"
+                          : "hover:bg-muted/70",
                       ]}
                     >
                       {doc.data.sidebar?.label ?? doc.data.title}
