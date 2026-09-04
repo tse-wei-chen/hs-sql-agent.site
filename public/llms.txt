@@ -1,0 +1,45 @@
+# hs-sql-agent
+
+> hs-sql-agent provides secure SQL access for AI agents through MCP, with fail-closed SQL compilation, scoped access policies, safe DML workflows, and support for PostgreSQL, MySQL, SQL Server, Oracle, SQLite, and Firebird.
+
+The canonical documentation is available in English and Traditional Chinese. Prefer the stable, unversioned documentation URLs unless an exact product version is required. Source Markdown links below point to the current 2.0.2 documentation.
+
+## Start here
+
+- [Introduction](https://sql-agent.net/en/docs/getting-started/introduction): Product model, safety boundaries, and documentation map.
+- [Quick start](https://sql-agent.net/en/docs/getting-started/quick-start): Start the service and connect an MCP client.
+- [MCP client onboarding](https://sql-agent.net/en/docs/mcp/client-onboarding): Configure supported MCP clients and authentication.
+- [MCP tools reference](https://sql-agent.net/en/docs/mcp/tools-reference): Public discovery, query, and DML tool contracts.
+
+## SQL safety and capabilities
+
+- [Execution model](https://sql-agent.net/en/docs/sql-compiler/execution-model): Parse, bind, validate, prove, compile, and execute pipeline.
+- [SQL support](https://sql-agent.net/en/docs/sql-compiler/sql-support): Supported SQL surface and provider capability boundaries.
+- [Safe DML](https://sql-agent.net/en/docs/sql-compiler/safe-dml): Mutation safety and elicitation requirements.
+- [Security overview](https://sql-agent.net/en/docs/security/overview): Authentication, authorization, policy, and audit boundaries.
+
+## Administration and deployment
+
+- [Administration overview](https://sql-agent.net/en/docs/administration/overview): Control-plane responsibilities and configuration map.
+- [Configuration](https://sql-agent.net/en/docs/operations/configuration): Runtime environment and provider configuration.
+- [Deployment](https://sql-agent.net/en/docs/operations/deployment): Production deployment guidance.
+- [Troubleshooting](https://sql-agent.net/en/docs/reference/troubleshooting): Common operational and integration failures.
+
+## Source Markdown
+
+- [Introduction source](https://raw.githubusercontent.com/tse-wei-chen/hs-sql-agent.site/main/src/content/en/docs/2.0.2/getting-started/introduction.mdx): Clean MDX source for the introduction.
+- [Quick start source](https://raw.githubusercontent.com/tse-wei-chen/hs-sql-agent.site/main/src/content/en/docs/2.0.2/getting-started/quick-start.mdx): Clean MDX source for setup instructions.
+- [MCP tools source](https://raw.githubusercontent.com/tse-wei-chen/hs-sql-agent.site/main/src/content/en/docs/2.0.2/mcp/tools-reference.mdx): Clean MDX source for tool contracts.
+- [SQL support source](https://raw.githubusercontent.com/tse-wei-chen/hs-sql-agent.site/main/src/content/en/docs/2.0.2/sql-compiler/sql-support.mdx): Clean MDX source for SQL capabilities.
+
+## Traditional Chinese
+
+- [繁體中文首頁](https://sql-agent.net/zh-hant/): Traditional Chinese product overview.
+- [繁體中文文件](https://sql-agent.net/zh-hant/docs/): Traditional Chinese documentation index.
+
+## Optional
+
+- [All documentation](https://sql-agent.net/en/docs/): English documentation index.
+- [Product repository](https://github.com/tse-wei-chen/hs-sql-agent): hs-sql-agent source code.
+- [Documentation repository](https://github.com/tse-wei-chen/hs-sql-agent.site): Website and documentation source.
+- [Sitemap](https://sql-agent.net/sitemap-index.xml): Complete index of public human-readable pages.
