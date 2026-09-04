@@ -2,7 +2,7 @@ import { defineAstroPaperConfig } from "./src/types/config";
 
 export default defineAstroPaperConfig({
   site: {
-    url: "https://hs-sql-agent.site/",
+    url: "https://sql-agent.net/",
     title: "hs-sql-agent",
     description: "Secure SQL access for AI agents through MCP, fail-closed SQL compilation, access policies, and safe DML workflows.",
     author: "hs-sql-agent",

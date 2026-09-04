@@ -3,25 +3,12 @@ import { getRelativeLocaleUrl } from "astro:i18n";
 import MarketingLayout from "@/layouts/MarketingLayout.astro";
 import MarketingBody from "@/components/MarketingBody.astro";
 import {
-  getMarketingPage,
   getMarketingRoutes,
   isMarketingSection,
   type MarketingPage,
-  type MarketingSection,
 } from "@/data/marketing";
-import { getAspNetCoreMarketingPage } from "@/data/marketingAspNetCore";
+import { resolveMarketingPage } from "@/data/resolveMarketingPage";
 import { locales } from "@/utils/getPostsByLocale";
-
-function resolveMarketingPage(
-  locale: string,
-  section: MarketingSection,
-  slug: string
-): MarketingPage | undefined {
-  if (section === "integrations" && slug === "aspnet-core") {
-    return getAspNetCoreMarketingPage(locale);
-  }
-  return getMarketingPage(locale, section, slug);
-}
 
 export function getStaticPaths() {
   return getMarketingRoutes().map(route => {
