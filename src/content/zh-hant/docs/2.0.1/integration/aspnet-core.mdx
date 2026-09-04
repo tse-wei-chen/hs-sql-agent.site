@@ -6,42 +6,83 @@ sidebar:
   order: 80
 ---
 
-`HsSqlAgent.Server` 可以直接 host 在既有 ASP.NET Core application，不一定要只使用 repository 的 standalone service。
+import Callout from "@/components/docs/mdx/Callout.astro";
+import CardGrid from "@/components/docs/mdx/CardGrid.astro";
+import DocCard from "@/components/docs/mdx/DocCard.astro";
+import Steps from "@/components/docs/mdx/Steps.astro";
+import Step from "@/components/docs/mdx/Step.astro";
 
-## 安裝 package
+`HsSqlAgent.Server` 可以直接 host 在既有 ASP.NET Core application，不一定只能使用 repository 的 standalone service。
+
+<CardGrid columns={3}>
+  <DocCard title="Package" icon="PKG" description="把 HsSqlAgent.Server 安裝進既有 ASP.NET Core host。" />
+  <DocCard title="API / MCP only" icon="API" description="若 host 只需要 hs-sql-agent API/MCP pipeline、不需要 packaged Admin UI，就使用 UseHsSqlAgent()。" />
+  <DocCard title="Embedded Admin UI" icon="UI" description="若同一個 host 也要提供 packaged operator interface，再 chain .ServeAdminUi()。" />
+</CardGrid>
+
+## Minimal setup
+
+<Steps>
+  <Step title="安裝 package">
 
 ```bash
 dotnet add package HsSqlAgent.Server
 ```
 
-## 註冊與 mapping
+  </Step>
+  <Step title="註冊 hs-sql-agent services">
 
 ```csharp
 builder.Services.AddHsSqlAgent(options =>
 {
     // Configure service options here.
 });
+```
 
+  </Step>
+  <Step title="Map API/MCP pipeline">
+
+```csharp
 app.UseHsSqlAgent();
 ```
 
-`UseHsSqlAgent()` 會提供 hs-sql-agent API/MCP pipeline，不要求 packaged Admin UI 一定存在。
-
-若同時提供 API 與 embedded Admin UI：
+`UseHsSqlAgent()` 會 expose hs-sql-agent API/MCP pipeline，不要求 packaged Admin UI 一定存在。
+  </Step>
+  <Step title="視需要提供 Admin UI">
 
 ```csharp
 app.UseHsSqlAgent().ServeAdminUi();
 ```
 
-## Pipeline 預設值
+當 application 同時要提供 runtime endpoints 與 packaged Admin UI 時使用這個形式。
+  </Step>
+</Steps>
 
-目前 pipeline options 預設：
+## Pipeline defaults
 
-- MCP endpoint：`/mcp`
-- Admin API prefix：`/api`
-- Admin UI request path：`/`
-- Admin UI content root：`wwwroot`
+| Surface | Default |
+| --- | --- |
+| MCP endpoint | `/mcp` |
+| Admin API prefix | `/api` |
+| Admin UI request path | `/` |
+| Admin UI content root | `wwwroot` |
 
-Service options 涵蓋 MCP public endpoint、bootstrap、enterprise identity、operability、telemetry、admin database、authentication、rate limiting、distributed synchronization、SQL concurrency、DML approval storage 與 cache。
+Service options 涵蓋 MCP public endpoint、bootstrap settings、enterprise identity、operability、telemetry、admin database、authentication、rate limiting、distributed synchronization、SQL concurrency、DML approval storage 與 cache configuration。
 
-Embed package 仍然是同一套 security boundary；production 必須使用正式 secret、正確 public endpoint 與需要持久化的 deployment state。
+<Callout type="warning" title="Embed package 不會讓 security boundary 變鬆">
+它仍然是與 standalone server 相同的 governed runtime。Host 仍需要 unique HMAC/JWT secrets、正確 externally reachable MCP public endpoint、需要時持久化 data-protection keys，並依 deployment topology 選擇合適的 database/cache/distributed providers。
+</Callout>
+
+## 選擇 hosting shape
+
+<CardGrid columns={2}>
+  <DocCard title="Existing application 自己負責 UI" icon="API" description="使用 API/MCP-only hosting，再依 exposed server contract 整合自己的 operator experience。" />
+  <DocCard title="使用 packaged operator UI" icon="UI" description="ServeAdminUi() 讓 Admin Panel 與 runtime endpoints 共用同一個 ASP.NET Core host。" />
+</CardGrid>
+
+## 相關文件
+
+<CardGrid columns={2}>
+  <DocCard title="設定參考" icon="CFG" href="/zh-hant/docs/operations/configuration" description="查看 environment/runtime settings，以及 single-instance 與 distributed topology 的選擇。" />
+  <DocCard title="部署" icon="OPS" href="/zh-hant/docs/operations/deployment" description="套用 production hosting、secrets、persistence、reverse-proxy 與 operability guidance。" />
+</CardGrid>

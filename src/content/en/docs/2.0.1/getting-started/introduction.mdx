@@ -6,32 +6,43 @@ sidebar:
   order: 10
 ---
 
-hs-sql-agent is an HTTP MCP server for governed SQL access. It connects MCP clients to PostgreSQL, MySQL, SQL Server, Oracle, SQLite, and Firebird while keeping authentication, access policy, SQL validation, and mutation approval on the server side.
+import Callout from "@/components/docs/mdx/Callout.astro";
+import CardGrid from "@/components/docs/mdx/CardGrid.astro";
+import DocCard from "@/components/docs/mdx/DocCard.astro";
+import Flow from "@/components/docs/mdx/Flow.astro";
 
-## The core idea
+hs-sql-agent is an HTTP MCP server for **governed SQL access**. It connects MCP clients to PostgreSQL, MySQL, SQL Server, Oracle, SQLite, and Firebird while keeping authentication, access policy, SQL validation, and mutation approval on the server side.
 
-Do not make the LLM the database security boundary.
+<Flow items={["MCP client", "MCP key scope", "SQL compiler", "Policy & capability checks", "Database"]} />
 
-Generated SQL is treated as untrusted input. Before execution, hs-sql-agent applies the MCP key scope, parses supported SQL into structured definitions, validates the statement, checks the capabilities needed to preserve its semantics, and compiles provider-specific SQL.
+<Callout type="danger" title="Do not make the LLM the database security boundary">
+Generated SQL is untrusted input. The model may propose SQL, but the server decides whether the request is authorized, semantically supported, and safe to execute.
+</Callout>
 
-Unsupported syntax is rejected instead of being silently changed into something that merely looks equivalent.
+## What the server owns
 
-## What is governed outside the model?
+<CardGrid columns={2}>
+  <DocCard title="Identity & scope" icon="KEY" description="Bind a client to one managed database and restrict its allowed tools, tables, and runtime limits." />
+  <DocCard title="SQL semantics" icon="AST" description="Parse supported SQL into structured definitions, validate source semantics, prove target capability, then compile provider-specific SQL." />
+  <DocCard title="Mutation approval" icon="DML" description="Treat write operations as a separate risk class with preview, one-time approval, revalidation, and exact commit." />
+  <DocCard title="Operations & audit" icon="OPS" description="Keep rate/concurrency controls, audit records, health, telemetry, and outbound operational delivery outside the model." />
+</CardGrid>
 
-The runtime can enforce controls such as:
+## The compiler boundary
 
-- database binding per MCP key
-- table allowlists and execution policies
-- allowed MCP tools
-- rate and concurrency limits
-- human approval for DML
-- audit and operational delivery
+Generated SQL is parsed and validated before execution. hs-sql-agent checks the capabilities needed to preserve the statement's semantics and compiles provider-specific SQL only after the request has passed its source, target, and policy boundaries.
 
-The Admin Panel is the control surface for databases, MCP keys, custom tools, audit records, operability, and security settings.
+Unsupported syntax or semantics are rejected instead of being silently rewritten into something that merely looks equivalent.
+
+<Callout type="info" title="Six providers does not mean arbitrary vendor SQL passthrough">
+Provider support is capability-driven. A construct must be represented, validated, and safely rendered for the relevant source/target contract. See the SQL support reference for the supported surface rather than assuming every vendor extension is accepted.
+</Callout>
 
 ## Where to go next
 
-- [Quick Start](/en/docs/getting-started/quick-start) — run the default Compose setup.
-- [MCP Client Onboarding](/en/docs/mcp/client-onboarding) — connect a remote client correctly.
-- [SQL Execution Model](/en/docs/sql-compiler/execution-model) — understand the compiler boundary.
-- [Safe DML](/en/docs/sql-compiler/safe-dml) — understand human-approved mutations.
+<CardGrid columns={2}>
+  <DocCard title="Quick Start" icon="01" href="/en/docs/getting-started/quick-start" description="Run the default Compose setup and issue your first MCP key." />
+  <DocCard title="MCP Client Onboarding" icon="02" href="/en/docs/mcp/client-onboarding" description="Connect a remote Streamable HTTP MCP client correctly." />
+  <DocCard title="SQL Execution Model" icon="03" href="/en/docs/sql-compiler/execution-model" description="Understand parse, validation, capability proof, compile, and execution boundaries." />
+  <DocCard title="Safe DML" icon="04" href="/en/docs/sql-compiler/safe-dml" description="Understand the human-approved mutation protocol." />
+</CardGrid>

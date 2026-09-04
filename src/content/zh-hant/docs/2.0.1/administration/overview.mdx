@@ -1,34 +1,60 @@
 ---
 title: Admin Panel 概覽
-description: hs-sql-agent Admin Panel 目前提供的主要 control-plane 區域。
+description: 管理 database access、MCP credentials、identity、authorization、audit、security policy 與 runtime operations 的 operator control plane。
 sidebar:
   group: 管理
   order: 70
 ---
 
-Admin Panel 是 hs-sql-agent 的 operational control surface。Operator 在這裡設定 access 與 runtime policy；MCP client 則透過受治理的 `/mcp` endpoint 工作。
+import Callout from "@/components/docs/mdx/Callout.astro";
+import CardGrid from "@/components/docs/mdx/CardGrid.astro";
+import DocCard from "@/components/docs/mdx/DocCard.astro";
+import Flow from "@/components/docs/mdx/Flow.astro";
 
-## Runtime 區域
+Admin Panel 是 hs-sql-agent 的 **operator control plane**。Operator 在這裡定義 MCP client 能碰到什麼，以及 SQL 要經過哪些治理；MCP client 則透過另一套 authentication 使用 `/mcp` endpoint。
 
-目前 Admin UI 有獨立 runtime area：
+<CardGrid columns={2}>
+  <DocCard title="Database Management" icon="DB" href="/zh-hant/docs/administration/database-management" description="註冊 provider connection、測試 connectivity，並決定 MCP key 可以綁定哪個 database。" />
+  <DocCard title="MCP Keys" icon="KEY" href="/zh-hant/docs/administration/mcp-keys" description="Issue、rotate、revoke、scope MCP credentials，並產生 client configuration。" />
+  <DocCard title="Semantic Metadata" icon="AI" href="/zh-hant/docs/administration/semantic-metadata" description="替 schema discovery 加上 human-readable names、descriptions、synonyms、relationships 與 metrics。" />
+  <DocCard title="Custom Tools" icon="SQL" href="/zh-hant/docs/administration/custom-tools" description="把受治理的 SQL operations publish 成具名 MCP tools，而不繞過 runtime policy。" />
+  <DocCard title="Security" icon="SEC" href="/zh-hant/docs/security/overview" description="理解 authentication、authorization、table/tool scope、fail-closed SQL policy 與 audit boundaries。" />
+  <DocCard title="Operations" icon="OPS" href="/zh-hant/docs/operations/configuration" description="設定 deployment、shared state、observability、retention、limits 與 production runtime behavior。" />
+</CardGrid>
 
-- **Database management** — 管理 agent 可用的 database connections。
-- **MCP keys** — 簽發與管理 client credential 及 runtime scope。
-- **Custom tools** — 定義與 publish 受治理 SQL tools。
-- **Audit** — 檢視 execution / security activity。
-- **Operability** — 檢視 operational state 與 health/delivery 相關設定。
-- **Security** — 管理 runtime security policy。
+## Identity、治理與維運
 
-Account 與 authorization 頁面則與上述 runtime area 分開。
+<CardGrid columns={3}>
+  <DocCard title="Members 與 Roles" icon="USR" href="/zh-hant/docs/administration/members-roles" description="建立 Admin members、指派 roles、撤銷 sessions，並安全管理 role lifecycle。" />
+  <DocCard title="Permissions" icon="RBAC" href="/zh-hant/docs/administration/permissions" description="理解 Admin controllers 真正執行的 permission-path + action model。" />
+  <DocCard title="Audit" icon="AUD" href="/zh-hant/docs/administration/audit" description="搜尋、彙總、匯出並執行 runtime/security audit retention。" />
+  <DocCard title="Security Policies" icon="POL" href="/zh-hant/docs/administration/security-policies" description="管理 query、DML、per-key rate limit 與 SQL concurrency enforcement。" />
+  <DocCard title="Operability" icon="P95" href="/zh-hant/docs/administration/operability" description="檢視 execution metrics、DB health、key usage 與 outbound delivery state。" />
+  <DocCard title="Admin HTTP API" icon="API" href="/zh-hant/docs/reference/api-reference" description="Bundled UI 使用的 2.0.1 source-backed controller routes 與 authorization surface。" />
+</CardGrid>
+
+## 建議的 operator flow
+
+<Flow items={["註冊 database", "Issue MCP key", "設定 tool/table scope", "補 semantic metadata", "連接 client", "Observe & audit"]} />
+
+1. 註冊並驗證 agent 要 expose 的 database connection。
+2. Issue 一把綁定該 database 的 MCP key，只允許 client 真正需要的 tools/tables。
+3. 當 raw schema names 不足以讓 agent 穩定理解資料時，再補 semantic metadata。
+4. 產生 client configuration，透過 public Streamable HTTP `/mcp` endpoint 連線。
+5. 使用 audit 與 operability surface 檢視 runtime behavior，必要時再收緊 policy。
+
+<Callout type="info" title="Admin authentication 與 MCP authentication 是兩套不同邊界">
+Admin account 用來操作 control plane；MCP client 使用 MCP key。給某個 user Admin 權限不會自動產生 MCP credential，而 MCP key 也不會因此能登入 Admin UI。
+</Callout>
 
 ## MCP key lifecycle
 
-Key 在 Issue、Rotate 或 Duplicate 時，UI 可以產生 direct Streamable HTTP client configuration。Plaintext secret 只會在該 lifecycle dialog 顯示，不會保留成日後可再次顯示的值。
+Key 在 issue、rotate 或 duplicate 時，UI 可以產生 supported client formats 的 direct Streamable HTTP configuration。Plaintext secret 只會在該 lifecycle dialog 顯示，不會保留成之後可再次查看的值。
 
-因此 operator 應在關閉 dialog 前完成複製。
+關閉 dialog 前請先複製需要的 configuration。
 
-## Library consumer 可選擇不提供 Admin UI
+## Library consumer 可以不提供 Admin UI
 
-把 hs-sql-agent embed 到 ASP.NET Core 時，`UseHsSqlAgent()` 可以只提供 API/MCP pipeline；再呼叫 `.ServeAdminUi()` 才會一併提供 packaged Admin UI。
+將 hs-sql-agent embed 到 ASP.NET Core 時，`UseHsSqlAgent()` 可以只 expose API/MCP pipeline；再呼叫 `.ServeAdminUi()` 才會一併提供 packaged Admin UI。
 
-請參考 [ASP.NET Core 整合](/zh-hant/docs/integration/aspnet-core)。
+請參考 [ASP.NET Core 整合](/zh-hant/docs/integration/aspnet-core) 了解 host setup 與 deployment considerations。

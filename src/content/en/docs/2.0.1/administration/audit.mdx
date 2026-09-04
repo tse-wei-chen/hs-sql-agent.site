@@ -1,0 +1,95 @@
+---
+title: Audit
+description: Query, summarize, export, and retain hs-sql-agent 2.0.1 audit records from the Admin control plane.
+sidebar:
+  group: Administration
+  order: 80
+---
+
+import Callout from "@/components/docs/mdx/Callout.astro";
+import CardGrid from "@/components/docs/mdx/CardGrid.astro";
+import DocCard from "@/components/docs/mdx/DocCard.astro";
+
+<CardGrid columns={3}>
+  <DocCard title="Search" icon="Q" description="Filter events by action, result, actor, time range, database, MCP key, tool, and keyword." />
+  <DocCard title="Export" icon="EXP" description="Export the filtered audit set as CSV or JSON with a dedicated export permission." />
+  <DocCard title="Retention" icon="RET" description="Inspect policy, dry-run the cutoff, then execute Archive or Purge explicitly." />
+</CardGrid>
+
+The audit surface is the control-plane record of security and runtime activity. It is designed for investigation and operational review rather than as the primary application log stream.
+
+## Audit record shape
+
+A 2.0.1 audit item can include:
+
+| Area | Fields |
+| --- | --- |
+| identity | `ActorType`, `ActorId`, `IpAddress`, `UserAgent` |
+| event | `EventId`, `Action`, `Target`, `Detail`, `Result`, `CreatedAt` |
+| request/session | `RequestId`, `SessionId` |
+| SQL scope | `AccessKeyId`, `DbManagementId`, `DatabaseName`, `ToolName`, `Operation` |
+| execution | `DurationMs`, `ReturnedRows`, `AffectedRows` |
+| DML/error | `ApprovalStatus`, `ErrorCategory`, `Definition` |
+
+Not every event populates every field. Administrative account changes, MCP SQL execution, DML approval events, and runtime delivery activity naturally carry different context.
+
+## Filter audit events
+
+`GET /api/runtime/audit` supports pagination and these filters:
+
+- `action`
+- `keyword`
+- `from` / `to`
+- `result`
+- `actor`
+- `dbManagementId`
+- `accessKeyId`
+- `toolName`
+
+The default page is `1` with `20` records per page.
+
+## Daily summary
+
+`GET /api/runtime/audit/daily-summary` returns daily activity aggregation. The default request covers 7 days, making it useful for spotting broad changes before drilling into individual records.
+
+## Export
+
+Audit export is a separate authorization capability:
+
+| Operation | Permission |
+| --- | --- |
+| query / summary / retention status | `/runtime/audit` → `view` |
+| export CSV or JSON | `/runtime/audit` → `export` |
+| retention dry-run / execute | `/runtime/audit` → `edit` |
+
+The export endpoint accepts `format=csv` or `format=json`. 2.0.1 rejects export sets over 100,000 rows instead of attempting an unbounded download.
+
+<Callout type="info" title="CSV export protects spreadsheet cells">
+CSV values that begin with spreadsheet formula characters such as `=`, `+`, `-`, or `@` are prefixed before export to reduce formula-injection risk when an operator opens the file in spreadsheet software.
+</Callout>
+
+## Retention workflow
+
+The runtime retention policy reports whether retention is enabled, the configured day count, mode, and scheduled UTC hour.
+
+Use the operator flow:
+
+1. Inspect the active retention policy.
+2. Run the dry-run endpoint to see the cutoff and matching row count.
+3. Confirm the expected mode and volume.
+4. Execute retention only after review.
+
+Valid 2.0.1 runtime modes are:
+
+- `Archive` — write expired records to the configured archive path before deleting them from the Admin database;
+- `Purge` — delete expired records without creating that archive.
+
+If `AUDIT_RETENTION_DAYS=0`, automatic retention is disabled and explicit retention execution is rejected.
+
+<Callout type="warning" title="Dry-run before destructive retention">
+Treat retention execution as a destructive operator action even in Archive mode. Verify the cutoff, matching count, archive storage, and backup expectations before executing it manually.
+</Callout>
+
+## Audit and telemetry are complementary
+
+Audit records answer **who did what, against which governed resource, with what result**. Metrics and traces answer runtime health and performance questions. Use [Operability](/en/docs/administration/operability) and [Observability](/en/docs/operations/observability) for those surfaces.

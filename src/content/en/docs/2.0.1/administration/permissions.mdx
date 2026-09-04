@@ -1,0 +1,82 @@
+---
+title: Permissions
+description: Understand the path-and-action authorization model used by hs-sql-agent 2.0.1 Admin operations.
+sidebar:
+  group: Administration
+  order: 79
+---
+
+import Callout from "@/components/docs/mdx/Callout.astro";
+import CardGrid from "@/components/docs/mdx/CardGrid.astro";
+import DocCard from "@/components/docs/mdx/DocCard.astro";
+
+<CardGrid columns={3}>
+  <DocCard title="Permission path" icon="PATH" description="Identifies the protected Admin resource, such as /runtime/db-management or /auth/user." />
+  <DocCard title="Action" icon="ACT" description="Identifies the allowed operation, such as view, create, edit, delete, or export." />
+  <DocCard title="Role selection" icon="RBAC" description="Roles store only permission/action pairs that exist in the server's template inventory." />
+</CardGrid>
+
+Admin authorization in 2.0.1 is enforced as a **permission path + action code** pair. Controllers declare the pair they require, and signed-in members receive access through their assigned roles.
+
+## Examples from the runtime
+
+| Protected operation | Required pair |
+| --- | --- |
+| view Database Management | `/runtime/db-management` → `view` |
+| create Database Management entry | `/runtime/db-management` → `create` |
+| edit semantic metadata | `/runtime/db-management/semantic` → `edit` |
+| issue/manage MCP keys | `/runtime/mcp-keys` with the relevant action |
+| view users | `/auth/user` → `view` |
+| edit roles | `/auth/role` → `edit` |
+| view audit | `/runtime/audit` → `view` |
+| export audit | `/runtime/audit` → `export` |
+| edit security policy | `/runtime/security` → `edit` |
+| retry an outbound delivery | `/runtime/operability` → `edit` |
+
+Authentication alone is therefore not sufficient for these operations: the required path/action pair must also resolve through the member's roles.
+
+## Permission-action templates are authoritative
+
+The Role API exposes a `permission-action-templates` inventory. Each template contains:
+
+- a permission ID, name, and path; and
+- an action ID, code, and name.
+
+A role payload submits selections as `{ PermissionId, ActionId }` pairs. The role service normalizes duplicates and stores only pairs that exist in the template inventory.
+
+<Callout type="warning" title="Permissions are not arbitrary strings">
+Do not model authorization by inventing new path/action strings in a client. A role can only persist combinations backed by the server's permission-action template data.
+</Callout>
+
+## Roles are the assignment unit
+
+Members are assigned roles, and roles contain permission/action selections. This separates user lifecycle from reusable access policy:
+
+```text
+Member
+  └─ Role(s)
+       └─ Permission path + Action
+```
+
+A member may have multiple roles. Effective Admin access is the combined permission surface of those assigned roles.
+
+## Authorization changes invalidate stale state
+
+Role edits are security-sensitive. When a role's permissions change, the role service finds affected members, increments their security version, and executes the change through the auth runtime-state cache barrier.
+
+This is intended to prevent a previously authenticated session from keeping stale authorization after its role definition changes.
+
+## Protected SuperUser role
+
+`SuperUser` is a built-in protected role in 2.0.1. It cannot be edited or deleted through normal role management. This ensures the bootstrap/full-control role cannot be silently redefined into a different permission set.
+
+<Callout type="tip" title="Prefer least privilege by responsibility">
+Create roles around operator responsibilities instead of cloning SuperUser for every account. For example, a runtime observer may need audit/operability `view` but not database `edit`, key `create`, or security-policy `edit`.
+</Callout>
+
+## Related guides
+
+- [Members & Roles](/en/docs/administration/members-roles) — member lifecycle and role guardrails.
+- [Database Management](/en/docs/administration/database-management) — DB and semantic permission examples.
+- [MCP Keys](/en/docs/administration/mcp-keys) — MCP credentials are a separate authorization boundary from Admin roles.
+- [Security Policies](/en/docs/administration/security-policies) — runtime SQL/rate/concurrency policy managed through its own Admin permission.

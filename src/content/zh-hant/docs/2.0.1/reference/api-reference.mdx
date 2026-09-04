@@ -1,0 +1,173 @@
+---
+title: Admin HTTP API Reference
+description: Bundled Admin UI 使用的 hs-sql-agent 2.0.1 source-backed HTTP controller surface。
+sidebar:
+  group: Reference
+  order: 142
+---
+
+import Callout from "@/components/docs/mdx/Callout.astro";
+import CardGrid from "@/components/docs/mdx/CardGrid.astro";
+import DocCard from "@/components/docs/mdx/DocCard.astro";
+
+<CardGrid columns={3}>
+  <DocCard title="Auth & identity" icon="AUTH" description="Sign-in、refresh、OIDC、MFA、password recovery、account、sessions、members、roles。" />
+  <DocCard title="Runtime control" icon="OPS" description="Databases、MCP keys、semantic metadata、custom tools、security policy、audit、operability。" />
+  <DocCard title="MCP is separate" icon="MCP" description="/mcp Streamable HTTP transport 不屬於這份 Admin REST reference。" />
+</CardGrid>
+
+這頁記錄 **hs-sql-agent 2.0.1 source 真正存在的 controller routes**；bundled Admin UI 使用的就是這個 surface。
+
+<Callout type="warning" title="這是 2.0.1 source contract，不是獨立 versioned REST standard">
+2.0.1 沒有把這些 controllers 放進 `/v1` compatibility namespace。Bundled Admin UI 之外的 integration 應 pin hs-sql-agent version，升級時重新檢查這份 reference。
+</Callout>
+
+## Authentication 與 authorization
+
+大部分 Admin route 需要 authenticated Admin identity；受保護 runtime action 還會檢查 path/action permission，例如 `/runtime/db-management` → `view`、`/auth/role` → `edit`。
+
+First-run/sign-in/sign-up、部分 OIDC、password recovery、MFA challenge completion 等必須在 session 建立前開始的流程有 anonymous exceptions。
+
+請見 [Permissions](/zh-hant/docs/administration/permissions)。
+
+## Auth — `/api/Auth`
+
+| Method | Route | Purpose |
+| --- | --- | --- |
+| GET | `/api/Auth/first-run` | 檢查 initial-setup state |
+| POST | `/api/Auth/sign-in` | Admin sign-in |
+| POST | `/api/Auth/sign-up` | allowed first-run flow 建立第一個 Admin |
+| POST | `/api/Auth/refresh-token` | refresh credential exchange |
+| POST | `/api/Auth/sign-out` | 結束 current session |
+| GET | `/api/Auth/sessions` | 列出 current user sessions |
+| DELETE | `/api/Auth/sessions/{sessionId}` | revoke 一個 session |
+| DELETE | `/api/Auth/sessions` | revoke 其他 sessions |
+| GET | `/api/Auth/oidc/status` | 檢查 OIDC availability |
+| GET | `/api/Auth/oidc/login` | 開始 OIDC login |
+| GET | `/api/Auth/oidc/callback` | external-login callback |
+| POST | `/api/Auth/oidc/exchange` | exchange short-lived OIDC login code |
+| GET | `/api/Auth/mfa/status` | 檢查 MFA state |
+| POST | `/api/Auth/mfa/setup` | 開始 TOTP setup |
+| POST | `/api/Auth/mfa/confirm` | confirm TOTP setup |
+| POST | `/api/Auth/mfa/disable` | 驗證後 disable TOTP |
+| POST | `/api/Auth/mfa/verify` | 完成 MFA sign-in challenge |
+| POST | `/api/Auth/forgot-password` | request password reset |
+| POST | `/api/Auth/reset-password` | consume reset token |
+| GET | `/api/Auth/account` | 讀 current account |
+| PUT | `/api/Auth/account` | update username/email |
+| PUT | `/api/Auth/account/password` | change password |
+
+## Members — `/api/Member`
+
+| Method | Route | Permission |
+| --- | --- | --- |
+| POST | `/api/Member` | `/auth/user` → `create` |
+| GET | `/api/Member` | `/auth/user` → `view` |
+| PUT | `/api/Member/{id}/roles` | `/auth/user` → `edit` |
+| PUT | `/api/Member/{id}/status` | `/auth/user` → `edit` |
+| DELETE | `/api/Member/{id}/sessions` | `/auth/user` → `edit` |
+| PUT | `/api/Member/{id}/password-change-required` | `/auth/user` → `edit` |
+| DELETE | `/api/Member/{id}` | `/auth/user` → `delete` |
+
+Self-lockout guardrail 請見 [Members 與 Roles](/zh-hant/docs/administration/members-roles)。
+
+## Roles — `/api/Role`
+
+| Method | Route | Permission |
+| --- | --- | --- |
+| GET | `/api/Role` | `/auth/role` → `view` |
+| POST | `/api/Role` | `/auth/role` → `create` |
+| PUT | `/api/Role/{id}` | `/auth/role` → `edit` |
+| DELETE | `/api/Role/{id}?force=false` | `/auth/role` → `delete` |
+| GET | `/api/Role/{id}/dependencies` | `/auth/role` → `view` |
+| GET | `/api/Role/permission-action-templates` | `/auth/role` → `view` |
+
+## Database Management — `/api/DbManagement`
+
+| Method | Route | Permission |
+| --- | --- | --- |
+| GET | `/api/DbManagement` | DB management `view` |
+| GET | `/api/DbManagement/{id}` | DB management `view` |
+| POST | `/api/DbManagement` | DB management `create` |
+| PUT | `/api/DbManagement/{id}` | DB management `edit` |
+| DELETE | `/api/DbManagement/{id}` | DB management `delete` |
+| GET | `/api/DbManagement/{id}/schemas` | DB management `view` |
+| GET | `/api/DbManagement/{id}/tables?schema=...` | DB management `view` |
+| GET | `/api/DbManagement/{id}/columns?schema=...&table=...` | DB management `view` |
+
+這裡 `DB management` 代表 `/runtime/db-management`。
+
+## Semantic metadata — `/api/DbSemantic`
+
+| Method | Route | Permission |
+| --- | --- | --- |
+| GET | `/api/DbSemantic/{dbManagementId}` | semantic `view` |
+| GET | `/api/DbSemantic/{dbManagementId}/model` | semantic `view` |
+| POST | `/api/DbSemantic` | semantic `edit` |
+| DELETE | `/api/DbSemantic/{id}` | semantic `edit` |
+| POST | `/api/DbSemantic/relationship` | semantic `edit` |
+| DELETE | `/api/DbSemantic/relationship/{id}` | semantic `edit` |
+| POST | `/api/DbSemantic/metric` | semantic `edit` |
+| DELETE | `/api/DbSemantic/metric/{id}` | semantic `edit` |
+
+`semantic` 代表 `/runtime/db-management/semantic`。
+
+## MCP-key runtime — `/api/runtime`
+
+| Method | Route | Permission |
+| --- | --- | --- |
+| GET | `/api/runtime/mcp-keys` | MCP keys `view` |
+| GET | `/api/runtime/mcp-keys/available-tools?dbManagementId=...` | MCP keys `view` |
+| POST | `/api/runtime/mcp-keys` | MCP keys `create` |
+| PUT | `/api/runtime/mcp-keys/{id}` | MCP keys `edit` |
+| POST | `/api/runtime/mcp-keys/{id}/rotate` | MCP keys `edit` |
+| POST | `/api/runtime/mcp-keys/{id}/clone` | MCP keys `create` |
+| POST | `/api/runtime/mcp-keys/{id}/revoke` | MCP keys `revoke` |
+| POST | `/api/runtime/mcp-keys/test-db-connection` | configured MCP-key/DB create-edit permissions 之一 |
+| GET | `/api/runtime/client-config` | MCP keys `view` |
+
+Client-config route 回傳產生 MCP client setup 使用的 configured public endpoint。
+
+## Custom Tools — `/api/CustomSqlTool`
+
+| Method | Route | Purpose |
+| --- | --- | --- |
+| GET | `/api/CustomSqlTool` | list |
+| GET | `/api/CustomSqlTool/{id}` | get one |
+| POST | `/api/CustomSqlTool` | create draft |
+| PUT | `/api/CustomSqlTool/{id}` | edit draft |
+| DELETE | `/api/CustomSqlTool/{id}` | delete |
+| GET | `/api/CustomSqlTool/{id}/revisions` | revisions |
+| GET | `/api/CustomSqlTool/{id}/impact` | impact/dependencies |
+| POST | `/api/CustomSqlTool/{id}/publish` | validate + publish |
+| POST | `/api/CustomSqlTool/{id}/disable` | disable |
+| POST | `/api/CustomSqlTool/{id}/rollback/{revisionId}` | validate + rollback |
+| POST | `/api/CustomSqlTool/test-execute` | test；DML 只 preview、不 commit |
+
+這些 route 依操作使用 `/runtime/custom-tools` 的 `view`、`create`、`edit`、`delete`。
+
+## Audit / Operability — `/api/runtime`
+
+| Area | Routes |
+| --- | --- |
+| Audit | `/audit`, `/audit/daily-summary`, `/audit/export`, `/audit/retention`, `/audit/retention/dry-run`, `/audit/retention/execute` |
+| Operability | `/operability/metrics`, `/operability/db-health`, `/operability/key-usage`, `/operability/deliveries`, `/operability/deliveries/{id}/retry` |
+
+Filter、response fields、permissions 請見 [Audit](/zh-hant/docs/administration/audit) 與 [Operability](/zh-hant/docs/administration/operability)。
+
+## Security Policy — `/api/runtime/security`
+
+| Method | Route | Permission |
+| --- | --- | --- |
+| GET | `/api/runtime/security` | `/runtime/security` → `view` |
+| PUT | `/api/runtime/security` | `/runtime/security` → `edit` |
+
+## Credential status
+
+2.0.1 有 `GET /api/Credential/status`，只回傳簡單 Credential API running status；controller 本身沒有 `[Authorize]` attribute。把它視為 narrow status endpoint，不是 authenticated credential-management API。
+
+## Errors 與 compatibility
+
+Controllers 使用一般 HTTP status code：例如 validation 400、authentication/authorization 401/403、resource missing 404、conflict 409、oversized audit export 413，以及某些 bounded SQL pressure path 的 429。
+
+外部 automation 若直接依賴這套 API，請 pin 2.0.1 並驗證自己實際消費的 response model。這份文件刻意記錄 routes 與重要 contract，不把所有 Admin view model 假裝成永久 versioned external SDK。

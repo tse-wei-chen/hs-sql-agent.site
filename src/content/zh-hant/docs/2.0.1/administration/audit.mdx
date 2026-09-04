@@ -1,0 +1,86 @@
+---
+title: Audit
+description: 在 Admin control plane 查詢、彙總、匯出與保留 hs-sql-agent 2.0.1 audit records。
+sidebar:
+  group: 管理
+  order: 80
+---
+
+import Callout from "@/components/docs/mdx/Callout.astro";
+import CardGrid from "@/components/docs/mdx/CardGrid.astro";
+import DocCard from "@/components/docs/mdx/DocCard.astro";
+
+<CardGrid columns={3}>
+  <DocCard title="Search" icon="Q" description="依 action、result、actor、時間、database、MCP key、tool 與 keyword 過濾事件。" />
+  <DocCard title="Export" icon="EXP" description="使用獨立 export permission，把目前 filter 結果匯出成 CSV 或 JSON。" />
+  <DocCard title="Retention" icon="RET" description="先看 policy、dry-run cutoff，再明確執行 Archive 或 Purge。" />
+</CardGrid>
+
+Audit surface 是 security 與 runtime activity 的 control-plane record，主要用途是 investigation / operational review，而不是取代一般 application log stream。
+
+## Audit record shape
+
+2.0.1 audit item 可以包含：
+
+| 區域 | Fields |
+| --- | --- |
+| identity | `ActorType`, `ActorId`, `IpAddress`, `UserAgent` |
+| event | `EventId`, `Action`, `Target`, `Detail`, `Result`, `CreatedAt` |
+| request/session | `RequestId`, `SessionId` |
+| SQL scope | `AccessKeyId`, `DbManagementId`, `DatabaseName`, `ToolName`, `Operation` |
+| execution | `DurationMs`, `ReturnedRows`, `AffectedRows` |
+| DML/error | `ApprovalStatus`, `ErrorCategory`, `Definition` |
+
+不是每種 event 都會填滿所有欄位；Admin account mutation、MCP SQL execution、DML approval 與 runtime delivery 本來就有不同 context。
+
+## Filter audit events
+
+`GET /api/runtime/audit` 支援 pagination，以及：`action`、`keyword`、`from` / `to`、`result`、`actor`、`dbManagementId`、`accessKeyId`、`toolName`。
+
+預設 page 是 `1`，每頁 `20` 筆。
+
+## Daily summary
+
+`GET /api/runtime/audit/daily-summary` 提供 daily aggregation，預設查 7 天，適合先看整體趨勢，再往 individual records drill down。
+
+## Export
+
+Audit export 使用獨立 authorization：
+
+| Operation | Permission |
+| --- | --- |
+| query / summary / retention status | `/runtime/audit` → `view` |
+| export CSV 或 JSON | `/runtime/audit` → `export` |
+| retention dry-run / execute | `/runtime/audit` → `edit` |
+
+Export endpoint 接受 `format=csv` 或 `format=json`。2.0.1 對超過 100,000 rows 的 export set 直接拒絕，不做無界限 download。
+
+<Callout type="info" title="CSV export 會保護 spreadsheet cell">
+若 CSV value 以 `=`、`+`、`-`、`@` 等 spreadsheet formula character 開頭，export 會先加 prefix，降低 operator 用 spreadsheet 軟體開啟檔案時的 formula-injection 風險。
+</Callout>
+
+## Retention workflow
+
+Runtime retention policy 會回報 enabled、retention days、mode 與 scheduled UTC hour。
+
+建議操作順序：
+
+1. 檢查 active retention policy。
+2. 先 dry-run，確認 cutoff 與 matching row count。
+3. 確認 mode 與預期 volume。
+4. Review 後才執行 retention。
+
+2.0.1 真正合法的 runtime mode：
+
+- `Archive` — 先把 expired records 寫到 configured archive path，再從 Admin database 刪除；
+- `Purge` — 直接刪除 expired records，不建立該 archive。
+
+若 `AUDIT_RETENTION_DAYS=0`，automatic retention 關閉，explicit retention execute 也會被拒絕。
+
+<Callout type="warning" title="Destructive retention 前一定先 dry-run">
+即使使用 Archive mode，也應把 retention execute 當 destructive operator action；先確認 cutoff、matching count、archive storage 與 backup expectations。
+</Callout>
+
+## Audit 與 telemetry 是互補關係
+
+Audit 回答的是 **誰對哪個 governed resource 做了什麼，結果如何**。Metrics / traces 則回答 runtime health 與 performance。請搭配 [Operability](/zh-hant/docs/administration/operability) 與 [Observability](/zh-hant/docs/operations/observability)。

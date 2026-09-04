@@ -1,0 +1,75 @@
+---
+title: Members 與 Roles
+description: 管理 hs-sql-agent 2.0.1 的 Admin users、sessions、role assignment 與 role lifecycle。
+sidebar:
+  group: 管理
+  order: 78
+---
+
+import Callout from "@/components/docs/mdx/Callout.astro";
+import CardGrid from "@/components/docs/mdx/CardGrid.astro";
+import DocCard from "@/components/docs/mdx/DocCard.astro";
+import Flow from "@/components/docs/mdx/Flow.astro";
+
+<CardGrid columns={3}>
+  <DocCard title="Members" icon="USR" description="建立 Admin user、啟用或停用帳號，並檢視 assigned roles 與 active sessions。" />
+  <DocCard title="Roles" icon="ROL" description="把合法 permission/action pairs 組成可重用的 authorization role。" />
+  <DocCard title="Session invalidation" icon="REV" description="Member 或 role 的安全性變更會讓受影響的 runtime authorization state 失效。" />
+</CardGrid>
+
+Admin member 是 **control plane** 的身份，與驗證 `/mcp` client 的 MCP key 是不同邊界。
+
+## Member lifecycle
+
+<Flow items={["建立 member", "指派 roles", "操作 Admin UI", "調整 access", "需要時撤銷 sessions"]} />
+
+建立 member 需要有效 email 與至少 8 characters 的 password；Username 可省略，上限 100 characters。建立時可以指定 Role IDs，或要求指派所有 roles。
+
+Member list 支援 search text、active status、role filter 與 pagination。2.0.1 的 member view 會顯示 account state、建立/最後登入時間、active session count 與目前 role IDs/names。
+
+## Member 管理動作
+
+| 動作 | Permission | 重要 guardrail |
+| --- | --- | --- |
+| 建立 member | `/auth/user` → `create` | 會驗證 email/password |
+| 列出/搜尋 members | `/auth/user` → `view` | 支援 status/role/search filter |
+| 取代 member roles | `/auth/user` → `edit` | 不能改自己的 roles |
+| 啟用 / 停用帳號 | `/auth/user` → `edit` | 不能停用自己 |
+| 撤銷 target member 全部 sessions | `/auth/user` → `edit` | 讓該 member 的 sessions 失效 |
+| 要求下次登入改密碼 | `/auth/user` → `edit` | flag 會在下一次 sign-in 生效 |
+| 刪除 member | `/auth/user` → `delete` | 不能刪除自己 |
+
+<Callout type="warning" title="會造成 self-lockout 的操作會被拒絕">
+2.0.1 controller 明確禁止 administrator 透過這些 management endpoints 修改自己的 roles、停用自己的帳號或刪除自己的 member record。
+</Callout>
+
+## Roles
+
+Role 有唯一名稱、可選 description，以及一組 permission/action selections。Role assignment 是 many-to-many：一個 member 可以有多個 roles，同一 role 也能指派給多個 members。
+
+Built-in `SuperUser` role 受到保護，不能修改或刪除，也不能建立或 rename 其他 role 成這個保護名稱。
+
+## 修改 role 會更新 active authorization state
+
+Role permission set 改變時，2.0.1 會找出所有使用該 role 的 members、遞增其 security version，並透過 auth runtime-state cache barrier 完成 mutation，避免已登入 session 長時間繼續使用 stale authorization。
+
+刪除已指派的 role 也遵循同樣原則。
+
+## 刪 role 前先看 dependencies
+
+Role dependency endpoint 會回報：
+
+- 該 role 擁有的 permission/action entries；
+- 目前被指派此 role 的 members。
+
+若 role 還有 assigned members，預設 delete 會拒絕。雖然有明確 `force=true` 路徑，但 operator 應先檢視 dependencies，因為受影響 member 會失去這個 role 並更新 security state。
+
+<Callout type="danger" title="Force delete 是 authorization change，不是一般清理">
+執行前先確認 dependency list，並確認這些 users 透過剩餘 roles 仍保有必要權限。
+</Callout>
+
+## Password 與 session response
+
+Member administration 可以要求帳號下次登入修改 password，也可以撤銷 target member 的全部 sessions。使用者自己則可透過 Auth API 管理自己的 sessions。
+
+要理解 role 背後的 authorization model，請繼續看 [Permissions](/zh-hant/docs/administration/permissions)。

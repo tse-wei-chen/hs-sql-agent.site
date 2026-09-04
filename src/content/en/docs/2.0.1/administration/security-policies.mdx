@@ -1,0 +1,85 @@
+---
+title: Security Policies
+description: Configure the hs-sql-agent 2.0.1 runtime SQL, DML, rate-limit, and concurrency policy from the Admin control plane.
+sidebar:
+  group: Administration
+  order: 82
+---
+
+import Callout from "@/components/docs/mdx/Callout.astro";
+import CardGrid from "@/components/docs/mdx/CardGrid.astro";
+import DocCard from "@/components/docs/mdx/DocCard.astro";
+
+<CardGrid columns={3}>
+  <DocCard title="Query policy" icon="Q" description="Bound result size and execution timeout for governed queries." />
+  <DocCard title="DML policy" icon="DML" description="Require predicates, restrict full-table mutation, and cap affected rows." />
+  <DocCard title="Runtime limits" icon="LIM" description="Set default MCP-key rate limits and maximum concurrent SQL operations." />
+</CardGrid>
+
+Security Policy is a **runtime enforcement policy**, not documentation for what an agent should voluntarily do. The current policy is consumed by query/DML execution and runtime limiters.
+
+## 2.0.1 policy fields
+
+| Field | Default | Valid range / meaning |
+| --- | ---: | --- |
+| `QueryMaxRows` | `1000` | 1–100,000 |
+| `QueryTimeoutSeconds` | `30` | 1–600 seconds |
+| `RequireWhereForUpdate` | `true` | require an UPDATE predicate |
+| `RequireWhereForDelete` | `true` | require a DELETE predicate |
+| `AllowFullTableUpdate` | `false` | explicit permission for full-table UPDATE |
+| `AllowFullTableDelete` | `false` | explicit permission for full-table DELETE |
+| `DmlMaxAffectedRows` | `100` | 1–1,000,000 |
+| `KeyPermitLimit` | `120` | 1–1,000,000 requests per configured key window |
+| `KeyWindowSeconds` | `60` | 1–86,400 seconds |
+| `MaxConcurrentSql` | `16` | 1–10,000 concurrent SQL operations |
+
+The service rejects values outside these bounds instead of silently normalizing them into another policy.
+
+## Admin authorization
+
+| Operation | Permission |
+| --- | --- |
+| read current policy | `/runtime/security` → `view` |
+| update policy | `/runtime/security` → `edit` |
+
+Updating the policy writes an audit event and immediately replaces the runtime policy state. The change is also published through the configured security-policy synchronization provider so a distributed deployment can propagate it across instances.
+
+<Callout type="warning" title="Policy edits affect live runtime decisions">
+Changing query rows, DML bounds, key limits, or SQL concurrency is not a cosmetic Admin setting. Review policy changes as production authorization/availability changes and watch audit plus operability after rollout.
+</Callout>
+
+## Query limits
+
+`QueryMaxRows` bounds query output through the compiler/runtime policy. `QueryTimeoutSeconds` controls the runtime query timeout contract. These are server-side constraints and do not depend on a client remembering to add its own `LIMIT` or cancellation behavior.
+
+## UPDATE and DELETE predicates
+
+The default policy requires predicates for UPDATE and DELETE and disallows full-table mutation.
+
+Full-table allowance is explicit: turning off `RequireWhereForUpdate` does not by itself communicate the same intent as enabling `AllowFullTableUpdate`. Keep the conservative defaults unless the operational workflow genuinely needs broad mutation.
+
+## DML affected-row cap
+
+`DmlMaxAffectedRows` bounds mutation impact. It complements—not replaces—the Safe DML approval protocol. A mutation still needs to parse/validate/compile successfully and, through MCP DML paths, complete the approval and commit-time revalidation flow.
+
+See [Safe DML](/en/docs/sql-compiler/safe-dml).
+
+## MCP-key rate limits
+
+The security policy supplies the default per-key permit limit/window. Individual MCP keys can:
+
+- inherit the policy;
+- use a custom override; or
+- be explicitly unlimited.
+
+See [MCP Keys](/en/docs/administration/mcp-keys) for the key-level mode.
+
+## SQL concurrency
+
+`MaxConcurrentSql` is the runtime SQL concurrency limit. Whether that limit is process-local or coordinated across instances depends on the configured SQL concurrency provider.
+
+For a cluster, use the distributed provider when the limit must represent the whole deployment rather than each node independently.
+
+<Callout type="tip" title="Separate safety policy from database privilege">
+Runtime policy, MCP-key scope, and compiler checks should sit on top of a least-privilege database account. Do not rely on any one layer as the only protection against unwanted SQL.
+</Callout>
