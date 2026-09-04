@@ -1,9 +1,3 @@
 ---
-import config from "@/config";
+return Astro.redirect("/en/", 302);
 ---
-
-<!--
-  Astro i18n handles / -> /<defaultLocale>/ because prefixDefaultLocale and
-  redirectToDefaultLocale are enabled. This markup is only a static fallback.
--->
-<a href={`/${config.site.lang}/`}>Continue to hs-sql-agent</a>

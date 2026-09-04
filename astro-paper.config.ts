@@ -8,7 +8,7 @@ export default defineAstroPaperConfig({
     author: "hs-sql-agent",
     profile: "https://github.com/tse-wei-chen/hs-sql-agent",
     ogImage: "",
-    lang: "zh-hant",
+    lang: "en",
     timezone: "Asia/Taipei",
     dir: "ltr",
   },
