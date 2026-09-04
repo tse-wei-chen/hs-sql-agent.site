@@ -35,7 +35,8 @@ export default {
     allPosts: "모든 게시물",
     heroKicker: "MCP 네이티브 · fail-closed · 6개 SQL 방언",
     heroTitle: "AI 에이전트를 위한 안전한 SQL 실행.",
-    heroDesc: "생성된 SQL과 데이터베이스 사이에 컴파일러와 거버넌스 경계를 둡니다. hs-sql-agent는 SQL을 파싱하고 검증한 뒤 capability를 증명하고 접근 정책을 적용한 후에만 provider-specific SQL을 실행합니다.",
+    heroDesc:
+      "생성된 SQL과 데이터베이스 사이에 컴파일러와 거버넌스 경계를 둡니다. hs-sql-agent는 SQL을 파싱하고 검증한 뒤 capability를 증명하고 접근 정책을 적용한 후에만 provider-specific SQL을 실행합니다.",
     heroDescLinkBefore: "",
     heroDescLinkAfter: "",
     primaryCta: "시작하기",
@@ -45,41 +46,54 @@ export default {
     compilerLive: "Policy boundary 활성화",
     compilerResult: "Provider-safe SQL 준비 완료",
     compilerTitle: "Fail-closed SQL compiler",
-    compilerDesc: "지원하지 않는 구문은 의미가 다른 SQL로 조용히 재작성하지 않고 즉시 거부합니다.",
+    compilerDesc:
+      "지원하지 않는 구문은 의미가 다른 SQL로 조용히 재작성하지 않고 즉시 거부합니다.",
     dmlTitle: "사람의 승인을 거치는 DML",
-    dmlDesc: "영향 범위를 미리 확인하고 승인을 검증된 plan에 바인딩한 뒤 commit transaction 안에서 대상 row set을 다시 검증합니다.",
+    dmlDesc:
+      "영향 범위를 미리 확인하고 승인을 검증된 plan에 바인딩한 뒤 commit transaction 안에서 대상 row set을 다시 검증합니다.",
     databaseTitle: "6개 데이터베이스 방언",
-    databaseDesc: "PostgreSQL, MySQL, SQL Server, Oracle, SQLite, Firebird를 하나의 MCP surface로 제공합니다.",
+    databaseDesc:
+      "PostgreSQL, MySQL, SQL Server, Oracle, SQLite, Firebird를 하나의 MCP surface로 제공합니다.",
     governanceTitle: "기본값이 거버넌스",
-    governanceDesc: "키별 database scope, table allowlist, tool 제한, rate limit, security policy, audit를 LLM 밖에서 강제합니다.",
+    governanceDesc:
+      "키별 database scope, table allowlist, tool 제한, rate limit, security policy, audit를 LLM 밖에서 강제합니다.",
     capabilityKicker: "Compiler boundary",
     capabilityTitle: "AI가 생성한 SQL을 신뢰할 수 없는 입력으로 취급합니다.",
-    capabilityDesc: "중요한 것은 SQL을 생성하는 능력이 아니라, 해당 문장이 의도한 dialect, capability, policy 경계 안에 있음을 증명하는 것입니다.",
+    capabilityDesc:
+      "중요한 것은 SQL을 생성하는 능력이 아니라, 해당 문장이 의도한 dialect, capability, policy 경계 안에 있음을 증명하는 것입니다.",
     dmlKicker: "Safe mutation path",
     dmlSectionTitle: "DML approval은 확인 대화상자가 아니라 프로토콜입니다.",
-    dmlSectionDesc: "UPDATE와 DELETE는 변경 전에 영향을 받는 행을 읽어 보고, 승인을 validated compiled plan과 row-set fingerprint에 바인딩하며, commit 전에 대상 행을 다시 확인합니다.",
+    dmlSectionDesc:
+      "UPDATE와 DELETE는 변경 전에 영향을 받는 행을 읽어 보고, 승인을 validated compiled plan과 row-set fingerprint에 바인딩하며, commit 전에 대상 행을 다시 확인합니다.",
     dmlPreviewTitle: "Preview",
     dmlPreviewDesc: "변경을 실행하지 않고 영향을 받을 행을 먼저 읽습니다.",
     dmlApproveTitle: "Approve",
-    dmlApproveDesc: "MCP form Elicitation을 통해 사람 운영자의 명시적 승인을 요구합니다.",
+    dmlApproveDesc:
+      "MCP form Elicitation을 통해 사람 운영자의 명시적 승인을 요구합니다.",
     dmlRevalidateTitle: "Revalidate",
-    dmlRevalidateDesc: "commit transaction 안에서 다시 조회하고 바인딩된 row set과 비교합니다.",
+    dmlRevalidateDesc:
+      "commit transaction 안에서 다시 조회하고 바인딩된 row set과 비교합니다.",
     dmlCommitTitle: "Commit",
-    dmlCommitDesc: "plan, policy, challenge, row count, row set이 모두 그대로 일치할 때만 실행합니다.",
+    dmlCommitDesc:
+      "plan, policy, challenge, row count, row set이 모두 그대로 일치할 때만 실행합니다.",
     databaseKicker: "하나의 surface, 6개 dialect",
     databaseSectionTitle: "이미 운영 중인 데이터베이스를 그대로 사용하세요.",
-    databaseSectionDesc: "Compiler가 provider별 SQL semantics를 명시적으로 처리하고 MCP client에는 하나의 governed interface를 제공합니다.",
+    databaseSectionDesc:
+      "Compiler가 provider별 SQL semantics를 명시적으로 처리하고 MCP client에는 하나의 governed interface를 제공합니다.",
     integrationKicker: "MCP 및 .NET integration",
     integrationTitle: "에이전트가 이미 일하는 곳에 연결합니다.",
-    integrationDesc: "Claude Desktop, Cursor 같은 remote MCP client에 연결하거나 동일한 governed server boundary를 ASP.NET Core 애플리케이션에 내장할 수 있습니다.",
+    integrationDesc:
+      "Claude Desktop, Cursor 같은 remote MCP client에 연결하거나 동일한 governed server boundary를 ASP.NET Core 애플리케이션에 내장할 수 있습니다.",
     docsKicker: "Documentation",
     docsTitle: "첫 MCP key부터 production governance까지.",
-    docsDesc: "설정, MCP, compiler guarantees, 관리, 통합, 운영, 개발이라는 실제 도입 흐름에 맞춰 문서를 구성했습니다.",
+    docsDesc:
+      "설정, MCP, compiler guarantees, 관리, 통합, 운영, 개발이라는 실제 도입 흐름에 맞춰 문서를 구성했습니다.",
     docsCta: "문서 둘러보기",
   },
   docs: {
     indexTitle: "문서",
-    indexDescription: "hs-sql-agent 가이드, SQL compiler 핵심 개념, 통합, 운영 및 참조 문서.",
+    indexDescription:
+      "hs-sql-agent 가이드, SQL compiler 핵심 개념, 통합, 운영 및 참조 문서.",
     sidebarLabel: "문서 탐색",
     onThisPage: "이 페이지에서",
   },

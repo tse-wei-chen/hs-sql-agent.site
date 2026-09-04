@@ -35,7 +35,8 @@ export default {
     allPosts: "所有文章",
     heroKicker: "MCP-native · fail-closed · 六种 SQL 方言",
     heroTitle: "让 AI Agent 安全执行 SQL。",
-    heroDesc: "在生成式 SQL 与数据库之间建立编译器与治理边界。hs-sql-agent 会先解析、验证并证明 capability，应用访问策略，最后才执行面向具体数据库的 SQL。",
+    heroDesc:
+      "在生成式 SQL 与数据库之间建立编译器与治理边界。hs-sql-agent 会先解析、验证并证明 capability，应用访问策略，最后才执行面向具体数据库的 SQL。",
     heroDescLinkBefore: "",
     heroDescLinkAfter: "",
     primaryCta: "开始使用",
@@ -47,17 +48,22 @@ export default {
     compilerTitle: "Fail-closed SQL compiler",
     compilerDesc: "不支持的语法会被直接拒绝，而不是静默改写成语义不同的 SQL。",
     dmlTitle: "人工批准的 DML",
-    dmlDesc: "先预览影响范围，将批准绑定到已验证计划，再在 commit transaction 内重新验证目标 row set。",
+    dmlDesc:
+      "先预览影响范围，将批准绑定到已验证计划，再在 commit transaction 内重新验证目标 row set。",
     databaseTitle: "六种数据库方言",
-    databaseDesc: "PostgreSQL、MySQL、SQL Server、Oracle、SQLite 与 Firebird 共用同一个 MCP surface。",
+    databaseDesc:
+      "PostgreSQL、MySQL、SQL Server、Oracle、SQLite 与 Firebird 共用同一个 MCP surface。",
     governanceTitle: "默认治理",
-    governanceDesc: "每个 key 的数据库范围、table allowlist、tool 限制、rate limit、安全策略与审计都在 LLM 之外执行。",
+    governanceDesc:
+      "每个 key 的数据库范围、table allowlist、tool 限制、rate limit、安全策略与审计都在 LLM 之外执行。",
     capabilityKicker: "Compiler boundary",
     capabilityTitle: "把 AI 生成的 SQL 当作不可信输入。",
-    capabilityDesc: "关键不在于能否生成 SQL，而在于能否证明语句处于你希望开放的 dialect、capability 与 policy 边界之内。",
+    capabilityDesc:
+      "关键不在于能否生成 SQL，而在于能否证明语句处于你希望开放的 dialect、capability 与 policy 边界之内。",
     dmlKicker: "Safe mutation path",
     dmlSectionTitle: "DML approval 是一套协议，而不只是确认弹窗。",
-    dmlSectionDesc: "UPDATE 和 DELETE 会先以只读方式预览受影响行；批准绑定到 validated compiled plan 与 row-set fingerprint，并在 commit 前再次验证目标行。",
+    dmlSectionDesc:
+      "UPDATE 和 DELETE 会先以只读方式预览受影响行；批准绑定到 validated compiled plan 与 row-set fingerprint，并在 commit 前再次验证目标行。",
     dmlPreviewTitle: "Preview",
     dmlPreviewDesc: "不执行变更，先读取将受到影响的行。",
     dmlApproveTitle: "Approve",
@@ -65,21 +71,26 @@ export default {
     dmlRevalidateTitle: "Revalidate",
     dmlRevalidateDesc: "在 commit transaction 内重新查询并比对绑定的 row set。",
     dmlCommitTitle: "Commit",
-    dmlCommitDesc: "只有 plan、policy、challenge、row count 与 row set 全部仍然一致时才执行。",
+    dmlCommitDesc:
+      "只有 plan、policy、challenge、row count 与 row set 全部仍然一致时才执行。",
     databaseKicker: "一个 surface，六种 dialect",
     databaseSectionTitle: "继续使用你已经在运行的数据库。",
-    databaseSectionDesc: "Compiler 明确处理各 provider 的 SQL 语义，而 MCP client 只需要面对一个受治理的统一接口。",
+    databaseSectionDesc:
+      "Compiler 明确处理各 provider 的 SQL 语义，而 MCP client 只需要面对一个受治理的统一接口。",
     integrationKicker: "MCP 与 .NET integration",
     integrationTitle: "接入 Agent 已经工作的地方。",
-    integrationDesc: "连接 Claude Desktop、Cursor 等 remote MCP client，或把同一套 governed server boundary 嵌入 ASP.NET Core 应用。",
+    integrationDesc:
+      "连接 Claude Desktop、Cursor 等 remote MCP client，或把同一套 governed server boundary 嵌入 ASP.NET Core 应用。",
     docsKicker: "Documentation",
     docsTitle: "从第一把 MCP key 到 production governance。",
-    docsDesc: "文档按实际采用路径组织：安装、MCP、compiler guarantees、管理、集成、运维与开发。",
+    docsDesc:
+      "文档按实际采用路径组织：安装、MCP、compiler guarantees、管理、集成、运维与开发。",
     docsCta: "浏览文档",
   },
   docs: {
     indexTitle: "文档",
-    indexDescription: "hs-sql-agent 的使用指南、SQL compiler 核心概念、集成、运维与参考文档。",
+    indexDescription:
+      "hs-sql-agent 的使用指南、SQL compiler 核心概念、集成、运维与参考文档。",
     sidebarLabel: "文档导航",
     onThisPage: "本页内容",
   },
