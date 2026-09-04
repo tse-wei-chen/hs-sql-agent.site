@@ -19,7 +19,8 @@ const { locale, version, currentSlug = "", allDocs } = Astro.props;
 const docsUi = useDocsUi(locale);
 
 function getVersionHref(targetVersion: string): string {
-  const routeVersion = targetVersion === docsVersions.current ? null : targetVersion;
+  const routeVersion =
+    targetVersion === docsVersions.current ? null : targetVersion;
   if (
     currentSlug &&
     hasDocInVersion(allDocs, locale, targetVersion, currentSlug)
@@ -39,31 +40,35 @@ const activeDefinition =
   <details>
     <summary>
       <span>{activeDefinition.label}</span>
-      {version === docsVersions.current && (
-        <span class="docs-version-current">{docsUi.latest}</span>
-      )}
+      {
+        version === docsVersions.current && (
+          <span class="docs-version-current">{docsUi.latest}</span>
+        )
+      }
       <span class="docs-version-chevron" aria-hidden="true">⌄</span>
     </summary>
     <div class="docs-version-menu">
-      {docsVersions.versions.map(item => {
-        const active = item.version === version;
-        const label =
-          item.status === "current"
-            ? docsUi.latest
-            : item.status === "supported"
-              ? docsUi.supported
-              : docsUi.archived;
-        return (
-          <a
-            href={getVersionHref(item.version)}
-            aria-current={active ? "page" : undefined}
-            class:list={{ "is-active": active }}
-          >
-            <span>{item.label}</span>
-            <small>{label}</small>
-          </a>
-        );
-      })}
+      {
+        docsVersions.versions.map(item => {
+          const active = item.version === version;
+          const label =
+            item.status === "current"
+              ? docsUi.latest
+              : item.status === "supported"
+                ? docsUi.supported
+                : docsUi.archived;
+          return (
+            <a
+              href={getVersionHref(item.version)}
+              aria-current={active ? "page" : undefined}
+              class:list={{ "is-active": active }}
+            >
+              <span>{item.label}</span>
+              <small>{label}</small>
+            </a>
+          );
+        })
+      }
     </div>
   </details>
 </div>

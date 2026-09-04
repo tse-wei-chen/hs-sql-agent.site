@@ -50,14 +50,18 @@ for (const doc of sortedDocs) {
     aria-haspopup="dialog"
   >
     <svg viewBox="0 0 24 24" aria-hidden="true">
-      <path d="M4 6h16M4 12h16M4 18h16" />
+      <path d="M4 6h16M4 12h16M4 18h16"></path>
     </svg>
     <span>{docsUi.navigation}</span>
   </button>
   <span class="docs-mobile-version">{docsVersion}</span>
 </div>
 
-<dialog class="docs-mobile-dialog" data-docs-drawer aria-label={t.docs.sidebarLabel}>
+<dialog
+  class="docs-mobile-dialog"
+  data-docs-drawer
+  aria-label={t.docs.sidebarLabel}
+>
   <div class="docs-mobile-panel">
     <header class="docs-mobile-panel-header">
       <div>
@@ -70,7 +74,7 @@ for (const doc of sortedDocs) {
         aria-label={docsUi.closeNavigation}
       >
         <svg viewBox="0 0 24 24" aria-hidden="true">
-          <path d="m6 6 12 12M18 6 6 18" />
+          <path d="m6 6 12 12M18 6 6 18"></path>
         </svg>
       </button>
     </header>
@@ -84,35 +88,37 @@ for (const doc of sortedDocs) {
       />
 
       <nav aria-label={t.docs.sidebarLabel}>
-        {[...groups.entries()].map(([label, groupDocs]) => (
-          <section class="doc-sidebar-group">
-            <h2 class="doc-sidebar-title text-muted-foreground mb-2 text-xs font-semibold tracking-wider uppercase">
-              {label}
-            </h2>
-            <ul class="space-y-1">
-              {groupDocs.map(doc => {
-                const slug = getLocalizedSlug(doc.id, "docs");
-                const active = slug === currentSlug;
-                return (
-                  <li>
-                    <a
-                      href={getDocUrl(doc, routeVersion)}
-                      aria-current={active ? "page" : undefined}
-                      class:list={[
-                        "doc-sidebar-link block rounded-md px-2 py-2 text-sm no-underline transition",
-                        active
-                          ? "bg-muted text-accent font-medium"
-                          : "hover:bg-muted/70",
-                      ]}
-                    >
-                      {doc.data.sidebar?.label ?? doc.data.title}
-                    </a>
-                  </li>
-                );
-              })}
-            </ul>
-          </section>
-        ))}
+        {
+          [...groups.entries()].map(([label, groupDocs]) => (
+            <section class="doc-sidebar-group">
+              <h2 class="doc-sidebar-title text-muted-foreground mb-2 text-xs font-semibold tracking-wider uppercase">
+                {label}
+              </h2>
+              <ul class="space-y-1">
+                {groupDocs.map(doc => {
+                  const slug = getLocalizedSlug(doc.id, "docs");
+                  const active = slug === currentSlug;
+                  return (
+                    <li>
+                      <a
+                        href={getDocUrl(doc, routeVersion)}
+                        aria-current={active ? "page" : undefined}
+                        class:list={[
+                          "doc-sidebar-link block rounded-md px-2 py-2 text-sm no-underline transition",
+                          active
+                            ? "bg-muted text-accent font-medium"
+                            : "hover:bg-muted/70",
+                        ]}
+                      >
+                        {doc.data.sidebar?.label ?? doc.data.title}
+                      </a>
+                    </li>
+                  );
+                })}
+              </ul>
+            </section>
+          ))
+        }
       </nav>
     </div>
   </div>
@@ -121,10 +127,16 @@ for (const doc of sortedDocs) {
 <script>
   function initDocsDrawer() {
     const root = document.querySelector<HTMLElement>("[data-docs-mobile-nav]");
-    const dialog = document.querySelector<HTMLDialogElement>("[data-docs-drawer]");
-    const open = root?.querySelector<HTMLButtonElement>("[data-docs-drawer-open]");
-    const close = dialog?.querySelector<HTMLButtonElement>("[data-docs-drawer-close]");
-    if (!dialog || !open || !close || open.dataset.initialized === "true") return;
+    const dialog =
+      document.querySelector<HTMLDialogElement>("[data-docs-drawer]");
+    const open = root?.querySelector<HTMLButtonElement>(
+      "[data-docs-drawer-open]"
+    );
+    const close = dialog?.querySelector<HTMLButtonElement>(
+      "[data-docs-drawer-close]"
+    );
+    if (!dialog || !open || !close || open.dataset.initialized === "true")
+      return;
 
     open.dataset.initialized = "true";
     open.addEventListener("click", () => dialog.showModal());
