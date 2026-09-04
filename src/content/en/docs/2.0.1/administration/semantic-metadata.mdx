@@ -1,0 +1,110 @@
+---
+title: Semantic Metadata
+description: Enrich database discovery with table and column semantics, relationships, and metric metadata in hs-sql-agent 2.0.1.
+sidebar:
+  group: Administration
+  order: 76
+---
+
+import Callout from "@/components/docs/mdx/Callout.astro";
+import CardGrid from "@/components/docs/mdx/CardGrid.astro";
+import DocCard from "@/components/docs/mdx/DocCard.astro";
+
+<CardGrid columns={3}>
+  <DocCard title="Entities" icon="Aa" description="Display names, descriptions, and synonyms for tables and columns." />
+  <DocCard title="Relationships" icon="↔" description="Named source-to-target column relationships with cardinality and direction." />
+  <DocCard title="Metrics" icon="∑" description="Scoped metric metadata with formula, aggregation, grain, filters, and synonyms." />
+</CardGrid>
+
+Semantic metadata belongs to a Database Management entry. It enriches how schema discovery describes the physical database without changing the physical schema itself.
+
+## Entity metadata
+
+An entity record can target either a table or one column inside a table.
+
+| Field | Meaning |
+| --- | --- |
+| `DbManagementId` | Database Management entry that owns the semantic record |
+| `SchemaName` | Optional schema |
+| `TableName` | Required physical table name |
+| `ColumnName` | Optional; omit it for table-level metadata |
+| `DisplayName` | Human-readable name |
+| `Description` | Business or operational description |
+| `Synonyms` | Alternate terms used to describe the table/column |
+
+Synonyms are normalized by trimming empty values, deduplicating case-insensitively, and retaining at most 100 values per record.
+
+## Relationships
+
+Relationship metadata describes how two physical columns are related.
+
+| Field | Meaning |
+| --- | --- |
+| `Name` | Stable relationship name |
+| `SourceSchema` / `SourceTable` / `SourceColumn` | Source side |
+| `TargetSchema` / `TargetTable` / `TargetColumn` | Target side |
+| `Cardinality` | Defaults to `many-to-one` |
+| `Direction` | Defaults to `source-to-target` |
+| `Description` | Optional operator/business explanation |
+
+Schema discovery only surfaces relationship descriptions when both participating tables are allowed by the authenticated MCP key's table whitelist.
+
+## Metrics
+
+Metric metadata is scoped to a table and can describe a business measure:
+
+| Field | Meaning |
+| --- | --- |
+| `Name` | Stable metric identifier |
+| `DisplayName` | Human-readable name |
+| `Description` | Business explanation |
+| `Formula` | Formula metadata |
+| `Aggregation` | Defaults to `custom`; can describe the intended aggregation |
+| `Grain` | Optional grain metadata |
+| `Filter` | Optional filter metadata |
+| `Synonyms` | Alternate terms for the metric |
+| `Executable` | `false` in the 2.0.1 model |
+
+<Callout type="warning" title="Metrics are metadata, not an execution bypass">
+The 2.0.1 semantic metric model marks `Executable` false. A metric description can help an agent understand schema meaning, but it does not become an executable SQL macro and does not bypass the SQL compiler or authorization pipeline.
+</Callout>
+
+## How MCP schema discovery consumes semantics
+
+The formal MCP schema tools remain `get_schemas`, `get_tables`, and `get_columns`.
+
+When semantic metadata exists for the key's bound Database Management entry:
+
+- `get_tables` can append table display name, description, synonyms, and scoped metric descriptions;
+- `get_columns` can append column display name, description, synonyms, and related relationship descriptions;
+- table whitelist rules continue to filter physical table visibility and relationship context.
+
+Semantic metadata therefore enriches discovery; it does not widen what a key can access.
+
+## Admin API surface
+
+The 2.0.1 Admin API exposes semantic management under `api/DbSemantic`:
+
+| Operation | Permission |
+| --- | --- |
+| get entity records for a database | `/runtime/db-management/semantic` → `view` |
+| get the combined entity/relationship/metric model | `/runtime/db-management/semantic` → `view` |
+| upsert entity metadata | `/runtime/db-management/semantic` → `edit` |
+| delete entity metadata | `/runtime/db-management/semantic` → `edit` |
+| upsert/delete relationship | `/runtime/db-management/semantic` → `edit` |
+| upsert/delete metric | `/runtime/db-management/semantic` → `edit` |
+
+<Callout type="info" title="This is an Admin feature, not a sixth documented built-in MCP tool">
+For 2.0.1 documentation, the formal MCP key tool surface is the five built-in tools listed in MCP Tools Reference plus published Custom Tools. Semantic metadata is managed through the Admin control plane and consumed by schema discovery.
+</Callout>
+
+## Modeling guidance
+
+Use semantic metadata for terminology that is stable enough to help multiple agents and operators:
+
+- business names that differ from physical table/column names;
+- abbreviations and domain synonyms;
+- relationships that are important to query generation;
+- metric definitions that clarify intended formulas and grain.
+
+Do not use it to smuggle credentials, runtime instructions, or authorization decisions into schema descriptions. Access control remains a separate enforced layer.
