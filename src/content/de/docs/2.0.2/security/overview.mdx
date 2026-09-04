@@ -1,0 +1,42 @@
+---
+title: Sicherheitsübersicht
+description: Serverseitige Kontrollen, die Datenbank-Governance außerhalb des LLM halten, und die Betriebseinstellungen, die diese Kontrollen schützen.
+sidebar:
+  group: Sicherheit
+  order: 120
+---
+
+hs-sql-agent ist so ausgelegt, dass das KI-Modell nicht die Sicherheitsgrenze bildet. Authentifizierung, Datenbankumfang, Tabellenrichtlinien, Werkzeugbeschränkungen, SQL-Validierung und Freigaben für Datenänderungen werden vom Server durchgesetzt.
+
+## MCP-Zugriffsgrenze
+
+MCP-Clients authentifizieren sich mit einem ausgestellten Schlüssel. Laufzeitrichtlinien können einen Schlüssel an eine Datenbank binden und die Tabellen und Werkzeuge einschränken, die er verwenden darf.
+
+Begrenzen Sie bei reinen Abfrage-Clients die Liste zulässiger Werkzeuge, statt darauf zu vertrauen, dass der Client DML freiwillig vermeidet.
+
+## SQL-Grenze
+
+Generiertes SQL wird vor der datenbankspezifischen Kompilierung geparst und validiert. Nicht unterstützte Quellsyntax oder nicht nachweisbare Zielfähigkeiten werden abgelehnt, statt stillschweigend semantisch abgeschwächt zu werden.
+
+DML ergänzt ein eigenes Freigabeprotokoll. Die menschliche Freigabe ist an den validierten Änderungsplan gebunden; Änderungen an vorhandenen Zeilen prüfen die Zielzeilen innerhalb der Commit-Transaktion vor der Ausführung erneut.
+
+## Administrative Identität
+
+Der Server unterstützt lokale Authentifizierung sowie optionale Einstellungen für OIDC/SSO und TOTP-MFA. Zu den OIDC-Einstellungen gehören die OIDC-Authority, Client-Anmeldedaten, Claim-Zuordnungen, Scopes, Rollenzuordnungen, Anforderungen an verifizierte E-Mail-Adressen und die automatische Bereitstellung von Konten.
+
+Speichern Sie den konfigurierten Pfad für Datenschutzschlüssel dauerhaft, wenn geschützter Anmelde- oder MFA-Zustand Neustarts der Anwendung überstehen muss.
+
+## Betriebliche Schutzmaßnahmen
+
+Zu den sicherheitsrelevanten Laufzeiteinstellungen gehören:
+
+- Schwellenwert und Dauer der Anmeldesperre
+- globale und anforderungsbezogene Ratenbegrenzung
+- verteilte Synchronisierung von Sicherheitsrichtlinien
+- signierte Alarm- und SIEM-Webhooks
+- Audit-Aufbewahrung sowie Archiv- und Ausweichpfade
+- Koordinationsmodi für verteilte Kontrollen, die bei fehlender Absicherung standardmäßig ablehnen
+
+## Sicherheitslücke melden
+
+Veröffentlichen Sie Sicherheitslücken nicht in einem öffentlichen GitHub Issue. Verwenden Sie im Repository den Ablauf **Report a Vulnerability** von GitHub Security Advisory, damit das Problem im Rahmen einer verantwortungsvollen Offenlegung untersucht und behoben werden kann.

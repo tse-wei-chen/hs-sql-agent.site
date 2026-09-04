@@ -1,0 +1,42 @@
+---
+title: Vue d’ensemble de la sécurité
+description: Les contrôles côté serveur qui maintiennent la gouvernance des bases de données hors du LLM et les paramètres d’exploitation qui les protègent.
+sidebar:
+  group: Sécurité
+  order: 120
+---
+
+hs-sql-agent est conçu pour que le modèle d’IA ne constitue jamais la frontière de sécurité. L’authentification, le périmètre de base de données, les politiques de tables, les restrictions d’outils, la validation SQL et l’approbation des modifications sont imposés par le serveur.
+
+## Frontière d’accès MCP
+
+Les clients MCP s’authentifient avec une clé créée par le serveur. Les politiques d’exécution peuvent associer une clé à une base de données et limiter les tables et les outils qu’elle peut utiliser.
+
+Pour un client limité aux requêtes, restreignez directement la liste des outils autorisés au lieu de compter sur le client pour éviter volontairement DML.
+
+## Frontière SQL
+
+Le SQL généré est analysé et validé avant la compilation propre au moteur. Une syntaxe source non prise en charge ou une capacité cible qui ne peut pas être démontrée est refusée par défaut, sans dégradation silencieuse de la sémantique.
+
+DML ajoute un protocole d’approbation distinct. L’acceptation humaine est liée au plan de modification validé ; pour les opérations qui ciblent des lignes existantes, l’ensemble de lignes est revérifié dans la transaction finale avant l’exécution.
+
+## Identité administrative
+
+Le serveur prend en charge l’authentification locale ainsi que des paramètres facultatifs pour OIDC/SSO et la MFA TOTP. La configuration OIDC comprend notamment l’autorité, les informations d’identification du client, la correspondance des revendications, les étendues, la correspondance des rôles, l’exigence d’une adresse e-mail vérifiée et le provisionnement automatique.
+
+Conservez le chemin configuré des clés de protection des données sur un stockage persistant si l’état protégé de connexion ou de MFA doit survivre aux redémarrages de l’application.
+
+## Protections d’exploitation
+
+Les principaux paramètres d’exécution liés à la sécurité comprennent :
+
+- le seuil et la durée de verrouillage après échecs de connexion
+- la limitation de débit globale et par requête
+- la synchronisation distribuée des politiques de sécurité
+- les webhooks signés d’alerte et de SIEM
+- la rétention de l’audit et les chemins d’archivage ou de repli
+- les modes de coordination distribuée qui refusent les opérations lorsque les garanties nécessaires ne peuvent pas être établies
+
+## Signaler une vulnérabilité
+
+Ne publiez pas une vulnérabilité de sécurité dans un ticket GitHub public. Utilisez le parcours **Report a Vulnerability** de GitHub Security Advisory dans le dépôt afin que le problème puisse être étudié et corrigé dans le cadre d’une divulgation responsable.

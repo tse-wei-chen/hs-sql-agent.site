@@ -1,0 +1,48 @@
+---
+title: Einführung
+description: Was hs-sql-agent ist, wo es zwischen MCP-Clients und Datenbanken sitzt und wie die Sicherheitsgrenze funktioniert.
+sidebar:
+  group: Erste Schritte
+  order: 10
+---
+
+import Callout from "@/components/docs/mdx/Callout.astro";
+import CardGrid from "@/components/docs/mdx/CardGrid.astro";
+import DocCard from "@/components/docs/mdx/DocCard.astro";
+import Flow from "@/components/docs/mdx/Flow.astro";
+
+hs-sql-agent ist ein HTTP-MCP-Server für **kontrollierten SQL-Zugriff**. Er verbindet MCP-Clients mit PostgreSQL, MySQL, SQL Server, Oracle, SQLite und Firebird, während Authentifizierung, Zugriffsrichtlinien, SQL-Validierung und Freigaben für Datenänderungen serverseitig durchgesetzt werden.
+
+<Flow items={["MCP-Client", "Umfang des MCP-Schlüssels", "SQL-Compiler", "Richtlinien- und Fähigkeitsprüfung", "Datenbank"]} />
+
+<Callout type="danger" title="Machen Sie das LLM nicht zur Sicherheitsgrenze der Datenbank">
+Generiertes SQL ist nicht vertrauenswürdige Eingabe. Das Modell darf SQL vorschlagen, aber der Server entscheidet, ob eine Anfrage autorisiert ist, semantisch unterstützt wird und sicher ausgeführt werden kann.
+</Callout>
+
+## Wofür der Server verantwortlich ist
+
+<CardGrid columns={2}>
+  <DocCard title="Identität und Umfang" icon="KEY" description="Einen Client an eine verwaltete Datenbank binden und seine zulässigen Werkzeuge, Tabellen und Laufzeitgrenzen einschränken." />
+  <DocCard title="SQL-Semantik" icon="AST" description="Unterstütztes SQL in strukturierte Definitionen parsen, die Quellsemantik validieren, Zielfähigkeiten nachweisen und anschließend datenbankspezifisches SQL kompilieren." />
+  <DocCard title="Freigabe von Änderungen" icon="DML" description="Schreiboperationen als eigene Risikoklasse behandeln – mit Vorschau, einmaliger Freigabe, erneuter Prüfung und exakt gebundenem Commit." />
+  <DocCard title="Betrieb und Audit" icon="OPS" description="Raten- und Parallelitätsgrenzen, Audit-Datensätze, Systemzustand, Telemetrie und ausgehende Betriebsbenachrichtigungen außerhalb des Modells halten." />
+</CardGrid>
+
+## Die Compiler-Grenze
+
+Generiertes SQL wird vor der Ausführung geparst und validiert. hs-sql-agent prüft die Fähigkeiten, die zum Erhalt der Anweisungssemantik erforderlich sind, und erzeugt datenbankspezifisches SQL erst, nachdem Quell-, Ziel- und Richtliniengrenzen erfolgreich geprüft wurden.
+
+Nicht unterstützte Syntax oder Semantik wird abgelehnt, statt stillschweigend in eine nur scheinbar gleichwertige Konstruktion umgeschrieben zu werden.
+
+<Callout type="info" title="Sechs Datenbanken bedeuten keinen beliebigen Durchgriff auf herstellerspezifisches SQL">
+Die Unterstützung richtet sich nach explizit modellierten Fähigkeiten. Eine Konstruktion muss für den jeweiligen Quell-/Zielvertrag repräsentiert, validiert und sicher ausgegeben werden können. Verwenden Sie die SQL-Unterstützungsreferenz als Maßstab, statt davon auszugehen, dass jede Herstellererweiterung akzeptiert wird.
+</Callout>
+
+## Nächste Schritte
+
+<CardGrid columns={2}>
+  <DocCard title="Schnellstart" icon="01" href="/de/docs/getting-started/quick-start" description="Die Standard-Compose-Umgebung starten und den ersten MCP-Schlüssel erstellen." />
+  <DocCard title="MCP-Client verbinden" icon="02" href="/de/docs/mcp/client-onboarding" description="Einen entfernten Streamable-HTTP-MCP-Client korrekt anbinden." />
+  <DocCard title="SQL-Ausführungsmodell" icon="03" href="/de/docs/sql-compiler/execution-model" description="Grenzen für Parsing, Validierung, Fähigkeitsnachweis, Kompilierung und Ausführung verstehen." />
+  <DocCard title="Safe DML" icon="04" href="/de/docs/sql-compiler/safe-dml" description="Das Protokoll für Datenänderungen mit menschlicher Freigabe verstehen." />
+</CardGrid>

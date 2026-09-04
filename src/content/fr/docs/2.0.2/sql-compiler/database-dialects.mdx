@@ -1,0 +1,32 @@
+---
+title: Dialectes de base de données
+description: Les six moteurs derrière l’interface MCP commune et la signification d’une prise en charge volontairement bornée des dialectes SQL.
+sidebar:
+  group: Compilateur SQL
+  order: 60
+---
+
+hs-sql-agent cible actuellement six moteurs de bases de données relationnelles :
+
+| Moteur | Rôle |
+| --- | --- |
+| PostgreSQL | Dialecte SQL source et cible |
+| MySQL | Dialecte SQL source et cible |
+| SQL Server | Dialecte SQL source et cible |
+| Oracle | Dialecte SQL source et cible |
+| SQLite | Dialecte SQL source et cible |
+| Firebird | Dialecte SQL source et cible |
+
+## Une interface MCP unique ne signifie pas un dialecte SQL unique
+
+Les clients MCP utilisent un contrat serveur commun, mais la sémantique SQL reste propre à chaque moteur. Le compilateur doit préserver le sens pris en charge de l’instruction pour la base de données configurée.
+
+Cette distinction est importante pour les opérateurs, les types, les conversions, les fonctions, les identifiants, la pagination, la sémantique de `NULL` et le comportement DML.
+
+## Prise en charge bornée
+
+La présence d’une base dans la liste des moteurs pris en charge ne signifie pas que toutes les syntaxes offertes par ce produit sont acceptées.
+
+Le compilateur refuse par défaut lorsqu’une construction source ne peut pas être représentée ou lorsqu’une capacité cible équivalente ne peut pas être démontrée. La couverture fonctionnelle peut s’étendre sans affaiblir cette règle.
+
+En production, considérez l’acceptation par le compilateur comme le contrat de référence au lieu de supposer que tout SQL accepté par l’outil en ligne de commande du fournisseur sera également accepté par hs-sql-agent.

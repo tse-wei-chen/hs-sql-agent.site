@@ -1,0 +1,75 @@
+---
+title: Safe DML
+description: Prévisualiser l’impact, lier l’approbation, revérifier les lignes ciblées et ne valider que la modification exacte approuvée par une personne.
+sidebar:
+  group: Compilateur SQL
+  order: 50
+---
+
+import Callout from "@/components/docs/mdx/Callout.astro";
+import CardGrid from "@/components/docs/mdx/CardGrid.astro";
+import DocCard from "@/components/docs/mdx/DocCard.astro";
+import Flow from "@/components/docs/mdx/Flow.astro";
+import Steps from "@/components/docs/mdx/Steps.astro";
+import Step from "@/components/docs/mdx/Step.astro";
+
+DML suit un chemin plus strict que l’exécution d’une requête, car au moment de valider la transaction l’approbation doit toujours décrire **exactement la même modification**.
+
+<Flow items={["Compiler", "Prévisualiser", "Approuver", "Revérifier", "Valider"]} />
+
+<CardGrid columns={3}>
+  <DocCard title="Prévisualiser sans modifier" icon="01" description="UPDATE/DELETE commence par lire les lignes actuellement ciblées dans une transaction de prévisualisation, sans appliquer la modification." />
+  <DocCard title="L’approbation est liée aux faits vérifiés" icon="02" description="Un défi à usage unique lie le plan validé, la version de politique, le nombre de lignes concernées et l’empreinte de l’ensemble de lignes." />
+  <DocCard title="La validation revérifie l’état réel" icon="03" description="La transaction finale relit les lignes ciblées et annule l’opération si les faits approuvés ne correspondent plus." />
+</CardGrid>
+
+<Callout type="danger" title="Une approbation n’autorise pas une modification différente exécutée plus tard">
+Le défi d’approbation est lié à l’opération validée et à l’impact observé. Si le plan, la politique, le défi, le nombre de lignes concernées ou l’empreinte de l’ensemble de lignes change avant la validation, hs-sql-agent annule l’opération au lieu de l’appliquer.
+</Callout>
+
+## UPDATE et DELETE
+
+<Steps>
+  <Step title="Compiler la modification">
+Analyser, valider, autoriser et compiler la modification demandée avant de solliciter une approbation.
+  </Step>
+  <Step title="Prévisualiser les lignes concernées">
+Ouvrir une transaction de prévisualisation et lire les lignes qui correspondent actuellement aux critères, sans exécuter la modification.
+  </Step>
+  <Step title="Créer une preuve d’approbation à usage unique">
+Lier le défi au plan compilé validé, à la version de politique, au nombre de lignes concernées et à l’empreinte de l’ensemble de lignes.
+  </Step>
+  <Step title="Demander l’approbation d’une personne via MCP Elicitation">
+Envoyer `elicitation/create` et exiger une approbation explicite sous forme de formulaire de la part du client MCP.
+  </Step>
+  <Step title="Consommer le défi approuvé">
+Après acceptation, valider puis consommer le défi à usage unique afin qu’il ne puisse pas être rejoué comme un jeton d’autorisation générique.
+  </Step>
+  <Step title="Relire les lignes dans la transaction finale">
+Relire les lignes ciblées et comparer leur empreinte et leur nombre actuels avec la prévisualisation approuvée.
+  </Step>
+  <Step title="Valider uniquement si tout correspond encore">
+Exécuter exactement la modification compilée uniquement si le plan, la politique, le défi, le nombre de lignes et l’ensemble de lignes sont inchangés.
+  </Step>
+</Steps>
+
+## INSERT VALUES
+
+Une instruction `INSERT ... VALUES` ne cible aucun ensemble de lignes préexistant. Le protocole d’approbation lie donc la charge utile d’insertion immuable et le plan compilé exact, plutôt qu’une prévisualisation de lignes existantes.
+
+<Callout type="info" title="Une forme de modification différente, un même principe">
+La preuve approuvée diffère entre une modification de lignes existantes et une insertion, mais l’invariant reste le même : ne valider que la modification exacte, préalablement validée, décrite par l’approbation.
+</Callout>
+
+## Elicitation est obligatoire
+
+`execute_dml_sql` et les DML Custom Tools publiés exigent que le client MCP prenne en charge **l’Elicitation par formulaire** (`form Elicitation`). Un client incapable d’effectuer cette interaction d’approbation ne peut pas utiliser ces chemins de modification.
+
+Ce mécanisme est volontairement différent d’une simple boîte de dialogue côté interface : le défi d’approbation fait partie du protocole serveur et est revérifié avant l’exécution.
+
+## Documentation associée
+
+<CardGrid columns={2}>
+  <DocCard title="Connexion d’un client MCP" icon="MCP" href="/fr/docs/mcp/client-onboarding" description="Vérifier que la version exacte du client MCP sait gérer l’Elicitation par formulaire avant d’activer DML." />
+  <DocCard title="Modèle d’exécution SQL" icon="AST" href="/fr/docs/sql-compiler/execution-model" description="Comprendre la frontière plus large d’analyse, de validation, de capacités, de politiques, de compilation et d’exécution." />
+</CardGrid>

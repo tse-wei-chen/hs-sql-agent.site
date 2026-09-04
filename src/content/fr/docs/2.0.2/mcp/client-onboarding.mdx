@@ -1,0 +1,86 @@
+---
+title: Connexion d’un client MCP
+description: Connectez des clients MCP Streamable HTTP, configurez le point de terminaison public et vérifiez Elicitation avant d’activer DML.
+sidebar:
+  group: MCP
+  order: 30
+---
+
+import Callout from "@/components/docs/mdx/Callout.astro";
+import CardGrid from "@/components/docs/mdx/CardGrid.astro";
+import DocCard from "@/components/docs/mdx/DocCard.astro";
+import Steps from "@/components/docs/mdx/Steps.astro";
+import Step from "@/components/docs/mdx/Step.astro";
+
+hs-sql-agent expose un point de terminaison MCP **Streamable HTTP** à l’adresse `/mcp`.
+
+<CardGrid columns={3}>
+  <DocCard title="Point de terminaison" icon="HTTP" description="Utilisez l’URL publique MCP réellement accessible depuis l’extérieur, normalement terminée par /mcp." />
+  <DocCard title="Authentification" icon="KEY" description="Envoyez la clé MCP créée dans l’en-tête de requête X-MCP-Server-Key." />
+  <DocCard title="Compatibilité DML" icon="FORM" description="Les outils de modification exigent en plus que la version exacte du client MCP déployée prenne en charge l’Elicitation par formulaire." />
+</CardGrid>
+
+## Connecter un client
+
+<Steps>
+  <Step title="Créer une clé MCP">
+Dans le panneau d’administration, créez une clé associée à la base de données voulue. Si le client n’a pas besoin d’un accès complet, limitez les outils et les tables qu’il peut utiliser.
+  </Step>
+  <Step title="Utiliser le point de terminaison MCP public">
+L’adresse doit être accessible par le client. Ne supposez pas que l’interface d’administration et le point de terminaison MCP utilisent la même origine.
+  </Step>
+  <Step title="Authentifier chaque requête">
+Envoyez la clé dans l’en-tête MCP indiqué ci-dessous. Traitez la clé en clair comme un secret : une fois la boîte de dialogue de cycle de vie fermée, le serveur n’affichera plus cette même valeur.
+  </Step>
+  <Step title="Vérifier le client réellement installé">
+Commencez par confirmer la découverte du schéma et l’exécution des requêtes. Si DML doit être activé, testez séparément le comportement d’Elicitation par formulaire avant le passage en production.
+  </Step>
+</Steps>
+
+```http
+X-MCP-Server-Key: <MCP key>
+```
+
+## Point de terminaison public
+
+L’URL affichée aux opérateurs et utilisée dans les configurations client générées provient du paramètre serveur suivant :
+
+```json
+{
+  "Mcp": {
+    "PublicEndpoint": "https://sql-agent.example.com/mcp"
+  }
+}
+```
+
+La variable d’environnement équivalente est `Mcp__PublicEndpoint`. La configuration Compose fournie transmet `MCP_PUBLIC_ENDPOINT` vers ce paramètre.
+
+<Callout type="warning" title="Ne déduisez pas l’adresse MCP à partir de l’URL de l’interface d’administration">
+L’interface d’administration et le point de terminaison MCP peuvent utiliser des hôtes, ports ou chemins de proxy inverse différents. Hors environnement Development, le serveur exige une URL publique HTTP ou HTTPS absolue. Configurez l’adresse que le client MCP peut réellement joindre.
+</Callout>
+
+## Configuration client générée
+
+Après la création, la rotation ou la duplication d’une clé MCP, le panneau d’administration peut générer directement une configuration HTTP pour Claude Desktop, Cursor et les clients Streamable HTTP génériques.
+
+La clé en clair n’est affichée que temporairement. Une fois la boîte de dialogue de cycle de vie fermée, le serveur ne peut plus afficher à nouveau cette même valeur secrète.
+
+## La compatibilité DML doit être vérifiée séparément
+
+Le fait qu’un client se connecte correctement à `/mcp` **ne prouve pas qu’il sait gérer l’approbation DML**.
+
+`execute_dml_sql` et les DML Custom Tools publiés exigent la prise en charge de l’Elicitation par formulaire. Avant d’autoriser DML en production, testez la version exacte du client installée et vérifiez les deux scénarios :
+
+1. Refuser une demande d’Elicitation et confirmer qu’aucune modification n’est validée.
+2. Accepter une demande d’Elicitation et confirmer que seule la modification approuvée aboutit.
+
+<Callout type="danger" title="Sans Elicitation, pas de DML gouverné">
+Si un client ne déclare pas et n’implémente pas l’Elicitation par formulaire, hs-sql-agent refuse l’opération DML. Pour les clients en lecture seule, préférez une clé MCP dont la liste d’outils autorisés exclut les outils de modification plutôt que de laisser la clé sans restriction.
+</Callout>
+
+## Pour continuer
+
+<CardGrid columns={2}>
+  <DocCard title="Référence des outils MCP" icon="REF" href="/en/docs/mcp/tools-reference" description="Consulter les contrats officiels des outils intégrés de découverte, de requête et de DML." />
+  <DocCard title="Safe DML" icon="DML" href="/fr/docs/sql-compiler/safe-dml" description="Comprendre la prévisualisation, la liaison de l’approbation, la revérification de l’ensemble de lignes et la validation de la transaction." />
+</CardGrid>

@@ -160,6 +160,66 @@ const marketingUi: Record<string, MarketingUiStrings> = {
       ],
     },
   },
+  fr: {
+    footerTagline:
+      "Une frontière de compilation, de politiques d’accès et d’approbation humaine entre le SQL généré par l’IA et vos bases de données.",
+    footerNavigation: "Navigation du pied de page",
+    homeLabel: "Accueil",
+    breadcrumbLabel: "Fil d’Ariane",
+    learnMore: "En savoir plus",
+    integrations: {
+      claudeDesktop:
+        "Connexion MCP directe via Streamable HTTP avec une clé serveur à périmètre limité.",
+      cursor:
+        "MCP distant avec en-têtes personnalisés, tandis que les politiques d’accès restent appliquées côté serveur.",
+      aspNetCore:
+        "Intégration dans un hôte .NET existant avec le package NuGet HsSqlAgent.Server.",
+    },
+    sections: {
+      databases: [
+        "Bases de données prises en charge",
+        "Accès MCP sécurisé à PostgreSQL, MySQL, SQL Server, Oracle, SQLite et Firebird.",
+      ],
+      features: [
+        "Fonctionnalités du produit",
+        "Découvrez le compilateur SQL, Safe DML et les frontières de gouvernance de hs-sql-agent.",
+      ],
+      integrations: [
+        "Intégrations",
+        "Connectez des clients MCP ou intégrez hs-sql-agent dans des applications .NET existantes.",
+      ],
+    },
+  },
+  de: {
+    footerTagline:
+      "Eine Sicherheitsgrenze für Kompilierung, Zugriffsrichtlinien und menschliche Freigaben zwischen KI-generiertem SQL und Ihren Datenbanken.",
+    footerNavigation: "Fußzeilennavigation",
+    homeLabel: "Startseite",
+    breadcrumbLabel: "Breadcrumb-Navigation",
+    learnMore: "Mehr erfahren",
+    integrations: {
+      claudeDesktop:
+        "Direkte MCP-Verbindung über Streamable HTTP mit einem Server-Schlüssel mit eingeschränktem Berechtigungsumfang.",
+      cursor:
+        "Remote-MCP-Verbindung mit benutzerdefinierten Anforderungsheadern; Zugriffsrichtlinien bleiben serverseitig.",
+      aspNetCore:
+        "Mit dem NuGet-Paket HsSqlAgent.Server in einen vorhandenen .NET-Host einbetten.",
+    },
+    sections: {
+      databases: [
+        "Unterstützte Datenbanken",
+        "Sicherer MCP-Zugriff auf PostgreSQL, MySQL, SQL Server, Oracle, SQLite und Firebird.",
+      ],
+      features: [
+        "Produktfunktionen",
+        "SQL-Compiler, Safe DML und Governance-Grenzen von hs-sql-agent im Überblick.",
+      ],
+      integrations: [
+        "Integrationen",
+        "MCP-Clients verbinden oder hs-sql-agent in vorhandene .NET-Anwendungen einbetten.",
+      ],
+    },
+  },
 };
 
 export function useMarketingUi(locale: string = "en"): MarketingUiStrings {

@@ -1,0 +1,111 @@
+---
+title: Démarrage rapide
+description: Choisissez une méthode d’installation, démarrez hs-sql-agent et connectez votre premier client MCP.
+sidebar:
+  group: Prise en main
+  order: 20
+---
+
+import Callout from "@/components/docs/mdx/Callout.astro";
+import CardGrid from "@/components/docs/mdx/CardGrid.astro";
+import DocCard from "@/components/docs/mdx/DocCard.astro";
+import Steps from "@/components/docs/mdx/Steps.astro";
+import Step from "@/components/docs/mdx/Step.astro";
+
+<CardGrid columns={3}>
+  <DocCard
+    title="Docker Compose"
+    eyebrow="Recommandé"
+    badge="~5 min"
+    icon="▣"
+    description="Lancer le service auto-hébergé complet avec la configuration Compose du dépôt."
+    href="#docker-compose"
+  />
+  <DocCard
+    title="ASP.NET Core / NuGet"
+    badge="~10 min"
+    icon=".NET"
+    description="Intégrer l’exécution MCP et, si nécessaire, l’interface d’administration dans une application ASP.NET Core existante."
+    href="/en/docs/integration/aspnet-core"
+  />
+  <DocCard
+    title="Connecter un client MCP"
+    badge="après installation"
+    icon="MCP"
+    description="Créer une clé à périmètre limité et connecter Claude Desktop, Cursor ou un autre client Streamable HTTP."
+    href="/fr/docs/mcp/client-onboarding"
+  />
+</CardGrid>
+
+<Callout type="info" title="Commencez par Docker si vous n’intégrez pas déjà hs-sql-agent dans votre propre hôte">
+Docker Compose est le chemin le plus court, car le dépôt contient déjà le câblage du service et la correspondance des variables d’environnement. L’installation via NuGet s’adresse aux équipes qui intègrent hs-sql-agent dans un hôte ASP.NET Core existant.
+</Callout>
+
+## Docker Compose
+
+<Steps>
+  <Step title="Créer le fichier d’environnement" description="Copiez l’exemple versionné afin de conserver une configuration explicite et révisable.">
+
+```bash
+cp .env.example .env
+```
+
+  </Step>
+  <Step title="Remplacer les secrets de signature" description="Définissez HMAC_KEY et JWT_KEY avec deux secrets distincts d’au moins 32 octets.">
+Les valeurs de `.env.example` sont des exemples. Ne les déployez pas telles quelles.
+  </Step>
+  <Step title="Démarrer le service" description="Lancez la pile mono-instance par défaut.">
+
+```bash
+docker compose up -d
+```
+
+  </Step>
+  <Step title="Ouvrir le panneau d’administration" description="Par défaut, l’application écoute sur le port 8080.">
+Pour une installation locale, ouvrez `http://localhost:8080` et terminez la configuration du premier administrateur.
+  </Step>
+</Steps>
+
+## Créer votre première clé MCP
+
+<Steps>
+  <Step title="Ouvrir Runtime → MCP Keys" description="Les clés constituent la frontière d’identité et d’autorisation MCP." />
+  <Step title="Choisir la base et le périmètre d’outils" description="Associez la clé à une entrée Database Management et n’exposez que les outils nécessaires au client." />
+  <Step title="Copier la clé en clair" description="La boîte de dialogue de cycle de vie affiche le secret nouvellement créé pour vous permettre de le copier ; conservez-le dans le magasin de secrets du client." />
+  <Step title="Utiliser la configuration client générée" description="Vous pouvez aussi envoyer le secret dans X-MCP-Server-Key vers le point de terminaison Streamable HTTP." />
+</Steps>
+
+Le point de terminaison MCP par défaut est `/mcp`. Pour un client situé hors de la machine locale, définissez `MCP_PUBLIC_ENDPOINT` sur l’URL HTTP ou HTTPS absolue accessible de l’extérieur, en incluant `/mcp`.
+
+<Callout type="warning" title="DML nécessite la prise en charge d’Elicitation par le client">
+N’activez pas `execute_dml_sql` uniquement parce qu’un client sait appeler des outils MCP. Sa version doit aussi prendre en charge l’Elicitation MCP sous forme de formulaire afin qu’une personne puisse examiner et approuver précisément l’impact de la modification.
+</Callout>
+
+## Pour continuer
+
+<CardGrid columns={2}>
+  <DocCard
+    title="Connexion d’un client MCP"
+    icon="01"
+    description="En-têtes, configuration Streamable HTTP, règles du point de terminaison public et compatibilité DML Elicitation."
+    href="/fr/docs/mcp/client-onboarding"
+  />
+  <DocCard
+    title="Modèle d’exécution SQL"
+    icon="02"
+    description="Comprendre la frontière analyse → validation → vérification des capacités → compilation avant d’exposer SQL à un agent."
+    href="/fr/docs/sql-compiler/execution-model"
+  />
+  <DocCard
+    title="Gestion des bases de données"
+    icon="03"
+    description="Créer les connexions aux moteurs, tester la connectivité et comprendre comment les clés MCP sont associées aux bases."
+    href="/en/docs/administration/database-management"
+  />
+  <DocCard
+    title="Configuration de production"
+    icon="04"
+    description="Examiner l’identité, les limites de débit, la rétention, l’état distribué, la télémétrie et les secrets."
+    href="/en/docs/operations/configuration"
+  />
+</CardGrid>
