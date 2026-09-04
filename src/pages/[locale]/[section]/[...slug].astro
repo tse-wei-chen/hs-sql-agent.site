@@ -7,12 +7,25 @@ import {
   getMarketingRoutes,
   isMarketingSection,
   type MarketingPage,
+  type MarketingSection,
 } from "@/data/marketing";
+import { getAspNetCoreMarketingPage } from "@/data/marketingAspNetCore";
 import { locales } from "@/utils/getPostsByLocale";
+
+function resolveMarketingPage(
+  locale: string,
+  section: MarketingSection,
+  slug: string
+): MarketingPage | undefined {
+  if (section === "integrations" && slug === "aspnet-core") {
+    return getAspNetCoreMarketingPage(locale);
+  }
+  return getMarketingPage(locale, section, slug);
+}
 
 export function getStaticPaths() {
   return getMarketingRoutes().map(route => {
-    const page = getMarketingPage(route.locale, route.section, route.slug);
+    const page = resolveMarketingPage(route.locale, route.section, route.slug);
     if (!page) {
       throw new Error(`Missing marketing page: ${route.locale}/${route.section}/${route.slug}`);
     }
@@ -28,7 +41,7 @@ if (!isMarketingSection(sectionParam)) {
 }
 
 const alternates = locales
-  .map(locale => getMarketingPage(locale, page.section, page.slug))
+  .map(locale => resolveMarketingPage(locale, page.section, page.slug))
   .filter((candidate): candidate is MarketingPage => Boolean(candidate))
   .map(candidate => ({
     locale: candidate.locale,
