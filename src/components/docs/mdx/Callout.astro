@@ -1,0 +1,62 @@
+---
+type Props = {
+  type?: "info" | "tip" | "warning" | "danger" | "success";
+  title?: string;
+};
+const { type = "info", title } = Astro.props;
+const icons = {
+  info: "i",
+  tip: "✦",
+  warning: "!",
+  danger: "×",
+  success: "✓",
+};
+---
+
+<aside class:list={["docs-callout not-prose", `docs-callout-${type}`]}>
+  <div class="docs-callout-icon" aria-hidden="true">{icons[type]}</div>
+  <div class="docs-callout-content">
+    {title && <div class="docs-callout-title">{title}</div>}
+    <div class="docs-callout-body"><slot /></div>
+  </div>
+</aside>
+
+<style>
+  .docs-callout {
+    --callout-accent: var(--accent);
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: .8rem;
+    margin: 1.35rem 0;
+    border: 1px solid color-mix(in oklch, var(--callout-accent) 28%, var(--border));
+    border-radius: .9rem;
+    background:
+      linear-gradient(135deg, color-mix(in oklch, var(--callout-accent) 8%, transparent), transparent 58%),
+      color-mix(in oklch, var(--background) 96%, var(--muted));
+    padding: 1rem 1.05rem;
+    box-shadow: 0 12px 32px rgb(0 0 0 / .035);
+  }
+  .docs-callout-tip, .docs-callout-success { --callout-accent: oklch(0.72 0.17 155); }
+  .docs-callout-warning { --callout-accent: oklch(0.78 0.16 80); }
+  .docs-callout-danger { --callout-accent: oklch(0.64 0.24 25); }
+  .docs-callout-icon {
+    display: grid;
+    place-items: center;
+    width: 1.7rem;
+    height: 1.7rem;
+    border-radius: .5rem;
+    background: color-mix(in oklch, var(--callout-accent) 14%, var(--background));
+    color: var(--callout-accent);
+    font: 700 .82rem/1 var(--font-google-sans-code), monospace;
+  }
+  .docs-callout-title {
+    margin-bottom: .28rem;
+    color: var(--foreground);
+    font-weight: 700;
+  }
+  .docs-callout-body { color: var(--muted-foreground); font-size: .92rem; line-height: 1.65; }
+  .docs-callout-body :global(p) { margin: 0; }
+  .docs-callout-body :global(p + p) { margin-top: .65rem; }
+  .docs-callout-body :global(a) { color: var(--accent); }
+  .docs-callout-body :global(code) { color: var(--foreground); }
+</style>
