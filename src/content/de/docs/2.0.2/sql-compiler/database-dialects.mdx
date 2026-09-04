@@ -1,0 +1,32 @@
+---
+title: Datenbankdialekte
+description: Die sechs Datenbanken hinter der gemeinsamen MCP-Schnittstelle und was ein bewusst begrenzter Dialektumfang bedeutet.
+sidebar:
+  group: SQL-Compiler
+  order: 60
+---
+
+hs-sql-agent unterstützt derzeit sechs relationale Datenbanken:
+
+| Datenbank | Rolle |
+| --- | --- |
+| PostgreSQL | SQL-Quell- und Zieldialekt |
+| MySQL | SQL-Quell- und Zieldialekt |
+| SQL Server | SQL-Quell- und Zieldialekt |
+| Oracle | SQL-Quell- und Zieldialekt |
+| SQLite | SQL-Quell- und Zieldialekt |
+| Firebird | SQL-Quell- und Zieldialekt |
+
+## Eine MCP-Schnittstelle bedeutet nicht einen SQL-Dialekt
+
+MCP-Clients arbeiten mit einem gemeinsamen Serververtrag, die SQL-Semantik bleibt jedoch datenbankspezifisch. Der Compiler ist dafür verantwortlich, die unterstützte Bedeutung einer Anweisung für die konfigurierte Datenbank zu erhalten.
+
+Diese Unterscheidung ist unter anderem bei Operatoren, Typen, Casts, Funktionen, Bezeichnern, Pagination, `NULL`-Semantik und DML-Verhalten wichtig.
+
+## Begrenzter Funktionsumfang
+
+Dass eine Datenbank in der Liste unterstützter Systeme erscheint, bedeutet nicht, dass jede von ihr angebotene Syntax akzeptiert wird.
+
+Der Compiler lehnt eine Anweisung ab, wenn eine Quellkonstruktion nicht repräsentiert werden kann oder eine gleichwertige Zielfähigkeit nicht nachgewiesen werden kann. Der Funktionsumfang kann wachsen, ohne diese Regel abzuschwächen.
+
+Behandeln Sie in Produktion die Akzeptanz durch den Compiler als verbindlichen Vertrag, statt davon auszugehen, dass beliebiges SQL, das eine Hersteller-CLI akzeptiert, auch von hs-sql-agent angenommen wird.

@@ -1,0 +1,41 @@
+---
+title: SQL-Ausführungsmodell
+description: Wie hs-sql-agent nicht vertrauenswürdiges SQL vor der Ausführung in validierte, datenbankspezifische Anweisungen überführt.
+sidebar:
+  group: SQL-Compiler
+  order: 40
+---
+
+hs-sql-agent behandelt generiertes SQL nicht als vertrauenswürdigen Befehl. Die Ausführungsgrenze ist um Parsing, Validierung, Fähigkeitsprüfungen, Zugriffsrichtlinien und datenbankspezifische Kompilierung aufgebaut.
+
+## Abfragepfad
+
+Auf hoher Ebene durchläuft eine Abfrage diese Schritte:
+
+1. MCP-Schlüssel authentifizieren und seinen Datenbank-, Tabellen-, Werkzeug- und Ausführungsumfang anwenden.
+2. Unterstütztes SQL in eine strukturierte Definition / AST parsen.
+3. Die Anweisung und ihre unterstützte Quellsemantik validieren.
+4. Die Zielfähigkeiten prüfen, die zum Erhalt dieser Semantik erforderlich sind.
+5. SQL für die konfigurierte Datenbank kompilieren und ausgeben.
+6. Innerhalb der konfigurierten Laufzeitgrenzen ausführen.
+
+Die Implementierung des SQL-Compilers enthält explizite Stufen für Quellvalidierung und Zielfähigkeiten. Nicht unterstützte Syntax oder eine Fähigkeit, deren Gleichwertigkeit nicht nachgewiesen werden kann, wird abgelehnt, statt stillschweigend durch eine oberflächlich ähnliche Konstruktion ersetzt zu werden.
+
+## Warum bei Unsicherheit ablehnen?
+
+Datenbankübergreifendes SQL enthält viele Konstruktionen, die gleich aussehen, sich aber bei `NULL`, Typregeln, Operatorsemantik, Pagination, Bezeichnern, Funktionen oder DML-Verhalten unterscheiden.
+
+Für eine KI-nahe Ausführungsoberfläche ist ein Umschreiben nach dem Prinzip „best effort“ gefährlich: Eine Anweisung kann syntaktisch gültig bleiben und trotzdem ihre Bedeutung ändern. hs-sql-agent bevorzugt deshalb eine sichtbare Ablehnung gegenüber einer stillen semantischen Abschwächung. Dieses Verhalten entspricht dem Fail-Closed-Prinzip.
+
+## Datenbankspezifische Ausgabe
+
+Die öffentliche MCP-Schnittstelle ist gemeinsam, das endgültige SQL jedoch datenbankspezifisch. Derzeit werden folgende Datenbanken unterstützt:
+
+- PostgreSQL
+- MySQL
+- SQL Server
+- Oracle
+- SQLite
+- Firebird
+
+Der unterstützte Umfang ist absichtlich begrenzt. Dass eine Datenbank unterstützt wird, bedeutet nicht, dass jede von ihr angebotene SQL-Syntax akzeptiert wird; einzelne Compiler-Fähigkeiten werden erst erweitert, wenn ihre Semantik repräsentiert und validiert werden kann.

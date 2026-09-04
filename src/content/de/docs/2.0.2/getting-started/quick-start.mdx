@@ -1,0 +1,111 @@
+---
+title: Schnellstart
+description: Wählen Sie einen Installationsweg, starten Sie hs-sql-agent und verbinden Sie Ihren ersten MCP-Client.
+sidebar:
+  group: Erste Schritte
+  order: 20
+---
+
+import Callout from "@/components/docs/mdx/Callout.astro";
+import CardGrid from "@/components/docs/mdx/CardGrid.astro";
+import DocCard from "@/components/docs/mdx/DocCard.astro";
+import Steps from "@/components/docs/mdx/Steps.astro";
+import Step from "@/components/docs/mdx/Step.astro";
+
+<CardGrid columns={3}>
+  <DocCard
+    title="Docker Compose"
+    eyebrow="Empfohlen"
+    badge="~5 Min."
+    icon="▣"
+    description="Den vollständigen selbst gehosteten Dienst mit der Compose-Konfiguration des Repositorys starten."
+    href="#docker-compose"
+  />
+  <DocCard
+    title="ASP.NET Core / NuGet"
+    badge="~10 Min."
+    icon=".NET"
+    description="Die MCP-Laufzeit und optional die Admin-Oberfläche in eine vorhandene ASP.NET-Core-Anwendung einbetten."
+    href="/en/docs/integration/aspnet-core"
+  />
+  <DocCard
+    title="MCP-Client verbinden"
+    badge="nach Installation"
+    icon="MCP"
+    description="Einen Schlüssel mit begrenztem Umfang erstellen und Claude Desktop, Cursor oder einen anderen Streamable-HTTP-Client verbinden."
+    href="/de/docs/mcp/client-onboarding"
+  />
+</CardGrid>
+
+<Callout type="info" title="Beginnen Sie mit Docker, sofern Sie hs-sql-agent nicht bereits in eine eigene Host-Anwendung einbetten">
+Docker Compose ist der kürzeste Weg, weil das Repository die Dienstverdrahtung und Zuordnung der Umgebungsvariablen bereits enthält. Der NuGet-Weg ist für Teams gedacht, die hs-sql-agent in einen vorhandenen ASP.NET-Core-Host integrieren.
+</Callout>
+
+## Docker Compose
+
+<Steps>
+  <Step title="Umgebungsdatei erstellen" description="Kopieren Sie das eingecheckte Beispiel, damit die Konfiguration explizit und überprüfbar bleibt.">
+
+```bash
+cp .env.example .env
+```
+
+  </Step>
+  <Step title="Signaturgeheimnisse ersetzen" description="Setzen Sie HMAC_KEY und JWT_KEY auf zwei unterschiedliche, eindeutige Geheimnisse mit jeweils mindestens 32 Byte.">
+Die Werte in `.env.example` sind Platzhalter. Verwenden Sie sie nicht unverändert in einer Bereitstellung.
+  </Step>
+  <Step title="Dienst starten" description="Starten Sie den standardmäßigen Einzelinstanz-Stack.">
+
+```bash
+docker compose up -d
+```
+
+  </Step>
+  <Step title="Admin Panel öffnen" description="Die Anwendung lauscht standardmäßig auf Port 8080.">
+Öffnen Sie für eine lokale Installation `http://localhost:8080` und schließen Sie die Einrichtung des ersten Administrators ab.
+  </Step>
+</Steps>
+
+## Ersten MCP-Schlüssel erstellen
+
+<Steps>
+  <Step title="Runtime → MCP Keys öffnen" description="Schlüssel bilden die Identitäts- und Autorisierungsgrenze für MCP." />
+  <Step title="Datenbank und Werkzeugumfang wählen" description="Binden Sie den Schlüssel an einen Database-Management-Eintrag und geben Sie nur die Werkzeuge frei, die der Client benötigt." />
+  <Step title="Klartextschlüssel kopieren" description="Der Lebenszyklusdialog zeigt das neu erstellte Geheimnis einmal zum Kopieren an; speichern Sie es im Secret Store des Clients." />
+  <Step title="Generierte Clientkonfiguration verwenden" description="Alternativ senden Sie das Geheimnis als X-MCP-Server-Key an den Streamable-HTTP-Endpunkt." />
+</Steps>
+
+Der standardmäßige MCP-Endpunkt ist `/mcp`. Für Clients außerhalb des lokalen Rechners setzen Sie `MCP_PUBLIC_ENDPOINT` auf die extern erreichbare absolute HTTP- oder HTTPS-URL einschließlich `/mcp`.
+
+<Callout type="warning" title="DML erfordert Elicitation-Unterstützung im Client">
+Aktivieren Sie `execute_dml_sql` nicht allein deshalb, weil ein Client MCP-Werkzeuge aufrufen kann. Die eingesetzte Clientversion muss zusätzlich Elicitation per Formular unterstützen, damit ein Mensch die konkreten Auswirkungen der Änderung prüfen und freigeben kann.
+</Callout>
+
+## Nächste Schritte
+
+<CardGrid columns={2}>
+  <DocCard
+    title="MCP-Client verbinden"
+    icon="01"
+    description="Header, Streamable-HTTP-Konfiguration, Regeln für den öffentlichen Endpunkt und DML-Elicitation-Kompatibilität."
+    href="/de/docs/mcp/client-onboarding"
+  />
+  <DocCard
+    title="SQL-Ausführungsmodell"
+    icon="02"
+    description="Die Grenze Parsing → Validierung → Fähigkeitsnachweis → Kompilierung verstehen, bevor SQL für einen Agenten freigegeben wird."
+    href="/de/docs/sql-compiler/execution-model"
+  />
+  <DocCard
+    title="Datenbankverwaltung"
+    icon="03"
+    description="Datenbankverbindungen anlegen, Konnektivität testen und verstehen, wie MCP-Schlüssel an Datenbanken gebunden werden."
+    href="/en/docs/administration/database-management"
+  />
+  <DocCard
+    title="Produktionskonfiguration"
+    icon="04"
+    description="Identität, Ratenbegrenzung, Aufbewahrung, verteilten Zustand, Telemetrie und Geheimnisse prüfen."
+    href="/en/docs/operations/configuration"
+  />
+</CardGrid>
