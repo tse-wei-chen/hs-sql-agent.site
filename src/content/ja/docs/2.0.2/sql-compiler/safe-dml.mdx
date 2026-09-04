@@ -1,0 +1,75 @@
+---
+title: Safe DML
+description: Preview、approval binding、row-set revalidation を行い、人が承認した正確な mutation だけを commit する仕組みを説明します。
+sidebar:
+  group: SQL Compiler
+  order: 50
+---
+
+import Callout from "@/components/docs/mdx/Callout.astro";
+import CardGrid from "@/components/docs/mdx/CardGrid.astro";
+import DocCard from "@/components/docs/mdx/DocCard.astro";
+import Flow from "@/components/docs/mdx/Flow.astro";
+import Steps from "@/components/docs/mdx/Steps.astro";
+import Step from "@/components/docs/mdx/Step.astro";
+
+DML は query execution より厳しい path を使います。approval が commit 時点でも**同じ mutation**を表している必要があるためです。
+
+<Flow items={["Compile", "Preview", "Approve", "Revalidate", "Commit"]} />
+
+<CardGrid columns={3}>
+  <DocCard title="Preview, not mutate" icon="01" description="UPDATE/DELETE は mutation を適用せず、preview transaction 内で現在 match している row を最初に読み取ります。" />
+  <DocCard title="Approval is bound" icon="02" description="one-time challenge が validated plan、policy version、affected-row count、row-set fingerprint を binding します。" />
+  <DocCard title="Commit re-checks reality" icon="03" description="commit transaction で row set を再 query し、承認済みの事実と一致しなければ cancel します。" />
+</CardGrid>
+
+<Callout type="danger" title="Approval は後から別の mutation を実行する権限ではありません">
+approval challenge は validated operation と観測済み impact に結び付けられます。commit 前に plan、policy、challenge、affected-row count、row-set fingerprint のどれかが変わった場合、hs-sql-agent は operation を適用せず cancel します。
+</Callout>
+
+## UPDATE と DELETE
+
+<Steps>
+  <Step title="mutation を compile">
+承認を求める前に request を parse、validate、authorize、compile します。
+  </Step>
+  <Step title="affected row set を preview">
+preview transaction を開き、mutation を実行せず現在 match している row を読み取ります。
+  </Step>
+  <Step title="one-time approval evidence を作成">
+challenge を validated compiled plan、policy version、affected-row count、row-set fingerprint に binding します。
+  </Step>
+  <Step title="MCP Elicitation で人に確認">
+`elicitation/create` を送り、MCP client から明示的な form approval を要求します。
+  </Step>
+  <Step title="approved challenge を consume">
+accept 後に one-time challenge を validate して consume し、generic permission token として replay できないようにします。
+  </Step>
+  <Step title="commit transaction 内で再 query">
+matched row をもう一度読み、現在の fingerprint/count と approved preview を比較します。
+  </Step>
+  <Step title="すべて一致する場合だけ commit">
+plan、policy、challenge、row count、row set が変わっていない場合にのみ exact compiled mutation を実行します。
+  </Step>
+</Steps>
+
+## INSERT VALUES
+
+`INSERT ... VALUES` には既存の matched row set がありません。そのため approval protocol は row-set preview ではなく immutable insert payload と exact compiled plan を binding します。
+
+<Callout type="info" title="Mutation shape が違っても原則は同じです">
+row-set mutation と insert payload では承認対象 evidence が異なりますが、不変条件は同じです。approval が表した exact validated mutation だけを commit します。
+</Callout>
+
+## Elicitation は必須です
+
+`execute_dml_sql` と公開済み DML Custom Tool には MCP client の **form Elicitation** support が必要です。Approval interaction を実行できない client は、これらの mutation path を利用できません。
+
+これは UI-only confirmation dialog とは異なります。approval challenge は server-side mutation protocol の一部であり、execution 前に再度検証されます。
+
+## 関連ドキュメント
+
+<CardGrid columns={2}>
+  <DocCard title="MCP クライアントの接続" icon="MCP" href="/ja/docs/mcp/client-onboarding" description="DML を有効にする前に、実際の MCP client version が form Elicitation を扱えることを確認します。" />
+  <DocCard title="SQL 実行モデル" icon="AST" href="/ja/docs/sql-compiler/execution-model" description="parse、validation、capability、policy、compile、execution の広い boundary を理解します。" />
+</CardGrid>

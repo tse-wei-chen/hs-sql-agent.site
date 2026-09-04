@@ -1,0 +1,86 @@
+---
+title: MCP クライアントの接続
+description: Streamable HTTP MCP client を接続し、public endpoint を設定し、DML を有効にする前に Elicitation を確認します。
+sidebar:
+  group: MCP
+  order: 30
+---
+
+import Callout from "@/components/docs/mdx/Callout.astro";
+import CardGrid from "@/components/docs/mdx/CardGrid.astro";
+import DocCard from "@/components/docs/mdx/DocCard.astro";
+import Steps from "@/components/docs/mdx/Steps.astro";
+import Step from "@/components/docs/mdx/Step.astro";
+
+hs-sql-agent は `/mcp` に **Streamable HTTP** MCP endpoint を公開します。
+
+<CardGrid columns={3}>
+  <DocCard title="Endpoint" icon="HTTP" description="外部から到達可能な MCP public endpoint を使用します。通常は /mcp で終わります。" />
+  <DocCard title="Authentication" icon="KEY" description="発行された MCP key を X-MCP-Server-Key request header で送信します。" />
+  <DocCard title="DML readiness" icon="FORM" description="Mutation tool には、実際に deploy する MCP client version の form Elicitation support も必要です。" />
+</CardGrid>
+
+## Client を接続する
+
+<Steps>
+  <Step title="MCP key を発行">
+Admin Panel で、対象 database に結び付けた key を作成します。Client が unrestricted access を必要としない場合は、allowed tool と table を制限します。
+  </Step>
+  <Step title="public MCP endpoint を使う">
+Endpoint は client から到達可能である必要があります。Admin UI の origin と MCP の origin が同じとは限りません。
+  </Step>
+  <Step title="すべての request を認証">
+以下の MCP request header で key を送信します。plaintext key は secret として扱ってください。lifecycle dialog を閉じた後に同じ secret が再表示されることはありません。
+  </Step>
+  <Step title="実際に使う client を検証">
+まず schema discovery と query execution を確認します。DML を有効にする場合は、production 前に client の form Elicitation behavior を別途テストします。
+  </Step>
+</Steps>
+
+```http
+X-MCP-Server-Key: <MCP key>
+```
+
+## Public endpoint
+
+Operator に表示される URL と生成される client configuration は、次の server setting から取得されます。
+
+```json
+{
+  "Mcp": {
+    "PublicEndpoint": "https://sql-agent.example.com/mcp"
+  }
+}
+```
+
+対応する environment variable は `Mcp__PublicEndpoint` です。提供されている Compose configuration は `MCP_PUBLIC_ENDPOINT` をこの設定に map します。
+
+<Callout type="warning" title="MCP connectivity を Admin UI URL から推測しないでください">
+Admin UI と MCP endpoint は、異なる host、port、reverse-proxy path を使う場合があります。非 Development 環境では、server は absolute HTTP/HTTPS public endpoint を要求します。MCP client が実際に到達できる URL を設定してください。
+</Callout>
+
+## 生成される client configuration
+
+Admin Panel は、MCP key の発行・rotation・duplication の直後に Claude Desktop、Cursor、generic Streamable HTTP client 向けの direct HTTP configuration を生成します。
+
+plaintext key は意図的に一時的です。lifecycle dialog を閉じると、server は同じ secret を再表示できません。
+
+## DML compatibility は別の確認項目です
+
+Client が `/mcp` に正常接続できても、DML approval をサポートしている証明にはなりません。
+
+`execute_dml_sql` と公開済み DML Custom Tool には form Elicitation が必要です。Production で DML を許可する前に、実際に導入する client version で次の両方を検証してください。
+
+1. elicitation request を拒否し、mutation が commit されないことを確認する。
+2. elicitation request を承認し、承認した mutation が完了することを確認する。
+
+<Callout type="danger" title="Elicitation がなければ governed DML はありません">
+Client が form Elicitation を宣言・実装していない場合、hs-sql-agent は DML operation を拒否します。query-only client では、key を unrestricted のままにするのではなく、mutation tool を allowed-tool list から除外した MCP key を推奨します。
+</Callout>
+
+## 次に読むもの
+
+<CardGrid columns={2}>
+  <DocCard title="MCP Tools Reference" icon="REF" href="/en/docs/mcp/tools-reference" description="公式の built-in discovery、query、DML tool contract を確認します。" />
+  <DocCard title="Safe DML" icon="DML" href="/ja/docs/sql-compiler/safe-dml" description="preview、approval binding、row-set revalidation、commit を理解します。" />
+</CardGrid>

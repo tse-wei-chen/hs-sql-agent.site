@@ -1,0 +1,48 @@
+---
+title: はじめに
+description: hs-sql-agent が MCP クライアントとデータベースの間で担う役割と、セキュリティ境界の仕組みを説明します。
+sidebar:
+  group: はじめに
+  order: 10
+---
+
+import Callout from "@/components/docs/mdx/Callout.astro";
+import CardGrid from "@/components/docs/mdx/CardGrid.astro";
+import DocCard from "@/components/docs/mdx/DocCard.astro";
+import Flow from "@/components/docs/mdx/Flow.astro";
+
+hs-sql-agent は、**ガバナンスされた SQL アクセス**を提供する HTTP MCP サーバーです。MCP クライアントを PostgreSQL、MySQL、SQL Server、Oracle、SQLite、Firebird に接続しながら、認証、アクセス方針、SQL 検証、mutation approval をサーバー側に保ちます。
+
+<Flow items={["MCP client", "MCP key scope", "SQL compiler", "Policy & capability checks", "Database"]} />
+
+<Callout type="danger" title="LLM をデータベースのセキュリティ境界にしないでください">
+生成された SQL は信頼できない入力です。モデルは SQL を提案できますが、リクエストが認可されているか、意味論がサポートされているか、安全に実行できるかを決定するのはサーバーです。
+</Callout>
+
+## サーバーが担う境界
+
+<CardGrid columns={2}>
+  <DocCard title="Identity & scope" icon="KEY" description="クライアントを 1 つの managed database に結び付け、利用できる tool、table、runtime limit を制限します。" />
+  <DocCard title="SQL semantics" icon="AST" description="サポート対象の SQL を structured definition に parse し、source semantics を検証して target capability を証明した後、provider-specific SQL を compile します。" />
+  <DocCard title="Mutation approval" icon="DML" description="write operation を別のリスククラスとして扱い、preview、one-time approval、revalidation、exact commit を要求します。" />
+  <DocCard title="Operations & audit" icon="OPS" description="rate/concurrency control、audit record、health、telemetry、outbound operational delivery をモデルの外側で管理します。" />
+</CardGrid>
+
+## Compiler boundary
+
+生成された SQL は実行前に parse と validate が行われます。hs-sql-agent はステートメントの意味を保つために必要な capability を確認し、リクエストが source、target、policy の各 boundary を通過した後にのみ provider-specific SQL を生成します。
+
+サポートされていない syntax や semantics は、見た目だけ似た SQL に暗黙変換されるのではなく拒否されます。
+
+<Callout type="info" title="6つの provider をサポートしていても arbitrary vendor SQL passthrough ではありません">
+Provider support は capability-driven です。ある construct を受け入れるには、その意味を表現・検証し、対応する source/target contract に従って安全に render できる必要があります。すべての vendor extension が受け入れられるとは想定せず、SQL support reference を契約として扱ってください。
+</Callout>
+
+## 次に読むもの
+
+<CardGrid columns={2}>
+  <DocCard title="クイックスタート" icon="01" href="/ja/docs/getting-started/quick-start" description="標準の Compose 構成を起動し、最初の MCP key を発行します。" />
+  <DocCard title="MCP クライアントの接続" icon="02" href="/ja/docs/mcp/client-onboarding" description="remote Streamable HTTP MCP client を正しく接続します。" />
+  <DocCard title="SQL 実行モデル" icon="03" href="/ja/docs/sql-compiler/execution-model" description="parse、validation、capability proof、compile、execution boundary を理解します。" />
+  <DocCard title="Safe DML" icon="04" href="/ja/docs/sql-compiler/safe-dml" description="人による承認を組み込んだ mutation protocol を理解します。" />
+</CardGrid>

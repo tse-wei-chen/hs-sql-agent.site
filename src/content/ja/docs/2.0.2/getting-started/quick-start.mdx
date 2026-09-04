@@ -1,0 +1,111 @@
+---
+title: クイックスタート
+description: セットアップ方法を選び、hs-sql-agent を起動して、最初の MCP クライアントを接続します。
+sidebar:
+  group: はじめに
+  order: 20
+---
+
+import Callout from "@/components/docs/mdx/Callout.astro";
+import CardGrid from "@/components/docs/mdx/CardGrid.astro";
+import DocCard from "@/components/docs/mdx/DocCard.astro";
+import Steps from "@/components/docs/mdx/Steps.astro";
+import Step from "@/components/docs/mdx/Step.astro";
+
+<CardGrid columns={3}>
+  <DocCard
+    title="Docker Compose"
+    eyebrow="推奨"
+    badge="~5 min"
+    icon="▣"
+    description="リポジトリに含まれる Compose 構成で、self-hosted の完全なサービスを起動します。"
+    href="#docker-compose"
+  />
+  <DocCard
+    title="ASP.NET Core / NuGet"
+    badge="~10 min"
+    icon=".NET"
+    description="既存の ASP.NET Core アプリケーションに MCP runtime と任意の Admin UI を組み込みます。"
+    href="/en/docs/integration/aspnet-core"
+  />
+  <DocCard
+    title="MCP クライアントを接続"
+    badge="インストール後"
+    icon="MCP"
+    description="scope を限定した key を発行し、Claude Desktop、Cursor、または別の Streamable HTTP client を接続します。"
+    href="/ja/docs/mcp/client-onboarding"
+  />
+</CardGrid>
+
+<Callout type="info" title="ホストアプリケーションを既に所有していない限り、Docker から始めてください">
+Docker Compose が最短経路です。リポジトリに service wiring と environment-variable mapping が既に含まれています。NuGet は、既存の ASP.NET Core host に hs-sql-agent を組み込むチーム向けです。
+</Callout>
+
+## Docker Compose
+
+<Steps>
+  <Step title="environment file を作成" description="checked-in example をコピーし、configuration を明示的かつ review 可能な状態にします。">
+
+```bash
+cp .env.example .env
+```
+
+  </Step>
+  <Step title="signing secret を置き換える" description="HMAC_KEY と JWT_KEY に、それぞれ異なる 32 bytes 以上の unique secret を設定します。">
+`.env.example` の値は placeholder です。そのまま deploy しないでください。
+  </Step>
+  <Step title="サービスを起動" description="標準の single-instance stack を起動します。">
+
+```bash
+docker compose up -d
+```
+
+  </Step>
+  <Step title="Admin Panel を開く" description="標準の application listener は port 8080 です。">
+ローカル環境では `http://localhost:8080` を開き、最初の administrator setup を完了します。
+  </Step>
+</Steps>
+
+## 最初の MCP key を発行
+
+<Steps>
+  <Step title="Runtime → MCP Keys を開く" description="Key は MCP identity と authorization boundary です。" />
+  <Step title="database と tool scope を選ぶ" description="Key を 1 つの Database Management entry に結び付け、client が必要とする tool だけを公開します。" />
+  <Step title="plaintext key をコピー" description="lifecycle dialog に新しく発行された secret が表示されます。client secret store に保存してください。" />
+  <Step title="生成された client configuration を使う" description="または Streamable HTTP endpoint に X-MCP-Server-Key として secret を送信します。" />
+</Steps>
+
+標準の MCP endpoint は `/mcp` です。ローカルマシン外の client から接続する場合は、`MCP_PUBLIC_ENDPOINT` に `/mcp` を含む外部到達可能な absolute HTTP/HTTPS URL を設定します。
+
+<Callout type="warning" title="DML には client 側の Elicitation support が必要です">
+MCP tool を呼び出せるだけで `execute_dml_sql` を有効にしないでください。人が正確な mutation impact を確認して承認するには、client が互換性のある MCP form Elicitation を実装している必要があります。
+</Callout>
+
+## 次に読むもの
+
+<CardGrid columns={2}>
+  <DocCard
+    title="MCP クライアントの接続"
+    icon="01"
+    description="Header、Streamable HTTP configuration、public endpoint rule、DML Elicitation compatibility を確認します。"
+    href="/ja/docs/mcp/client-onboarding"
+  />
+  <DocCard
+    title="SQL 実行モデル"
+    icon="02"
+    description="Agent に SQL を公開する前に、parse → validate → capability proof → compile の boundary を理解します。"
+    href="/ja/docs/sql-compiler/execution-model"
+  />
+  <DocCard
+    title="Database Management"
+    icon="03"
+    description="provider connection の作成、connectivity test、MCP key と database の binding を確認します。"
+    href="/en/docs/administration/database-management"
+  />
+  <DocCard
+    title="Production configuration"
+    icon="04"
+    description="identity、rate limiting、retention、distributed state、telemetry、secret 設定を確認します。"
+    href="/en/docs/operations/configuration"
+  />
+</CardGrid>

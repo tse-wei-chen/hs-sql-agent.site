@@ -1,0 +1,41 @@
+---
+title: SQL 実行モデル
+description: hs-sql-agent が信頼できない SQL を、実行前に検証済みの provider-specific statement へ変換する流れを説明します。
+sidebar:
+  group: SQL Compiler
+  order: 40
+---
+
+hs-sql-agent は生成された SQL を信頼済み command として扱いません。実行境界は parse、validation、capability check、access policy、provider-specific compilation を中心に設計されています。
+
+## Query path
+
+Query execution は概ね次の順序で進みます。
+
+1. MCP key を認証し、その database、table、tool、execution scope を適用する。
+2. サポート対象の SQL を structured definition / AST に parse する。
+3. statement と source semantics を validate する。
+4. semantics を維持するために必要な target/provider capability を確認する。
+5. 設定された database provider 向けの SQL を compile/render する。
+6. 設定された runtime limit の範囲で実行する。
+
+SQL compiler implementation には source-validation と target-capability の明示的な stage があります。サポートされていない syntax や証明できない capability は、表面的に似た construct へ暗黙変換されるのではなく拒否されます。
+
+## なぜ fail closed なのか
+
+Cross-database SQL には、見た目は同等でも null behavior、type rule、operator semantics、pagination、identifier、function、DML behavior が異なる construct が多数あります。
+
+AI-facing execution surface での "best effort" rewrite は危険です。構文的に有効なまま意味だけが変わる可能性があるため、hs-sql-agent は暗黙の semantic downgrade より明示的な rejection を優先します。
+
+## Provider-specific output
+
+公開される MCP surface は共通ですが、最終的な SQL は provider-specific です。現在の database provider は次の 6 つです。
+
+- PostgreSQL
+- MySQL
+- SQL Server
+- Oracle
+- SQLite
+- Firebird
+
+Support は意図的に bounded です。Provider がサポートされていることは、その database の全 syntax feature が受け入れられることを意味しません。個々の compiler capability は、その semantics を表現・検証できる場合にだけ拡張されます。

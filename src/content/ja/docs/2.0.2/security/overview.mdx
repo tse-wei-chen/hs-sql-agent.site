@@ -1,0 +1,42 @@
+---
+title: セキュリティ概要
+description: データベース governance を LLM の外側に保つ server-side control と、それを保護する operational setting を説明します。
+sidebar:
+  group: セキュリティ
+  order: 120
+---
+
+hs-sql-agent は、AI model 自体を security boundary にしないよう設計されています。Authentication、database scope、table policy、tool restriction、SQL validation、mutation approval は server が強制します。
+
+## MCP access boundary
+
+MCP client は発行済み key で authenticate します。Runtime policy は key を database に bind し、利用可能な table と tool を制限できます。
+
+query-only client では、client が自主的に DML を避けることに依存せず、allowed-tool list を制限してください。
+
+## SQL boundary
+
+生成された SQL は provider-specific compilation の前に parse と validate が行われます。サポートされていない language または target capability は、暗黙に downgrade されるのではなく fail closed します。
+
+DML には別の approval protocol が加わります。Human acceptance は validated mutation plan に binding され、row-set mutation は execution 前に commit transaction 内で revalidate されます。
+
+## Administrative identity
+
+Server は local authentication に加え、任意の OIDC/SSO と TOTP MFA 関連設定をサポートします。OIDC settings には authority、client credential、claim mapping、scope、role mapping、verified-email requirement、auto-provisioning が含まれます。
+
+保護された login または MFA state を application restart 後も維持する必要がある場合は、設定した data-protection key path を永続化してください。
+
+## Operational protection
+
+Security-related runtime setting には次が含まれます。
+
+- sign-in lockout threshold と duration
+- global/request rate limiting
+- distributed security-policy synchronization
+- signed alert と SIEM webhook
+- audit retention と archive/fallback path
+- distributed control の fail-closed coordination mode
+
+## 脆弱性の報告
+
+Security vulnerability を public issue で公開しないでください。Repository の GitHub Security Advisory にある **Report a Vulnerability** flow を使用し、responsible disclosure で調査と修正を進めてください。

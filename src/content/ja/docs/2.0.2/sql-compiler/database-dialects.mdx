@@ -1,0 +1,32 @@
+---
+title: Database Dialects
+description: 共通の MCP surface の背後にある 6 つの database provider と、bounded dialect support の意味を説明します。
+sidebar:
+  group: SQL Compiler
+  order: 60
+---
+
+hs-sql-agent は現在、次の 6 つの relational database provider を対象にしています。
+
+| Provider | Role |
+| --- | --- |
+| PostgreSQL | Source and target SQL dialect |
+| MySQL | Source and target SQL dialect |
+| SQL Server | Source and target SQL dialect |
+| Oracle | Source and target SQL dialect |
+| SQLite | Source and target SQL dialect |
+| Firebird | Source and target SQL dialect |
+
+## 1つの MCP surface は 1つの SQL dialect を意味しません
+
+MCP client は共通の server contract を利用しますが、SQL semantics は provider-specific のままです。Compiler は、設定された database provider に対してサポート対象 statement の意味を維持する責任を持ちます。
+
+この違いは、operator、type、cast、function、identifier、pagination、null semantics、DML behavior などで重要になります。
+
+## Bounded support
+
+Database が provider list に含まれているからといって、その database が提供するすべての syntax feature を受け入れるわけではありません。
+
+Compiler は source construct を表現できない場合、または equivalent target capability を証明できない場合に意図的に fail closed します。Capability coverage はこのルールを弱めずに拡張できます。
+
+Production では、vendor CLI が受け入れる arbitrary SQL も hs-sql-agent が受け入れると仮定せず、compiler acceptance を contract として扱ってください。
