@@ -52,7 +52,8 @@ const marketingUi: Record<string, MarketingUiStrings> = {
     breadcrumbLabel: "麵包屑導覽",
     learnMore: "了解更多",
     integrations: {
-      claudeDesktop: "使用受限的伺服器金鑰，透過 Streamable HTTP 直接連接 MCP。",
+      claudeDesktop:
+        "使用受限的伺服器金鑰，透過 Streamable HTTP 直接連接 MCP。",
       cursor: "透過自訂要求標頭連接遠端 MCP，存取政策仍由伺服器端執行。",
       aspNetCore: "使用 HsSqlAgent.Server NuGet 套件嵌入既有 .NET 主機。",
     },
@@ -79,7 +80,8 @@ const marketingUi: Record<string, MarketingUiStrings> = {
     breadcrumbLabel: "面包屑导航",
     learnMore: "了解更多",
     integrations: {
-      claudeDesktop: "使用权限受限的服务器密钥，通过 Streamable HTTP 直接连接 MCP。",
+      claudeDesktop:
+        "使用权限受限的服务器密钥，通过 Streamable HTTP 直接连接 MCP。",
       cursor: "通过自定义请求头连接远程 MCP，访问策略仍由服务器端执行。",
       aspNetCore: "使用 HsSqlAgent.Server NuGet 包嵌入现有 .NET 宿主。",
     },

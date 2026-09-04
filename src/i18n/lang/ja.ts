@@ -97,7 +97,10 @@ export default {
     sidebarLabel: "ドキュメントナビゲーション",
     onThisPage: "このページの内容",
   },
-  footer: { copyright: "著作権", allRightsReserved: "すべての権利を留保します。" },
+  footer: {
+    copyright: "著作権",
+    allRightsReserved: "すべての権利を留保します。",
+  },
   pages: {
     tagTitle: "タグ",
     tagDesc: "このタグが付いたすべての記事",
