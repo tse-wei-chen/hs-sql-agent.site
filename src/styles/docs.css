@@ -1,5 +1,6 @@
 .docs-shell {
   position: relative;
+  max-width: 96rem;
 }
 
 .docs-shell::before {
@@ -342,7 +343,8 @@
 .doc-svg-pulse { animation: doc-pulse-opacity 2.2s ease-in-out infinite; }
 
 .doc-article {
-  max-width: 52rem;
+  max-width: none;
+  width: 100%;
 }
 
 .doc-page .app-prose {
@@ -409,14 +411,14 @@
   margin: 0;
 }
 
-.doc-page .app-prose > ol {
+.doc-page .app-prose > ol:not(.docs-steps):not(.docs-auto-steps) {
   counter-reset: doc-step;
   margin-block: 1.8rem 2.4rem;
   padding-left: 0;
   list-style: none;
 }
 
-.doc-page .app-prose > ol > li {
+.doc-page .app-prose > ol:not(.docs-steps):not(.docs-auto-steps) > li {
   position: relative;
   counter-increment: doc-step;
   min-height: 3.2rem;
@@ -424,7 +426,7 @@
   padding: .7rem .8rem .85rem 3.6rem;
 }
 
-.doc-page .app-prose > ol > li::before {
+.doc-page .app-prose > ol:not(.docs-steps):not(.docs-auto-steps) > li::before {
   position: absolute;
   inset-block-start: .6rem;
   inset-inline-start: .25rem;
@@ -442,7 +444,7 @@
   letter-spacing: .05em;
 }
 
-.doc-page .app-prose > ol > li:not(:last-child)::after {
+.doc-page .app-prose > ol:not(.docs-steps):not(.docs-auto-steps) > li:not(:last-child)::after {
   position: absolute;
   inset-block-start: 2.65rem;
   inset-block-end: -.35rem;

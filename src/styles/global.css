@@ -22,7 +22,7 @@
 }
 
 @utility max-w-app {
-  @apply max-w-3xl;
+  max-width: 96rem;
 }
 
 @utility app-layout {
@@ -31,6 +31,12 @@
 
 @utility active-nav {
   @apply underline decoration-wavy decoration-2 underline-offset-8;
+}
+
+.site-shell {
+  width: 100%;
+  max-width: 96rem;
+  margin-inline: auto;
 }
 
 :target {

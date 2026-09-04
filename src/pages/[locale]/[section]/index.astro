@@ -8,7 +8,6 @@ import { getMarketingPages, isMarketingSection, type MarketingSection } from "@/
 import config from "@/config";
 import "@/styles/marketing.css";
 
-const sections = ["databases", "features", "integrations"] as const;
 const copy = {
   en: {
     databases: ["Database support", "Secure MCP access for PostgreSQL, MySQL, SQL Server, Oracle, SQLite, and Firebird."],
@@ -23,6 +22,7 @@ const copy = {
 } as const;
 
 export function getStaticPaths() {
+  const sections = ["databases", "features", "integrations"] as const;
   return locales.flatMap(locale => sections.map(section => ({ params: { locale, section } })));
 }
 

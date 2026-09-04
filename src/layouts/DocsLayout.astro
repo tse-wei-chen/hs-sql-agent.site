@@ -126,7 +126,12 @@ const versionedDocsPrefix = `${getDocsIndexUrl(locale, docsVersion).replace(/\/$
     {versioned}
   />
 
-  <div class="docs-shell mx-auto grid w-full max-w-7xl flex-1 grid-cols-1 gap-8 px-4 py-8 sm:px-6 lg:grid-cols-[15rem_minmax(0,1fr)] xl:grid-cols-[15rem_minmax(0,1fr)_13rem]">
+  <div
+    class:list={[
+      "docs-shell site-shell grid flex-1 grid-cols-1 gap-8 px-4 py-8 sm:px-6 lg:grid-cols-[15rem_minmax(0,1fr)]",
+      toc.length > 0 && "xl:grid-cols-[15rem_minmax(0,1fr)_13rem]",
+    ]}
+  >
     <aside class="doc-sidebar border-border hidden lg:sticky lg:top-20 lg:block lg:h-[calc(100svh-6rem)] lg:overflow-y-auto lg:border-r lg:pr-5">
       <DocsVersionSwitcher
         {locale}
@@ -191,9 +196,9 @@ const versionedDocsPrefix = `${getDocsIndexUrl(locale, docsVersion).replace(/\/$
       )}
     </main>
 
-    <aside class="hidden xl:block">
-      <div class="sticky top-20">
-        {toc.length > 0 && (
+    {toc.length > 0 && (
+      <aside class="hidden xl:block">
+        <div class="sticky top-20">
           <nav class="doc-toc" aria-label={t.docs.onThisPage}>
             <h2 class="mb-3 text-sm font-semibold">{t.docs.onThisPage}</h2>
             <ul class="border-border space-y-2 border-l pl-3 text-sm">
@@ -204,9 +209,9 @@ const versionedDocsPrefix = `${getDocsIndexUrl(locale, docsVersion).replace(/\/$
               ))}
             </ul>
           </nav>
-        )}
-      </div>
-    </aside>
+        </div>
+      </aside>
+    )}
   </div>
 
   <Footer />

@@ -48,7 +48,7 @@
 
 .hero-shell {
   display: grid;
-  width: min(100% - 2rem, 80rem);
+  width: min(100% - 2rem, 96rem);
   min-height: min(800px, calc(100svh - 64px));
   margin-inline: auto;
   align-items: center;
@@ -367,7 +367,7 @@
 }
 
 .section-shell {
-  width: min(100% - 2rem, 80rem);
+  width: min(100% - 2rem, 96rem);
   margin-inline: auto;
   padding-block: 7rem;
 }
@@ -651,7 +651,7 @@
 
 @media (max-width: 560px) {
   .hero-shell,
-  .section-shell { width: min(100% - 1.25rem, 80rem); }
+  .section-shell { width: min(100% - 1.25rem, 96rem); }
   .hero-shell { gap: 2.5rem; padding-block: 3.6rem 4.5rem; }
   .hero-title { font-size: clamp(2.75rem, 15vw, 4.2rem); }
   .quick-command { display: flex; width: 100%; }
