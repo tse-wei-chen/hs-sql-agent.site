@@ -25,7 +25,7 @@ import Step from "@/components/docs/mdx/Step.astro";
     title="ASP.NET Core / NuGet"
     badge="~10 Min."
     icon=".NET"
-    description="Die MCP-Laufzeit und optional die Admin-Oberfläche in eine vorhandene ASP.NET-Core-Anwendung einbetten."
+    description="Die MCP-Laufzeit und optional die Administrationsoberfläche in eine vorhandene ASP.NET-Core-Anwendung einbetten."
     href="/en/docs/integration/aspnet-core"
   />
   <DocCard
@@ -61,7 +61,7 @@ docker compose up -d
 ```
 
   </Step>
-  <Step title="Admin Panel öffnen" description="Die Anwendung lauscht standardmäßig auf Port 8080.">
+  <Step title="Administrationsoberfläche öffnen" description="Die Anwendung lauscht standardmäßig auf Port 8080.">
 Öffnen Sie für eine lokale Installation `http://localhost:8080` und schließen Sie die Einrichtung des ersten Administrators ab.
   </Step>
 </Steps>
@@ -71,7 +71,7 @@ docker compose up -d
 <Steps>
   <Step title="Runtime → MCP Keys öffnen" description="Schlüssel bilden die Identitäts- und Autorisierungsgrenze für MCP." />
   <Step title="Datenbank und Werkzeugumfang wählen" description="Binden Sie den Schlüssel an einen Database-Management-Eintrag und geben Sie nur die Werkzeuge frei, die der Client benötigt." />
-  <Step title="Klartextschlüssel kopieren" description="Der Lebenszyklusdialog zeigt das neu erstellte Geheimnis einmal zum Kopieren an; speichern Sie es im Secret Store des Clients." />
+  <Step title="Klartextschlüssel kopieren" description="Der Lebenszyklusdialog zeigt das neu erstellte Geheimnis einmal zum Kopieren an; speichern Sie es im Secretspeicher des Clients." />
   <Step title="Generierte Clientkonfiguration verwenden" description="Alternativ senden Sie das Geheimnis als X-MCP-Server-Key an den Streamable-HTTP-Endpunkt." />
 </Steps>
 
