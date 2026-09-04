@@ -3,7 +3,6 @@ import satori from "satori";
 import sharp from "sharp";
 import { fontData, experimental_getFontFileURL } from "astro:assets";
 import { getFontPathByWeight } from "@/utils/getFontPathByWeight";
-import config from "@/config";
 
 export const GET: APIRoute = async context => {
   const fonts = fontData["--font-google-sans-code"];

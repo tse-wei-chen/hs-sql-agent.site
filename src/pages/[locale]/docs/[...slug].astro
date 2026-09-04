@@ -107,11 +107,12 @@ const {
   docsVersion,
   versioned,
   redirectTo,
-} = Astro.props;
-const routeVersion = versioned ? docsVersion : null;
-
+}: Props = Astro.props;
 if (redirectTo) {
-  return Astro.redirect(getDocsRouteUrl(locale, redirectTo, routeVersion), 301);
+  return Astro.redirect(
+    getDocsRouteUrl(locale, redirectTo, versioned ? docsVersion : null),
+    301
+  );
 }
 
 if (!doc) {
