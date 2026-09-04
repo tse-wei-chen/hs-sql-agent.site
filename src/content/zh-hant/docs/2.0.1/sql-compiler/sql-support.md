@@ -1,6 +1,6 @@
 ---
 title: SQL 支援參考
- description: hs-sql-agent 2.0.1 的 SQL 語法與六資料庫 capability 摘要。
+description: hs-sql-agent 2.0.1 的 SQL 語法與六資料庫 capability 摘要。
 sidebar:
   group: SQL Compiler
   order: 62
