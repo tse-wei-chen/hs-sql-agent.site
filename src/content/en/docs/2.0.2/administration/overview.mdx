@@ -30,7 +30,7 @@ The Admin Panel is the **operator control plane** for hs-sql-agent. Operators de
   <DocCard title="Audit" icon="AUD" href="/en/docs/administration/audit" description="Search, summarize, export, and apply retention to runtime and security audit records." />
   <DocCard title="Security Policies" icon="POL" href="/en/docs/administration/security-policies" description="Manage query, DML, per-key rate-limit, and SQL concurrency enforcement." />
   <DocCard title="Operability" icon="P95" href="/en/docs/administration/operability" description="Inspect execution metrics, DB health, key usage, and outbound delivery state." />
-  <DocCard title="Admin HTTP API" icon="API" href="/en/docs/reference/api-reference" description="Source-backed 2.0.1 controller routes and authorization surface used by the bundled UI." />
+  <DocCard title="Admin HTTP API" icon="API" href="/en/docs/reference/api-reference" description="Source-backed 2.0.2 controller routes and authorization surface used by the bundled UI." />
 </CardGrid>
 
 ## Recommended operator flow
@@ -53,8 +53,10 @@ When a key is issued, rotated, or duplicated, the UI can generate direct Streama
 
 Copy the generated configuration before closing the dialog.
 
-## Embedded UI is optional for library consumers
+## Embedded UI and built-in identity are optional
 
-When hs-sql-agent is embedded in an ASP.NET Core application, `UseHsSqlAgent()` can expose the API/MCP pipeline without serving the Admin UI. Calling `.ServeAdminUi()` enables the packaged UI as well.
+An ASP.NET Core host can expose the HsSqlAgent Admin API without serving the packaged Admin UI. In the modular integration path, use `UseHsSqlAgentAdminApi()` and let the host call `MapControllers()`; add `UseHsSqlAgentAdminUi()` only when the packaged UI is wanted.
 
-See [ASP.NET Core integration](/en/docs/integration/aspnet-core) for host setup and deployment considerations.
+The host can also use `AddHsSqlAgentHostAuthorization(...)` to keep its existing login and permission system instead of installing HsSqlAgent members, roles, JWT, SMTP, or OIDC. MCP is selected and mapped independently with `AddHsSqlAgentMcp(...)` / `UseHsSqlAgentMcp()`.
+
+See [ASP.NET Core integration](/en/docs/integration/aspnet-core) for the complete 2.0.2 composition model.
