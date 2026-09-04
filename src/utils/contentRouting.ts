@@ -18,11 +18,7 @@ export type LocalizedContentIdentity = {
 export function parseLocalizedContentId(id: string): LocalizedContentIdentity {
   const parts = id.replace(/^\/+|\/+$/g, "").split("/");
 
-  if (
-    parts.length < 4 ||
-    parts[1] !== "docs" ||
-    !isDocsVersion(parts[2])
-  ) {
+  if (parts.length < 4 || parts[1] !== "docs" || !isDocsVersion(parts[2])) {
     throw new Error(
       `Invalid localized documentation id "${id}". Expected <locale>/docs/<version>/<slug>.`
     );
@@ -36,7 +32,10 @@ export function parseLocalizedContentId(id: string): LocalizedContentIdentity {
   };
 }
 
-export function getContentLocale(id: string, _section: "docs" = "docs"): string {
+export function getContentLocale(
+  id: string,
+  _section: "docs" = "docs"
+): string {
   return parseLocalizedContentId(id).locale;
 }
 
@@ -44,7 +43,10 @@ export function getDocSourceVersion(id: string): string {
   return parseLocalizedContentId(id).version;
 }
 
-export function getLocalizedSlug(id: string, _section: "docs" = "docs"): string {
+export function getLocalizedSlug(
+  id: string,
+  _section: "docs" = "docs"
+): string {
   return parseLocalizedContentId(id).slug;
 }
 
@@ -118,9 +120,7 @@ export function getDocsRouteUrl(
   slug: string,
   routeVersion: string | null = null
 ): string {
-  const path = routeVersion
-    ? `docs/${routeVersion}/${slug}`
-    : `docs/${slug}`;
+  const path = routeVersion ? `docs/${routeVersion}/${slug}` : `docs/${slug}`;
   return getRelativeLocaleUrl(locale, path.replace(/\/$/, ""));
 }
 
