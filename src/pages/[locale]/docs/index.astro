@@ -1,0 +1,30 @@
+---
+import { getCollection } from "astro:content";
+import DocsLayout from "@/layouts/DocsLayout.astro";
+import DocsIndexGroups from "@/components/docs/DocsIndexGroups.astro";
+import { docsVersions } from "@/data/docsVersions";
+import { locales } from "@/utils/getPostsByLocale";
+import { getDocsForVersion } from "@/utils/contentRouting";
+import { useTranslations } from "@/i18n";
+import config from "@/config";
+
+export async function getStaticPaths() {
+  return locales.map(locale => ({ params: { locale } }));
+}
+
+const locale = Astro.currentLocale ?? config.site.lang;
+const allDocs = await getCollection("docs", ({ data }) => !data.draft);
+const docs = getDocsForVersion(allDocs, locale, docsVersions.current);
+const t = useTranslations(locale);
+---
+
+<DocsLayout
+  title={t.docs.indexTitle}
+  description={t.docs.indexDescription}
+  {locale}
+  {docs}
+  {allDocs}
+  docsVersion={docsVersions.current}
+>
+  <DocsIndexGroups {docs} {locale} />
+</DocsLayout>

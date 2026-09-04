@@ -1,166 +1,140 @@
-# AstroPaper 📄
+# hs-sql-agent.site
 
-![AstroPaper](public/default-og.jpg)
-[![Figma](https://img.shields.io/badge/Figma-F24E1E?style=for-the-badge&logo=figma&logoColor=white)](https://www.figma.com/community/file/1356898632249991861)
-![Typescript](https://img.shields.io/badge/TypeScript-007ACC?style=for-the-badge&logo=typescript&logoColor=white)
-![GitHub](https://img.shields.io/github/license/satnaing/astro-paper?color=%232F3741&style=for-the-badge)
-[![Conventional Commits](https://img.shields.io/badge/Conventional%20Commits-1.0.0-%23FE5196?logo=conventionalcommits&logoColor=white&style=for-the-badge)](https://conventionalcommits.org)
-[![Commitizen friendly](https://img.shields.io/badge/commitizen-friendly-brightgreen.svg?style=for-the-badge)](http://commitizen.github.io/cz-cli/)
+Official product website and documentation for [hs-sql-agent](https://github.com/tse-wei-chen/hs-sql-agent).
 
-AstroPaper is a minimal, responsive, accessible and SEO-friendly Astro blog theme. This theme is designed and crafted based on [my personal blog](https://satnaing.dev/blog).
+The site is built with Astro and is intentionally static/SEO-first. It combines a product landing experience, search-oriented database/feature/integration pages, and the canonical technical documentation that replaces the old GitHub Wiki structure.
 
-Read [the blog posts](https://astro-paper.pages.dev/posts/) or check [the README Documentation Section](#-documentation) for more info.
+## Local development
 
-## 🔥 Features
-
-- [x] type-safe markdown
-- [x] super fast performance
-- [x] accessible (Keyboard/VoiceOver)
-- [x] responsive (mobile ~ desktops)
-- [x] SEO-friendly
-- [x] light & dark mode
-- [x] static search ([Pagefind](https://pagefind.app/))
-- [x] draft posts & pagination
-- [x] sitemap & rss feed
-- [x] MDX support
-- [x] collapsible table of contents
-- [x] followed best practices
-- [x] highly customizable
-- [x] dynamic OG image generation for blog posts ([Blog Post](https://astro-paper.pages.dev/posts/dynamic-og-image-generation-in-astropaper-blog-posts/))
-- [x] i18n ready
-
-_Note: I've tested screen-reader accessibility of AstroPaper using **VoiceOver** on Mac and **TalkBack** on Android. I couldn't test all other screen-readers out there. However, accessibility enhancements in AstroPaper should be working fine on others as well._
-
-## ✅ Lighthouse Score
-
-<p align="center">
-  <a href="https://pagespeed.web.dev/report?url=https%3A%2F%2Fastro-paper.pages.dev%2F&form_factor=desktop">
-    <img width="710" alt="AstroPaper Lighthouse Score" src="AstroPaper-lighthouse-score.svg">
-  </a>
-</p>
-
-## 🚀 Project Structure
-
-Inside of AstroPaper, you'll see the following folders and files:
+Requires Node.js 22.12+ and pnpm.
 
 ```bash
-/
-├── public/
-│   ├── pagefind/          # auto-generated on build
-│   ├── favicon.svg
-│   └── default-og.jpg
-├── src/
-│   ├── assets/
-│   │   ├── icons/
-│   │   └── images/
-│   ├── components/
-│   ├── content/
-│   │   ├── pages/
-│   │   │   └── about.md
-│   │   └── posts/
-│   │       └── some-blog-posts.md
-│   ├── i18n/
-│   ├── layouts/
-│   ├── pages/
-│   ├── scripts/
-│   ├── styles/
-│   ├── types/
-│   ├── utils/
-│   ├── config.ts
-│   └── content.config.ts
-├── astro-paper.config.ts  # user-defined configurations
-└── astro.config.ts
-```
-
-All blog posts are stored in the `src/content/posts/` directory. You can organise posts into subdirectories — the subdirectory name becomes part of the post URL.
-
-## 📖 Documentation
-
-Documentation can be read in two formats\_ _markdown_ & _blog post_.
-
-- Configuration - [markdown](src/content/posts/how-to-configure-astropaper-theme.md) | [blog post](https://astro-paper.pages.dev/posts/how-to-configure-astropaper-theme/)
-- Add Posts - [markdown](src/content/posts/adding-new-post.md) | [blog post](https://astro-paper.pages.dev/posts/adding-new-posts-in-astropaper-theme/)
-- Customize Color Schemes - [markdown](src/content/posts/customizing-astropaper-theme-color-schemes.md) | [blog post](https://astro-paper.pages.dev/posts/customizing-astropaper-theme-color-schemes/)
-- Predefined Color Schemes - [markdown](src/content/posts/predefined-color-schemes.md) | [blog post](https://astro-paper.pages.dev/posts/predefined-color-schemes/)
-
-## 💻 Tech Stack
-
-**Main Framework** - [Astro](https://astro.build/)  
-**Type Checking** - [TypeScript](https://www.typescriptlang.org/)  
-**Styling** - [TailwindCSS](https://tailwindcss.com/)  
-**UI/UX** - [Figma Design File](https://www.figma.com/community/file/1356898632249991861)  
-**Static Search** - [Pagefind](https://pagefind.app/)  
-**Icons** - [Tablers](https://tabler-icons.io/)  
-**Code Formatting** - [Prettier](https://prettier.io/)  
-**Deployment** - [Cloudflare Pages](https://pages.cloudflare.com/)  
-**Linting** - [ESLint](https://eslint.org)  
-**Dynamic OG images** - [Satori](https://github.com/vercel/satori) + [Sharp](https://sharp.pixelplumbing.com/) + [Astro Fonts](https://docs.astro.build/en/guides/fonts/)
-
-## 👨🏻‍💻 Running Locally
-
-You can start using this project locally by running the following command in your desired directory:
-
-```bash
-# pnpm
-pnpm create astro@latest --template satnaing/astro-paper
-
-# npm
-npm create astro@latest -- --template satnaing/astro-paper
-
-# yarn
-yarn create astro --template satnaing/astro-paper
-
-# bun
-bun create astro@latest -- --template satnaing/astro-paper
-```
-
-Then start the project by running the following commands:
-
-```bash
-# install dependencies if you haven't done so in the previous step.
 pnpm install
-
-# start running the project
 pnpm dev
 ```
 
-## Google Site Verification (optional)
+Production build:
 
-You can add your [Google Site Verification HTML tag](https://support.google.com/webmasters/answer/9008080#meta_tag_verification&zippy=%2Chtml-tag) by setting `site.googleVerification` in `astro-paper.config.ts`:
-
-```ts file="astro-paper.config.ts"
-export default defineAstroPaperConfig({
-  site: {
-    // ...
-    googleVerification: "your-google-site-verification-value",
-  },
-  // ...
-});
+```bash
+pnpm build
 ```
 
-> See [this discussion](https://github.com/satnaing/astro-paper/discussions/334#discussioncomment-10139247) for adding AstroPaper to the Google Search Console.
+The build runs `astro check`, generates the static site, and builds the Pagefind search index.
 
-## 🧞 Commands
+## Information architecture
 
-All commands are run from the root of the project, from a terminal:
+Public routes are locale-prefixed:
 
-| Command          | Action                                                                                                                           |
-| :--------------- | :------------------------------------------------------------------------------------------------------------------------------- |
-| `pnpm install`   | Installs dependencies                                                                                                            |
-| `pnpm dev`       | Starts local dev server at `localhost:4321`                                                                                      |
-| `pnpm build`     | Type-checks, builds the site, runs Pagefind indexing, and copies the index to `public/pagefind/`                                 |
-| `pnpm preview`   | Preview your build locally, before deploying                                                                                     |
-| `pnpm sync`      | Generates TypeScript types for all Astro modules. [Learn more](https://docs.astro.build/en/reference/cli-reference/#astro-sync). |
-| `pnpm astro ...` | Run CLI commands like `astro add`, `astro check`                                                                                 |
+```text
+/en/
+/zh-hant/
 
-## ✨ Feedback & Suggestions
+/<locale>/features/*
+/<locale>/databases/*
+/<locale>/integrations/*
+/<locale>/docs/*
+/<locale>/docs/<version>/*
+```
 
-If you have any suggestions/feedback, you can contact me via [my email](mailto:satnaingdev+astropaper@gmail.com). Alternatively, feel free to open an issue if you find bugs or want to request new features.
+The root route is handled by Astro i18n and redirects to the configured default locale.
 
-## 📜 License
+### Product / SEO pages
 
-Licensed under the MIT License, Copyright © 2026
+Product pages are Astro UI, not Markdown content. Their localized copy is defined in:
 
----
+```text
+src/data/marketing.ts
+```
 
-Made with 🤍 by [Sat Naing](https://satnaing.dev) 👨🏻‍💻 and [contributors](https://github.com/satnaing/astro-paper/graphs/contributors).
+and rendered through the shared marketing route/layout. This keeps landing/product pages free to use custom components, visuals, and animation without coupling those concerns to documentation Markdown.
+
+### Documentation
+
+Canonical technical documentation lives under:
+
+```text
+src/content/<locale>/docs/<version>/
+```
+
+`2.0.1` is the first complete documentation baseline. Documentation versions are declared in `src/data/docsVersions.ts` and form an inheritance chain. Future versions should contain only pages that changed in that version; unchanged pages are inherited from the parent version. A version can also explicitly remove inherited slugs or redirect old slugs.
+
+The public routes deliberately separate stable latest URLs from immutable version URLs:
+
+```text
+/<locale>/docs/*                 -> current effective documentation set
+/<locale>/docs/2.0.1/*           -> fixed 2.0.1 documentation set
+```
+
+When the current version advances, `/docs/*` moves to the new effective set while `/docs/2.0.1/*` remains fixed.
+
+The documentation is organized by product responsibility rather than by historical GitHub Wiki page names:
+
+- Getting Started
+- MCP
+- SQL Compiler
+- Administration
+- Integration
+- Operations
+- Security
+- Development
+- Reference
+
+See [`CONTENT_MIGRATION.md`](./CONTENT_MIGRATION.md) for the migration rules.
+
+## i18n content model
+
+Locale and source version are structural and come from the content path. Do **not** add `locale` or `version` to frontmatter.
+
+Translations intentionally share the same slug inside the same version:
+
+```text
+src/content/en/docs/2.0.1/sql-compiler/safe-dml.md
+src/content/zh-hant/docs/2.0.1/sql-compiler/safe-dml.md
+```
+
+which is available through both the current alias and immutable version route while 2.0.1 is current:
+
+```text
+/en/docs/sql-compiler/safe-dml
+/en/docs/2.0.1/sql-compiler/safe-dml
+
+/zh-hant/docs/sql-compiler/safe-dml
+/zh-hant/docs/2.0.1/sql-compiler/safe-dml
+```
+
+Language switching preserves the selected documentation version. If a translation does not exist, the user falls back to the target-language index for that version instead of a 404.
+
+## SEO
+
+The site generates static pages with:
+
+- canonical URLs
+- locale `hreflang` and `x-default`
+- sitemap and robots.txt
+- Open Graph / X metadata
+- branded dynamic OG image
+- structured data for docs and marketing pages
+- Pagefind search
+- internal links between the homepage, SEO landing pages, and technical docs
+
+The current version's immutable `/docs/<version>/*` routes canonicalize to the stable `/docs/*` aliases to avoid duplicate indexing. Once a version becomes historical, its fixed routes become the canonical historical URLs.
+
+Before publishing, ensure the configured `site.url` matches the real production domain because canonical, sitemap, OG, and hreflang URLs depend on it.
+
+## Design and animation
+
+The public site follows the hs-sql-agent Admin Panel design language while remaining a separate Astro application. The homepage uses CSS-first animation for the SQL compiler pipeline, Safe DML flow, database marquee, scroll reveals, and lightweight pointer interaction.
+
+Documentation Markdown stays renderer-agnostic. Visual documentation heroes, inline SVG animations, code framing, step styling, navigation, and version selection are added by the Astro docs theme rather than embedded as MDX components.
+
+Animations are progressive enhancement: content remains visible without JavaScript and `prefers-reduced-motion` disables motion-heavy effects.
+
+## GitHub Actions
+
+This repository intentionally does not include a GitHub Actions workflow. Build and deployment are expected to run in the chosen external hosting/deployment environment or locally.
+
+## Source and attribution
+
+Product and technical claims should be verified against the current `hs-sql-agent` source repository rather than copied blindly from historical Wiki content.
+
+This site started from AstroPaper and retains the upstream MIT license attribution for derived portions. See [`LICENSE`](./LICENSE).

@@ -1,0 +1,115 @@
+---
+title: SQL Support Reference
+description: Human-readable SQL grammar and provider capability summary for hs-sql-agent 2.0.1.
+sidebar:
+  group: SQL Compiler
+  order: 62
+---
+
+hs-sql-agent 2.0.1 does not treat a database provider's full SQL grammar as automatically trusted input. SQL is accepted only when the F# parser can represent the statement, source semantics validate, required capabilities are proven, and the provider runtime can compile the resulting immutable command.
+
+This page summarizes the 2.0.1 contract. The compiler remains authoritative: an unsupported or version-gated construct fails closed rather than being approximated silently.
+
+## Query baseline
+
+`execute_query_sql` accepts one `SELECT` statement. Its public tool contract explicitly includes these common query shapes:
+
+- `JOIN`
+- `WHERE`
+- `GROUP BY`
+- `HAVING`
+- `ORDER BY`
+- `LIMIT` / `OFFSET`
+- `DISTINCT`
+- common table expressions (CTEs)
+- subqueries
+- `UNION`, `INTERSECT`, and `EXCEPT`
+
+Nested expressions, functions, window expressions, casts, operators, temporal values, JSON operations, and other advanced syntax are still capability checked. Do not infer support for an arbitrary vendor extension from the baseline list.
+
+## DML baseline
+
+`execute_dml_sql` accepts one supported mutation and routes it through Safe DML approval.
+
+| Statement | 2.0.1 MCP DML status | Approval model |
+| --- | --- | --- |
+| `UPDATE` | Supported when the parsed/provider capabilities are valid | Preview affected rows, bind approval to the exact primary-key row set, revalidate in the commit transaction |
+| `DELETE` | Supported when the parsed/provider capabilities are valid | Preview affected rows, bind approval to the exact primary-key row set, revalidate in the commit transaction |
+| `INSERT ... VALUES` | Supported when the parsed/provider capabilities are valid | Bind approval to the immutable literal payload and compiled command, verify approved payload row count at commit |
+| `INSERT ... SELECT` | Rejected | Source-rowset approval semantics are not defined in 2.0.1, so the runtime fails closed |
+
+See [Safe DML](/en/docs/sql-compiler/safe-dml) for the complete approval protocol.
+
+## Six provider model
+
+The SQL Core has provider capability contracts for PostgreSQL, MySQL, SQL Server, Oracle, SQLite, and Firebird. A capability can be:
+
+- **supported** — the target has the required native semantics;
+- **translated** — Core has a declared semantics-preserving provider lowering;
+- **rejected** — there is no proven contract for the requested provider/profile.
+
+Some capabilities also depend on the target server version or SQL Server compatibility level. When a runtime version is required and no safe baseline is declared, omission of that profile keeps the capability disabled.
+
+## Selected provider differences
+
+The table below highlights important 2.0.1 differences. It is intentionally a summary, not a dump of every capability ID in `CapabilityMatrix.fs`.
+
+| Capability | PostgreSQL | MySQL | SQL Server | Oracle | SQLite | Firebird |
+| --- | --- | --- | --- | --- | --- | --- |
+| `RIGHT JOIN` | translated | translated | translated | translated | 3.39+ target profile | translated |
+| `FULL JOIN` | translated | rejected | translated | translated | 3.39+ target profile | translated |
+| aggregate `FILTER` | native; PostgreSQL 9.4+ | rejected | rejected | Oracle 26ai+ profile, with extra predicate restrictions | explicit 3.30+ profile | explicit 4.0+ profile |
+| aggregate-local ordering | native | native | SQL Server 14.0+ and compatibility level 110+ | Oracle 11.2+ | explicit 3.44+ profile | rejected |
+| DML `RETURNING` | translated | rejected | rejected | rejected | explicit 3.35+ profile | explicit 5.0+ profile |
+| upsert contract | translated | rejected | rejected | rejected | explicit 3.24+ profile | rejected |
+| offset-preserving timestamp | translated | rejected | translated | translated | translated | explicit 4.0+ profile |
+| standalone `TIME` | translated | translated | translated | rejected | translated | translated |
+
+`RETURNING` and upsert support in SQL Core do not change the MCP Safe DML rule: the mutation still has to pass the DML runtime's supported-statement and approval contract.
+
+## JSON capabilities
+
+The 2.0.1 capability matrix declares a portable JSON extraction lowering for PostgreSQL, MySQL, and SQLite. JSON mutation via the canonical JSON-set contract is declared for PostgreSQL, MySQL, SQLite, and SQL Server.
+
+PostgreSQL native `->` / `->>` operators are modeled separately because their JSON-versus-text result semantics are provider-specific. They remain fail-closed for cross-provider lowering and require a PostgreSQL target that satisfies the declared version contract.
+
+## Aggregate `FILTER`
+
+Aggregate `FILTER` is deliberately version-sensitive:
+
+- PostgreSQL supports the native contract from 9.4 onward; an explicitly declared older target is rejected.
+- SQLite requires an explicit server profile of 3.30 or newer.
+- Firebird requires an explicit server profile of 4.0 or newer.
+- Oracle requires a 26ai/26.0+ profile and Core additionally rejects filter predicates containing subqueries, window functions, or outer references before Oracle lowering.
+- MySQL and SQL Server have no declared 2.0.1 portable target contract for this capability.
+
+This is an example of why "the vendor can execute this SQL" is not sufficient for hs-sql-agent to accept it.
+
+## Join version gates
+
+SQLite `RIGHT JOIN` and `FULL JOIN` require SQLite 3.39 or newer in the target capability profile. `FULL JOIN` remains rejected for MySQL in the 2.0.1 capability matrix.
+
+A query that depends on one of these capabilities is rejected when the required target contract cannot be proven.
+
+## DML returning and upsert
+
+The 2.0.1 target contracts include:
+
+- PostgreSQL `RETURNING` and upsert lowering;
+- SQLite `RETURNING` with an explicit 3.35+ target profile;
+- Firebird `RETURNING` with an explicit 5.0+ target profile;
+- PostgreSQL and SQLite 3.24+ upsert contracts.
+
+Other provider targets remain rejected for these canonical capabilities in the 2.0.1 matrix.
+
+## Fail-closed diagnostics
+
+Capability failures are not normal database execution errors. The SQL Core distinguishes stages such as source validation/source capability and target capability. This lets the runtime reject a statement before execution when its semantics cannot be represented safely for the requested provider/profile.
+
+Operationally, treat these errors as a request to change the SQL shape or use a capability that is supported by the configured database. Do not work around them by bypassing the compiler.
+
+## What this reference does not promise
+
+This page does not promise every function name, operator spelling, cast target, JSON path form, window frame, or vendor extension. The 2.0.1 capability matrix is significantly more detailed than a single documentation table and includes runtime-version gates.
+
+For MCP clients, use [MCP Tools Reference](/en/docs/mcp/tools-reference) for the public tool contract, and treat actual compiler acceptance as the final bounded SQL contract.

@@ -1,0 +1,41 @@
+---
+type Props = { items: string[]; caption?: string };
+const { items, caption } = Astro.props;
+---
+
+<figure class="docs-flow not-prose">
+  <div class="docs-flow-track" role="list">
+    {items.map((item, index) => (
+      <>
+        <div class="docs-flow-node" role="listitem">
+          <span>{String(index + 1).padStart(2, "0")}</span>
+          <strong>{item}</strong>
+        </div>
+        {index < items.length - 1 && <div class="docs-flow-arrow" aria-hidden="true">→</div>}
+      </>
+    ))}
+  </div>
+  {caption && <figcaption>{caption}</figcaption>}
+</figure>
+
+<style>
+  .docs-flow {
+    margin: 1.3rem 0 1.6rem;
+    overflow: hidden;
+    border: 1px solid var(--border);
+    border-radius: .95rem;
+    background:
+      radial-gradient(circle at 15% 10%, color-mix(in oklch, var(--accent) 9%, transparent), transparent 32%),
+      color-mix(in oklch, var(--background) 97%, var(--muted));
+    padding: 1rem;
+  }
+  .docs-flow-track { display: flex; align-items: stretch; gap: .45rem; overflow-x: auto; padding-bottom: .15rem; }
+  .docs-flow-node {
+    display: flex; min-width: 8rem; flex: 1 0 8rem; flex-direction: column; gap: .35rem;
+    border: 1px solid var(--border); border-radius: .72rem; background: var(--background); padding: .75rem;
+  }
+  .docs-flow-node span { color: var(--accent); font: 700 .68rem/1 var(--font-google-sans-code), monospace; }
+  .docs-flow-node strong { color: var(--foreground); font-size: .82rem; }
+  .docs-flow-arrow { display: grid; place-items: center; color: var(--muted-foreground); font-size: .9rem; }
+  figcaption { margin-top: .75rem; color: var(--muted-foreground); font-size: .75rem; line-height: 1.5; }
+</style>

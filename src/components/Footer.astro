@@ -1,30 +1,42 @@
 ---
 import type { HTMLAttributes } from "astro/types";
+import { getRelativeLocaleUrl } from "astro:i18n";
 import Socials from "./Socials.astro";
 import { useTranslations } from "@/i18n";
+import config from "@/config";
 
 type Props = {
   noMarginTop?: boolean;
 } & HTMLAttributes<"footer">;
 
 const { noMarginTop = false, class: className, ...attrs } = Astro.props;
-
-const t = useTranslations(Astro.currentLocale);
+const locale = Astro.currentLocale ?? config.site.lang;
+const t = useTranslations(locale);
 const currentYear = new Date().getFullYear();
+const links = [
+  { label: t.nav.features, href: "features" },
+  { label: t.nav.databases, href: "databases" },
+  { label: t.nav.integrations, href: "integrations" },
+  { label: t.nav.docs, href: "docs" },
+];
 ---
 
-<footer
-  class:list={["app-layout", { "mt-auto": !noMarginTop }, className]}
-  {...attrs}
->
-  <div
-    class="border-border flex flex-col items-center justify-between border-t py-6 sm:flex-row-reverse sm:py-4"
-  >
-    <Socials />
-    <div class="my-2 flex flex-col items-center whitespace-nowrap sm:flex-row">
-      <span>{t.footer.copyright} &#169; {currentYear} TSE-WEI CHEN</span>
-      <span class="hidden sm:inline">&nbsp;|&nbsp;</span>
-      <span>{t.footer.allRightsReserved}</span>
+<footer class:list={["border-border border-t", { "mt-auto": !noMarginTop }, className]} {...attrs}>
+  <div class="mx-auto grid w-full max-w-7xl gap-8 px-4 py-10 sm:px-6 md:grid-cols-[1fr_auto] md:items-end">
+    <div>
+      <a href={getRelativeLocaleUrl(locale, "")} class="text-lg font-semibold no-underline">hs-sql-agent</a>
+      <p class="text-muted-foreground mt-2 max-w-xl text-sm leading-6">
+        {locale === "zh-hant" ? "在 AI-generated SQL 與資料庫之間建立 compiler、policy 與 human approval boundary。" : "A compiler, policy, and human-approval boundary between AI-generated SQL and your databases."}
+      </p>
+      <nav class="mt-5 flex flex-wrap gap-x-5 gap-y-2 text-sm" aria-label="Footer navigation">
+        {links.map(link => <a class="text-muted-foreground hover:text-primary no-underline" href={getRelativeLocaleUrl(locale, link.href)}>{link.label}</a>)}
+        <a class="text-muted-foreground hover:text-primary no-underline" href="https://github.com/tse-wei-chen/hs-sql-agent" rel="external">GitHub</a>
+      </nav>
+    </div>
+
+    <div class="md:text-right">
+      <Socials />
+      <p class="text-muted-foreground mt-4 text-xs">{t.footer.copyright} © {currentYear} TSE-WEI CHEN · {t.footer.allRightsReserved}</p>
     </div>
   </div>
 </footer>

@@ -1,0 +1,41 @@
+---
+import { getRelativeLocaleUrl } from "astro:i18n";
+import MarketingLayout from "@/layouts/MarketingLayout.astro";
+import MarketingBody from "@/components/MarketingBody.astro";
+import {
+  getMarketingPage,
+  getMarketingRoutes,
+  isMarketingSection,
+  type MarketingPage,
+} from "@/data/marketing";
+import { locales } from "@/utils/getPostsByLocale";
+
+export function getStaticPaths() {
+  return getMarketingRoutes().map(route => {
+    const page = getMarketingPage(route.locale, route.section, route.slug);
+    if (!page) {
+      throw new Error(`Missing marketing page: ${route.locale}/${route.section}/${route.slug}`);
+    }
+    return { params: route, props: { page } };
+  });
+}
+
+type Props = { page: MarketingPage };
+const { page } = Astro.props;
+const sectionParam = Astro.params.section ?? "";
+if (!isMarketingSection(sectionParam)) {
+  throw new Error(`Unknown marketing section: ${sectionParam}`);
+}
+
+const alternates = locales
+  .map(locale => getMarketingPage(locale, page.section, page.slug))
+  .filter((candidate): candidate is MarketingPage => Boolean(candidate))
+  .map(candidate => ({
+    locale: candidate.locale,
+    href: getRelativeLocaleUrl(candidate.locale, `${candidate.section}/${candidate.slug}`),
+  }));
+---
+
+<MarketingLayout {page} {alternates}>
+  <MarketingBody sections={page.body} />
+</MarketingLayout>

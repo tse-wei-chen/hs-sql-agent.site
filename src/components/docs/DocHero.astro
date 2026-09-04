@@ -1,0 +1,30 @@
+---
+import DocVisual from "./DocVisual.astro";
+import { getDocSectionLabel, getDocVisualKind } from "@/data/docsVisuals";
+
+type Props = {
+  title: string;
+  description?: string;
+  locale: string;
+  currentSlug?: string;
+};
+
+const { title, description, locale, currentSlug = "" } = Astro.props;
+const visualKind = getDocVisualKind(currentSlug);
+const sectionLabel = getDocSectionLabel(currentSlug, locale);
+const isZh = locale === "zh-hant";
+---
+
+<header class:list={["doc-hero", { "doc-hero-has-visual": visualKind }]}> 
+  <div class="doc-hero-copy">
+    <div class="doc-kicker-row">
+      <span>{isZh ? "文件" : "Docs"}</span>
+      <span aria-hidden="true">/</span>
+      <span>{sectionLabel}</span>
+    </div>
+    <h1>{title}</h1>
+    {description && <p>{description}</p>}
+  </div>
+
+  {visualKind && <DocVisual kind={visualKind} {locale} />}
+</header>

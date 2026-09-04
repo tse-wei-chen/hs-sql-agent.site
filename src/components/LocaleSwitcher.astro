@@ -1,16 +1,63 @@
 ---
+import { getCollection } from "astro:content";
 import { getRelativeLocaleUrl } from "astro:i18n";
 import { locales, localeLabels } from "@/utils/getPostsByLocale";
+import {
+  getDocsForVersion,
+  hasDocInVersion,
+} from "@/utils/contentRouting";
+import { docsVersions, isDocsVersion } from "@/data/docsVersions";
+import { hasMarketingPage, isMarketingSection } from "@/data/marketing";
+import { stripBase, stripLocale } from "@/utils/withBase";
 
-const currentLocale = (Astro.currentLocale ?? "en");
+const currentLocale = Astro.currentLocale ?? "en";
+const relativePath = stripBase(Astro.url.pathname);
+const localeFreePath = stripLocale(relativePath, currentLocale)
+  .replace(/^\/+/, "")
+  .replace(/\/+$/, "");
+const [firstSegment = "", ...restSegments] = localeFreePath.split("/");
+
+let translatedLocales: Set<string> | null = null;
+let fallbackPath = "";
+
+if (firstSegment === "docs") {
+  const docs = await getCollection("docs", ({ data }) => !data.draft);
+  const docsSegments = restSegments.filter(Boolean);
+  const firstDocsSegment = docsSegments[0] ?? "";
+  const versioned = isDocsVersion(firstDocsSegment);
+  const docsVersion = versioned ? firstDocsSegment : docsVersions.current;
+  const currentSlug = (versioned ? docsSegments.slice(1) : docsSegments).join("/");
+
+  if (currentSlug) {
+    translatedLocales = new Set(
+      locales.filter(locale =>
+        hasDocInVersion(docs, locale, docsVersion, currentSlug)
+      )
+    );
+  } else {
+    translatedLocales = new Set(
+      locales.filter(locale => getDocsForVersion(docs, locale, docsVersion).length > 0)
+    );
+  }
+
+  fallbackPath = versioned ? `docs/${docsVersion}` : "docs";
+} else if (isMarketingSection(firstSegment) && restSegments.length > 0) {
+  const marketingSlug = restSegments.join("/");
+  translatedLocales = new Set(
+    locales.filter(locale => hasMarketingPage(locale, firstSegment, marketingSlug))
+  );
+  fallbackPath = firstSegment;
+}
+
+function getLocaleHref(locale: string): string {
+  if (translatedLocales && !translatedLocales.has(locale)) {
+    return getRelativeLocaleUrl(locale, fallbackPath);
+  }
+  return getRelativeLocaleUrl(locale, localeFreePath);
+}
 ---
 <div class="relative">
-  <button
-    id="locale-btn"
-    type="button"
-    class="focus-outline hover:text-accent flex cursor-pointer items-center gap-1 px-2 py-1 text-sm font-medium transition"
-    aria-label="Switch language"
-  >
+  <button id="locale-btn" type="button" class="focus-outline hover:text-accent flex cursor-pointer items-center gap-1 px-2 py-1 text-sm font-medium transition" aria-label="Switch language">
     <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="size-4"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
     <span class="max-sm:sr-only">{localeLabels[currentLocale]}</span>
     <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="size-3"><polyline points="6 9 12 15 18 9"/></svg>
@@ -19,7 +66,7 @@ const currentLocale = (Astro.currentLocale ?? "en");
     {locales.map(locale => {
       const active = locale === currentLocale;
       return (
-        <a href={active ? "#" : getRelativeLocaleUrl(locale, "")} role="menuitem" class:list={["block rounded-sm px-3 py-1.5 text-sm no-underline transition", active ? "bg-accent text-white dark:text-accent-foreground pointer-events-none" : "text-foreground hover:bg-muted"]} aria-current={active ? "page" : undefined}>
+        <a href={active ? "#" : getLocaleHref(locale)} role="menuitem" class:list={["block rounded-sm px-3 py-1.5 text-sm no-underline transition", active ? "bg-accent text-white dark:text-accent-foreground pointer-events-none" : "text-foreground hover:bg-muted"]} aria-current={active ? "page" : undefined}>
           {localeLabels[locale]}
         </a>
       );
@@ -29,10 +76,9 @@ const currentLocale = (Astro.currentLocale ?? "en");
 
 <script>
   document.addEventListener("click", function (e) {
-    var btn = document.getElementById("locale-btn");
-    var menu = document.getElementById("locale-menu");
+    const btn = document.getElementById("locale-btn");
+    const menu = document.getElementById("locale-menu");
     if (!btn || !menu) return;
-
     if (btn.contains(e.target as Node)) {
       e.stopPropagation();
       menu.classList.toggle("hidden");

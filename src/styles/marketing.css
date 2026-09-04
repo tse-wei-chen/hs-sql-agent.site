@@ -1,0 +1,60 @@
+.marketing-page { overflow: clip; }
+.marketing-hero {
+  position: relative;
+  isolation: isolate;
+  border-bottom: 1px solid color-mix(in oklab, var(--border) 45%, transparent);
+  background:
+    radial-gradient(circle at 78% 22%, color-mix(in oklab, var(--info) 18%, transparent), transparent 28rem),
+    radial-gradient(circle at 22% 10%, color-mix(in oklab, var(--primary) 16%, transparent), transparent 32rem);
+}
+.marketing-hero::after {
+  position: absolute; inset: 0; z-index: -1; content: "";
+  background-image:
+    linear-gradient(color-mix(in oklab, var(--border) 14%, transparent) 1px, transparent 1px),
+    linear-gradient(90deg, color-mix(in oklab, var(--border) 14%, transparent) 1px, transparent 1px);
+  background-size: 48px 48px;
+  mask-image: linear-gradient(to bottom, black, transparent 90%);
+}
+.marketing-shell { width: min(100% - 2rem, 76rem); margin-inline: auto; }
+.marketing-hero-grid { display: grid; align-items: center; gap: 4rem; min-height: 38rem; padding-block: 5rem; }
+.marketing-breadcrumb { display: flex; gap: .55rem; color: var(--muted-foreground); font-size: .75rem; }
+.marketing-breadcrumb a { color: inherit; text-decoration: none; }
+.marketing-breadcrumb a:hover { color: var(--primary); }
+.marketing-eyebrow { margin-top: 2rem; color: var(--primary); font-size: .76rem; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; }
+.marketing-hero h1 { max-width: 12ch; margin-top: .9rem; font-size: clamp(3rem, 6.5vw, 6.3rem); font-weight: 760; letter-spacing: -.06em; line-height: .96; text-wrap: balance; }
+.marketing-lead { max-width: 44rem; margin-top: 1.5rem; color: var(--muted-foreground); font-size: clamp(1.05rem, 2vw, 1.22rem); line-height: 1.75; }
+.marketing-actions { display: flex; flex-wrap: wrap; gap: .75rem; margin-top: 2rem; }
+.marketing-button { display: inline-flex; align-items: center; gap: .5rem; border: 1px solid color-mix(in oklab, var(--border) 65%, transparent); padding: .78rem 1.05rem; color: var(--foreground); font-size: .9rem; font-weight: 750; text-decoration: none; transition: transform .18s ease, border-color .18s ease, box-shadow .18s ease; }
+.marketing-button:hover { transform: translateY(-2px); border-color: var(--info); }
+.marketing-button-primary { border-color: var(--primary); background: var(--primary); color: var(--primary-foreground); box-shadow: 0 1rem 3rem color-mix(in oklab, var(--primary) 18%, transparent); }
+.marketing-orbit { position: relative; width: min(30rem, 75vw); aspect-ratio: 1; margin-inline: auto; border: 1px solid color-mix(in oklab, var(--border) 35%, transparent); border-radius: 999px; animation: marketing-spin 28s linear infinite; }
+.marketing-orbit::before,.marketing-orbit::after { position: absolute; inset: 17%; border: 1px solid color-mix(in oklab, var(--border) 32%, transparent); border-radius: 999px; content: ""; }
+.marketing-orbit::after { inset: 34%; }
+.marketing-orbit-core { position: absolute; inset: 50% auto auto 50%; display: grid; width: 6rem; aspect-ratio: 1; place-items: center; border: 1px solid var(--primary); background: var(--background); color: var(--primary); font-size: .95rem; font-weight: 850; text-align: center; transform: translate(-50%,-50%) rotate(0deg); box-shadow: 0 0 3rem color-mix(in oklab, var(--primary) 22%, transparent); }
+.marketing-orbit-dml .marketing-orbit-core { border-color: var(--secondary); color: var(--secondary); box-shadow: 0 0 3rem color-mix(in oklab, var(--secondary) 24%, transparent); }
+.marketing-orbit-integration .marketing-orbit-core { border-color: var(--info); color: var(--info); box-shadow: 0 0 3rem color-mix(in oklab, var(--info) 24%, transparent); }
+.orbit-node { position: absolute; border: 1px solid color-mix(in oklab, var(--border) 52%, transparent); background: color-mix(in oklab, var(--card) 88%, transparent); padding: .5rem .7rem; font-size: .72rem; font-weight: 750; backdrop-filter: blur(10px); animation: marketing-counterspin 28s linear infinite; }
+.orbit-node-a { top: 4%; left: 48%; } .orbit-node-b { top: 48%; right: -7%; } .orbit-node-c { bottom: 3%; left: 41%; } .orbit-node-d { top: 45%; left: -8%; }
+.marketing-highlights { display: grid; gap: 1px; margin-top: -1px; border: 1px solid color-mix(in oklab, var(--border) 40%, transparent); background: color-mix(in oklab, var(--border) 25%, transparent); }
+.marketing-highlights article { background: var(--background); padding: 1.5rem; }
+.marketing-highlights article > span { color: var(--primary); font-size: .67rem; font-weight: 800; letter-spacing: .1em; }
+.marketing-highlights h2 { margin-top: 2rem; font-size: 1.05rem; font-weight: 750; }
+.marketing-highlights p { margin-top: .5rem; color: var(--muted-foreground); font-size: .86rem; line-height: 1.65; }
+.marketing-content-grid { display: grid; gap: 4rem; padding-block: 6rem 8rem; }
+.marketing-prose { max-width: 50rem; }
+.marketing-copy-section + .marketing-copy-section { margin-top: 4rem; }
+.marketing-copy-section > h2 { text-wrap: balance; }
+.marketing-code { margin-top: 1.5rem; overflow: hidden; border: 1px solid color-mix(in oklab, var(--border) 60%, transparent); background: color-mix(in oklab, var(--card) 82%, var(--background)); }
+.marketing-code-label { border-bottom: 1px solid color-mix(in oklab, var(--border) 55%, transparent); padding: .6rem .9rem; color: var(--muted-foreground); font-size: .7rem; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
+.marketing-code pre { margin: 0; overflow-x: auto; padding: 1rem; background: transparent; }
+.marketing-code code { font-size: .82rem; }
+.marketing-related { position: sticky; top: 6rem; border-left: 1px solid var(--border); padding-left: 1rem; }
+.marketing-related > p { color: var(--muted-foreground); font-size: .7rem; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; }
+.marketing-related ul { margin-top: .75rem; list-style: none; }
+.marketing-related a { display: flex; justify-content: space-between; gap: 1rem; padding-block: .5rem; color: var(--foreground); font-size: .82rem; text-decoration: none; }
+.marketing-related a:hover { color: var(--primary); }
+@keyframes marketing-spin { to { transform: rotate(360deg); } }
+@keyframes marketing-counterspin { to { transform: rotate(-360deg); } }
+@media (min-width: 860px) { .marketing-hero-grid { grid-template-columns: minmax(0,1.08fr) minmax(24rem,.92fr); } .marketing-highlights { grid-template-columns: repeat(3,minmax(0,1fr)); } .marketing-content-grid { grid-template-columns: minmax(0,1fr) 15rem; } }
+@media (max-width: 859px) { .marketing-hero-grid { min-height: auto; } .marketing-orbit { width: min(24rem,80vw); } .marketing-highlights { grid-template-columns: 1fr; } }
+@media (prefers-reduced-motion: reduce) { .marketing-orbit,.orbit-node { animation: none !important; } .marketing-button { transition: none; } }

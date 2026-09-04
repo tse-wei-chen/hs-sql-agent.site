@@ -1,0 +1,41 @@
+<ol class="docs-auto-steps not-prose"><slot /></ol>
+
+<style>
+  .docs-auto-steps {
+    counter-reset: auto-step;
+    display: grid;
+    gap: .7rem;
+    margin: 1.15rem 0 1.5rem;
+    padding: 0;
+    list-style: none;
+  }
+  .docs-auto-steps :global(> li) {
+    counter-increment: auto-step;
+    position: relative;
+    min-height: 2.8rem;
+    border: 1px solid var(--border);
+    border-radius: .78rem;
+    background: color-mix(in oklch, var(--background) 97%, var(--muted));
+    padding: .78rem .9rem .78rem 3.2rem;
+    color: var(--muted-foreground);
+    line-height: 1.6;
+  }
+  .docs-auto-steps :global(> li)::before {
+    content: counter(auto-step, decimal-leading-zero);
+    position: absolute;
+    top: .72rem;
+    left: .8rem;
+    display: grid;
+    place-items: center;
+    width: 1.75rem;
+    height: 1.75rem;
+    border: 1px solid color-mix(in oklch, var(--accent) 30%, var(--border));
+    border-radius: 999px;
+    background: var(--background);
+    color: var(--accent);
+    font: 700 .66rem/1 var(--font-google-sans-code), monospace;
+  }
+  .docs-auto-steps :global(> li > p) { margin: 0; }
+  .docs-auto-steps :global(> li > p + p) { margin-top: .5rem; }
+  .docs-auto-steps :global(> li strong) { color: var(--foreground); }
+</style>

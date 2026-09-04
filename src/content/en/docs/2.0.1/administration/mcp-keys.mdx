@@ -1,0 +1,104 @@
+---
+title: MCP Keys
+description: Issue, scope, rotate, clone, and revoke MCP credentials in hs-sql-agent 2.0.1.
+sidebar:
+  group: Administration
+  order: 74
+---
+
+import Callout from "@/components/docs/mdx/Callout.astro";
+import CardGrid from "@/components/docs/mdx/CardGrid.astro";
+import DocCard from "@/components/docs/mdx/DocCard.astro";
+import Steps from "@/components/docs/mdx/Steps.astro";
+import Step from "@/components/docs/mdx/Step.astro";
+
+<CardGrid columns={3}>
+  <DocCard title="Database boundary" icon="DB" description="Every production key is bound to a Database Management entry." />
+  <DocCard title="Tool boundary" icon="T" description="Expose only the built-in and published custom tools the client needs." />
+  <DocCard title="Table boundary" icon="▦" description="Optionally restrict the key to an explicit qualified-table whitelist." />
+</CardGrid>
+
+MCP keys authenticate `/mcp` requests and carry the runtime authorization scope used by hs-sql-agent. They are separate from Admin user sessions and OIDC identities.
+
+## Formal 2.0.1 built-in tool surface
+
+The key-management service recognizes five built-in tools:
+
+| Tool | Scope |
+| --- | --- |
+| `get_schemas` | schema discovery |
+| `get_tables` | table discovery |
+| `get_columns` | column discovery |
+| `execute_query_sql` | governed `SELECT` execution |
+| `execute_dml_sql` | governed Safe DML |
+
+Published Custom Tools for the same database can also be selected by name. See [Custom Tools](/en/docs/administration/custom-tools).
+
+<Callout type="info" title="Empty tool scope means unrestricted, not no tools">
+The runtime treats an empty `AllowedTools` value as no tool-name restriction. For production agents, explicitly select the smallest tool set the client needs instead of relying on the unrestricted form.
+</Callout>
+
+## Issue a key
+
+<Steps>
+  <Step title="Choose a name" description="The request requires a non-empty name and limits it to 100 characters." />
+  <Step title="Bind a database" description="DbManagementId is required by the 2.0.1 issuance validator." />
+  <Step title="Select tools" description="Choose built-in tools plus any published Custom Tools for that database." />
+  <Step title="Restrict data access" description="Enable a table whitelist when the client should see only a subset of the bound database." />
+  <Step title="Set lifecycle controls" description="Optionally configure expiration, CORS origins, and rate-limit mode/overrides." />
+  <Step title="Copy the plaintext secret" description="Store the newly issued key in the client secret store before closing the lifecycle dialog." />
+</Steps>
+
+## Issuance fields
+
+| Field | Meaning |
+| --- | --- |
+| `Name` | Operator-facing key name |
+| `ExpiresAt` | Optional expiration; when present it must be in the future |
+| `AllowedTools` | Comma-separated tool names; empty means unrestricted |
+| `CorsAllowedOrigins` | Optional origin restriction for browser-originating MCP requests |
+| `DbManagementId` | Bound database entry; required on issuance |
+| `TableWhitelist` | Optional comma-separated qualified-table allowlist |
+| `RateLimitMode` | `Inherit`, `Custom`, or `Unlimited` |
+| `PermitLimitOverride` | Used by custom per-key rate limiting |
+| `WindowSecondsOverride` | Used by custom per-key rate limiting |
+
+The stored key record exposes only a short prefix for identification. The raw secret is verified using the server HMAC secret and is not intended to be re-displayed later.
+
+## Rotate a key
+
+Rotation creates a replacement key with the old key's database/tool/table/CORS/rate-limit scope.
+
+The operator can choose a grace period from `0` to `1440` minutes:
+
+- `0` revokes the old key immediately;
+- a positive value shortens the old key's expiry to the grace-period deadline when necessary;
+- the replacement receives its own newly generated plaintext secret.
+
+<Callout type="tip" title="Use rotation for secret replacement, not silent scope changes">
+If the new client should receive a materially different database or table boundary, review that change explicitly instead of treating it as routine secret rotation.
+</Callout>
+
+## Clone a key
+
+Clone creates a new key with copied runtime scope and a new name/secret. It is useful when two clients need equivalent permissions but should not share one credential.
+
+A cloned key has an independent lifecycle: it can be revoked or rotated without invalidating the source key.
+
+## Revoke a key
+
+Revocation marks the key inactive and writes a revocation tombstone into the validation-cache path before the change is committed. This is designed to prevent a recently revoked credential from continuing to validate through stale cache state.
+
+Bootstrap-managed keys cannot be edited, rotated, or revoked through the normal lifecycle methods; their lifecycle is controlled by bootstrap configuration.
+
+## Rate-limit behavior
+
+A key can inherit the runtime key rate-limit policy, define a custom override, or be explicitly unlimited. The Admin list view also reports the effective rate limit after combining the key mode with the current security policy.
+
+For multi-instance deployments, use the distributed rate-limiter configuration when limits must be coordinated across nodes.
+
+## DML and Elicitation
+
+Selecting `execute_dml_sql` changes the client compatibility requirement. The MCP client must support the form-Elicitation flow used for interactive mutation approval.
+
+Read [MCP client onboarding](/en/docs/mcp/client-onboarding) before granting DML to a new client.

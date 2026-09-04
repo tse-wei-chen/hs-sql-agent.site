@@ -1,13 +1,8 @@
-import type { CollectionEntry } from "astro:content";
-import config from "@/astro-paper.config"
-const i18n = config.features?.internationalization;
-const locales = i18n?.enabled ? i18n.locales : ['en']
-const localeLabels = i18n?.enabled ? i18n.localeLabels : { en: "English" }
-export { locales, localeLabels };
+import config from "@/astro-paper.config";
 
-export function getPostsByLocale(
-  posts: CollectionEntry<"posts">[],
-  locale: string
-) {
-  return posts.filter(post => post.data.locale === locale);
-}
+const i18n = config.features?.internationalization;
+
+export const locales = i18n?.enabled ? i18n.locales : ["en"];
+export const localeLabels = i18n?.enabled
+  ? i18n.localeLabels
+  : { en: "English" };

@@ -1,7 +1,8 @@
 {
-  "name": "astro-paper-v6",
+  "name": "hs-sql-agent-site",
+  "private": true,
   "type": "module",
-  "version": "6.1.0",
+  "version": "0.1.0",
   "engines": {
     "node": ">=22.12.0"
   },

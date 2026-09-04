@@ -1,0 +1,186 @@
+---
+title: MCP Tools Reference
+description: hs-sql-agent 2.0.1 正式 built-in MCP tools 的參數、回傳、authorization 與風險邊界。
+sidebar:
+  group: MCP
+  order: 35
+---
+
+import Callout from "@/components/docs/mdx/Callout.astro";
+import CardGrid from "@/components/docs/mdx/CardGrid.astro";
+import DocCard from "@/components/docs/mdx/DocCard.astro";
+import Flow from "@/components/docs/mdx/Flow.astro";
+
+<CardGrid columns={3}>
+  <DocCard title="Schema discovery" icon="▦" badge="low risk" description="get_schemas、get_tables、get_columns 先探索 key 綁定的 database，再產生 SQL。" />
+  <DocCard title="Query SQL" icon="SELECT" badge="read" description="execute_query_sql 接受單一 governed SELECT，回傳 serialized result rows。" />
+  <DocCard title="Safe DML" icon="DML" badge="approval" description="execute_dml_sql 只能透過 preview、Elicitation 與 commit-time revalidation 執行支援的 mutation。" />
+</CardGrid>
+
+**2.0.1 由 MCP key 正式管理的 built-in tool surface** 只有五個 tool names：
+
+| Tool | Public input | Result shape | Risk |
+| --- | --- | --- | --- |
+| `get_schemas` | 無 | comma-separated schema names | metadata read |
+| `get_tables` | `schemaName: string` | comma-separated table descriptions | metadata read |
+| `get_columns` | `schemaName: string`, `tableName: string` | JSON array of column objects | metadata read |
+| `execute_query_sql` | `sql: string` | JSON result rows，或 execution error text | data read |
+| `execute_dml_sql` | `sql: string` | approval/execution result text | data mutation |
+
+Published Custom Tools 可以依 database 擴充 tool collection，但不算額外 built-in tools。
+
+<Callout type="warning" title="Tool discovery 本身也受 authorization scope 控制">
+MCP session 會在 MCP-key authentication 之後建立 tool collection。當 `AllowedTools` 明確設定時，只暴露名稱吻合的 built-in 或 published custom tools。空白 tool allowlist 代表不限制 tool name，所以 production key 通常應明確選最小必要集合。
+</Callout>
+
+## 建議 discovery flow
+
+<Flow items={["get_schemas", "get_tables", "get_columns", "execute_query_sql"]} caption="先探索 physical structure，再要求 model 產生 SQL。DML 刻意不放進預設 read flow。" />
+
+Client 不知道可靠 schema 時，先用 metadata tools。這些 tool 都在 authenticated key 的 database context 中執行，不接受 model 自行傳入 connection string。
+
+## `get_schemas`
+
+回傳 MCP key 綁定 database 的 provider metadata runtime 所提供的 schemas。
+
+**Parameters：** 無。
+
+**Success result：** 以逗號串接的 schema names。
+
+**Authorization / limits：**
+
+- explicit tool allowlist 存在時，key 必須允許 `get_schemas`；
+- database provider/connection 由 authenticated key context 解析；
+- operation 會取得 shared SQL-concurrency limiter lease；
+- success/failure 會寫 audit action `mcp.get_schemas`。
+
+Tool 不接受 database ID 或 connection string 作為 model input。
+
+## `get_tables`
+
+```text
+get_tables(schemaName: string)
+```
+
+回傳指定 schema 的 provider-reported tables；如果 MCP key 有 table whitelist，結果會先被過濾。
+
+如果綁定的 Database Management entry 有 semantic metadata，可見 table 還可能附加：
+
+- display name；
+- description；
+- synonyms；
+- 該 table scope 下的 metric descriptions。
+
+**Success result：** comma-separated string，因此 entry 可能比 raw physical table name 更豐富。
+
+**Audit action：** `mcp.get_tables`。
+
+<Callout type="info" title="Table whitelist 也會限制 discovery">
+受限 key 不應該透過 `get_tables` 得知 boundary 外的 tables。Semantic enrichment 不會擴大這個 boundary。
+</Callout>
+
+## `get_columns`
+
+```text
+get_columns(schemaName: string, tableName: string)
+```
+
+Server 先檢查 requested qualified table 是否在 MCP key 允許範圍，再讀 provider column metadata，最後 serialize 成 JSON array。
+
+2.0.1 每個 `ColumnInfo` object 會暴露：
+
+| Property | 意義 |
+| --- | --- |
+| `Name` | physical column name |
+| `Column` | 同一 column-name value 的 alias |
+| `Type` | provider-reported column type |
+| `Description` | 有 semantic enrichment 時的描述 |
+| `IsPrimaryKey` | provider metadata 是否標示為 primary key 一部分 |
+| `PrimaryKeyOrdinal` | composite primary key 中的 nullable ordinal |
+
+Semantic enrichment 可以把 display name、description、synonyms 與 relationship descriptions 加進 `Description`。Relationship context 只有在 key table whitelist 同時允許兩端 table 時才會出現。
+
+**Audit action：** `mcp.get_columns`。
+
+## `execute_query_sql`
+
+```text
+execute_query_sql(sql: string)
+```
+
+接受**單一 `SELECT` SQL statement**。2.0.1 public tool description 明確列出常見 query forms：JOIN、WHERE、GROUP BY、HAVING、ORDER BY、LIMIT/OFFSET、DISTINCT、CTE、subquery，以及 UNION/INTERSECT/EXCEPT。
+
+<Flow items={["Parse", "Bind", "Authorize tables", "Validate policy", "Compile immutable command", "Execute"]} caption="Raw SQL 不會直接送給 provider。" />
+
+Request 進入 F# typed-query runtime。Runtime 會在 governed path 中取得 referenced tables、CTE/subquery 等 facts，並用於 audit evidence。
+
+**Success result：** returned row collection 的 JSON serialization。
+
+**Failure result：** 一般失敗回傳以 `Execution failed:` 開頭的文字；caller cancellation 則直接 propagate，不會包成普通 result string。
+
+**Runtime boundaries：**
+
+- MCP tool allowlist；
+- MCP-key database binding；
+- table whitelist；
+- current security/query policy；
+- SQL concurrency limiter；
+- source/target SQL capability checks；
+- audit event `mcp.query.executed`，記錄 operation、duration、returned rows 與 compiler-derived definition facts。
+
+可搭配 [SQL 支援參考](/zh-hant/docs/sql-compiler/sql-support)。
+
+## `execute_dml_sql`
+
+```text
+execute_dml_sql(sql: string)
+```
+
+MCP-visible input 是 SQL。`.NET` method 裡的 `McpServer` 與 cancellation token 是 runtime 注入的 infrastructure，不是 agent 要傳的欄位。
+
+2.0.1 MCP DML path 支援：
+
+| Statement | 狀態 |
+| --- | --- |
+| `UPDATE` | parse、capability、policy、approval 全部通過時支援 |
+| `DELETE` | parse、capability、policy、approval 全部通過時支援 |
+| `INSERT ... VALUES` | 支援 immutable-payload approval semantics |
+| `INSERT ... SELECT` | 2.0.1 fail-closed 拒絕 |
+
+<Flow items={["Parse + verify profile", "Compile mutation", "Preview exact impact", "Human Elicitation", "Transaction revalidation", "Commit"]} caption="Approval 綁定 validated mutation context，不只是原始 SQL 文字。" />
+
+UPDATE/DELETE approval 會綁定精確 primary-key row set，commit-time code 在 transaction 內再次驗證 row identities。INSERT VALUES 則把 approval 綁定 immutable literal payload 與 exact compiled command，commit 時再驗證 approved payload row count。
+
+若真人拒絕或 validation 無法完成，mutation 不 commit。Audit 使用 `mcp.dml.executed`，並記錄 operation、processing duration、affected rows、approval status 與必要的 error category。
+
+<Callout type="danger" title="不要把 DML 授權給不支援 MCP form Elicitation 的 client">
+只支援 MCP tool call 不夠；client 必須能顯示並回傳 Safe DML 使用的 interactive approval form。
+</Callout>
+
+完整 protocol 請見 [Safe DML](/zh-hant/docs/sql-compiler/safe-dml)。
+
+## Built-in tools 的共通 errors
+
+常見失敗包括：
+
+- MCP authorization context 缺失；
+- explicit tool allowlist 不含該 tool；
+- database provider/connection configuration 無效；
+- SQL-concurrency limiter 無法取得 lease（`Server busy`）；
+- requested table 不在 key whitelist；
+- SQL 為空、語法不支援、policy rejection 或 capability rejection；
+- provider execution failure。
+
+Tool 會回傳 bounded error information，而不是 fallback 到 unrestricted provider execution。
+
+## Custom Tools
+
+Published Custom Tools 會依 MCP key 綁定的 Database Management entry 載入，也可以依名稱放進同一個 `AllowedTools`。執行仍會經過 runtime database binding、table whitelist、security policy、concurrency controls、audit path；DML custom tool 同樣要走 approval pipeline。
+
+請見 [Custom Tools](/zh-hant/docs/administration/custom-tools)。
+
+## Semantic metadata 不列為第六個正式 built-in
+
+2.0.1 repository 裡確實存在 semantic-management implementation detail，但正式 MCP key built-in registry 與 Admin key-management surface 所管理的仍是本頁五個 tools。因此官方 2.0.1 docs 把 semantic metadata 視為**由 Admin/control plane 管理、由 schema discovery 消費的能力**，不把它宣稱成額外正式 built-in MCP contract。
+
+請見 [Semantic Metadata](/zh-hant/docs/administration/semantic-metadata)。

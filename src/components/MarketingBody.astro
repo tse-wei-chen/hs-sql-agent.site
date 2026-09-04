@@ -1,0 +1,27 @@
+---
+import type { MarketingBodySection } from "@/data/marketing";
+
+type Props = {
+  sections: MarketingBodySection[];
+};
+
+const { sections } = Astro.props;
+---
+
+{sections.map(section => (
+  <section class="marketing-copy-section">
+    <h2>{section.title}</h2>
+    {section.paragraphs.map(paragraph => <p>{paragraph}</p>)}
+    {section.bullets && section.bullets.length > 0 && (
+      <ul>
+        {section.bullets.map(item => <li>{item}</li>)}
+      </ul>
+    )}
+    {section.code && (
+      <div class="marketing-code" data-pagefind-ignore>
+        {section.code.label && <div class="marketing-code-label">{section.code.label}</div>}
+        <pre><code class={section.code.language ? `language-${section.code.language}` : undefined}>{section.code.value}</code></pre>
+      </div>
+    )}
+  </section>
+))}

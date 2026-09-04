@@ -1,0 +1,111 @@
+---
+title: Quick Start
+description: Choose a setup path, run hs-sql-agent, and connect your first MCP client.
+sidebar:
+  group: Getting Started
+  order: 20
+---
+
+import Callout from "@/components/docs/mdx/Callout.astro";
+import CardGrid from "@/components/docs/mdx/CardGrid.astro";
+import DocCard from "@/components/docs/mdx/DocCard.astro";
+import Steps from "@/components/docs/mdx/Steps.astro";
+import Step from "@/components/docs/mdx/Step.astro";
+
+<CardGrid columns={3}>
+  <DocCard
+    title="Docker Compose"
+    eyebrow="Recommended"
+    badge="~5 min"
+    icon="▣"
+    description="Run the complete self-hosted service with the repository Compose setup."
+    href="#docker-compose"
+  />
+  <DocCard
+    title="ASP.NET Core / NuGet"
+    badge="~10 min"
+    icon=".NET"
+    description="Embed the MCP runtime and optional Admin UI inside an existing ASP.NET Core application."
+    href="/en/docs/integration/aspnet-core"
+  />
+  <DocCard
+    title="Connect an MCP client"
+    badge="after install"
+    icon="MCP"
+    description="Issue a scoped key and connect Claude Desktop, Cursor, or another Streamable HTTP client."
+    href="/en/docs/mcp/client-onboarding"
+  />
+</CardGrid>
+
+<Callout type="info" title="Start with Docker unless you already own the host application">
+Docker Compose is the shortest path because the repository already contains the service wiring and environment-variable mapping. The NuGet path is intended for teams embedding hs-sql-agent into an existing ASP.NET Core host.
+</Callout>
+
+## Docker Compose
+
+<Steps>
+  <Step title="Create your environment file" description="Copy the checked-in example so configuration stays explicit and reviewable.">
+
+```bash
+cp .env.example .env
+```
+
+  </Step>
+  <Step title="Replace the signing secrets" description="Set HMAC_KEY and JWT_KEY to different, unique secrets of at least 32 bytes.">
+The values in `.env.example` are placeholders. Do not deploy them unchanged.
+  </Step>
+  <Step title="Start the service" description="Launch the default single-instance stack.">
+
+```bash
+docker compose up -d
+```
+
+  </Step>
+  <Step title="Open the Admin Panel" description="The default application listener is port 8080.">
+For a local setup, open `http://localhost:8080` and complete the first administrator setup.
+  </Step>
+</Steps>
+
+## Issue your first MCP key
+
+<Steps>
+  <Step title="Open Runtime → MCP Keys" description="Keys are the MCP identity and authorization boundary." />
+  <Step title="Choose the database and tool scope" description="Bind the key to one Database Management entry and expose only the tools the client needs." />
+  <Step title="Copy the plaintext key" description="The lifecycle dialog displays the newly issued secret for you to copy; keep it in the client secret store." />
+  <Step title="Use the generated client configuration" description="Or send the secret as X-MCP-Server-Key to the Streamable HTTP endpoint." />
+</Steps>
+
+The default MCP endpoint is `/mcp`. For clients outside the local machine, set `MCP_PUBLIC_ENDPOINT` to the externally reachable absolute HTTP or HTTPS URL, including `/mcp`.
+
+<Callout type="warning" title="DML requires client Elicitation support">
+Do not enable `execute_dml_sql` just because a client can call MCP tools. The client also needs compatible MCP form Elicitation so the human can review and approve the exact mutation impact.
+</Callout>
+
+## Where to go next
+
+<CardGrid columns={2}>
+  <DocCard
+    title="MCP client onboarding"
+    icon="01"
+    description="Headers, Streamable HTTP configuration, public endpoint rules, and DML Elicitation compatibility."
+    href="/en/docs/mcp/client-onboarding"
+  />
+  <DocCard
+    title="SQL execution model"
+    icon="02"
+    description="Understand the parse → validate → capability proof → compile boundary before exposing SQL to an agent."
+    href="/en/docs/sql-compiler/execution-model"
+  />
+  <DocCard
+    title="Database Management"
+    icon="03"
+    description="Create provider connections, test connectivity, and understand how MCP keys bind to databases."
+    href="/en/docs/administration/database-management"
+  />
+  <DocCard
+    title="Production configuration"
+    icon="04"
+    description="Review identity, rate limiting, retention, distributed state, telemetry, and secret settings."
+    href="/en/docs/operations/configuration"
+  />
+</CardGrid>

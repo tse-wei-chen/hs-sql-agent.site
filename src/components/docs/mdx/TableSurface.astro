@@ -1,0 +1,17 @@
+<div class="docs-table-surface not-prose"><table><slot /></table></div>
+
+<style>
+  .docs-table-surface {
+    margin: 1.2rem 0 1.55rem;
+    overflow-x: auto;
+    border: 1px solid var(--border);
+    border-radius: .85rem;
+    background: color-mix(in oklch, var(--background) 98%, var(--muted));
+  }
+  table { width: 100%; border-collapse: collapse; font-size: .84rem; }
+  :global(th), :global(td) { border-bottom: 1px solid var(--border); padding: .72rem .8rem; text-align: left; vertical-align: top; }
+  :global(th) { background: color-mix(in oklch, var(--muted) 58%, var(--background)); color: var(--foreground); font-size: .73rem; letter-spacing: .025em; }
+  :global(td) { color: var(--muted-foreground); line-height: 1.55; }
+  :global(tr:last-child td) { border-bottom: 0; }
+  :global(code) { color: var(--foreground); }
+</style>

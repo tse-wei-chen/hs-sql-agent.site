@@ -1,0 +1,66 @@
+---
+type Props = {
+  title: string;
+  description?: string;
+  href?: string;
+  icon?: string;
+  eyebrow?: string;
+  badge?: string;
+};
+const { title, description, href, icon = "→", eyebrow, badge } = Astro.props;
+const Tag = href ? "a" : "div";
+---
+
+<Tag href={href} class="docs-card not-prose">
+  <div class="docs-card-top">
+    <span class="docs-card-icon" aria-hidden="true">{icon}</span>
+    {badge && <span class="docs-card-badge">{badge}</span>}
+  </div>
+  {eyebrow && <span class="docs-card-eyebrow">{eyebrow}</span>}
+  <strong class="docs-card-title">{title}</strong>
+  {description && <span class="docs-card-description">{description}</span>}
+  <div class="docs-card-extra"><slot /></div>
+  {href && <span class="docs-card-arrow" aria-hidden="true">→</span>}
+</Tag>
+
+<style>
+  .docs-card {
+    position: relative;
+    display: flex;
+    min-height: 9.5rem;
+    flex-direction: column;
+    overflow: hidden;
+    border: 1px solid var(--border);
+    border-radius: .9rem;
+    background:
+      radial-gradient(circle at 100% 0%, color-mix(in oklch, var(--accent) 9%, transparent), transparent 38%),
+      color-mix(in oklch, var(--background) 97%, var(--muted));
+    padding: 1rem;
+    color: var(--foreground);
+    text-decoration: none;
+    box-shadow: 0 10px 30px rgb(0 0 0 / .025);
+    transition: border-color 160ms ease, transform 160ms ease, box-shadow 160ms ease;
+  }
+  a.docs-card:hover {
+    transform: translateY(-2px);
+    border-color: color-mix(in oklch, var(--accent) 32%, var(--border));
+    box-shadow: 0 16px 38px rgb(0 0 0 / .07);
+  }
+  .docs-card-top { display: flex; align-items: center; justify-content: space-between; gap: .75rem; margin-bottom: .75rem; }
+  .docs-card-icon {
+    display: grid; place-items: center; min-width: 2rem; height: 2rem; padding: 0 .5rem;
+    border: 1px solid var(--border); border-radius: .58rem; background: var(--background);
+    color: var(--accent); font: 700 .78rem/1 var(--font-google-sans-code), monospace;
+  }
+  .docs-card-badge {
+    border: 1px solid var(--border); border-radius: 999px; padding: .18rem .5rem;
+    color: var(--muted-foreground); font-size: .68rem; font-weight: 650;
+  }
+  .docs-card-eyebrow { color: var(--muted-foreground); font-size: .68rem; font-weight: 700; letter-spacing: .09em; text-transform: uppercase; }
+  .docs-card-title { margin-top: .3rem; font-size: .98rem; }
+  .docs-card-description { margin-top: .35rem; color: var(--muted-foreground); font-size: .82rem; line-height: 1.55; }
+  .docs-card-extra { margin-top: .7rem; color: var(--muted-foreground); font-size: .78rem; line-height: 1.5; }
+  .docs-card-extra:empty { display: none; }
+  .docs-card-arrow { margin-top: auto; padding-top: .75rem; color: var(--accent); font-size: .9rem; transition: transform 160ms ease; }
+  a.docs-card:hover .docs-card-arrow { transform: translateX(3px); }
+</style>

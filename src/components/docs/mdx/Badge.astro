@@ -1,0 +1,25 @@
+---
+type Props = { tone?: "neutral" | "green" | "blue" | "red" | "amber" };
+const { tone = "neutral" } = Astro.props;
+---
+
+<span class:list={["docs-badge not-prose", `docs-badge-${tone}`]}><slot /></span>
+
+<style>
+  .docs-badge {
+    --badge-accent: var(--muted-foreground);
+    display: inline-flex;
+    align-items: center;
+    border: 1px solid color-mix(in oklch, var(--badge-accent) 28%, var(--border));
+    border-radius: 999px;
+    background: color-mix(in oklch, var(--badge-accent) 7%, var(--background));
+    padding: .15rem .48rem;
+    color: var(--badge-accent);
+    font: 650 .68rem/1.2 var(--font-google-sans-code), monospace;
+    vertical-align: middle;
+  }
+  .docs-badge-green { --badge-accent: oklch(0.68 0.16 150); }
+  .docs-badge-blue { --badge-accent: oklch(0.66 0.16 245); }
+  .docs-badge-red { --badge-accent: oklch(0.64 0.22 25); }
+  .docs-badge-amber { --badge-accent: oklch(0.72 0.15 80); }
+</style>

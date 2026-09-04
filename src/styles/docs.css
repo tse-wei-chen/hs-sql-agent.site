@@ -1,0 +1,696 @@
+.docs-shell {
+  position: relative;
+}
+
+.docs-shell::before {
+  position: fixed;
+  inset: 3.5rem 0 auto;
+  z-index: -1;
+  height: 28rem;
+  content: "";
+  pointer-events: none;
+  background:
+    radial-gradient(circle at 72% 8%, color-mix(in oklab, var(--info) 10%, transparent), transparent 28rem),
+    radial-gradient(circle at 30% 10%, color-mix(in oklab, var(--primary) 9%, transparent), transparent 30rem);
+  mask-image: linear-gradient(to bottom, black, transparent);
+}
+
+.doc-sidebar {
+  scrollbar-gutter: stable;
+}
+
+.doc-sidebar-group + .doc-sidebar-group {
+  margin-top: 1.5rem;
+}
+
+.doc-sidebar-title {
+  display: flex;
+  align-items: center;
+  gap: .55rem;
+}
+
+.doc-sidebar-title::before {
+  width: .42rem;
+  height: .42rem;
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--primary) 70%, var(--info));
+  content: "";
+  box-shadow: 0 0 1rem color-mix(in oklab, var(--primary) 30%, transparent);
+}
+
+.doc-sidebar-link {
+  position: relative;
+}
+
+.doc-sidebar-link[aria-current="page"]::before {
+  position: absolute;
+  inset-block: .4rem;
+  inset-inline-start: -.62rem;
+  width: 2px;
+  border-radius: 999px;
+  background: var(--primary);
+  content: "";
+  box-shadow: 0 0 .8rem color-mix(in oklab, var(--primary) 55%, transparent);
+}
+
+.doc-main {
+  min-width: 0;
+}
+
+.doc-hero {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  margin-bottom: 3.2rem;
+  border: 1px solid color-mix(in oklab, var(--border) 70%, transparent);
+  border-radius: 1.25rem;
+  background:
+    linear-gradient(135deg, color-mix(in oklab, var(--card) 92%, transparent), color-mix(in oklab, var(--background) 98%, transparent));
+  box-shadow:
+    0 1.5rem 5rem color-mix(in oklab, var(--foreground) 4%, transparent),
+    inset 0 1px color-mix(in oklab, white 8%, transparent);
+}
+
+.doc-hero::before {
+  position: absolute;
+  inset: 0;
+  z-index: -2;
+  content: "";
+  background-image:
+    linear-gradient(color-mix(in oklab, var(--border) 12%, transparent) 1px, transparent 1px),
+    linear-gradient(90deg, color-mix(in oklab, var(--border) 12%, transparent) 1px, transparent 1px);
+  background-size: 32px 32px;
+  mask-image: linear-gradient(to bottom right, black, transparent 80%);
+}
+
+.doc-hero::after {
+  position: absolute;
+  inset: -30% -10% auto auto;
+  z-index: -1;
+  width: 24rem;
+  height: 24rem;
+  border-radius: 50%;
+  content: "";
+  background: color-mix(in oklab, var(--primary) 12%, transparent);
+  filter: blur(70px);
+}
+
+.doc-hero-copy {
+  padding: clamp(1.6rem, 3vw, 2.5rem);
+}
+
+.doc-kicker-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: .5rem;
+  margin-bottom: .9rem;
+  color: var(--muted-foreground);
+  font-size: .7rem;
+  font-weight: 800;
+  letter-spacing: .11em;
+  text-transform: uppercase;
+}
+
+.doc-kicker-row span:first-child {
+  color: var(--primary);
+}
+
+.doc-hero h1 {
+  max-width: 18ch;
+  font-size: clamp(2.15rem, 5vw, 4rem);
+  font-weight: 760;
+  letter-spacing: -.045em;
+  line-height: 1;
+  text-wrap: balance;
+}
+
+.doc-hero-copy > p {
+  max-width: 48rem;
+  margin-top: 1rem;
+  color: var(--muted-foreground);
+  font-size: clamp(1rem, 1.7vw, 1.12rem);
+  line-height: 1.75;
+}
+
+.doc-hero-has-visual .doc-hero-copy {
+  padding-bottom: 1.25rem;
+}
+
+.doc-visual {
+  position: relative;
+  margin: 0 clamp(.8rem, 2vw, 1.5rem) clamp(.8rem, 2vw, 1.5rem);
+  overflow: hidden;
+  border: 1px solid color-mix(in oklab, var(--border) 55%, transparent);
+  border-radius: 1rem;
+  background:
+    radial-gradient(circle at 50% 20%, color-mix(in oklab, var(--info) 8%, transparent), transparent 40%),
+    color-mix(in oklab, var(--background) 76%, transparent);
+  box-shadow: inset 0 1px color-mix(in oklab, white 5%, transparent);
+}
+
+.doc-visual svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  min-height: 13rem;
+  color: var(--foreground);
+}
+
+.doc-svg-panel {
+  fill: color-mix(in oklab, var(--background) 88%, transparent);
+  stroke: color-mix(in oklab, var(--border) 50%, transparent);
+}
+
+.doc-svg-grid {
+  fill: none;
+  stroke: color-mix(in oklab, var(--border) 17%, transparent);
+  stroke-width: 1;
+}
+
+.doc-svg-node {
+  fill: color-mix(in oklab, var(--card) 88%, transparent);
+  stroke: color-mix(in oklab, var(--border) 75%, transparent);
+  stroke-width: 1;
+}
+
+.doc-svg-label,
+.doc-svg-mono,
+.doc-svg-micro,
+.doc-svg-kicker {
+  fill: var(--foreground);
+  font-family: var(--font-app), system-ui, sans-serif;
+}
+
+.doc-svg-label {
+  font-size: 14px;
+  font-weight: 760;
+}
+
+.doc-svg-kicker {
+  fill: var(--primary);
+  font-size: 9px;
+  font-weight: 850;
+  letter-spacing: 1.35px;
+}
+
+.doc-svg-mono {
+  fill: color-mix(in oklab, var(--foreground) 84%, var(--muted-foreground));
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 10px;
+}
+
+.doc-svg-micro {
+  fill: var(--muted-foreground);
+  font-size: 9px;
+  font-weight: 700;
+}
+
+.doc-svg-label-center {
+  text-anchor: middle;
+}
+
+.doc-svg-flow,
+.doc-svg-line,
+.doc-svg-return,
+.doc-svg-scan,
+.doc-svg-trace-lane,
+.doc-svg-metric,
+.doc-svg-approval {
+  fill: none;
+  stroke: color-mix(in oklab, var(--primary) 58%, var(--border));
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.doc-svg-return,
+.doc-svg-trace-lane {
+  stroke: color-mix(in oklab, var(--border) 68%, transparent);
+  stroke-dasharray: 5 7;
+}
+
+.doc-svg-flow-dashed {
+  stroke-dasharray: 5 6;
+}
+
+.doc-svg-scan {
+  stroke: var(--info);
+  stroke-width: 2;
+  stroke-dasharray: 80 440;
+  animation: doc-scan 4.6s linear infinite;
+}
+
+.doc-svg-packet {
+  fill: var(--primary);
+  filter: drop-shadow(0 0 6px color-mix(in oklab, var(--primary) 80%, transparent));
+}
+
+.doc-svg-packet-alt {
+  fill: var(--info);
+  filter: drop-shadow(0 0 5px color-mix(in oklab, var(--info) 80%, transparent));
+}
+
+.doc-svg-stage-ring,
+.doc-svg-orbit,
+.doc-svg-boundary {
+  fill: none;
+  stroke: color-mix(in oklab, var(--border) 72%, transparent);
+  stroke-width: 1;
+}
+
+.doc-svg-stage-ring {
+  stroke: color-mix(in oklab, var(--primary) 45%, var(--border));
+  stroke-dasharray: 7 5;
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: doc-rotate 14s linear infinite;
+}
+
+.doc-svg-stage-core,
+.doc-svg-core-glow {
+  fill: var(--primary);
+  filter: drop-shadow(0 0 8px color-mix(in oklab, var(--primary) 65%, transparent));
+}
+
+.doc-svg-core-glow {
+  fill: color-mix(in oklab, var(--primary) 10%, var(--background));
+  stroke: color-mix(in oklab, var(--primary) 65%, transparent);
+}
+
+.doc-svg-orbit {
+  stroke-dasharray: 8 8;
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: doc-rotate 24s linear infinite;
+}
+
+.doc-svg-orbit-inner {
+  stroke: color-mix(in oklab, var(--info) 42%, var(--border));
+  animation-direction: reverse;
+  animation-duration: 17s;
+}
+
+.doc-svg-boundary {
+  stroke: color-mix(in oklab, var(--primary) 42%, var(--border));
+  stroke-dasharray: 8 6;
+}
+
+.doc-svg-boundary-inner {
+  stroke: color-mix(in oklab, var(--info) 48%, var(--border));
+}
+
+.doc-svg-gate {
+  animation: doc-gate-pulse 2.8s ease-in-out infinite;
+}
+
+.doc-svg-pulse-ring {
+  fill: none;
+  stroke: var(--primary);
+  stroke-width: 1;
+  opacity: 0;
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: doc-pulse-ring 2.8s ease-out infinite;
+}
+
+.doc-svg-human {
+  animation: doc-float 4.3s ease-in-out infinite;
+}
+
+.doc-svg-span {
+  fill: color-mix(in oklab, var(--primary) 24%, transparent);
+  stroke: color-mix(in oklab, var(--primary) 55%, transparent);
+}
+
+.doc-svg-metric {
+  stroke: var(--info);
+  stroke-width: 2;
+}
+
+.doc-svg-float,
+.doc-svg-stage,
+.doc-svg-span {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: doc-float 5.2s ease-in-out infinite;
+}
+
+.doc-svg-delay-1 { animation-delay: -.8s; }
+.doc-svg-delay-2 { animation-delay: -1.7s; }
+.doc-svg-delay-3 { animation-delay: -2.6s; }
+.doc-svg-pulse { animation: doc-pulse-opacity 2.2s ease-in-out infinite; }
+
+.doc-article {
+  max-width: 52rem;
+}
+
+.doc-page .app-prose {
+  font-size: 1rem;
+  line-height: 1.8;
+}
+
+.doc-page .app-prose > :first-child {
+  margin-top: 0;
+}
+
+.doc-page .app-prose h2 {
+  position: relative;
+  margin-top: 3.2rem;
+  padding-top: .2rem;
+  font-size: clamp(1.45rem, 2vw, 1.85rem);
+  font-style: normal;
+  letter-spacing: -.025em;
+}
+
+.doc-page .app-prose h2::before {
+  position: absolute;
+  inset-block-start: -.8rem;
+  inset-inline-start: 0;
+  width: 2.6rem;
+  height: 2px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--primary), var(--info));
+  content: "";
+}
+
+.doc-page .app-prose h3 {
+  margin-top: 2.35rem;
+  font-style: normal;
+  font-weight: 720;
+  letter-spacing: -.015em;
+}
+
+.doc-page .app-prose p {
+  color: color-mix(in oklab, var(--foreground) 88%, var(--muted-foreground));
+}
+
+.doc-page .app-prose strong {
+  font-weight: 750;
+}
+
+.doc-page .app-prose a {
+  text-decoration-thickness: 1px;
+  text-underline-offset: .25em;
+}
+
+.doc-page .app-prose blockquote {
+  margin-block: 1.8rem;
+  border: 1px solid color-mix(in oklab, var(--info) 35%, var(--border));
+  border-left: 3px solid var(--info);
+  border-radius: .85rem;
+  background: color-mix(in oklab, var(--info) 5%, var(--background));
+  padding: 1rem 1.15rem;
+  opacity: 1;
+  box-shadow: inset 0 1px color-mix(in oklab, white 4%, transparent);
+}
+
+.doc-page .app-prose blockquote p {
+  margin: 0;
+}
+
+.doc-page .app-prose > ol {
+  counter-reset: doc-step;
+  margin-block: 1.8rem 2.4rem;
+  padding-left: 0;
+  list-style: none;
+}
+
+.doc-page .app-prose > ol > li {
+  position: relative;
+  counter-increment: doc-step;
+  min-height: 3.2rem;
+  margin-block: 0;
+  padding: .7rem .8rem .85rem 3.6rem;
+}
+
+.doc-page .app-prose > ol > li::before {
+  position: absolute;
+  inset-block-start: .6rem;
+  inset-inline-start: .25rem;
+  display: grid;
+  width: 2rem;
+  height: 2rem;
+  place-items: center;
+  border: 1px solid color-mix(in oklab, var(--primary) 55%, var(--border));
+  border-radius: .7rem;
+  background: color-mix(in oklab, var(--primary) 6%, var(--background));
+  color: var(--primary);
+  content: counter(doc-step, decimal-leading-zero);
+  font-size: .65rem;
+  font-weight: 850;
+  letter-spacing: .05em;
+}
+
+.doc-page .app-prose > ol > li:not(:last-child)::after {
+  position: absolute;
+  inset-block-start: 2.65rem;
+  inset-block-end: -.35rem;
+  inset-inline-start: 1.22rem;
+  width: 1px;
+  background: linear-gradient(var(--border), transparent);
+  content: "";
+}
+
+.doc-page .app-prose table {
+  display: table;
+  width: 100%;
+  margin-block: 2rem;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-collapse: separate;
+  border-spacing: 0;
+  border-radius: .85rem;
+  font-size: .9rem;
+}
+
+.doc-page .app-prose table thead {
+  background: color-mix(in oklab, var(--muted) 72%, transparent);
+}
+
+.doc-page .app-prose table th,
+.doc-page .app-prose table td {
+  border: 0;
+  border-bottom: 1px solid var(--border);
+  padding: .8rem .9rem;
+}
+
+.doc-page .app-prose table tr:last-child td {
+  border-bottom: 0;
+}
+
+.doc-code-frame {
+  position: relative;
+  margin-block: 1.8rem;
+  overflow: hidden;
+  border: 1px solid color-mix(in oklab, var(--border) 75%, transparent);
+  border-radius: .9rem;
+  background: color-mix(in oklab, var(--card) 88%, var(--background));
+  box-shadow: 0 .8rem 2.5rem color-mix(in oklab, var(--foreground) 4%, transparent);
+}
+
+.doc-code-toolbar {
+  display: flex;
+  min-height: 2.4rem;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  border-bottom: 1px solid color-mix(in oklab, var(--border) 70%, transparent);
+  padding: .45rem .55rem .45rem .8rem;
+  background: color-mix(in oklab, var(--muted) 42%, transparent);
+}
+
+.doc-code-label {
+  display: inline-flex;
+  align-items: center;
+  gap: .45rem;
+  color: var(--muted-foreground);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: .68rem;
+  font-weight: 750;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+}
+
+.doc-code-label::before {
+  width: .45rem;
+  height: .45rem;
+  border-radius: 999px;
+  background: var(--primary);
+  content: "";
+  box-shadow: .7rem 0 var(--info), 1.4rem 0 color-mix(in oklab, var(--foreground) 30%, transparent);
+  margin-right: 1.35rem;
+}
+
+.doc-copy-button {
+  border: 1px solid transparent;
+  border-radius: .45rem;
+  padding: .3rem .5rem;
+  color: var(--muted-foreground);
+  font-size: .7rem;
+  font-weight: 700;
+  transition: border-color .16s ease, color .16s ease, background .16s ease;
+}
+
+.doc-copy-button:hover {
+  border-color: var(--border);
+  background: var(--background);
+  color: var(--foreground);
+}
+
+.doc-code-frame .astro-code {
+  margin: 0;
+  border: 0;
+  outline: 0;
+  border-radius: 0;
+  padding: 1rem 1.1rem;
+}
+
+.doc-code-frame .astro-code code {
+  font-size: .84rem;
+  line-height: 1.75;
+}
+
+.doc-pager {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: .8rem;
+  margin-top: 4rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--border);
+}
+
+.doc-pager a {
+  display: flex;
+  min-height: 5.5rem;
+  flex-direction: column;
+  justify-content: center;
+  border: 1px solid var(--border);
+  border-radius: .8rem;
+  padding: 1rem;
+  text-decoration: none;
+  transition: transform .16s ease, border-color .16s ease, background .16s ease;
+}
+
+.doc-pager a:hover {
+  transform: translateY(-2px);
+  border-color: color-mix(in oklab, var(--primary) 65%, var(--border));
+  background: color-mix(in oklab, var(--primary) 3%, var(--background));
+}
+
+.doc-pager a:last-child {
+  text-align: right;
+}
+
+.doc-pager-label {
+  color: var(--muted-foreground);
+  font-size: .68rem;
+  font-weight: 800;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+
+.doc-pager-title {
+  margin-top: .35rem;
+  font-size: .9rem;
+  font-weight: 720;
+}
+
+.doc-toc a {
+  position: relative;
+}
+
+.doc-toc a:hover::before {
+  position: absolute;
+  inset-block-start: .45em;
+  inset-inline-start: -.78rem;
+  width: .3rem;
+  height: .3rem;
+  border-radius: 999px;
+  background: var(--primary);
+  content: "";
+}
+
+@keyframes doc-float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-5px); }
+}
+
+@keyframes doc-rotate {
+  to { transform: rotate(360deg); }
+}
+
+@keyframes doc-scan {
+  to { stroke-dashoffset: -520; }
+}
+
+@keyframes doc-pulse-ring {
+  0% { opacity: .55; transform: scale(.72); }
+  80%, 100% { opacity: 0; transform: scale(1.22); }
+}
+
+@keyframes doc-gate-pulse {
+  0%, 100% { opacity: .65; }
+  50% { opacity: 1; }
+}
+
+@keyframes doc-pulse-opacity {
+  0%, 100% { opacity: .45; }
+  50% { opacity: 1; }
+}
+
+@media (min-width: 760px) {
+  .doc-hero-has-visual {
+    display: grid;
+    grid-template-columns: minmax(0, .88fr) minmax(22rem, 1.12fr);
+    align-items: stretch;
+  }
+
+  .doc-hero-has-visual .doc-hero-copy {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    padding: clamp(2rem, 4vw, 3rem);
+  }
+
+  .doc-hero-has-visual .doc-visual {
+    align-self: center;
+    margin: 1rem 1rem 1rem 0;
+  }
+}
+
+@media (max-width: 640px) {
+  .doc-hero {
+    border-radius: 1rem;
+  }
+
+  .doc-visual svg {
+    min-height: 10rem;
+  }
+
+  .doc-pager {
+    grid-template-columns: 1fr;
+  }
+
+  .doc-pager a:last-child {
+    text-align: left;
+  }
+
+  .doc-page .app-prose table {
+    display: block;
+    overflow-x: auto;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .doc-visual *,
+  .doc-copy-button,
+  .doc-pager a {
+    animation: none !important;
+    transition: none !important;
+  }
+
+  .doc-svg-packet {
+    display: none;
+  }
+}

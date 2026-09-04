@@ -1,0 +1,110 @@
+---
+title: Semantic Metadata
+description: 在 hs-sql-agent 2.0.1 用 table/column semantics、relationships 與 metric metadata 強化 schema discovery。
+sidebar:
+  group: Administration
+  order: 76
+---
+
+import Callout from "@/components/docs/mdx/Callout.astro";
+import CardGrid from "@/components/docs/mdx/CardGrid.astro";
+import DocCard from "@/components/docs/mdx/DocCard.astro";
+
+<CardGrid columns={3}>
+  <DocCard title="Entities" icon="Aa" description="為 table 與 column 提供 display name、description、synonyms。" />
+  <DocCard title="Relationships" icon="↔" description="描述 source-to-target column relationship、cardinality 與 direction。" />
+  <DocCard title="Metrics" icon="∑" description="以 formula、aggregation、grain、filter、synonyms 描述 scoped metric metadata。" />
+</CardGrid>
+
+Semantic metadata 綁定到 Database Management entry。它會豐富 schema discovery 對實體 database 的描述，但不修改實體 schema。
+
+## Entity metadata
+
+Entity record 可以描述整張 table，或 table 裡的一個 column。
+
+| Field | 意義 |
+| --- | --- |
+| `DbManagementId` | 擁有該 semantic record 的 Database Management entry |
+| `SchemaName` | 選用 schema |
+| `TableName` | 必填 physical table name |
+| `ColumnName` | 選用；不填代表 table-level metadata |
+| `DisplayName` | 人類可讀名稱 |
+| `Description` | Business 或 operational description |
+| `Synonyms` | 描述該 table/column 的替代術語 |
+
+Synonyms 會 trim 空白、case-insensitive 去重，單筆 record 最多保留 100 個值。
+
+## Relationships
+
+Relationship metadata 描述兩個 physical columns 之間的關係。
+
+| Field | 意義 |
+| --- | --- |
+| `Name` | 穩定 relationship name |
+| `SourceSchema` / `SourceTable` / `SourceColumn` | Source side |
+| `TargetSchema` / `TargetTable` / `TargetColumn` | Target side |
+| `Cardinality` | 預設 `many-to-one` |
+| `Direction` | 預設 `source-to-target` |
+| `Description` | 選用的 operator/business explanation |
+
+Schema discovery 只有在 authenticated MCP key 的 table whitelist 同時允許 relationship 兩端 table 時，才會把 relationship description 暴露出去。
+
+## Metrics
+
+Metric metadata 綁定 table，可描述 business measure：
+
+| Field | 意義 |
+| --- | --- |
+| `Name` | 穩定 metric identifier |
+| `DisplayName` | 人類可讀名稱 |
+| `Description` | Business explanation |
+| `Formula` | Formula metadata |
+| `Aggregation` | 預設 `custom`；描述 intended aggregation |
+| `Grain` | 選用 grain metadata |
+| `Filter` | 選用 filter metadata |
+| `Synonyms` | Metric alternate terms |
+| `Executable` | 2.0.1 model 固定為 `false` |
+
+<Callout type="warning" title="Metric 是 metadata，不是 execution bypass">
+2.0.1 semantic metric model 的 `Executable` 是 false。Metric description 可以協助 agent 理解 schema 意義，但不會變成可執行 SQL macro，也不會繞過 SQL compiler 或 authorization pipeline。
+</Callout>
+
+## MCP schema discovery 如何使用 semantics
+
+正式 MCP schema tools 仍然是 `get_schemas`、`get_tables`、`get_columns`。
+
+當 key 綁定的 Database Management entry 有 semantic metadata 時：
+
+- `get_tables` 可以附加 table display name、description、synonyms 與 scoped metric descriptions；
+- `get_columns` 可以附加 column display name、description、synonyms 與 relationship descriptions；
+- table whitelist 仍會限制 physical table visibility 與 relationship context。
+
+因此 semantic metadata 只會 enrich discovery，不會擴張 key 能存取的資料範圍。
+
+## Admin API surface
+
+2.0.1 Admin API 在 `api/DbSemantic` 提供 semantic management：
+
+| Operation | Permission |
+| --- | --- |
+| 讀取 database entity records | `/runtime/db-management/semantic` → `view` |
+| 讀取 entities/relationships/metrics combined model | `/runtime/db-management/semantic` → `view` |
+| upsert entity metadata | `/runtime/db-management/semantic` → `edit` |
+| delete entity metadata | `/runtime/db-management/semantic` → `edit` |
+| upsert/delete relationship | `/runtime/db-management/semantic` → `edit` |
+| upsert/delete metric | `/runtime/db-management/semantic` → `edit` |
+
+<Callout type="info" title="這是 Admin 功能，不把它算成第六個正式 built-in MCP tool">
+2.0.1 文件中的正式 MCP key tool surface 是 MCP Tools Reference 列出的五個 built-in tools，再加上已 publish 的 Custom Tools。Semantic metadata 由 Admin control plane 管理，再被 schema discovery 消費。
+</Callout>
+
+## Modeling 建議
+
+適合放進 semantic metadata 的內容，是足夠穩定、能幫助多個 agent 與 operator 的 domain knowledge：
+
+- 與 physical table/column name 不同的 business names；
+- abbreviation 與 domain synonyms；
+- query generation 重要的 relationships；
+- 能釐清 formula 與 grain 的 metric definitions。
+
+不要把 credentials、runtime instructions 或 authorization decision 偷塞進 schema description。Access control 仍然是獨立且被強制執行的 layer。

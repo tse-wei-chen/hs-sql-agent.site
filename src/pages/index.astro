@@ -1,21 +1,9 @@
 ---
+import config from "@/config";
 ---
-<!DOCTYPE html>
-<html>
-<head>
-  <script is:inline>
-    const SUPPORTED_LOCALES = ["zh-hant", "en"];
-    const DEFAULT_LOCALE = "zh-hant";
-    const browserLang = navigator.language.toLowerCase();
 
-    let detectedLocale =
-      SUPPORTED_LOCALES.find(locale => browserLang === locale) ||
-      SUPPORTED_LOCALES.find(locale => browserLang.startsWith(locale)) ||
-      DEFAULT_LOCALE;
-    window.location.replace('/' + detectedLocale);
-  </script>
-</head>
-<body>
-  <p>Redirecting...</p>
-</body>
-</html>
+<!--
+  Astro i18n handles / -> /<defaultLocale>/ because prefixDefaultLocale and
+  redirectToDefaultLocale are enabled. This markup is only a static fallback.
+-->
+<a href={`/${config.site.lang}/`}>Continue to hs-sql-agent</a>

@@ -1,6 +1,11 @@
 export interface UIStrings {
   nav: {
     home: string;
+    features: string;
+    databases: string;
+    integrations: string;
+    docs: string;
+    github: string;
     posts: string;
     tags: string;
     about: string;
@@ -30,10 +35,55 @@ export interface UIStrings {
     featured: string;
     recentPosts: string;
     allPosts: string;
+    heroKicker: string;
     heroTitle: string;
     heroDesc: string;
     heroDescLinkBefore: string;
     heroDescLinkAfter: string;
+    primaryCta: string;
+    secondaryCta: string;
+    copyCommand: string;
+    copiedCommand: string;
+    compilerLive: string;
+    compilerResult: string;
+    compilerTitle: string;
+    compilerDesc: string;
+    dmlTitle: string;
+    dmlDesc: string;
+    databaseTitle: string;
+    databaseDesc: string;
+    governanceTitle: string;
+    governanceDesc: string;
+    capabilityKicker: string;
+    capabilityTitle: string;
+    capabilityDesc: string;
+    dmlKicker: string;
+    dmlSectionTitle: string;
+    dmlSectionDesc: string;
+    dmlPreviewTitle: string;
+    dmlPreviewDesc: string;
+    dmlApproveTitle: string;
+    dmlApproveDesc: string;
+    dmlRevalidateTitle: string;
+    dmlRevalidateDesc: string;
+    dmlCommitTitle: string;
+    dmlCommitDesc: string;
+    databaseKicker: string;
+    databaseSectionTitle: string;
+    databaseSectionDesc: string;
+    integrationKicker: string;
+    integrationTitle: string;
+    integrationDesc: string;
+    docsKicker: string;
+    docsTitle: string;
+    docsDesc: string;
+    docsCta: string;
+  };
+  docs: {
+    indexTitle: string;
+    indexDescription: string;
+    sidebarLabel: string;
+    onThisPage: string;
   };
   footer: {
     copyright: string;
@@ -42,16 +92,12 @@ export interface UIStrings {
   pages: {
     tagTitle: string;
     tagDesc: string;
-
     tagsTitle: string;
     tagsDesc: string;
-
     postsTitle: string;
     postsDesc: string;
-
     archivesTitle: string;
     archivesDesc: string;
-
     searchTitle: string;
     searchDesc: string;
   };

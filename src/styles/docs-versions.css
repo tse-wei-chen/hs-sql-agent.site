@@ -1,0 +1,110 @@
+.docs-version-switcher {
+  margin-bottom: 1.5rem;
+  padding-bottom: 1.25rem;
+  border-bottom: 1px solid color-mix(in oklab, var(--border) 65%, transparent);
+}
+
+.docs-version-caption {
+  display: block;
+  margin-bottom: .45rem;
+  color: var(--muted-foreground);
+  font-size: .68rem;
+  font-weight: 800;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+}
+
+.docs-version-switcher details {
+  position: relative;
+}
+
+.docs-version-switcher summary {
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+  min-height: 2.5rem;
+  border: 1px solid color-mix(in oklab, var(--border) 75%, transparent);
+  border-radius: .55rem;
+  padding: .55rem .7rem;
+  background: color-mix(in oklab, var(--card) 82%, transparent);
+  color: var(--foreground);
+  font-size: .82rem;
+  font-weight: 750;
+  list-style: none;
+  cursor: pointer;
+  user-select: none;
+}
+
+.docs-version-switcher summary::-webkit-details-marker {
+  display: none;
+}
+
+.docs-version-switcher details[open] summary {
+  border-color: color-mix(in oklab, var(--primary) 55%, var(--border));
+}
+
+.docs-version-current {
+  border: 1px solid color-mix(in oklab, var(--primary) 40%, transparent);
+  border-radius: 999px;
+  padding: .12rem .4rem;
+  color: var(--primary);
+  font-size: .6rem;
+  font-weight: 800;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+}
+
+.docs-version-chevron {
+  margin-left: auto;
+  color: var(--muted-foreground);
+  transition: transform .16s ease;
+}
+
+.docs-version-switcher details[open] .docs-version-chevron {
+  transform: rotate(180deg);
+}
+
+.docs-version-menu {
+  position: absolute;
+  inset: calc(100% + .4rem) 0 auto;
+  z-index: 30;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: .55rem;
+  background: var(--background);
+  box-shadow: 0 .8rem 2.5rem color-mix(in oklab, black 14%, transparent);
+}
+
+.docs-version-menu a {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: .75rem;
+  padding: .65rem .75rem;
+  color: var(--foreground);
+  font-size: .8rem;
+  text-decoration: none;
+}
+
+.docs-version-menu a + a {
+  border-top: 1px solid color-mix(in oklab, var(--border) 60%, transparent);
+}
+
+.docs-version-menu a:hover,
+.docs-version-menu a.is-active {
+  background: var(--muted);
+}
+
+.docs-version-menu a.is-active > span {
+  color: var(--primary);
+  font-weight: 800;
+}
+
+.docs-version-menu small {
+  color: var(--muted-foreground);
+  font-size: .62rem;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .docs-version-chevron { transition: none; }
+}
