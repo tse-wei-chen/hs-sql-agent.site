@@ -55,11 +55,7 @@ const viewBox = kind === "overview" ? "0 0 640 320" : "0 0 700 320";
             [476, ui.compiler.prove],
             [608, ui.compiler.compile],
           ].map(([x, label]) => (
-            <text
-              class="doc-svg-label doc-svg-label-center"
-              x={x}
-              y="222"
-            >
+            <text class="doc-svg-label doc-svg-label-center" x={x} y="222">
               {label}
             </text>
           ))}
@@ -86,27 +82,15 @@ const viewBox = kind === "overview" ? "0 0 640 320" : "0 0 700 320";
             [598, ui.safeDml.commit, "04"],
           ].map(([x, label, number]) => (
             <>
-              <text
-                class="doc-svg-kicker doc-svg-label-center"
-                x={x}
-                y="172"
-              >
+              <text class="doc-svg-kicker doc-svg-label-center" x={x} y="172">
                 {number}
               </text>
-              <text
-                class="doc-svg-label doc-svg-label-center"
-                x={x}
-                y="238"
-              >
+              <text class="doc-svg-label doc-svg-label-center" x={x} y="238">
                 {label}
               </text>
             </>
           ))}
-          <text
-            class="doc-svg-kicker doc-svg-label-center"
-            x="266"
-            y="142"
-          >
+          <text class="doc-svg-kicker doc-svg-label-center" x="266" y="142">
             {ui.safeDml.humanApproval}
           </text>
         </>
@@ -125,19 +109,11 @@ const viewBox = kind === "overview" ? "0 0 640 320" : "0 0 700 320";
             [428, ui.mcp.policy],
             [582, ui.mcp.database],
           ].map(([x, label]) => (
-            <text
-              class="doc-svg-label doc-svg-label-center"
-              x={x}
-              y="184"
-            >
+            <text class="doc-svg-label doc-svg-label-center" x={x} y="184">
               {label}
             </text>
           ))}
-          <text
-            class="doc-svg-kicker doc-svg-label-center"
-            x="350"
-            y="278"
-          >
+          <text class="doc-svg-kicker doc-svg-label-center" x="350" y="278">
             {ui.mcp.footer}
           </text>
         </>
