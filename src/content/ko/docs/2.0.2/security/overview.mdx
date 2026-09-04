@@ -1,0 +1,42 @@
+---
+title: 보안 개요
+description: 데이터베이스 거버넌스를 LLM 밖에 유지하는 server-side control과 이를 보호하는 operational setting을 설명합니다.
+sidebar:
+  group: 보안
+  order: 120
+---
+
+hs-sql-agent는 AI model 자체를 security boundary로 사용하지 않도록 설계되어 있습니다. Authentication, database scope, table policy, tool restriction, SQL validation, mutation approval은 server가 강제합니다.
+
+## MCP access boundary
+
+MCP client는 발급된 key로 authenticate합니다. Runtime policy는 key를 database에 bind하고 사용할 수 있는 table과 tool을 제한할 수 있습니다.
+
+query-only client에서는 client가 자발적으로 DML을 피할 것이라고 기대하지 말고 allowed-tool list를 제한하세요.
+
+## SQL boundary
+
+생성된 SQL은 provider-specific compilation 전에 parse와 validate를 거칩니다. 지원하지 않는 language 또는 target capability는 조용히 downgrade되지 않고 fail closed합니다.
+
+DML에는 별도의 approval protocol이 추가됩니다. Human acceptance는 validated mutation plan에 binding되고, row-set mutation은 execution 전에 commit transaction 안에서 revalidate됩니다.
+
+## Administrative identity
+
+Server는 local authentication과 함께 선택적 OIDC/SSO 및 TOTP MFA 관련 설정을 지원합니다. OIDC settings에는 authority, client credential, claim mapping, scope, role mapping, verified-email requirement, auto-provisioning이 포함됩니다.
+
+보호된 login 또는 MFA state를 application restart 이후에도 유지해야 한다면 구성한 data-protection key path를 영속화하세요.
+
+## Operational protection
+
+Security-related runtime setting에는 다음이 포함됩니다.
+
+- sign-in lockout threshold와 duration
+- global/request rate limiting
+- distributed security-policy synchronization
+- signed alert와 SIEM webhook
+- audit retention과 archive/fallback path
+- distributed control용 fail-closed coordination mode
+
+## 취약점 보고
+
+Security vulnerability를 public issue로 공개하지 마세요. Repository의 GitHub Security Advisory에 있는 **Report a Vulnerability** flow를 사용해 responsible disclosure 방식으로 조사와 수정을 진행하세요.

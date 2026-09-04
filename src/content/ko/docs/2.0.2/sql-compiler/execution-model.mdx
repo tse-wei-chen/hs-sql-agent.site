@@ -1,0 +1,41 @@
+---
+title: SQL 실행 모델
+description: hs-sql-agent가 신뢰할 수 없는 SQL을 실행 전에 검증된 provider-specific statement로 바꾸는 흐름을 설명합니다.
+sidebar:
+  group: SQL Compiler
+  order: 40
+---
+
+hs-sql-agent는 생성된 SQL을 신뢰된 command로 취급하지 않습니다. 실행 경계는 parse, validation, capability check, access policy, provider-specific compilation을 중심으로 설계되어 있습니다.
+
+## Query path
+
+Query execution은 대략 다음 순서로 진행됩니다.
+
+1. MCP key를 인증하고 database, table, tool, execution scope를 적용합니다.
+2. 지원하는 SQL을 structured definition / AST로 parse합니다.
+3. statement와 source semantics를 validate합니다.
+4. semantics를 보존하는 데 필요한 target/provider capability를 확인합니다.
+5. 설정된 database provider용 SQL을 compile/render합니다.
+6. 설정된 runtime limit 안에서 실행합니다.
+
+SQL compiler implementation에는 명시적인 source-validation과 target-capability stage가 있습니다. 지원하지 않는 syntax나 증명할 수 없는 capability는 겉보기만 비슷한 construct로 조용히 바뀌지 않고 거부됩니다.
+
+## 왜 fail closed인가
+
+Cross-database SQL에는 겉으로는 비슷하지만 null behavior, type rule, operator semantics, pagination, identifier, function, DML behavior가 다른 construct가 많습니다.
+
+AI-facing execution surface에서 "best effort" rewrite는 위험합니다. 구문은 유효한 상태로 의미만 바뀔 수 있기 때문에 hs-sql-agent는 암묵적인 semantic downgrade보다 명시적인 rejection을 우선합니다.
+
+## Provider-specific output
+
+공개 MCP surface는 공통이지만 최종 SQL은 provider-specific입니다. 현재 database provider는 다음 6개입니다.
+
+- PostgreSQL
+- MySQL
+- SQL Server
+- Oracle
+- SQLite
+- Firebird
+
+Support는 의도적으로 bounded되어 있습니다. Provider가 지원된다는 사실은 해당 database의 모든 syntax feature가 허용된다는 뜻이 아닙니다. 개별 compiler capability는 semantics를 표현하고 검증할 수 있을 때만 확장됩니다.

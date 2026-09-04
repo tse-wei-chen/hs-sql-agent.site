@@ -1,0 +1,75 @@
+---
+title: Safe DML
+description: Preview, approval binding, row-set revalidation을 거쳐 사람이 승인한 정확한 mutation만 commit하는 방식을 설명합니다.
+sidebar:
+  group: SQL Compiler
+  order: 50
+---
+
+import Callout from "@/components/docs/mdx/Callout.astro";
+import CardGrid from "@/components/docs/mdx/CardGrid.astro";
+import DocCard from "@/components/docs/mdx/DocCard.astro";
+import Flow from "@/components/docs/mdx/Flow.astro";
+import Steps from "@/components/docs/mdx/Steps.astro";
+import Step from "@/components/docs/mdx/Step.astro";
+
+DML은 query execution보다 더 엄격한 path를 사용합니다. approval이 commit 시점에도 **같은 mutation**을 설명해야 하기 때문입니다.
+
+<Flow items={["Compile", "Preview", "Approve", "Revalidate", "Commit"]} />
+
+<CardGrid columns={3}>
+  <DocCard title="Preview, not mutate" icon="01" description="UPDATE/DELETE는 mutation을 적용하지 않고 preview transaction 안에서 현재 match되는 row를 먼저 읽습니다." />
+  <DocCard title="Approval is bound" icon="02" description="one-time challenge가 validated plan, policy version, affected-row count, row-set fingerprint를 binding합니다." />
+  <DocCard title="Commit re-checks reality" icon="03" description="commit transaction에서 row set을 다시 query하고 승인된 사실과 다르면 cancel합니다." />
+</CardGrid>
+
+<Callout type="danger" title="Approval은 나중에 다른 mutation을 실행할 권한이 아닙니다">
+approval challenge는 validated operation과 관찰된 impact에 바인딩됩니다. commit 전에 plan, policy, challenge, affected-row count 또는 row-set fingerprint가 바뀌면 hs-sql-agent는 operation을 적용하지 않고 cancel합니다.
+</Callout>
+
+## UPDATE와 DELETE
+
+<Steps>
+  <Step title="mutation compile">
+승인을 요청하기 전에 요청을 parse, validate, authorize, compile합니다.
+  </Step>
+  <Step title="affected row set preview">
+preview transaction을 열고 mutation을 실행하지 않은 채 현재 match되는 row를 읽습니다.
+  </Step>
+  <Step title="one-time approval evidence 생성">
+challenge를 validated compiled plan, policy version, affected-row count, row-set fingerprint에 binding합니다.
+  </Step>
+  <Step title="MCP Elicitation으로 사람에게 확인">
+`elicitation/create`를 보내고 MCP client의 명시적인 form approval을 요구합니다.
+  </Step>
+  <Step title="approved challenge consume">
+accept 후 one-time challenge를 validate하고 consume해 generic permission token처럼 replay할 수 없게 합니다.
+  </Step>
+  <Step title="commit transaction 안에서 재조회">
+matched row를 다시 읽고 현재 fingerprint/count를 approved preview와 비교합니다.
+  </Step>
+  <Step title="모든 값이 같을 때만 commit">
+plan, policy, challenge, row count, row set이 바뀌지 않았을 때만 exact compiled mutation을 실행합니다.
+  </Step>
+</Steps>
+
+## INSERT VALUES
+
+`INSERT ... VALUES`에는 기존 matched row set이 없습니다. 따라서 approval protocol은 row-set preview 대신 immutable insert payload와 exact compiled plan을 binding합니다.
+
+<Callout type="info" title="Mutation shape이 달라도 원칙은 같습니다">
+row-set mutation과 insert payload는 승인하는 evidence가 다르지만 invariant는 같습니다. approval이 설명한 exact validated mutation만 commit합니다.
+</Callout>
+
+## Elicitation은 필수입니다
+
+`execute_dml_sql`과 게시된 DML Custom Tool은 MCP client의 **form Elicitation** support를 요구합니다. Approval interaction을 수행할 수 없는 client는 이 mutation path를 사용할 수 없습니다.
+
+이는 UI-only confirmation dialog와 다릅니다. approval challenge는 server-side mutation protocol에 참여하며 execution 직전에 다시 검증됩니다.
+
+## 관련 문서
+
+<CardGrid columns={2}>
+  <DocCard title="MCP 클라이언트 연결" icon="MCP" href="/ko/docs/mcp/client-onboarding" description="DML을 활성화하기 전에 실제 MCP client version이 form Elicitation을 처리할 수 있는지 확인합니다." />
+  <DocCard title="SQL 실행 모델" icon="AST" href="/ko/docs/sql-compiler/execution-model" description="parse, validation, capability, policy, compile, execution의 전체 boundary를 이해합니다." />
+</CardGrid>

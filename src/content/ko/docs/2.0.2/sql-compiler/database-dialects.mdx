@@ -1,0 +1,32 @@
+---
+title: Database Dialects
+description: 공통 MCP surface 뒤에 있는 6개 database provider와 bounded dialect support가 무엇을 의미하는지 설명합니다.
+sidebar:
+  group: SQL Compiler
+  order: 60
+---
+
+hs-sql-agent는 현재 다음 6개의 relational database provider를 대상으로 합니다.
+
+| Provider | Role |
+| --- | --- |
+| PostgreSQL | Source and target SQL dialect |
+| MySQL | Source and target SQL dialect |
+| SQL Server | Source and target SQL dialect |
+| Oracle | Source and target SQL dialect |
+| SQLite | Source and target SQL dialect |
+| Firebird | Source and target SQL dialect |
+
+## 하나의 MCP surface는 하나의 SQL dialect를 뜻하지 않습니다
+
+MCP client는 공통 server contract를 사용하지만 SQL semantics는 provider-specific으로 유지됩니다. Compiler는 설정된 database provider에서 지원하는 statement의 의미를 보존할 책임이 있습니다.
+
+이 차이는 operator, type, cast, function, identifier, pagination, null semantics, DML behavior 같은 기능에서 중요합니다.
+
+## Bounded support
+
+Database가 provider list에 포함되어 있다고 해서 해당 database가 제공하는 모든 syntax feature를 허용하는 것은 아닙니다.
+
+Compiler는 source construct를 표현할 수 없거나 equivalent target capability를 증명할 수 없을 때 의도적으로 fail closed합니다. Capability coverage는 이 규칙을 약화하지 않고 확장할 수 있습니다.
+
+Production에서는 vendor CLI가 허용하는 arbitrary SQL도 hs-sql-agent가 허용한다고 가정하지 말고 compiler acceptance를 contract로 취급하세요.

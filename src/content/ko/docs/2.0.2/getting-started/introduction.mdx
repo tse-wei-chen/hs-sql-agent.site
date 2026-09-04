@@ -1,0 +1,48 @@
+---
+title: 소개
+description: hs-sql-agent가 MCP 클라이언트와 데이터베이스 사이에서 어떤 역할을 맡고, 보안 경계를 어떻게 구성하는지 설명합니다.
+sidebar:
+  group: 시작하기
+  order: 10
+---
+
+import Callout from "@/components/docs/mdx/Callout.astro";
+import CardGrid from "@/components/docs/mdx/CardGrid.astro";
+import DocCard from "@/components/docs/mdx/DocCard.astro";
+import Flow from "@/components/docs/mdx/Flow.astro";
+
+hs-sql-agent는 **거버넌스가 적용된 SQL 접근**을 제공하는 HTTP MCP 서버입니다. MCP 클라이언트를 PostgreSQL, MySQL, SQL Server, Oracle, SQLite, Firebird에 연결하면서 authentication, access policy, SQL validation, mutation approval은 서버 측에 유지합니다.
+
+<Flow items={["MCP client", "MCP key scope", "SQL compiler", "Policy & capability checks", "Database"]} />
+
+<Callout type="danger" title="LLM을 데이터베이스 보안 경계로 두지 마세요">
+생성된 SQL은 신뢰할 수 없는 입력입니다. 모델은 SQL을 제안할 수 있지만, 요청이 인가되었는지, 의미가 지원되는지, 안전하게 실행할 수 있는지를 결정하는 것은 서버입니다.
+</Callout>
+
+## 서버가 담당하는 경계
+
+<CardGrid columns={2}>
+  <DocCard title="Identity & scope" icon="KEY" description="클라이언트를 하나의 managed database에 바인딩하고 사용할 수 있는 tool, table, runtime limit를 제한합니다." />
+  <DocCard title="SQL semantics" icon="AST" description="지원하는 SQL을 structured definition으로 parse하고 source semantics를 검증한 뒤 target capability를 증명하고 provider-specific SQL을 compile합니다." />
+  <DocCard title="Mutation approval" icon="DML" description="write operation을 별도의 위험 등급으로 다루며 preview, one-time approval, revalidation, exact commit을 요구합니다." />
+  <DocCard title="Operations & audit" icon="OPS" description="rate/concurrency control, audit record, health, telemetry, outbound operational delivery를 모델 밖에서 관리합니다." />
+</CardGrid>
+
+## Compiler boundary
+
+생성된 SQL은 실행 전에 parse와 validate를 거칩니다. hs-sql-agent는 statement 의미를 보존하는 데 필요한 capability를 확인하고, 요청이 source, target, policy boundary를 통과한 뒤에만 provider-specific SQL을 생성합니다.
+
+지원하지 않는 syntax 또는 semantics는 겉보기만 비슷한 SQL로 조용히 재작성되지 않고 거부됩니다.
+
+<Callout type="info" title="6개 provider 지원은 arbitrary vendor SQL passthrough를 의미하지 않습니다">
+Provider support는 capability-driven입니다. 어떤 construct를 허용하려면 그 의미를 표현하고 검증할 수 있어야 하며, 해당 source/target contract에 따라 안전하게 render할 수 있어야 합니다. 모든 vendor extension이 허용된다고 가정하지 말고 SQL support reference를 계약으로 보세요.
+</Callout>
+
+## 다음 단계
+
+<CardGrid columns={2}>
+  <DocCard title="빠른 시작" icon="01" href="/ko/docs/getting-started/quick-start" description="기본 Compose 환경을 실행하고 첫 MCP key를 발급합니다." />
+  <DocCard title="MCP 클라이언트 연결" icon="02" href="/ko/docs/mcp/client-onboarding" description="remote Streamable HTTP MCP client를 올바르게 연결합니다." />
+  <DocCard title="SQL 실행 모델" icon="03" href="/ko/docs/sql-compiler/execution-model" description="parse, validation, capability proof, compile, execution boundary를 이해합니다." />
+  <DocCard title="Safe DML" icon="04" href="/ko/docs/sql-compiler/safe-dml" description="사람의 승인을 포함한 mutation protocol을 이해합니다." />
+</CardGrid>

@@ -1,0 +1,86 @@
+---
+title: MCP 클라이언트 연결
+description: Streamable HTTP MCP client를 연결하고 public endpoint를 구성하며 DML을 활성화하기 전에 Elicitation을 검증합니다.
+sidebar:
+  group: MCP
+  order: 30
+---
+
+import Callout from "@/components/docs/mdx/Callout.astro";
+import CardGrid from "@/components/docs/mdx/CardGrid.astro";
+import DocCard from "@/components/docs/mdx/DocCard.astro";
+import Steps from "@/components/docs/mdx/Steps.astro";
+import Step from "@/components/docs/mdx/Step.astro";
+
+hs-sql-agent는 `/mcp`에 **Streamable HTTP** MCP endpoint를 제공합니다.
+
+<CardGrid columns={3}>
+  <DocCard title="Endpoint" icon="HTTP" description="외부에서 접근 가능한 MCP public endpoint를 사용합니다. 일반적으로 /mcp로 끝납니다." />
+  <DocCard title="Authentication" icon="KEY" description="발급된 MCP key를 X-MCP-Server-Key request header로 전송합니다." />
+  <DocCard title="DML readiness" icon="FORM" description="Mutation tool은 실제 배포하는 MCP client version의 form Elicitation support도 필요합니다." />
+</CardGrid>
+
+## Client 연결
+
+<Steps>
+  <Step title="MCP key 발급">
+Admin Panel에서 대상 database에 바인딩된 key를 만듭니다. Client가 unrestricted access를 필요로 하지 않으면 allowed tool과 table을 제한합니다.
+  </Step>
+  <Step title="public MCP endpoint 사용">
+Endpoint는 client가 접근할 수 있어야 합니다. Admin UI origin과 MCP origin이 같다고 가정하지 마세요.
+  </Step>
+  <Step title="모든 request 인증">
+아래 MCP request header로 key를 전송합니다. plaintext key는 secret으로 취급하세요. lifecycle dialog를 닫은 뒤 같은 secret이 다시 표시되지는 않습니다.
+  </Step>
+  <Step title="실제 설치한 client 검증">
+먼저 schema discovery와 query execution을 확인합니다. DML을 활성화한다면 production 전에 client의 form Elicitation behavior를 별도로 테스트합니다.
+  </Step>
+</Steps>
+
+```http
+X-MCP-Server-Key: <MCP key>
+```
+
+## Public endpoint
+
+운영자에게 표시되는 URL과 생성된 client configuration은 다음 server setting에서 가져옵니다.
+
+```json
+{
+  "Mcp": {
+    "PublicEndpoint": "https://sql-agent.example.com/mcp"
+  }
+}
+```
+
+동일한 environment variable은 `Mcp__PublicEndpoint`이며, 제공되는 Compose configuration은 `MCP_PUBLIC_ENDPOINT`를 이 설정에 map합니다.
+
+<Callout type="warning" title="MCP connectivity를 Admin UI URL에서 추론하지 마세요">
+Admin UI와 MCP endpoint는 서로 다른 host, port 또는 reverse-proxy path를 사용할 수 있습니다. 비 Development 환경에서 server는 absolute HTTP/HTTPS public endpoint를 요구합니다. MCP client가 실제로 접근 가능한 URL을 구성하세요.
+</Callout>
+
+## 생성되는 client configuration
+
+Admin Panel은 MCP key를 발급, rotation 또는 duplication한 직후 Claude Desktop, Cursor, generic Streamable HTTP client용 direct HTTP configuration을 생성합니다.
+
+plaintext key는 의도적으로 일시적입니다. lifecycle dialog를 닫으면 server는 동일한 secret을 다시 표시할 수 없습니다.
+
+## DML compatibility는 별도 검증 항목입니다
+
+Client가 `/mcp`에 정상적으로 연결되더라도 DML approval을 지원한다는 뜻은 아닙니다.
+
+`execute_dml_sql`과 게시된 DML Custom Tool은 form Elicitation을 요구합니다. Production에서 DML을 허용하기 전에 실제 설치한 client version에서 다음 두 경로를 모두 검증하세요.
+
+1. elicitation request를 거절하고 mutation이 commit되지 않는지 확인합니다.
+2. elicitation request를 승인하고 승인된 mutation이 완료되는지 확인합니다.
+
+<Callout type="danger" title="Elicitation이 없으면 governed DML도 없습니다">
+Client가 form Elicitation을 선언하고 구현하지 않으면 hs-sql-agent는 DML operation을 거부합니다. query-only client에서는 key를 unrestricted로 두지 말고 mutation tool을 allowed-tool list에서 제외한 MCP key를 권장합니다.
+</Callout>
+
+## 다음 단계
+
+<CardGrid columns={2}>
+  <DocCard title="MCP Tools Reference" icon="REF" href="/en/docs/mcp/tools-reference" description="공식 built-in discovery, query, DML tool contract를 확인합니다." />
+  <DocCard title="Safe DML" icon="DML" href="/ko/docs/sql-compiler/safe-dml" description="preview, approval binding, row-set revalidation, commit을 이해합니다." />
+</CardGrid>

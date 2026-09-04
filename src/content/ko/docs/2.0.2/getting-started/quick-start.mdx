@@ -1,0 +1,111 @@
+---
+title: 빠른 시작
+description: 설치 경로를 선택하고 hs-sql-agent를 실행한 뒤 첫 MCP 클라이언트를 연결합니다.
+sidebar:
+  group: 시작하기
+  order: 20
+---
+
+import Callout from "@/components/docs/mdx/Callout.astro";
+import CardGrid from "@/components/docs/mdx/CardGrid.astro";
+import DocCard from "@/components/docs/mdx/DocCard.astro";
+import Steps from "@/components/docs/mdx/Steps.astro";
+import Step from "@/components/docs/mdx/Step.astro";
+
+<CardGrid columns={3}>
+  <DocCard
+    title="Docker Compose"
+    eyebrow="권장"
+    badge="~5 min"
+    icon="▣"
+    description="리포지토리에 포함된 Compose 구성으로 전체 self-hosted 서비스를 실행합니다."
+    href="#docker-compose"
+  />
+  <DocCard
+    title="ASP.NET Core / NuGet"
+    badge="~10 min"
+    icon=".NET"
+    description="기존 ASP.NET Core 애플리케이션 안에 MCP runtime과 선택적 Admin UI를 내장합니다."
+    href="/en/docs/integration/aspnet-core"
+  />
+  <DocCard
+    title="MCP 클라이언트 연결"
+    badge="설치 후"
+    icon="MCP"
+    description="scope가 제한된 key를 발급하고 Claude Desktop, Cursor 또는 다른 Streamable HTTP client를 연결합니다."
+    href="/ko/docs/mcp/client-onboarding"
+  />
+</CardGrid>
+
+<Callout type="info" title="이미 호스트 애플리케이션을 운영하는 경우가 아니라면 Docker로 시작하세요">
+Docker Compose가 가장 짧은 경로입니다. 리포지토리에 service wiring과 environment-variable mapping이 이미 포함되어 있습니다. NuGet 경로는 기존 ASP.NET Core host에 hs-sql-agent를 내장하는 팀을 위한 것입니다.
+</Callout>
+
+## Docker Compose
+
+<Steps>
+  <Step title="environment file 만들기" description="checked-in example을 복사해 configuration을 명시적이고 review 가능한 상태로 유지합니다.">
+
+```bash
+cp .env.example .env
+```
+
+  </Step>
+  <Step title="signing secret 교체" description="HMAC_KEY와 JWT_KEY에 서로 다른 32 bytes 이상의 unique secret을 설정합니다.">
+`.env.example`의 값은 placeholder입니다. 그대로 deploy하지 마세요.
+  </Step>
+  <Step title="서비스 시작" description="기본 single-instance stack을 실행합니다.">
+
+```bash
+docker compose up -d
+```
+
+  </Step>
+  <Step title="Admin Panel 열기" description="기본 application listener는 port 8080입니다.">
+로컬 환경에서는 `http://localhost:8080`을 열고 첫 administrator setup을 완료합니다.
+  </Step>
+</Steps>
+
+## 첫 MCP key 발급
+
+<Steps>
+  <Step title="Runtime → MCP Keys 열기" description="Key는 MCP identity와 authorization boundary입니다." />
+  <Step title="database와 tool scope 선택" description="Key를 하나의 Database Management entry에 바인딩하고 client에 필요한 tool만 노출합니다." />
+  <Step title="plaintext key 복사" description="lifecycle dialog에 새로 발급된 secret이 표시됩니다. client secret store에 보관하세요." />
+  <Step title="생성된 client configuration 사용" description="또는 Streamable HTTP endpoint에 X-MCP-Server-Key로 secret을 보냅니다." />
+</Steps>
+
+기본 MCP endpoint는 `/mcp`입니다. 로컬 머신 밖의 client가 접속하는 경우 `MCP_PUBLIC_ENDPOINT`에 `/mcp`를 포함한 외부 접근 가능한 absolute HTTP/HTTPS URL을 설정합니다.
+
+<Callout type="warning" title="DML에는 client Elicitation support가 필요합니다">
+MCP tool을 호출할 수 있다는 이유만으로 `execute_dml_sql`을 활성화하지 마세요. 사람이 정확한 mutation impact를 검토하고 승인하려면 client가 호환되는 MCP form Elicitation을 구현해야 합니다.
+</Callout>
+
+## 다음 단계
+
+<CardGrid columns={2}>
+  <DocCard
+    title="MCP 클라이언트 연결"
+    icon="01"
+    description="Header, Streamable HTTP configuration, public endpoint rule, DML Elicitation compatibility를 확인합니다."
+    href="/ko/docs/mcp/client-onboarding"
+  />
+  <DocCard
+    title="SQL 실행 모델"
+    icon="02"
+    description="Agent에 SQL을 노출하기 전에 parse → validate → capability proof → compile boundary를 이해합니다."
+    href="/ko/docs/sql-compiler/execution-model"
+  />
+  <DocCard
+    title="Database Management"
+    icon="03"
+    description="provider connection 생성, connectivity test, MCP key와 database binding을 확인합니다."
+    href="/en/docs/administration/database-management"
+  />
+  <DocCard
+    title="Production configuration"
+    icon="04"
+    description="identity, rate limiting, retention, distributed state, telemetry, secret 설정을 검토합니다."
+    href="/en/docs/operations/configuration"
+  />
+</CardGrid>
