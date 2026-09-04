@@ -1,6 +1,6 @@
 ---
 title: 設定參考
-description: hs-sql-agent 2.0.1 的 source-backed environment 與 runtime configuration reference。
+description: hs-sql-agent 2.0.2 的 source-backed environment 與 runtime configuration reference。
 sidebar:
   group: 維運
   order: 90
@@ -13,10 +13,10 @@ import DocCard from "@/components/docs/mdx/DocCard.astro";
 <CardGrid columns={3}>
   <DocCard title="單一 instance" icon="1" description="從 .env.example 開始；除非 runtime state 必須跨 instance 共用，否則可先使用 process-local provider。" />
   <DocCard title="Distributed" icon="N" description="使用 Postgres control-plane storage，加上 Redis-backed cache、limits、policy sync、delivery sync 與 SQL concurrency。" />
-  <DocCard title="Embedded .NET" icon=".NET" description="HsSqlAgentServiceOptions 是 code-level contract；其預設值不一定與 Docker .env.example 完全相同。" />
+  <DocCard title="Embedded .NET" icon=".NET" description="新整合使用 capability-specific options；HsSqlAgentServiceOptions 只保留給 legacy aggregate compatibility。" />
 </CardGrid>
 
-Checked-in 的 **v2.0.1 `.env.example`** 是預設 Compose deployment path 的 environment inventory。本頁以該檔案的 environment variable 名稱為基準；若 sample comment 與 v2.0.1 runtime validation 不一致，則以 executable runtime code 為準。
+Checked-in 的 **v2.0.2 `.env.example`** 是預設 Compose deployment path 的 environment inventory。本頁以該檔案的 environment variable 名稱為基準；若 sample comment 與 v2.0.2 runtime validation 不一致，則以 executable runtime code 為準。
 
 <Callout type="warning" title="Production 啟動前請先產生真正的 secrets">
 `HMAC_KEY` 與 `JWT_KEY` 都必須至少 32 bytes，而且應使用彼此獨立的值。Repository 內的字串只是 placeholder。若啟用 webhook URL，對應 webhook secret 也必須至少 32 bytes。
@@ -155,8 +155,8 @@ Bootstrap-managed MCP key 不走一般 key lifecycle；不能透過正常 UI 流
 | `AUDIT_FALLBACK_PATH` | `/app/data/audit-fallback.jsonl` | Audit fallback path；startup validation 要求存在設定 |
 | `AUDIT_RETENTION_RUN_HOUR_UTC` | `2` | Scheduled UTC hour；runtime 會 clamp 到 0–23 |
 
-<Callout type="warning" title="v2.0.1 sample comment 提到 Delete，但 runtime code 使用 Purge">
-`AuditRetentionService` 只接受 `Archive` 與 `Purge`。其他非 Archive 值（包含 `Delete`）會觸發 `AuditRetentionMode must be Purge or Archive.`。本 reference 以可執行的 v2.0.1 runtime code 為準，而不是 stale sample comment。
+<Callout type="warning" title="v2.0.2 sample comment 提到 Delete，但 runtime code 使用 Purge">
+`AuditRetentionService` 只接受 `Archive` 與 `Purge`。其他非 Archive 值（包含 `Delete`）會觸發 `AuditRetentionMode must be Purge or Archive.`。本 reference 以可執行的 v2.0.2 runtime code 為準，而不是 stale sample comment。
 </Callout>
 
 `Archive` 會先將過期 audit rows 寫入 JSONL archive，再從 Admin database 刪除；`Purge` 則直接刪除符合 retention 條件的 records，不建立該 archive。
@@ -215,6 +215,24 @@ Metadata discovery、query、DML planning/execution 與 health-related SQL work 
 | `OTLP_ENDPOINT` | empty | Absolute HTTP(S) OTLP collector endpoint |
 | `OTEL_SERVICE_NAME` | `hs-sql-agent` | OpenTelemetry service name；不可為 blank |
 
-Prometheus 刻意使用 **獨立 listener**，不與 Admin/MCP application port 共用。當 `OTLP_ENDPOINT` 有設定時，v2.0.1 會匯出 telemetry，包含 SQL compile-evidence tracing/log integration。
+Prometheus 刻意使用 **獨立 listener**，不與 Admin/MCP application port 共用。當 `OTLP_ENDPOINT` 有設定時，v2.0.2 會匯出 telemetry，包含 SQL compile-evidence tracing/log integration。
 
 請參考 [Observability](/zh-hant/docs/operations/observability)。
+
+## Docker environment 與 embedded .NET capability options
+
+Docker/ToolBox environment 是完整 standalone-server configuration surface。新的 NuGet integration 不同：`AddHsSqlAgentCore()` 本身沒有 options，每個被選到的 capability 只擁有自己的設定。
+
+例如：
+
+- `HsSqlAgentAdminStoreOptions`：Admin database provider 與 connection string；
+- `HsSqlAgentRuntimeOptions`：cache、rate limiting、synchronization、SQL concurrency、DML approval storage、bootstrap、operability；
+- `HsSqlAgentBuiltInAuthOptions`：JWT、password reset/SMTP、enterprise identity/OIDC；
+- `McpOptions`：public MCP endpoint 與 HMAC secret；
+- `TelemetryOptions`：Prometheus 與 OTLP settings。
+
+`HsSqlAgentServiceOptions` 只保留成 legacy aggregate compatibility DTO。沒有選到的 capability 不會建立或驗證它的 options，因此使用 `AddHsSqlAgentHostAuthorization(...)` 的 embedded host 不需要 HsSqlAgent JWT、SMTP、password-reset 或 OIDC settings。
+
+Modular API 保留原有 code defaults；`.env.example` 仍是 standalone ToolBox deployment example，不代表每個 embedded host 都必須設定每個 capability。
+
+請參考 [ASP.NET Core 整合](/zh-hant/docs/integration/aspnet-core)。
