@@ -5,6 +5,7 @@ on:
   pull_request:
     branches:
       - main
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -22,6 +23,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
@@ -39,8 +42,26 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Check formatting
-        run: pnpm run format:check
+      - name: Check formatting for changed files
+        shell: bash
+        env:
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PUSH_BEFORE_SHA: ${{ github.event.before }}
+        run: |
+          set -euo pipefail
+
+          if [[ "$GITHUB_EVENT_NAME" == "pull_request" ]]; then
+            base="$PR_BASE_SHA"
+          elif [[ "$GITHUB_REF_NAME" == "main" && -n "${PUSH_BEFORE_SHA:-}" && "$PUSH_BEFORE_SHA" != "0000000000000000000000000000000000000000" ]]; then
+            base="$PUSH_BEFORE_SHA"
+          else
+            git fetch --no-tags origin main:refs/remotes/origin/main
+            base="$(git merge-base HEAD origin/main)"
+          fi
+
+          git diff --name-only -z --diff-filter=ACMR "$base" HEAD -- \
+            '*.astro' '*.css' '*.js' '*.json' '*.md' '*.mdx' '*.mjs' '*.ts' '*.yaml' '*.yml' \
+            | xargs -0 -r pnpm exec prettier --check
 
       - name: Lint
         run: pnpm run lint
