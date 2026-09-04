@@ -1,6 +1,9 @@
 ---
 import { type CollectionEntry, getCollection, render } from "astro:content";
 import DocsLayout from "@/layouts/DocsLayout.astro";
+import Callout from "@/components/docs/mdx/Callout.astro";
+import AutoSteps from "@/components/docs/mdx/AutoSteps.astro";
+import TableSurface from "@/components/docs/mdx/TableSurface.astro";
 import { docsVersionDefinitions, docsVersions } from "@/data/docsVersions";
 import { locales } from "@/utils/getPostsByLocale";
 import {
@@ -128,6 +131,11 @@ const alternates = (locales as readonly string[])
     href: getDocsRouteUrl(alternateLocale, currentSlug, alternateRouteVersion),
   }));
 const { Content, headings } = await render(doc);
+const mdxComponents = {
+  blockquote: Callout,
+  ol: AutoSteps,
+  table: TableSurface,
+};
 ---
 
 <DocsLayout
@@ -142,5 +150,5 @@ const { Content, headings } = await render(doc);
   {headings}
   {alternates}
 >
-  <Content />
+  <Content components={mdxComponents} />
 </DocsLayout>
