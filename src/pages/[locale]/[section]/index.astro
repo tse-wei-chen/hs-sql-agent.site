@@ -81,8 +81,7 @@ function getMarketingHref(pageSection: MarketingSection, slug: string): string {
           class="marketing-breadcrumb"
           aria-label={marketingUi.breadcrumbLabel}
         >
-          <a href={getRelativeLocaleUrl(locale, "")}
-            >{marketingUi.homeLabel}</a
+          <a href={getRelativeLocaleUrl(locale, "")}>{marketingUi.homeLabel}</a
           ><span aria-hidden="true">/</span>
         </nav>
         <p class="marketing-eyebrow">hs-sql-agent</p>
@@ -91,17 +90,19 @@ function getMarketingHref(pageSection: MarketingSection, slug: string): string {
       </div>
     </section>
     <section class="marketing-shell" style="padding-block:4rem 7rem">
-      <div class="grid gap-px border border-border bg-border/30 sm:grid-cols-2 lg:grid-cols-3">
+      <div
+        class="border-border bg-border/30 grid gap-px border sm:grid-cols-2 lg:grid-cols-3"
+      >
         {
           pages.map(page => (
             <a
               href={getMarketingHref(page.section, page.slug)}
-              class="group bg-background p-6 no-underline transition hover:bg-muted/40"
+              class="group bg-background hover:bg-muted/40 p-6 no-underline transition"
             >
               <p class="text-primary text-xs font-bold tracking-widest uppercase">
                 {page.eyebrow}
               </p>
-              <h2 class="mt-8 text-xl font-semibold tracking-tight group-hover:text-primary">
+              <h2 class="group-hover:text-primary mt-8 text-xl font-semibold tracking-tight">
                 {page.title}
               </h2>
               <p class="text-muted-foreground mt-3 text-sm leading-6">

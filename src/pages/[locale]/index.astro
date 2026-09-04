@@ -6,10 +6,7 @@ import Footer from "@/components/Footer.astro";
 import { locales } from "@/utils/getPostsByLocale";
 import { useTranslations } from "@/i18n";
 import { useMarketingUi } from "@/i18n/marketing";
-import {
-  hasMarketingPage,
-  type MarketingSection,
-} from "@/data/marketing";
+import { hasMarketingPage, type MarketingSection } from "@/data/marketing";
 import config from "@/config";
 import "@/styles/landing.css";
 import "@/styles/landing-links.css";
@@ -202,36 +199,36 @@ function getMarketingHref(section: MarketingSection, slug: string): string {
           style="--card-glow: var(--primary)"
           href={getMarketingHref("features", "sql-compiler")}
         >
-          <span class="capability-number">01 / COMPILER</span><h3
-            >{t.home.compilerTitle}</h3
-          ><p>{t.home.compilerDesc}</p>
+          <span class="capability-number">01 / COMPILER</span><h3>
+            {t.home.compilerTitle}
+          </h3><p>{t.home.compilerDesc}</p>
         </a>
         <a
           class="capability-card capability-card-link"
           style="--card-glow: var(--secondary)"
           href={getMarketingHref("features", "safe-dml")}
         >
-          <span class="capability-number">02 / DML</span><h3
-            >{t.home.dmlTitle}</h3
-          ><p>{t.home.dmlDesc}</p>
+          <span class="capability-number">02 / DML</span><h3>
+            {t.home.dmlTitle}
+          </h3><p>{t.home.dmlDesc}</p>
         </a>
         <a
           class="capability-card capability-card-link"
           style="--card-glow: var(--info)"
           href={getRelativeLocaleUrl(locale, "databases")}
         >
-          <span class="capability-number">03 / DIALECTS</span><h3
-            >{t.home.databaseTitle}</h3
-          ><p>{t.home.databaseDesc}</p>
+          <span class="capability-number">03 / DIALECTS</span><h3>
+            {t.home.databaseTitle}
+          </h3><p>{t.home.databaseDesc}</p>
         </a>
         <a
           class="capability-card capability-card-link"
           style="--card-glow: var(--primary)"
           href={getMarketingHref("features", "access-control")}
         >
-          <span class="capability-number">04 / POLICY</span><h3
-            >{t.home.governanceTitle}</h3
-          ><p>{t.home.governanceDesc}</p>
+          <span class="capability-number">04 / POLICY</span><h3>
+            {t.home.governanceTitle}
+          </h3><p>{t.home.governanceDesc}</p>
         </a>
       </div>
     </section>
@@ -247,7 +244,8 @@ function getMarketingHref(section: MarketingSection, slug: string): string {
               class="landing-button landing-button-secondary"
               href={getMarketingHref("features", "safe-dml")}
             >
-              {t.home.dmlTitle} <span aria-hidden="true">→</span>
+              {t.home.dmlTitle}
+              <span aria-hidden="true">→</span>
             </a>
           </div>
         </div>
@@ -255,30 +253,30 @@ function getMarketingHref(section: MarketingSection, slug: string): string {
         <div class="flow-track reveal" data-pagefind-ignore>
           <article class="flow-step">
             <span class="flow-step-index">01</span><div>
-              <strong>{t.home.dmlPreviewTitle}</strong><p
-                >{t.home.dmlPreviewDesc}</p
-              >
+              <strong>{t.home.dmlPreviewTitle}</strong><p>
+                {t.home.dmlPreviewDesc}
+              </p>
             </div>
           </article>
           <article class="flow-step">
             <span class="flow-step-index">02</span><div>
-              <strong>{t.home.dmlApproveTitle}</strong><p
-                >{t.home.dmlApproveDesc}</p
-              >
+              <strong>{t.home.dmlApproveTitle}</strong><p>
+                {t.home.dmlApproveDesc}
+              </p>
             </div>
           </article>
           <article class="flow-step">
             <span class="flow-step-index">03</span><div>
-              <strong>{t.home.dmlRevalidateTitle}</strong><p
-                >{t.home.dmlRevalidateDesc}</p
-              >
+              <strong>{t.home.dmlRevalidateTitle}</strong><p>
+                {t.home.dmlRevalidateDesc}
+              </p>
             </div>
           </article>
           <article class="flow-step">
             <span class="flow-step-index">04</span><div>
-              <strong>{t.home.dmlCommitTitle}</strong><p
-                >{t.home.dmlCommitDesc}</p
-              >
+              <strong>{t.home.dmlCommitTitle}</strong><p>
+                {t.home.dmlCommitDesc}
+              </p>
             </div>
           </article>
         </div>

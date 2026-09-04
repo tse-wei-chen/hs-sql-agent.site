@@ -26,8 +26,7 @@ const marketingUi: Record<string, MarketingUiStrings> = {
     learnMore: "Learn more",
     integrations: {
       claudeDesktop: "Direct Streamable HTTP MCP with a scoped server key.",
-      cursor:
-        "Remote MCP plus custom headers, with policy kept server-side.",
+      cursor: "Remote MCP plus custom headers, with policy kept server-side.",
       aspNetCore: "Embed with the HsSqlAgent.Server NuGet package.",
     },
     sections: {

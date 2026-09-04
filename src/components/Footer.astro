@@ -24,15 +24,20 @@ const links = [
 ---
 
 <footer
-  class:list={["border-border border-t", { "mt-auto": !noMarginTop }, className]}
+  class:list={[
+    "border-border border-t",
+    { "mt-auto": !noMarginTop },
+    className,
+  ]}
   {...attrs}
 >
-  <div class="site-shell grid gap-8 px-4 py-10 sm:px-6 md:grid-cols-[1fr_auto] md:items-end">
+  <div
+    class="site-shell grid gap-8 px-4 py-10 sm:px-6 md:grid-cols-[1fr_auto] md:items-end"
+  >
     <div>
       <a
         href={getRelativeLocaleUrl(locale, "")}
-        class="text-lg font-semibold no-underline"
-        >hs-sql-agent</a
+        class="text-lg font-semibold no-underline">hs-sql-agent</a
       >
       <p class="text-muted-foreground mt-2 max-w-xl text-sm leading-6">
         {marketingUi.footerTagline}
