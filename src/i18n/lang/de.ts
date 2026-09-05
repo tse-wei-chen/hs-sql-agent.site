@@ -29,7 +29,7 @@ export default {
   },
   pagination: { prev: "Zurück", next: "Weiter", page: "Seite" },
   home: {
-    socialLinks: "Soziale Links",
+    socialLinks: "Social Links",
     featured: "Empfohlen",
     recentPosts: "Neueste Beiträge",
     allPosts: "Alle Beiträge",
@@ -57,7 +57,7 @@ export default {
       "PostgreSQL, MySQL, SQL Server, Oracle, SQLite und Firebird hinter einer gemeinsamen MCP-Schnittstelle.",
     governanceTitle: "Kontrolle standardmäßig aktiv",
     governanceDesc:
-      "Datenbankumfang pro Schlüssel, Tabellen-Zulassungslisten, Werkzeugbeschränkungen, Ratenbegrenzungen, Sicherheitsrichtlinien und Auditierbarkeit bleiben außerhalb des LLM.",
+      "Datenbankumfang pro Schlüssel, zulässige Tabellen und Tools, Rate Limits, Sicherheitsrichtlinien und Auditierbarkeit werden serverseitig durchgesetzt und bleiben außerhalb des LLM.",
     capabilityKicker: "Compiler-Grenze",
     capabilityTitle:
       "Behandeln Sie generiertes SQL als nicht vertrauenswürdige Eingabe.",
@@ -77,7 +77,7 @@ export default {
       "In der Commit-Transaktion erneut abfragen und die gebundene Zeilenmenge vergleichen.",
     dmlCommitTitle: "Commit",
     dmlCommitDesc:
-      "Nur ausführen, wenn Plan, Richtlinie, Freigabe-Challenge, Zeilenanzahl und Zeilenmenge weiterhin übereinstimmen.",
+      "Nur ausführen, wenn Plan, Richtlinie, Freigabenachweis, Zeilenanzahl und Zeilenmenge weiterhin übereinstimmen.",
     databaseKicker: "Eine Schnittstelle, sechs Dialekte",
     databaseSectionTitle:
       "Nutzen Sie die Datenbank weiter, die bereits im Einsatz ist.",

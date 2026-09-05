@@ -50,13 +50,13 @@ export default {
       "Les syntaxes non prises en charge sont refusées au lieu d’être réécrites silencieusement avec une sémantique différente.",
     dmlTitle: "DML soumis à approbation humaine",
     dmlDesc:
-      "Prévisualisez l’impact, liez l’approbation au plan validé, puis revérifiez l’ensemble de lignes dans la transaction de validation.",
+      "Prévisualisez l’impact, liez l’approbation au plan validé, puis revérifiez l’ensemble de lignes dans la transaction finale.",
     databaseTitle: "Six dialectes de base de données",
     databaseDesc:
       "PostgreSQL, MySQL, SQL Server, Oracle, SQLite et Firebird derrière une interface MCP unique.",
-    governanceTitle: "Gouvernance par défaut",
+    governanceTitle: "Contrôles appliqués par défaut",
     governanceDesc:
-      "Le périmètre de base de données par clé, les listes de tables autorisées, les restrictions d’outils, les limites de débit, les politiques de sécurité et l’audit restent hors du LLM.",
+      "Le périmètre de base de données par clé, les tables autorisées, les outils disponibles, les limites de débit, les politiques de sécurité et l’audit sont imposés côté serveur, hors du LLM.",
     capabilityKicker: "Frontière du compilateur",
     capabilityTitle: "Traitez le SQL généré comme une entrée non fiable.",
     capabilityDesc:
@@ -74,7 +74,7 @@ export default {
       "Exiger une approbation explicite de l’opérateur humain via l’Elicitation MCP par formulaire.",
     dmlRevalidateTitle: "Revérifier",
     dmlRevalidateDesc:
-      "Relire les lignes dans la transaction de validation et comparer l’ensemble lié à l’approbation.",
+      "Relire les lignes dans la transaction finale et comparer l’ensemble lié à l’approbation.",
     dmlCommitTitle: "Valider",
     dmlCommitDesc:
       "Exécuter uniquement si le plan, la politique, le défi, le nombre de lignes et l’ensemble de lignes correspondent toujours.",
@@ -82,7 +82,7 @@ export default {
     databaseSectionTitle:
       "Conservez la base de données que vous utilisez déjà.",
     databaseSectionDesc:
-      "Le compilateur rend explicites les différences sémantiques propres à chaque moteur SQL, tandis que les clients MCP utilisent une interface unique et gouvernée.",
+      "Le compilateur rend explicites les différences sémantiques propres à chaque moteur SQL, tandis que les clients MCP utilisent la même interface avec les mêmes contrôles.",
     integrationKicker: "Intégrations MCP et .NET",
     integrationTitle: "Connectez les agents là où ils travaillent déjà.",
     integrationDesc:

@@ -33,7 +33,7 @@ export default {
     featured: "추천",
     recentPosts: "최근 게시물",
     allPosts: "모든 게시물",
-    heroKicker: "MCP 네이티브 · 페일 클로즈 · 6개 SQL 방언",
+    heroKicker: "MCP에 맞게 설계 · 페일 클로즈 · 6개 SQL 방언",
     heroTitle: "AI 에이전트의 SQL 실행을 안전하게.",
     heroDesc:
       "AI가 생성한 SQL과 데이터베이스 사이에 SQL 컴파일러와 접근 제어 경계를 둡니다. hs-sql-agent는 SQL을 파싱하고 검증한 뒤 대상 데이터베이스에서 의미를 안전하게 보존할 수 있는지와 접근 권한을 확인하고, 그다음에 데이터베이스별 SQL을 실행합니다.",
@@ -48,7 +48,7 @@ export default {
     compilerTitle: "페일 클로즈 SQL 컴파일러",
     compilerDesc:
       "지원하지 않는 구문은 의미가 다른 SQL로 조용히 바꾸지 않고 즉시 거부합니다.",
-    dmlTitle: "사용자 승인을 거치는 DML",
+    dmlTitle: "사람의 승인을 거치는 DML",
     dmlDesc:
       "변경 전에 영향 범위를 확인하고 승인 내용을 검증된 실행 계획에 고정한 뒤, 커밋 직전에 대상 행을 다시 검증합니다.",
     databaseTitle: "6개 데이터베이스 방언",
@@ -69,7 +69,7 @@ export default {
     dmlPreviewDesc: "변경을 실행하지 않고 영향을 받을 행을 먼저 확인합니다.",
     dmlApproveTitle: "승인",
     dmlApproveDesc:
-      "MCP form Elicitation을 사용해 사용자의 명시적인 승인을 요구합니다.",
+      "MCP form Elicitation을 사용해 사람의 명시적인 승인을 요구합니다.",
     dmlRevalidateTitle: "재검증",
     dmlRevalidateDesc:
       "커밋 트랜잭션에서 대상 행을 다시 조회하고 승인 당시 상태와 같은지 확인합니다.",

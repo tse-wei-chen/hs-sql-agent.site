@@ -50,7 +50,7 @@ export default {
       "不支援的語法會直接拒絕，不會偷偷改寫成語意不同但看起來能執行的 SQL。",
     dmlTitle: "需要人工核准的 DML",
     dmlDesc:
-      "先預覽修改範圍，把核准內容固定到已驗證的執行計畫，再於交易認可前重新驗證目標資料列。",
+      "先預覽修改範圍，把核准內容固定到已驗證的執行計畫，再於提交前重新驗證目標資料列。",
     databaseTitle: "六種資料庫方言",
     databaseDesc:
       "PostgreSQL、MySQL、SQL Server、Oracle、SQLite 與 Firebird 共用統一的 MCP 介面。",
@@ -64,14 +64,14 @@ export default {
     dmlKicker: "安全的資料修改",
     dmlSectionTitle: "DML 核准是一套執行協定，不只是一個確認視窗。",
     dmlSectionDesc:
-      "UPDATE 與 DELETE 會在修改前讀取目標資料列，把核准內容綁定到已驗證的執行計畫與資料列集合指紋，並在真正認可前再次核對。",
+      "UPDATE 與 DELETE 會在修改前讀取目標資料列，把核准內容綁定到已驗證的執行計畫與資料列集合指紋，並在真正提交前再次核對。",
     dmlPreviewTitle: "預覽",
     dmlPreviewDesc: "不執行修改，先讀取將受影響的目標資料列。",
     dmlApproveTitle: "核准",
     dmlApproveDesc: "透過 MCP form Elicitation 明確取得使用者核准。",
     dmlRevalidateTitle: "重新驗證",
-    dmlRevalidateDesc: "在認可交易中重新查詢目標資料列，並與核准時的狀態比較。",
-    dmlCommitTitle: "認可",
+    dmlRevalidateDesc: "在提交交易中重新查詢目標資料列，並與核准時的狀態比較。",
+    dmlCommitTitle: "提交",
     dmlCommitDesc:
       "只有執行計畫、政策、核准挑戰值、資料列數與目標資料列集合全部保持一致時，才真正修改資料。",
     databaseKicker: "統一 MCP，六種 SQL 方言",
