@@ -12,7 +12,8 @@ const pages: Record<MarketingLocale, MarketingPage> = {
     order: 30,
     visual: "integration",
     title: "Embed hs-sql-agent in ASP.NET Core",
-    headline: "Choose a complete host or compose only the capabilities you need.",
+    headline:
+      "Choose a complete host or compose only the capabilities you need.",
     description:
       "Use HsSqlAgent.Hosting for the same batteries-included composition as the official Docker image, or HsSqlAgent.Server when an existing ASP.NET Core application needs to own authentication, middleware, UI, telemetry, or approval composition.",
     eyebrow: "ASP.NET Core · NuGet",
@@ -40,7 +41,10 @@ const pages: Record<MarketingLocale, MarketingPage> = {
       },
     ],
     relatedDocs: [
-      { label: "ASP.NET Core integration", path: "docs/integration/aspnet-core" },
+      {
+        label: "ASP.NET Core integration",
+        path: "docs/integration/aspnet-core",
+      },
       { label: "Deployment", path: "docs/operations/deployment" },
     ],
     body: [
@@ -57,7 +61,8 @@ const pages: Record<MarketingLocale, MarketingPage> = {
         code: {
           label: "Complete embedded host",
           language: "csharp",
-          value: "using HsSqlAgent.Hosting;\n\nvar builder = WebApplication.CreateBuilder(args);\nbuilder.AddHsSqlAgentStandardHost();\n\nvar app = builder.Build();\napp.UseHsSqlAgentStandardHost();\nawait app.RunAsync();",
+          value:
+            "using HsSqlAgent.Hosting;\n\nvar builder = WebApplication.CreateBuilder(args);\nbuilder.AddHsSqlAgentStandardHost();\n\nvar app = builder.Build();\napp.UseHsSqlAgentStandardHost();\nawait app.RunAsync();",
         },
       },
       {
@@ -68,7 +73,8 @@ const pages: Record<MarketingLocale, MarketingPage> = {
         code: {
           label: "Modular integration",
           language: "csharp",
-          value: "var hs = builder.Services.AddHsSqlAgentCore();\n\nhs.AddHsSqlAgentRuntime();\nhs.AddHsSqlAgentAdminStore(options =>\n{\n    options.Provider = \"Postgres\";\n    options.ConnectionString =\n        builder.Configuration.GetConnectionString(\"HsSqlAgent\")!;\n});\nhs.AddHsSqlAgentHostAuthorization(\"SqlAgentAdmin\");\nhs.AddHsSqlAgentAdminApi();",
+          value:
+            'var hs = builder.Services.AddHsSqlAgentCore();\n\nhs.AddHsSqlAgentRuntime();\nhs.AddHsSqlAgentAdminStore(options =>\n{\n    options.Provider = "Postgres";\n    options.ConnectionString =\n        builder.Configuration.GetConnectionString("HsSqlAgent")!;\n});\nhs.AddHsSqlAgentHostAuthorization("SqlAgentAdmin");\nhs.AddHsSqlAgentAdminApi();',
         },
       },
       {
@@ -131,7 +137,8 @@ const pages: Record<MarketingLocale, MarketingPage> = {
         code: {
           label: "嵌入完整主機",
           language: "csharp",
-          value: "using HsSqlAgent.Hosting;\n\nvar builder = WebApplication.CreateBuilder(args);\nbuilder.AddHsSqlAgentStandardHost();\n\nvar app = builder.Build();\napp.UseHsSqlAgentStandardHost();\nawait app.RunAsync();",
+          value:
+            "using HsSqlAgent.Hosting;\n\nvar builder = WebApplication.CreateBuilder(args);\nbuilder.AddHsSqlAgentStandardHost();\n\nvar app = builder.Build();\napp.UseHsSqlAgentStandardHost();\nawait app.RunAsync();",
         },
       },
       {
@@ -142,7 +149,8 @@ const pages: Record<MarketingLocale, MarketingPage> = {
         code: {
           label: "模組化整合",
           language: "csharp",
-          value: "var hs = builder.Services.AddHsSqlAgentCore();\n\nhs.AddHsSqlAgentRuntime();\nhs.AddHsSqlAgentAdminStore(options =>\n{\n    options.Provider = \"Postgres\";\n    options.ConnectionString =\n        builder.Configuration.GetConnectionString(\"HsSqlAgent\")!;\n});\nhs.AddHsSqlAgentHostAuthorization(\"SqlAgentAdmin\");\nhs.AddHsSqlAgentAdminApi();",
+          value:
+            'var hs = builder.Services.AddHsSqlAgentCore();\n\nhs.AddHsSqlAgentRuntime();\nhs.AddHsSqlAgentAdminStore(options =>\n{\n    options.Provider = "Postgres";\n    options.ConnectionString =\n        builder.Configuration.GetConnectionString("HsSqlAgent")!;\n});\nhs.AddHsSqlAgentHostAuthorization("SqlAgentAdmin");\nhs.AddHsSqlAgentAdminApi();',
         },
       },
       {
