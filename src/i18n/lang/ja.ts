@@ -33,7 +33,7 @@ export default {
     featured: "注目",
     recentPosts: "最新記事",
     allPosts: "すべての記事",
-    heroKicker: "MCP ネイティブ · フェイルクローズ · 6 種類の SQL 方言",
+    heroKicker: "MCP 向けに設計 · フェイルクローズ · 6 種類の SQL 方言",
     heroTitle: "AI エージェントから SQL を安全に実行。",
     heroDesc:
       "AI が生成した SQL とデータベースの間に、SQL コンパイラとアクセス制御の境界を設けます。hs-sql-agent は SQL を解析・検証し、接続先で意味を安全に保てることとアクセス権限を確認してから、データベースごとの SQL を実行します。",
@@ -43,8 +43,8 @@ export default {
     secondaryCta: "GitHub で見る",
     copyCommand: "コピー",
     copiedCommand: "コピー済み",
-    compilerLive: "ポリシー境界を適用中",
-    compilerResult: "実行可能な SQL を生成済み",
+    compilerLive: "アクセスポリシーを適用中",
+    compilerResult: "実行可能な SQL の準備完了",
     compilerTitle: "フェイルクローズ SQL コンパイラ",
     compilerDesc:
       "対応していない構文は、意味の異なる SQL に暗黙変換せず、その場で拒否します。",

@@ -138,8 +138,8 @@ const docsVisualUi: Record<string, DocsVisualUiStrings> = {
       protocol: "SAFE DML 協定",
       preview: "預覽",
       approve: "核准",
-      revalidate: "重驗",
-      commit: "認可",
+      revalidate: "重新驗證",
+      commit: "提交",
       humanApproval: "人工核准",
     },
     mcp: {
@@ -194,10 +194,10 @@ const docsVisualUi: Record<string, DocsVisualUiStrings> = {
     safeDml: {
       protocol: "SAFE DML 协议",
       preview: "预览",
-      approve: "批准",
-      revalidate: "重验",
+      approve: "审批",
+      revalidate: "重新验证",
       commit: "提交",
-      humanApproval: "人工批准",
+      humanApproval: "人工审批",
     },
     mcp: {
       protocol: "MCP",
@@ -311,7 +311,7 @@ const docsVisualUi: Record<string, DocsVisualUiStrings> = {
       approve: "승인",
       revalidate: "재검증",
       commit: "커밋",
-      humanApproval: "사용자 승인",
+      humanApproval: "사람의 승인",
     },
     mcp: {
       protocol: "MCP",
@@ -336,7 +336,7 @@ const docsVisualUi: Record<string, DocsVisualUiStrings> = {
       sharedState: "공유 런타임 상태",
     },
     observability: {
-      title: "관측 가능성",
+      title: "관찰 가능성",
       request: "요청",
       auth: "인증",
       compiler: "컴파일러",
@@ -379,12 +379,12 @@ const docsVisualUi: Record<string, DocsVisualUiStrings> = {
     },
     databases: { compiler: "COMPILATEUR" },
     security: {
-      policyBoundary: "FRONTIÈRE DES POLITIQUES SERVEUR",
-      databaseScope: "PÉRIMÈTRE DE BASE",
+      policyBoundary: "CONTRÔLES CÔTÉ SERVEUR",
+      databaseScope: "PÉRIMÈTRE DE LA BASE",
       tables: "Tables",
       key: "Clé",
       policy: "POLITIQUE",
-      footer: "AUTH · OUTILS · POLITIQUE TABLES · DÉBIT · AUDIT",
+      footer: "AUTH · OUTILS · POLITIQUES DE TABLES · LIMITES DE DÉBIT · AUDIT",
     },
     distributed: {
       runtime: "EXÉCUTION DISTRIBUÉE",

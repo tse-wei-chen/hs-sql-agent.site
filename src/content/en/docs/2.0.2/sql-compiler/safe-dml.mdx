@@ -20,7 +20,7 @@ DML uses a stricter path than query execution because an approval must still des
 <CardGrid columns={3}>
   <DocCard title="Preview, not mutate" icon="01" description="UPDATE/DELETE first read the currently matched rows inside a preview transaction without applying the mutation." />
   <DocCard title="Approval is bound" icon="02" description="A one-time challenge binds the validated plan, policy version, affected-row count, and row-set fingerprint." />
-  <DocCard title="Commit re-checks reality" icon="03" description="The commit transaction re-queries the row set and cancels if the approved facts no longer match." />
+  <DocCard title="Revalidate before commit" icon="03" description="The commit transaction re-queries the row set and cancels if the approved facts no longer match." />
 </CardGrid>
 
 <Callout type="danger" title="Approval is not permission to run a later, different mutation">
@@ -63,7 +63,7 @@ The evidence being approved differs between row-set mutations and an insert payl
 
 ## Elicitation is required
 
-`execute_dml_sql` and published DML Custom Tools require **form Elicitation** support from the MCP client. A client that cannot perform the approval interaction cannot use those mutation paths.
+`execute_dml_sql` and published DML Custom Tools require **form Elicitation** support from the MCP client. A client that cannot complete the approval flow cannot use those mutation paths.
 
 This is intentionally different from a UI-only confirmation dialog: the approval challenge participates in the server-side mutation protocol and is checked again before execution.
 

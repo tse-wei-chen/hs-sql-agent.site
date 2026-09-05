@@ -47,9 +47,9 @@ export default {
     compilerResult: "可执行 SQL 已生成",
     compilerTitle: "失败即拒绝的 SQL 编译器",
     compilerDesc: "不支持的语法会被直接拒绝，而不是静默改写成语义不同的 SQL。",
-    dmlTitle: "需要人工批准的 DML",
+    dmlTitle: "需要人工审批的 DML",
     dmlDesc:
-      "先预览修改范围，把批准内容固定到已验证的执行计划，再在提交前重新验证目标行。",
+      "先预览修改范围，把审批内容固定到已验证的执行计划，再在提交前重新验证目标行。",
     databaseTitle: "六种数据库方言",
     databaseDesc:
       "PostgreSQL、MySQL、SQL Server、Oracle、SQLite 与 Firebird 共用统一的 MCP 接口。",
@@ -63,16 +63,16 @@ export default {
     dmlKicker: "安全的数据修改",
     dmlSectionTitle: "DML 审批是一套执行协议，而不只是确认弹窗。",
     dmlSectionDesc:
-      "UPDATE 和 DELETE 会在修改前读取目标行，把批准内容绑定到已验证的执行计划与目标行集指纹，并在真正提交前再次核对。",
+      "UPDATE 和 DELETE 会在修改前读取目标行，把审批内容绑定到已验证的执行计划与目标行集指纹，并在真正提交前再次核对。",
     dmlPreviewTitle: "预览",
     dmlPreviewDesc: "不执行修改，先读取将受影响的目标行。",
-    dmlApproveTitle: "批准",
-    dmlApproveDesc: "通过 MCP form Elicitation 明确取得用户批准。",
+    dmlApproveTitle: "审批",
+    dmlApproveDesc: "通过 MCP form Elicitation 获取明确的人工审批。",
     dmlRevalidateTitle: "重新验证",
-    dmlRevalidateDesc: "在提交事务中重新查询目标行，并与批准时的状态进行比较。",
+    dmlRevalidateDesc: "在提交事务中重新查询目标行，并与审批时的状态进行比较。",
     dmlCommitTitle: "提交",
     dmlCommitDesc:
-      "只有执行计划、策略、批准挑战、行数和目标行集全部保持一致时才真正修改数据。",
+      "只有执行计划、策略、审批挑战、行数和目标行集全部保持一致时才真正修改数据。",
     databaseKicker: "统一 MCP，六种 SQL 方言",
     databaseSectionTitle: "继续使用现有数据库。",
     databaseSectionDesc:

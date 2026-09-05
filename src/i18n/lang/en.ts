@@ -15,7 +15,7 @@ export default {
     search: "Search",
   },
   post: {
-    publishedAt: "Published at",
+    publishedAt: "Published on",
     updatedAt: "Updated",
     sharePostIntro: "Share this post:",
     sharePostOn: "Share this post on {{platform}}",
@@ -35,7 +35,8 @@ export default {
     allPosts: "All Posts",
     heroKicker: "MCP-native · fail-closed · six SQL dialects",
     heroTitle: "Secure SQL execution for AI agents.",
-    heroDesc: "Put a compiler and governance boundary between generated SQL and your databases. hs-sql-agent parses, validates, proves capabilities, applies access policy, and only then executes provider-specific SQL.",
+    heroDesc:
+      "Put a compiler and governance boundary between generated SQL and your databases. hs-sql-agent parses, validates, proves capabilities, applies access policy, and only then executes provider-specific SQL.",
     heroDescLinkBefore: "",
     heroDescLinkAfter: "",
     primaryCta: "Get started",
@@ -45,48 +46,60 @@ export default {
     compilerLive: "Policy boundary online",
     compilerResult: "Provider-safe SQL ready",
     compilerTitle: "Fail-closed SQL compiler",
-    compilerDesc: "Unsupported syntax is rejected instead of being silently rewritten into something with different semantics.",
+    compilerDesc:
+      "Unsupported syntax is rejected instead of being silently rewritten into something with different semantics.",
     dmlTitle: "Human-approved DML",
-    dmlDesc: "Preview impact, bind approval to the validated plan, then revalidate the row set inside the commit transaction.",
+    dmlDesc:
+      "Preview impact, bind approval to the validated plan, then revalidate the row set inside the commit transaction.",
     databaseTitle: "Six database dialects",
-    databaseDesc: "PostgreSQL, MySQL, SQL Server, Oracle, SQLite, and Firebird behind one MCP surface.",
+    databaseDesc:
+      "PostgreSQL, MySQL, SQL Server, Oracle, SQLite, and Firebird behind one MCP surface.",
     governanceTitle: "Governed by default",
-    governanceDesc: "Per-key database scope, table allowlists, tool restrictions, rate limits, security policy, and auditability stay outside the LLM.",
+    governanceDesc:
+      "Per-key database scope, table allowlists, tool restrictions, rate limits, security policy, and auditability stay outside the LLM.",
     capabilityKicker: "Compiler boundary",
     capabilityTitle: "Treat generated SQL as untrusted input.",
-    capabilityDesc: "The important part is not generating SQL. It is proving that the statement is inside the dialect, capability, and policy boundary you intended to expose.",
+    capabilityDesc:
+      "The important part is not generating SQL. It is proving that the statement is inside the dialect, capability, and policy boundary you intended to expose.",
     dmlKicker: "Safe mutation path",
     dmlSectionTitle: "DML approval is a protocol, not a confirmation dialog.",
-    dmlSectionDesc: "UPDATE and DELETE are previewed without mutation, approval is bound to the validated compiled plan and row-set fingerprint, and the matched rows are checked again before commit.",
+    dmlSectionDesc:
+      "UPDATE and DELETE are previewed without mutation, approval is bound to the validated compiled plan and row-set fingerprint, and the matched rows are checked again before commit.",
     dmlPreviewTitle: "Preview",
     dmlPreviewDesc: "Read the affected rows without executing the mutation.",
     dmlApproveTitle: "Approve",
-    dmlApproveDesc: "Require explicit MCP form Elicitation from the human operator.",
+    dmlApproveDesc: "Require explicit approval through MCP form Elicitation.",
     dmlRevalidateTitle: "Revalidate",
-    dmlRevalidateDesc: "Re-query inside the commit transaction and compare the bound row set.",
+    dmlRevalidateDesc:
+      "Re-query inside the commit transaction and compare the bound row set.",
     dmlCommitTitle: "Commit",
-    dmlCommitDesc: "Execute only when the plan, policy, challenge, row count, and row set still match.",
+    dmlCommitDesc:
+      "Execute only when the plan, policy, challenge, row count, and row set still match.",
     databaseKicker: "One surface, six dialects",
     databaseSectionTitle: "Use the database you already run.",
-    databaseSectionDesc: "The compiler keeps provider-specific SQL semantics explicit while MCP clients interact through a single governed interface.",
+    databaseSectionDesc:
+      "The compiler keeps provider-specific SQL semantics explicit while MCP clients interact through a single governed interface.",
     integrationKicker: "MCP and .NET integrations",
     integrationTitle: "Meet agents where they already work.",
-    integrationDesc: "Connect remote MCP clients such as Claude Desktop and Cursor, or embed the same governed server boundary inside an ASP.NET Core application.",
+    integrationDesc:
+      "Connect remote MCP clients such as Claude Desktop and Cursor, or embed the same governed server boundary inside an ASP.NET Core application.",
     docsKicker: "Documentation",
     docsTitle: "From first MCP key to production governance.",
-    docsDesc: "The documentation is organized around the way operators actually adopt hs-sql-agent: setup, MCP, compiler guarantees, administration, integrations, operations, and development.",
+    docsDesc:
+      "The documentation is organized around the way operators actually adopt hs-sql-agent: setup, MCP, compiler guarantees, administration, integrations, operations, and development.",
     docsCta: "Explore the documentation",
   },
   docs: {
     indexTitle: "Documentation",
-    indexDescription: "Guides, compiler concepts, integrations, operations, and reference documentation for hs-sql-agent.",
+    indexDescription:
+      "Guides, compiler concepts, integrations, operations, and reference documentation for hs-sql-agent.",
     sidebarLabel: "Documentation navigation",
     onThisPage: "On this page",
   },
   footer: { copyright: "Copyright", allRightsReserved: "All rights reserved." },
   pages: {
     tagTitle: "Tag",
-    tagDesc: "All the articles with the tag",
+    tagDesc: "All articles with this tag",
     tagsTitle: "Tags",
     tagsDesc: "All the tags used in posts.",
     postsTitle: "Posts",
@@ -103,7 +116,7 @@ export default {
     toggleTheme: "Toggle theme",
     searchPlaceholder: "Search documentation...",
     noResults: "No results found",
-    rssFeed: "rss feed",
+    rssFeed: "RSS feed",
     goToPreviousPage: "Go to previous page",
     goToNextPage: "Go to next page",
   },
