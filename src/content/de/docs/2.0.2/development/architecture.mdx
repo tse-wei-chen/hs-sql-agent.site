@@ -1,0 +1,45 @@
+---
+title: Architektur und Beitragsablauf
+description: Überblick für Beitragende über Repository-Struktur und Regeln für Änderungen an Compiler, Server, Frontend und Dokumentation.
+sidebar:
+  group: Entwicklung
+  order: 130
+---
+
+hs-sql-agent besteht aus einem Backend, einem Admin-Frontend und einer getrennten statischen Produkt- und Dokumentationsseite.
+
+## Zuständigkeiten im Repository
+
+Auf hoher Ebene:
+
+- `backend/` enthält Server, SQL-Compiler-/Laufzeitmodule, Persistenz und Tests.
+- `frontend/` enthält die eingebettete Nuxt-Administrationsoberfläche.
+- `hs-sql-agent.site` ist die eigenständige Astro-Produkt- und Dokumentationsseite.
+
+Der SQL-Compiler enthält F#-Module mit expliziten Rewrite-/Validierungsphasen und Capability-Proof-Konzepten. Server-Hosting wird über `HsSqlAgent.Server` als zusammensetzbare ASP.NET-Core-Klassenbibliothek bereitgestellt: Neue Integrationen starten mit `AddHsSqlAgentCore()` und wählen anschließend explizit benötigte Capabilities wie Runtime, AdminStore, HostAuthorization oder BuiltInAuth, AdminApi, MCP und Telemetry. `AddHsSqlAgent()` / `UseHsSqlAgent()` bleiben Kompatibilitätsschnittstellen für bestehende Nutzer und sind nicht das bevorzugte Integrationsmodell für neuen Code.
+
+## Beitragsablauf
+
+Der Contribution Guide des Haupt-Repositorys erwartet von Beitragenden:
+
+1. Repository forken.
+2. Eine klar abgegrenzte Änderung einschließlich nötiger Tests oder Dokumentation umsetzen.
+3. Projekt lokal ausführen und Tests prüfen.
+4. Einen Pull Request mit Motivation, Änderungsbeschreibung und Testnachweisen öffnen.
+
+Ein PR mit einem klaren Ziel lässt sich leichter prüfen und zusammenführen.
+
+## Änderungen an der Dokumentation
+
+Die Dokumentation soll das Verhalten des aktuellen Codes beschreiben, nicht geplante zukünftige Funktionen.
+
+Wenn SQL-Capabilities, DML-Sicherheit, MCP-Kompatibilität, Hosting-Konfiguration, Admin-Verhalten oder Deployment-Anforderungen geändert werden, sollte die passende Site-Seite nach Möglichkeit im selben Arbeitsablauf aktualisiert werden.
+
+Die Site organisiert Inhalte über Locale und Dokumentationsversion im Pfad:
+
+```text
+src/content/en/docs/<version>/<section>/<slug>.mdx
+src/content/de/docs/<version>/<section>/<slug>.mdx
+```
+
+Alle Sprachversionen teilen bewusst dieselbe Struktur aus Version, Abschnitt und Slug und unterscheiden sich nur durch das Locale-Präfix. Die aktuelle vollständige Dokumentationsbasis ist 2.0.2.

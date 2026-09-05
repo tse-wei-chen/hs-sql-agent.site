@@ -1,0 +1,51 @@
+---
+title: OIDC SSO und TOTP MFA
+description: Enterprise-OIDC-Identität, Claim-Zuordnungen, Rollen-Provisionierung, MFA-Regeln und persistente Data-Protection-Keys konfigurieren.
+sidebar:
+  group: Sicherheit
+  order: 115
+---
+
+hs-sql-agent kann einen externen OpenID-Connect-Provider für Admin-Identitäten verwenden, während lokale Laufzeit-Autorisierung und MCP-Zugriffsregeln weiterhin vom Server kontrolliert werden.
+
+## OIDC-Verbindung
+
+Die Server-Options enthalten:
+
+```text
+OidcEnabled
+Authority
+ClientId
+ClientSecret
+RequireHttpsMetadata
+```
+
+In Produktion sollte die Prüfung von HTTPS-Metadaten aktiviert bleiben, außer ein bewusst vertrauenswürdiger lokaler Identity Provider wird über HTTP betrieben.
+
+Die Standard-OIDC-Scopes sind `openid`, `profile` und `email`.
+
+## Claim-Zuordnungen und Provisionierung
+
+Die Identity-Options ermöglichen die Zuordnung eingehender Claims für E-Mail, Anzeigename, Rolle und E-Mail-Verifizierung. Der Dienst kann eine verifizierte E-Mail verlangen, externe Rollen auf lokale Rollennamen abbilden und Benutzer bei aktivierter Auto-Provisionierung automatisch anlegen.
+
+Wichtige Konzepte sind:
+
+- Auswahl der E-Mail- und Name-Claims;
+- Auswahl des Role Claims und Rollen-Mappings;
+- Durchsetzung einer verifizierten E-Mail;
+- Standardrollen / automatische Provisionierung;
+- der Frontend-Callback-Pfad des Login-Ablaufs.
+
+Behandeln Sie Rollen-Mappings als Autorisierungskonfiguration, nicht als rein kosmetische Identity-Metadaten.
+
+## MFA-Regeln
+
+TOTP steht als zweiter Faktor zur Verfügung. Die Server-Options enthalten einen TOTP-Issuer-Namen und eine Liste der Rollen, für die MFA erforderlich ist. Dadurch lässt sich für privilegierte Admin-Rollen eine stärkere Authentifizierung verlangen, während der Identity Provider weiterhin die primäre Anmeldung übernimmt.
+
+## Data-Protection-Keys persistent speichern
+
+Geschützte MFA-Secrets und Login-Zustand hängen von den ASP.NET-Core-Data-Protection-Keys ab. Die Deployment-Konfiguration enthält einen Pfad für diese Schlüssel. Persistieren Sie dieses Verzeichnis über Neustarts hinweg; ein Austausch kann bereits geschützten Zustand unlesbar machen.
+
+## MCP-Schlüssel sind eine getrennte Sicherheitsgrenze
+
+Admin-SSO/MFA schützt die Verwaltungsebene. MCP-Clients authentifizieren sich mit MCP-Server-Schlüsseln und unterliegen weiterhin ihrem eigenen Datenbank-, Tabellen-, Tool- und Laufzeit-Policy-Scope. Admin-SSO ersetzt nicht die Governance von MCP-Schlüsseln.
