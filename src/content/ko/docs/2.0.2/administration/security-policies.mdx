@@ -1,0 +1,85 @@
+---
+title: 보안 정책
+description: Admin 제어 평면에서 hs-sql-agent 2.0.1의 SQL, DML, rate limit 및 동시 실행 정책을 구성합니다.
+sidebar:
+  group: 관리
+  order: 82
+---
+
+import Callout from "@/components/docs/mdx/Callout.astro";
+import CardGrid from "@/components/docs/mdx/CardGrid.astro";
+import DocCard from "@/components/docs/mdx/DocCard.astro";
+
+<CardGrid columns={3}>
+  <DocCard title="Query policy" icon="Q" description="통제된 Query의 결과 행 수와 실행 timeout을 제한합니다." />
+  <DocCard title="DML policy" icon="DML" description="predicate를 요구하고 full-table mutation을 제한하며 affected row 수에 상한을 둡니다." />
+  <DocCard title="Runtime limits" icon="LIM" description="기본 MCP-key rate limit과 최대 동시 SQL 작업 수를 설정합니다." />
+</CardGrid>
+
+Security Policy는 에이전트가 자발적으로 지켜야 하는 가이드가 아니라 **런타임 강제 정책**입니다. 현재 정책은 Query/DML 실행과 runtime limiter에서 직접 사용됩니다.
+
+## 2.0.1 정책 필드
+
+| 필드 | 기본값 | 유효 범위 / 의미 |
+| --- | ---: | --- |
+| `QueryMaxRows` | `1000` | 1–100,000 |
+| `QueryTimeoutSeconds` | `30` | 1–600초 |
+| `RequireWhereForUpdate` | `true` | UPDATE predicate 요구 |
+| `RequireWhereForDelete` | `true` | DELETE predicate 요구 |
+| `AllowFullTableUpdate` | `false` | full-table UPDATE 명시적 허용 |
+| `AllowFullTableDelete` | `false` | full-table DELETE 명시적 허용 |
+| `DmlMaxAffectedRows` | `100` | 1–1,000,000 |
+| `KeyPermitLimit` | `120` | 설정된 key window당 1–1,000,000 요청 |
+| `KeyWindowSeconds` | `60` | 1–86,400초 |
+| `MaxConcurrentSql` | `16` | 1–10,000 동시 SQL 작업 |
+
+서비스는 범위를 벗어난 값을 다른 값으로 조용히 보정하지 않고 거부합니다.
+
+## Admin 권한
+
+| 작업 | 권한 |
+| --- | --- |
+| 현재 정책 조회 | `/runtime/security` → `view` |
+| 정책 수정 | `/runtime/security` → `edit` |
+
+정책을 수정하면 감사 이벤트가 기록되고 런타임 정책 상태가 즉시 교체됩니다. 또한 설정된 security-policy synchronization provider를 통해 변경이 게시되어 분산 배포의 여러 인스턴스에 전파될 수 있습니다.
+
+<Callout type="warning" title="정책 수정은 실제 런타임 결정에 즉시 영향을 줍니다">
+Query rows, DML 제한, key limit, SQL concurrency 변경은 단순 UI 설정이 아닙니다. 운영 환경의 authorization/availability 변경으로 검토하고 배포 후 audit 및 operability를 확인하십시오.
+</Callout>
+
+## Query 제한
+
+`QueryMaxRows`는 compiler/runtime policy를 통해 Query 결과량을 제한합니다. `QueryTimeoutSeconds`는 런타임 Query timeout 계약을 제어합니다. 둘 다 서버 측 제약이므로 클라이언트가 스스로 `LIMIT`이나 cancellation을 추가하는지에 의존하지 않습니다.
+
+## UPDATE 및 DELETE predicate
+
+기본 정책은 UPDATE와 DELETE에 predicate를 요구하고 full-table mutation을 허용하지 않습니다.
+
+Full-table 허용은 명시적입니다. `RequireWhereForUpdate`를 끄는 것과 `AllowFullTableUpdate`를 켜는 것은 같은 의도가 아닙니다. 운영 워크플로가 실제로 광범위한 mutation을 요구하지 않는 한 보수적인 기본값을 유지하십시오.
+
+## DML affected-row 상한
+
+`DmlMaxAffectedRows`는 mutation 영향 범위를 제한합니다. Safe DML 승인 protocol을 대체하는 것이 아니라 추가로 적용됩니다. Mutation은 여전히 parse/validate/compile을 통과해야 하며 MCP DML 경로에서는 승인 및 commit-time revalidation까지 완료해야 합니다.
+
+자세한 내용은 [Safe DML](/ko/docs/sql-compiler/safe-dml)을 참고하십시오.
+
+## MCP-key rate limit
+
+Security Policy는 키별 기본 permit limit/window를 제공합니다. 개별 MCP 키는 다음 중 하나를 선택할 수 있습니다.
+
+- 정책 상속
+- custom override
+- 명시적 unlimited
+
+키별 mode는 [MCP 키](/ko/docs/administration/mcp-keys)를 참고하십시오.
+
+## SQL concurrency
+
+`MaxConcurrentSql`은 런타임 SQL 동시 실행 제한입니다. 이 제한이 process-local인지 여러 인스턴스에 걸쳐 조정되는지는 설정된 SQL concurrency provider에 따라 달라집니다.
+
+클러스터 전체를 하나의 제한으로 다뤄야 한다면 distributed provider를 사용하십시오.
+
+<Callout type="tip" title="안전 정책과 데이터베이스 권한을 분리해 생각하십시오">
+Runtime policy, MCP-key scope, compiler check는 최소 권한 데이터베이스 계정 위에 추가로 적용되어야 합니다. 어느 한 계층만 원치 않는 SQL을 막는 유일한 보호 수단으로 사용하지 마십시오.
+</Callout>

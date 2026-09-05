@@ -1,0 +1,91 @@
+---
+title: 운영 상태
+description: hs-sql-agent 2.0.1의 실행 지표, 데이터베이스 상태, MCP 키 사용량 및 외부 전송 상태를 확인합니다.
+sidebar:
+  group: 관리
+  order: 84
+---
+
+import Callout from "@/components/docs/mdx/Callout.astro";
+import CardGrid from "@/components/docs/mdx/CardGrid.astro";
+import DocCard from "@/components/docs/mdx/DocCard.astro";
+
+<CardGrid columns={2}>
+  <DocCard title="실행 지표" icon="P95" description="Query/DML 건수, 성공률, 샘플링된 지연 시간, slow-query 건수, rate-limit 거부를 확인합니다." />
+  <DocCard title="데이터베이스 상태" icon="DB" description="마지막 probe 상태, 지연 시간, 연속 실패 횟수, 장애 시작 시각, 최근 provider 오류를 확인합니다." />
+  <DocCard title="MCP 키 사용량" icon="KEY" description="요청, 성공/실패, 마지막 사용 시각, 키별 rate-limit 거부율을 확인합니다." />
+  <DocCard title="외부 전송" icon="OUT" description="Webhook/SIEM 전송 상태를 확인하고 권한이 있으면 실패 또는 대기 중 레코드를 재시도합니다." />
+</CardGrid>
+
+Operability는 **통제된 런타임이 지금 어떻게 동작하고 있는지** 파악하는 Admin 화면입니다. 개별 보안/실행 이벤트를 다루는 Audit, 외부 시스템으로 telemetry를 내보내는 OpenTelemetry/Prometheus와 상호 보완적입니다.
+
+## 실행 지표
+
+Metrics endpoint는 다음을 반환할 수 있습니다.
+
+- Query 및 DML 건수
+- 성공/실패 건수와 성공률
+- p50 및 p95 latency
+- latency sample size와 sampling 여부
+- slow-query 건수
+- IP rate-limit 건수
+- MCP-key rate-limit 건수
+
+필터로 시간 범위, 데이터베이스, access key, tool name을 좁힐 수 있습니다.
+
+<Callout type="info" title="샘플링된 latency는 샘플링된 값으로 해석하십시오">
+응답에는 sample size와 sampling 여부가 명시됩니다. 런타임이 sampling을 사용했다고 표시하면 p50/p95를 전체 실행 분포의 완전한 통계로 해석하지 마십시오.
+</Callout>
+
+## 데이터베이스 상태
+
+각 관리 연결의 health item에는 다음 상태가 포함됩니다.
+
+| 필드 | 의미 |
+| --- | --- |
+| `Status` | 현재 health 상태 |
+| `LastCheckedAt` | 마지막 probe 시각 |
+| `LastSuccessAt` | 마지막 성공 probe |
+| `LatencyMs` | 사용 가능한 경우 probe latency |
+| `ConsecutiveFailures` | 현재 연속 실패 횟수 |
+| `OutageStartedAt` | 알려진 경우 현재 장애 구간 시작 시각 |
+| `LastError` | 가장 최근 provider/probe 오류 |
+
+Health probing은 `HEALTH_PROBE_*` 설정으로 제어됩니다. 백그라운드 probe가 비활성화되어 있다면 이 화면을 지속 갱신되는 외부 모니터링 시스템처럼 해석하면 안 됩니다.
+
+## MCP 키 사용량
+
+Key-usage 결과에는 key identity/name, 마지막 사용 시각, 요청 수, 성공/실패, rate-limit 건수, rate-limit rejection rate가 포함됩니다.
+
+오래 사용하지 않은 credential, 예상보다 요청이 많은 에이전트, 설정된 제한에 자주 걸리는 키를 찾는 데 활용할 수 있습니다. Scope 또는 제한을 바꾸기 전에 [MCP 키](/ko/docs/administration/mcp-keys)를 확인하십시오.
+
+## 외부 전송
+
+런타임은 설정된 alert/SIEM webhook 같은 outbound delivery 시도를 기록합니다. Delivery item에는 다음 정보가 포함됩니다.
+
+- category와 status
+- attempt count
+- creation/delivery/last-attempt time
+- latest error
+
+목록 endpoint의 `limit` 기본값은 `100`입니다.
+
+## 전송 재시도
+
+| 작업 | 권한 |
+| --- | --- |
+| metrics / DB health / key usage / delivery list | `/runtime/operability` → `view` |
+| delivery retry | `/runtime/operability` → `edit` |
+
+Retry는 명시적인 운영 변경 작업입니다. 일시적인 목적지/네트워크 문제를 해결한 뒤에는 유용하지만, 잘못된 endpoint·secret·downstream service를 고치지 않은 채 반복 재시도하는 용도로 사용하면 안 됩니다.
+
+<Callout type="warning" title="Delivery retry는 이벤트를 다시 전송할 수 있습니다">
+재시도 전에 대상 시스템이 중복 또는 지연 전송을 허용하는지, 원래 요청은 성공했지만 로컬 상태 갱신만 실패한 경우가 아닌지 확인하십시오.
+</Callout>
+
+## 다음 조사 위치
+
+- [감사](/ko/docs/administration/audit) — 정확한 actor/action/result와 SQL 실행 컨텍스트
+- [보안 정책](/ko/docs/administration/security-policies) — 거부 원인이 될 수 있는 런타임 제한
+- [관측성](/ko/docs/operations/observability) — Prometheus, OTLP, trace 및 외부 telemetry 연동
+- [분산 배포](/ko/docs/operations/distributed-deployment) — 여러 노드가 제한/상태를 함께 결정해야 할 때의 공유 조정

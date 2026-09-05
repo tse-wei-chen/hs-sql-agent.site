@@ -1,0 +1,82 @@
+---
+title: 권한
+description: hs-sql-agent 2.0.1 Admin 작업에 사용되는 path + action authorization 모델을 설명합니다.
+sidebar:
+  group: 관리
+  order: 79
+---
+
+import Callout from "@/components/docs/mdx/Callout.astro";
+import CardGrid from "@/components/docs/mdx/CardGrid.astro";
+import DocCard from "@/components/docs/mdx/DocCard.astro";
+
+<CardGrid columns={3}>
+  <DocCard title="Permission path" icon="PATH" description="/runtime/db-management 또는 /auth/user 같은 보호된 Admin 리소스를 식별합니다." />
+  <DocCard title="Action" icon="ACT" description="view, create, edit, delete, export 같은 허용 작업을 식별합니다." />
+  <DocCard title="Role selection" icon="RBAC" description="역할에는 서버 template inventory에 존재하는 permission/action pair만 저장됩니다." />
+</CardGrid>
+
+2.0.1의 Admin authorization은 **permission path + action code** 쌍으로 강제됩니다. Controller는 필요한 pair를 선언하고, 로그인한 멤버는 할당된 역할을 통해 접근 권한을 얻습니다.
+
+## 런타임 예시
+
+| 보호 작업 | 필요한 pair |
+| --- | --- |
+| Database Management 조회 | `/runtime/db-management` → `view` |
+| Database Management 항목 생성 | `/runtime/db-management` → `create` |
+| semantic metadata 수정 | `/runtime/db-management/semantic` → `edit` |
+| MCP 키 발급/관리 | `/runtime/mcp-keys` + 해당 action |
+| 사용자 조회 | `/auth/user` → `view` |
+| 역할 수정 | `/auth/role` → `edit` |
+| 감사 조회 | `/runtime/audit` → `view` |
+| 감사 export | `/runtime/audit` → `export` |
+| 보안 정책 수정 | `/runtime/security` → `edit` |
+| 외부 전송 재시도 | `/runtime/operability` → `edit` |
+
+따라서 인증만으로는 충분하지 않습니다. 필요한 path/action pair가 사용자의 역할을 통해 해석되어야 합니다.
+
+## Permission-action template이 기준입니다
+
+Role API는 `permission-action-templates` inventory를 제공합니다. 각 template에는 다음이 들어 있습니다.
+
+- permission ID, name, path
+- action ID, code, name
+
+Role payload는 `{ PermissionId, ActionId }` pair를 제출합니다. Role service는 중복을 정규화하고 template inventory에 존재하는 pair만 저장합니다.
+
+<Callout type="warning" title="권한은 임의 문자열이 아닙니다">
+클라이언트가 새로운 path/action 문자열을 마음대로 만들어 authorization 모델을 구성하면 안 됩니다. 역할은 서버의 permission-action template 데이터에 존재하는 조합만 저장할 수 있습니다.
+</Callout>
+
+## 역할이 할당 단위입니다
+
+멤버는 역할을 할당받고, 역할에는 permission/action selection이 들어갑니다. 이 구조는 사용자 수명 주기와 재사용 가능한 접근 정책을 분리합니다.
+
+```text
+Member
+  └─ Role(s)
+       └─ Permission path + Action
+```
+
+한 멤버가 여러 역할을 가질 수 있으며, 실제 Admin 접근 권한은 할당된 역할들의 permission surface를 합친 결과입니다.
+
+## Authorization 변경은 오래된 상태를 무효화합니다
+
+역할 수정은 보안에 민감한 작업입니다. 역할의 permission이 변경되면 role service는 영향받는 멤버를 찾고 security version을 증가시키며 auth runtime-state cache barrier를 통해 변경을 수행합니다.
+
+이는 이미 인증된 세션이 변경 전 authorization을 계속 사용하는 문제를 막기 위한 설계입니다.
+
+## 보호된 SuperUser 역할
+
+`SuperUser`는 2.0.1의 내장 보호 역할입니다. 일반 역할 관리로 수정하거나 삭제할 수 없습니다. Bootstrap/full-control 역할이 다른 permission set으로 조용히 재정의되는 것을 막습니다.
+
+<Callout type="tip" title="업무 책임 기준의 최소 권한을 권장합니다">
+모든 계정에 SuperUser를 복제하지 말고 운영 책임별 역할을 만드십시오. 예를 들어 런타임 관찰자는 audit/operability `view`가 필요할 수 있지만 database `edit`, key `create`, security-policy `edit`까지 필요하지는 않습니다.
+</Callout>
+
+## 관련 문서
+
+- [멤버와 역할](/ko/docs/administration/members-roles) — 멤버 수명 주기와 역할 보호 장치
+- [데이터베이스 관리](/ko/docs/administration/database-management) — DB 및 semantic permission 예시
+- [MCP 키](/ko/docs/administration/mcp-keys) — MCP credential은 Admin 역할과 별개의 authorization boundary
+- [보안 정책](/ko/docs/administration/security-policies) — 별도 Admin 권한으로 관리하는 런타임 SQL/rate/concurrency policy

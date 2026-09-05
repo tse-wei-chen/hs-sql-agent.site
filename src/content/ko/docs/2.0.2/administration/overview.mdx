@@ -1,0 +1,62 @@
+---
+title: Admin 패널 개요
+description: 데이터베이스 접근, MCP 자격 증명, ID, 권한 부여, 감사, 보안 정책 및 런타임 운영을 위한 운영자 제어 평면입니다.
+sidebar:
+  group: 관리
+  order: 70
+---
+
+import Callout from "@/components/docs/mdx/Callout.astro";
+import CardGrid from "@/components/docs/mdx/CardGrid.astro";
+import DocCard from "@/components/docs/mdx/DocCard.astro";
+import Flow from "@/components/docs/mdx/Flow.astro";
+
+Admin 패널은 hs-sql-agent의 **운영자 제어 평면**입니다. 운영자는 MCP 클라이언트가 접근할 수 있는 범위와 SQL 통제 방식을 정의하고, MCP 클라이언트는 별도로 인증되는 `/mcp` 엔드포인트를 사용합니다.
+
+<CardGrid columns={2}>
+  <DocCard title="Database Management" icon="DB" href="/ko/docs/administration/database-management" description="provider 연결을 등록하고 연결 상태를 확인하며 MCP 키가 바인딩할 데이터베이스를 관리합니다." />
+  <DocCard title="MCP Keys" icon="KEY" href="/ko/docs/administration/mcp-keys" description="MCP 자격 증명을 발급·교체·폐기하고 범위를 지정하며 클라이언트 설정을 생성합니다." />
+  <DocCard title="Semantic Metadata" icon="AI" href="/ko/docs/administration/semantic-metadata" description="스키마 탐색에 사람이 읽기 쉬운 이름, 설명, 동의어, 관계, 지표를 추가합니다." />
+  <DocCard title="Custom Tools" icon="SQL" href="/ko/docs/administration/custom-tools" description="런타임 정책을 우회하지 않고 통제된 SQL 작업을 이름 있는 MCP 도구로 게시합니다." />
+  <DocCard title="Security" icon="SEC" href="/ko/docs/security/overview" description="인증, 권한 부여, 테이블/도구 범위, fail-closed SQL 정책, 감사 경계를 이해합니다." />
+  <DocCard title="Operations" icon="OPS" href="/ko/docs/operations/configuration" description="배포, 공유 상태, 관측성, 보존 정책, 제한 및 운영 환경의 런타임 동작을 구성합니다." />
+</CardGrid>
+
+## ID, 거버넌스, 운영
+
+<CardGrid columns={3}>
+  <DocCard title="Members & Roles" icon="USR" href="/ko/docs/administration/members-roles" description="Admin 사용자를 만들고 역할을 할당하며 세션을 폐기하고 역할 수명 주기를 안전하게 관리합니다." />
+  <DocCard title="Permissions" icon="RBAC" href="/ko/docs/administration/permissions" description="Admin controller가 강제하는 permission path + action 모델을 설명합니다." />
+  <DocCard title="Audit" icon="AUD" href="/ko/docs/administration/audit" description="런타임 및 보안 감사 레코드를 검색·요약·내보내고 보존 정책을 적용합니다." />
+  <DocCard title="Security Policies" icon="POL" href="/ko/docs/administration/security-policies" description="쿼리, DML, 키별 rate limit, SQL 동시 실행 제한을 관리합니다." />
+  <DocCard title="Operability" icon="P95" href="/ko/docs/administration/operability" description="실행 지표, DB 상태, 키 사용량, 외부 전송 상태를 확인합니다." />
+  <DocCard title="Admin HTTP API" icon="API" href="/ko/docs/reference/api-reference" description="번들 UI가 사용하는 2.0.1/2.0.2 소스 기반 controller route와 권한 표면을 확인합니다." />
+</CardGrid>
+
+## 권장 운영 흐름
+
+<Flow items={["데이터베이스 등록", "MCP 키 발급", "도구/테이블 범위 설정", "메타데이터 보강", "클라이언트 연결", "관찰 및 감사"]} />
+
+1. 에이전트에 노출할 데이터베이스 연결을 등록하고 확인합니다.
+2. 해당 데이터베이스에 바인딩된 MCP 키를 발급하고 필요한 도구와 테이블만 허용합니다.
+3. 원시 스키마 이름만으로 안정적인 탐색이 어려우면 semantic metadata를 추가합니다.
+4. 클라이언트 설정을 생성하고 공개 Streamable HTTP `/mcp` 엔드포인트로 연결합니다.
+5. Audit과 Operability 화면에서 런타임 동작을 확인하고 필요에 따라 정책을 강화합니다.
+
+<Callout type="info" title="Admin 인증과 MCP 인증은 별개입니다">
+Admin 계정은 제어 평면을 운영합니다. MCP 클라이언트는 MCP 키로 인증합니다. 사용자가 Admin 권한을 가진다고 해서 MCP 자격 증명이 자동 생성되지 않으며, MCP 키가 Admin UI 접근 권한을 제공하지도 않습니다.
+</Callout>
+
+## MCP 키 수명 주기
+
+키를 발급·교체·복제하면 UI에서 지원되는 클라이언트 형식에 맞는 Streamable HTTP 설정을 바로 생성할 수 있습니다. 평문 secret은 해당 수명 주기 대화상자에서만 표시되며 이후 다시 조회할 수 있도록 보관되지 않습니다.
+
+대화상자를 닫기 전에 생성된 설정을 복사하십시오.
+
+## 임베디드 UI와 내장 ID는 선택 사항입니다
+
+ASP.NET Core 호스트는 패키지된 Admin UI 없이 HsSqlAgent Admin API만 노출할 수 있습니다. 모듈형 통합에서는 `UseHsSqlAgentAdminApi()`를 사용하고 호스트가 `MapControllers()`를 호출하게 하며, 패키지 UI가 필요할 때만 `UseHsSqlAgentAdminUi()`를 추가합니다.
+
+호스트는 `AddHsSqlAgentHostAuthorization(...)`을 사용해 기존 로그인 및 권한 시스템을 유지할 수도 있습니다. 이 경우 HsSqlAgent의 member, role, JWT, SMTP, OIDC 구성이 필요하지 않습니다. MCP는 `AddHsSqlAgentMcp(...)` / `UseHsSqlAgentMcp()`로 독립적으로 선택하고 매핑합니다.
+
+전체 2.0.2 구성 모델은 [ASP.NET Core 통합](/ko/docs/integration/aspnet-core)을 참고하십시오.
