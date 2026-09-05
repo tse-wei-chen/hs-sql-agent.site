@@ -1,6 +1,6 @@
 ---
-title: Permissions
-description: 理解 hs-sql-agent 2.0.1 Admin operations 使用的 path-and-action authorization model。
+title: 權限
+description: 了解 hs-sql-agent 2.0.1 管理端採用的「權限路徑 + 動作」授權模型。
 sidebar:
   group: 管理
   order: 79
@@ -11,46 +11,46 @@ import CardGrid from "@/components/docs/mdx/CardGrid.astro";
 import DocCard from "@/components/docs/mdx/DocCard.astro";
 
 <CardGrid columns={3}>
-  <DocCard title="Permission path" icon="PATH" description="識別受保護的 Admin resource，例如 /runtime/db-management 或 /auth/user。" />
-  <DocCard title="Action" icon="ACT" description="識別可執行操作，例如 view、create、edit、delete、export。" />
-  <DocCard title="Role selection" icon="RBAC" description="Role 只會保存 server template inventory 裡合法的 permission/action pair。" />
+  <DocCard title="權限路徑" icon="PATH" description="識別受保護的管理端資源，例如 /runtime/db-management 或 /auth/user。" />
+  <DocCard title="動作" icon="ACT" description="識別可執行的操作，例如 view、create、edit、delete、export。" />
+  <DocCard title="角色指派" icon="RBAC" description="角色只能保存伺服器權限範本中存在的合法 permission/action 組合。" />
 </CardGrid>
 
-2.0.1 的 Admin authorization 以 **permission path + action code** pair 執行。Controller 宣告需要的 pair，登入 member 則透過 assigned roles 取得權限。
+2.0.1 的管理端授權以 **permission path + action code** 成對判斷。控制器宣告每個端點需要的組合，登入成員再透過被指派的角色取得對應權限。
 
-## Runtime 實例
+## 實際權限組合
 
-| 受保護操作 | Required pair |
+| 受保護操作 | 所需組合 |
 | --- | --- |
 | 查看 Database Management | `/runtime/db-management` → `view` |
-| 建立 Database Management entry | `/runtime/db-management` → `create` |
-| 編輯 semantic metadata | `/runtime/db-management/semantic` → `edit` |
-| 管理 MCP keys | `/runtime/mcp-keys` 搭配對應 action |
-| 查看 users | `/auth/user` → `view` |
-| 編輯 roles | `/auth/role` → `edit` |
-| 查看 audit | `/runtime/audit` → `view` |
-| 匯出 audit | `/runtime/audit` → `export` |
-| 編輯 security policy | `/runtime/security` → `edit` |
-| retry outbound delivery | `/runtime/operability` → `edit` |
+| 建立 Database Management 項目 | `/runtime/db-management` → `create` |
+| 編輯語意中繼資料 | `/runtime/db-management/semantic` → `edit` |
+| 管理 MCP 金鑰 | `/runtime/mcp-keys` 搭配對應 action |
+| 查看使用者 | `/auth/user` → `view` |
+| 編輯角色 | `/auth/role` → `edit` |
+| 查看稽核紀錄 | `/runtime/audit` → `view` |
+| 匯出稽核紀錄 | `/runtime/audit` → `export` |
+| 編輯安全政策 | `/runtime/security` → `edit` |
+| 重試外送 | `/runtime/operability` → `edit` |
 
-因此只有 authentication 並不足以執行這些操作；所需 path/action pair 還必須能從 member 的 roles 解出。
+因此，只通過身分驗證仍不足以執行這些操作；所需的 path/action 組合還必須能從該成員被指派的角色中取得。
 
-## Permission-action templates 是 authoritative inventory
+## `permission-action-templates` 是正式權限清單
 
-Role API 提供 `permission-action-templates` inventory。每個 template 包含：
+Role API 提供 `permission-action-templates`，它是可配置權限的正式清單。每個範本包含：
 
-- permission ID、name、path；
-- action ID、code、name。
+- permission 的 ID、名稱與 path；
+- action 的 ID、code 與名稱。
 
-Role payload 用 `{ PermissionId, ActionId }` pair 提交選擇。Role service 會去除重複，並只保存 template inventory 中真實存在的組合。
+角色資料以 `{ PermissionId, ActionId }` 組合提交選擇。Role service 會去除重複項目，並且只保存範本清單中真實存在的組合。
 
-<Callout type="warning" title="Permission 不是自由字串">
-不要由 client 自己發明新的 path/action string。Role 只能保存 server permission-action template data 已定義的合法組合。
+<Callout type="warning" title="權限不是可以任意輸入的字串">
+不要由用戶端自行發明新的 path/action 字串。角色只能保存伺服器 `permission-action-templates` 已定義的合法組合。
 </Callout>
 
-## Role 是 assignment unit
+## 角色是權限指派單位
 
-Member 被指派 roles，而 role 內含 permission/action selections：
+成員會被指派一個或多個角色，而每個角色包含一組 permission/action 選擇：
 
 ```text
 Member
@@ -58,25 +58,25 @@ Member
        └─ Permission path + Action
 ```
 
-一個 member 可以有多個 roles，有效 Admin access 是這些 roles permission surface 的合併結果。
+一位成員可以同時擁有多個角色；實際可用的管理權限，是這些角色權限的聯集。
 
-## Authorization 變更會讓 stale state 失效
+## 授權變更會讓舊狀態立即失效
 
-Role edit 屬於 security-sensitive mutation。Permission 改變時，role service 會找出受影響 members、遞增其 security version，並透過 auth runtime-state cache barrier 完成更新。
+編輯角色屬於安全敏感操作。權限改變時，Role service 會找出受影響的成員、遞增其 security version，並透過 auth runtime-state cache barrier 完成狀態更新。
 
-目的就是避免已登入 session 在 role definition 改變後仍長時間使用 stale authorization。
+這樣可以避免角色定義已變更，但既有登入工作階段仍長時間沿用舊授權結果。
 
-## Protected SuperUser role
+## 受保護的 `SuperUser` 角色
 
-`SuperUser` 是 2.0.1 的 built-in protected role，不能透過一般 role management 修改或刪除，避免 full-control role 被偷偷重新定義成另一套 permission set。
+`SuperUser` 是 2.0.1 內建且受保護的角色，不能透過一般角色管理流程修改或刪除，以免原本具有完整控制權的角色被重新定義成另一套權限集合。
 
-<Callout type="tip" title="依責任設計 least-privilege roles">
-不要每個 Admin 帳號都複製 SuperUser。像 runtime observer 可能只需要 audit/operability `view`，並不需要 database `edit`、key `create` 或 security-policy `edit`。
+<Callout type="tip" title="依職責設計最小權限角色">
+不要替每個管理員帳號都複製 `SuperUser`。例如只負責監看的帳號可能只需要 audit/operability 的 `view`，不需要 database 的 `edit`、key 的 `create` 或 security-policy 的 `edit`。
 </Callout>
 
 ## 相關文件
 
-- [Members 與 Roles](/zh-hant/docs/administration/members-roles) — member lifecycle 與 role guardrails。
-- [Database Management](/zh-hant/docs/administration/database-management) — DB / semantic permission examples。
-- [MCP Keys](/zh-hant/docs/administration/mcp-keys) — MCP credential 與 Admin roles 是不同 authorization boundary。
-- [Security Policies](/zh-hant/docs/administration/security-policies) — 透過獨立 Admin permission 管理 runtime SQL/rate/concurrency policy。
+- [成員與角色](/zh-hant/docs/administration/members-roles) — 成員生命週期與角色保護機制。
+- [Database Management](/zh-hant/docs/administration/database-management) — 資料庫與語意中繼資料的權限範例。
+- [MCP Keys](/zh-hant/docs/administration/mcp-keys) — MCP 憑證與管理端角色屬於不同授權邊界。
+- [安全政策](/zh-hant/docs/administration/security-policies) — 透過獨立的管理端權限管理 SQL、速率與並行執行政策。
