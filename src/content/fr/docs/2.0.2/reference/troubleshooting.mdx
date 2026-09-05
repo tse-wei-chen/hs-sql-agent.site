@@ -1,0 +1,39 @@
+---
+title: Dépannage
+description: Diagnostiquer les problèmes courants de configuration et de compatibilité à partir des invariants du runtime hs-sql-agent.
+sidebar:
+  group: Référence
+  order: 140
+---
+
+Commencez le dépannage par la frontière qui a refusé la requête. hs-sql-agent applique volontairement le refus par défaut à plusieurs endroits ; un rejet indique donc souvent une incompatibilité de configuration ou de capacité plutôt qu’une erreur SQL transitoire.
+
+## Le client se connecte localement mais la configuration générée est incorrecte
+
+Vérifiez `MCP_PUBLIC_ENDPOINT`.
+
+Il doit s’agir de l’URL MCP HTTP ou HTTPS absolue, accessible depuis l’extérieur et incluant `/mcp`. Ne la déduisez pas de l’URL de l’Admin UI si un reverse proxy expose les deux surfaces différemment.
+
+## Les requêtes fonctionnent mais DML est refusé
+
+Une connexion MCP fonctionnelle ne démontre pas la prise en charge d’Elicitation.
+
+`execute_dml_sql` et les Custom Tools DML publiés exigent form Elicitation. Testez la version exacte du client avec les parcours Decline et Accept. Si le client ne prend pas cette capacité en charge, exposez uniquement les outils de requête.
+
+## L’authentification ou l’état MFA casse après un redémarrage
+
+Vérifiez que `DATA_PROTECTION_KEY_PATH` est persistant. L’état protégé de connexion/MFA peut devenir illisible si les clés ASP.NET Core data protection sont remplacées à chaque nouveau conteneur.
+
+## Le comportement multi-instance est incohérent
+
+Vérifiez si les providers sensibles à la coordination utilisent encore `Memory`.
+
+Dans un déploiement distribué, configurez des providers partagés pour les sous-systèmes qui doivent se coordonner entre nœuds, notamment cache, limitation de débit, synchronisation des politiques de sécurité, synchronisation des livraisons sortantes et concurrence SQL.
+
+## Prometheus n’est pas sur le port de l’application
+
+Lorsqu’il est activé, Prometheus utilise son propre listener. La configuration d’exemple utilise le port `9000` ; ne vous attendez pas à voir automatiquement les métriques sur le listener principal de l’API applicative.
+
+## SQL est refusé alors que la base elle-même l’accepte
+
+Cela peut être attendu. Le support du moteur est borné par le contrat du compilateur. Une syntaxe ou une sémantique qui n’est pas représentée et démontrée est refusée au lieu d’être transmise librement comme SQL propre au fournisseur.

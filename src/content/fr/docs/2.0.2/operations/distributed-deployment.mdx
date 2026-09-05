@@ -1,0 +1,57 @@
+---
+title: Déploiement distribué
+description: Exigences d’état partagé pour exécuter plusieurs instances hs-sql-agent derrière un même endpoint de service.
+sidebar:
+  group: Exploitation
+  order: 110
+---
+
+Le dépôt fournit `.env.distributed.example` pour une topologie multi-instance. La différence importante n’est pas simplement « ajouter Redis » : chaque état qui doit rester cohérent entre les nœuds a besoin d’un provider partagé.
+
+## Plan de contrôle partagé
+
+L’exemple distribué utilise PostgreSQL pour la base Admin au lieu de SQLite local :
+
+```env
+ADMIN_DATABASE_PROVIDER=Postgres
+ADMIN_DATABASE_CONNECTION_STRING=Host=postgres;Port=5432;Database=hsqlagent;Username=postgres;Password=postgres;
+```
+
+Toutes les instances doivent pointer vers la même base de plan de contrôle lorsqu’elles servent le même déploiement hs-sql-agent logique.
+
+## Coordination via Redis
+
+L’exemple distribué déplace vers Redis :
+
+- le cache ;
+- le limiteur de débit ;
+- la synchronisation des politiques de sécurité ;
+- la synchronisation des livraisons sortantes ;
+- la coordination de concurrence SQL.
+
+Exemple :
+
+```env
+CACHE_PROVIDER=Redis
+CACHE_CONNECTION_STRING=redis:6379
+
+RATE_LIMITER_PROVIDER=Redis
+RATE_LIMITER_CONNECTION_STRING=redis:6379
+RATE_LIMITER_FAILURE_MODE=FailClosed
+
+SQL_CONCURRENCY_PROVIDER=Redis
+SQL_CONCURRENCY_CONNECTION_STRING=redis:6379
+SQL_CONCURRENCY_FAILURE_MODE=FailClosed
+```
+
+## Le mode de défaillance compte
+
+Pour les coordinations qui protègent une frontière d’exécution, l’exemple utilise `FailClosed`. Si le coordinateur distribué n’est pas disponible, refuser l’opération est plus sûr que laisser chaque nœud prendre une décision indépendante.
+
+## Persister les clés de protection d’identité
+
+Même en déploiement distribué, persistez les clés ASP.NET Core data protection utilisées pour l’état protégé d’authentification/MFA. Traitez ces clés comme de l’état de déploiement et non comme des fichiers jetables du conteneur.
+
+## Valider la topologie
+
+Avant d’ajouter des instances, vérifiez quelles décisions sont volontairement locales au processus et lesquelles doivent être partagées. Ajouter des replicas sans déplacer le provider d’état concerné peut produire des limites de débit incohérentes, une politique de sécurité obsolète ou une concurrence SQL non coordonnée.

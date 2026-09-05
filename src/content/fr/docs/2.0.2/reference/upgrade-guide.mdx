@@ -1,0 +1,94 @@
+---
+title: Guide de mise à niveau
+description: Liste de contrôle sûre pour les installations qui quittent la base documentaire hs-sql-agent 2.0.1 vers une version ultérieure.
+sidebar:
+  group: Référence
+  order: 144
+---
+
+import Callout from "@/components/docs/mdx/Callout.astro";
+import CardGrid from "@/components/docs/mdx/CardGrid.astro";
+import DocCard from "@/components/docs/mdx/DocCard.astro";
+import Steps from "@/components/docs/mdx/Steps.astro";
+import Step from "@/components/docs/mdx/Step.astro";
+
+<CardGrid columns={3}>
+  <DocCard title="État du plan de contrôle" icon="DB" description="Protégez la base Admin qui stocke identités, rôles, clés MCP, politiques, audit et autres états runtime." />
+  <DocCard title="Secrets et état protégé" icon="KEY" description="Préservez la configuration HMAC/JWT et les clés ASP.NET Core data protection durables." />
+  <DocCard title="Contrats de comportement" icon="MCP" description="Retestez transport client, capacités SQL, périmètre des clés et Elicitation DML après un changement de version." />
+</CardGrid>
+
+Le versionnement de la documentation commence en **2.0.1**. Il n’existe volontairement pas de matrice de migration hébergée sur le site pour les versions antérieures. Cette page définit la liste de contrôle opérationnelle pour quitter la base 2.0.1 ; les changements incompatibles propres à une destination appartiennent à la documentation de cette version ultérieure.
+
+<Callout type="warning" title="Ne déduisez pas les exigences d’une future version depuis cette page">
+Avant la mise à niveau, lisez les notes de version de destination et sa documentation versionnée. Si une version ultérieure modifie le schéma de stockage, la configuration, les capacités SQL ou les contrats API, cette version fait autorité.
+</Callout>
+
+## Avant de changer la version en cours d’exécution
+
+<Steps>
+  <Step title="Consigner le déploiement actuel" description="Notez la version exacte de hs-sql-agent, la version container/package, la topologie, le provider de la base Admin et les providers d’état partagé." />
+  <Step title="Sauvegarder le plan de contrôle" description="Créez une sauvegarde récupérable de la base Admin avant qu’un binaire plus récent puisse modifier l’état persistant." />
+  <Step title="Préserver le matériel cryptographique" description="Conservez HMAC_KEY, JWT_KEY, secrets webhook et le contenu durable de DATA_PROTECTION_KEY_PATH pour le déploiement mis à niveau." />
+  <Step title="Comparer la configuration" description="Comparez les exemples/options de la version cible à la configuration 2.0.1 active au lieu d’écraser les valeurs de production avec un nouvel exemple." />
+  <Step title="Inventorier les intégrations" description="Recensez clients MCP, Custom Tools, OIDC, SMTP, webhooks/SIEM, Prometheus/OTLP, Redis/état partagé, reverse proxy et consommateurs externes de l’Admin API." />
+</Steps>
+
+## État à ne pas régénérer sans intention
+
+### Secrets HMAC et JWT
+
+`HMAC_KEY` protège la vérification des clés MCP et `JWT_KEY` signe les tokens d’authentification Admin. Traitez leur rotation comme une migration de sécurité volontaire, pas comme un effet secondaire du déploiement d’une nouvelle image.
+
+### Trousseau data protection
+
+Lorsque l’état protégé d’identité/MFA utilise ASP.NET Core data protection, conservez `DATA_PROTECTION_KEY_PATH` sur un stockage durable. Remplacer le trousseau peut rendre illisibles les valeurs déjà protégées.
+
+### Base Admin
+
+La base Admin porte le plan de contrôle : identités/rôles, enregistrements de bases, clés MCP, politiques, métadonnées sémantiques, définitions/révisions de Custom Tools, données d’audit et autres états opérationnels. Sauvegardez-la selon la procédure adaptée à SQLite ou PostgreSQL avant toute mise à niveau susceptible de modifier la persistance.
+
+## Liste de contrôle de comparaison de configuration
+
+Ne repartez pas d’un nouveau `.env` vide. Comparez explicitement :
+
+- host applicatif et endpoint MCP public ;
+- provider/connexion de la base Admin ;
+- HMAC/JWT et paramètres d’identité ;
+- configuration bootstrap ;
+- OIDC/MFA/data protection ;
+- rétention d’audit et livraisons sortantes ;
+- limitation de débit et synchronisation de politique ;
+- cache / concurrence SQL / autres coordinations via Redis ;
+- Prometheus et OTLP.
+
+Consultez [Référence de configuration](/fr/docs/operations/configuration) pour la base 2.0.1.
+
+## Valider après la mise à niveau
+
+<Steps>
+  <Step title="Authentification Admin" description="Connectez-vous et vérifiez les rôles/permissions attendus ; vérifiez aussi OIDC/MFA s’ils sont activés." />
+  <Step title="Connectivité des bases" description="Vérifiez les connexions gérées et la navigation dans les métadonnées de schéma pour chaque provider utilisé." />
+  <Step title="Périmètre des clés MCP" description="Confirmez que des clés représentatives résolvent toujours la base, les outils, la liste blanche de tables et les limites effectives attendus." />
+  <Step title="SQL en lecture" description="Exécutez des formes de requêtes prises en charge représentatives et vérifiez le comportement du compilateur et des résultats." />
+  <Step title="Safe DML" description="Sur une cible hors production, testez les parcours Decline et Accept d’Elicitation et vérifiez le comportement au moment du commit." />
+  <Step title="Exploitation" description="Inspectez audit, santé, usage des clés, export de télémétrie et état des livraisons sortantes." />
+</Steps>
+
+## Custom Tools et métadonnées sémantiques
+
+Pour chaque Custom Tool publié, vérifiez qu’il reste valide sous le compiler/policy de destination et que son exposition prévue par base/clé reste correcte. Pour les métadonnées sémantiques, vérifiez que descriptions de tables/colonnes, relations et métriques continuent d’apparaître comme prévu dans la découverte de schéma.
+
+## Consommateurs API
+
+Les contrôleurs Admin 2.0.1 ne sont pas placés sous un contrat versionné `/v1`. Si une automatisation externe appelle directement les routes HTTP Admin, traitez la compatibilité route/request/response comme un test explicite de mise à niveau.
+
+Consultez [Référence de l’API HTTP Admin](/fr/docs/reference/api-reference).
+
+## Préparer le rollback
+
+<Callout type="danger" title="Revenir au binaire précédent ne restaure pas automatiquement les données">
+Si la version plus récente modifie le schéma ou l’état persistant du plan de contrôle, lancer simplement l’ancien binaire contre la base modifiée peut être dangereux. Conservez une sauvegarde pré-mise à niveau et suivez les recommandations de rollback de la version de destination.
+</Callout>
+
+Un déploiement prudent conserve les artefacts/configurations précédents, la sauvegarde de la base Admin avant mise à niveau et le matériel cryptographique protégé jusqu’à ce que la nouvelle version ait passé les smoke tests fonctionnels et opérationnels.

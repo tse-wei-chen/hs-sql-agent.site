@@ -1,0 +1,171 @@
+---
+title: Référence de l’API HTTP Admin
+description: Surface réelle des contrôleurs HTTP de hs-sql-agent 2.0.1, issue du code source et utilisée par l’interface Admin intégrée.
+sidebar:
+  group: Référence
+  order: 142
+---
+
+import Callout from "@/components/docs/mdx/Callout.astro";
+import CardGrid from "@/components/docs/mdx/CardGrid.astro";
+import DocCard from "@/components/docs/mdx/DocCard.astro";
+
+<CardGrid columns={3}>
+  <DocCard title="Auth & identité" icon="AUTH" description="Connexion, refresh, OIDC, MFA, récupération de mot de passe, compte, sessions, membres et rôles." />
+  <DocCard title="Contrôle runtime" icon="OPS" description="Bases, clés MCP, métadonnées sémantiques, Custom Tools, politique de sécurité, audit et opérabilité." />
+  <DocCard title="MCP est séparé" icon="MCP" description="Le transport Streamable HTTP /mcp ne fait pas partie de cette référence REST Admin." />
+</CardGrid>
+
+Cette page documente les **routes de contrôleurs réellement présentes dans le code source hs-sql-agent 2.0.1**. L’interface Admin intégrée utilise cette surface.
+
+<Callout type="warning" title="Il s’agit d’un contrat source 2.0.1, pas d’un standard REST versionné séparément">
+Le serveur 2.0.1 n’expose pas ces contrôleurs sous un namespace de compatibilité `/v1`. Les intégrations extérieures à l’interface intégrée doivent fixer la version hs-sql-agent et revérifier cette référence lors d’une mise à niveau.
+</Callout>
+
+## Authentification et autorisation
+
+La plupart des routes Admin exigent une identité Admin authentifiée. Les actions runtime protégées appliquent en plus des contrôles chemin/action, par exemple `/runtime/db-management` → `view` ou `/auth/role` → `edit`.
+
+Certaines exceptions anonymes existent pour les flux qui doivent commencer avant qu’une session Admin soit disponible, notamment first-run/sign-in/sign-up, certains endpoints OIDC, la récupération de mot de passe et la fin d’un challenge MFA.
+
+Consultez [Permissions](/fr/docs/administration/permissions).
+
+## Auth — `/api/Auth`
+
+| Method | Route | Usage |
+| --- | --- | --- |
+| GET | `/api/Auth/first-run` | inspecter l’état de première configuration |
+| POST | `/api/Auth/sign-in` | authentifier les identifiants Admin |
+| POST | `/api/Auth/sign-up` | créer le premier Admin lorsque le flux first-run l’autorise |
+| POST | `/api/Auth/refresh-token` | échanger un identifiant de refresh |
+| POST | `/api/Auth/sign-out` | terminer la session courante |
+| GET | `/api/Auth/sessions` | lister les sessions de l’utilisateur courant |
+| DELETE | `/api/Auth/sessions/{sessionId}` | révoquer une session |
+| DELETE | `/api/Auth/sessions` | révoquer les autres sessions |
+| GET | `/api/Auth/oidc/status` | inspecter la disponibilité OIDC |
+| GET | `/api/Auth/oidc/login` | démarrer la connexion OIDC |
+| GET | `/api/Auth/oidc/callback` | callback de connexion externe |
+| POST | `/api/Auth/oidc/exchange` | échanger le code de connexion OIDC de courte durée |
+| GET | `/api/Auth/mfa/status` | inspecter l’état MFA |
+| POST | `/api/Auth/mfa/setup` | commencer la configuration TOTP |
+| POST | `/api/Auth/mfa/confirm` | confirmer la configuration TOTP |
+| POST | `/api/Auth/mfa/disable` | désactiver TOTP après validation |
+| POST | `/api/Auth/mfa/verify` | terminer un challenge MFA de connexion |
+| POST | `/api/Auth/forgot-password` | demander une réinitialisation de mot de passe |
+| POST | `/api/Auth/reset-password` | consommer le token et définir le nouveau mot de passe |
+| GET | `/api/Auth/account` | lire le profil du compte courant |
+| PUT | `/api/Auth/account` | modifier username/e-mail |
+| PUT | `/api/Auth/account/password` | modifier le mot de passe courant |
+
+## Members — `/api/Member`
+
+| Method | Route | Permission |
+| --- | --- | --- |
+| POST | `/api/Member` | `/auth/user` → `create` |
+| GET | `/api/Member` | `/auth/user` → `view` |
+| PUT | `/api/Member/{id}/roles` | `/auth/user` → `edit` |
+| PUT | `/api/Member/{id}/status` | `/auth/user` → `edit` |
+| DELETE | `/api/Member/{id}/sessions` | `/auth/user` → `edit` |
+| PUT | `/api/Member/{id}/password-change-required` | `/auth/user` → `edit` |
+| DELETE | `/api/Member/{id}` | `/auth/user` → `delete` |
+
+Consultez [Membres et rôles](/fr/docs/administration/members-roles) pour les garde-fous contre l’auto-verrouillage et les règles de cycle de vie.
+
+## Roles — `/api/Role`
+
+| Method | Route | Permission |
+| --- | --- | --- |
+| GET | `/api/Role` | `/auth/role` → `view` |
+| POST | `/api/Role` | `/auth/role` → `create` |
+| PUT | `/api/Role/{id}` | `/auth/role` → `edit` |
+| DELETE | `/api/Role/{id}?force=false` | `/auth/role` → `delete` |
+| GET | `/api/Role/{id}/dependencies` | `/auth/role` → `view` |
+| GET | `/api/Role/permission-action-templates` | `/auth/role` → `view` |
+
+## Database Management — `/api/DbManagement`
+
+| Method | Route | Permission |
+| --- | --- | --- |
+| GET | `/api/DbManagement` | `/runtime/db-management` → `view` |
+| GET | `/api/DbManagement/{id}` | `/runtime/db-management` → `view` |
+| POST | `/api/DbManagement` | `/runtime/db-management` → `create` |
+| PUT | `/api/DbManagement/{id}` | `/runtime/db-management` → `edit` |
+| DELETE | `/api/DbManagement/{id}` | `/runtime/db-management` → `delete` |
+| GET | `/api/DbManagement/{id}/schemas` | `/runtime/db-management` → `view` |
+| GET | `/api/DbManagement/{id}/tables?schema=...` | `/runtime/db-management` → `view` |
+| GET | `/api/DbManagement/{id}/columns?schema=...&table=...` | `/runtime/db-management` → `view` |
+
+## Métadonnées sémantiques — `/api/DbSemantic`
+
+| Method | Route | Permission |
+| --- | --- | --- |
+| GET | `/api/DbSemantic/{dbManagementId}` | semantic `view` |
+| GET | `/api/DbSemantic/{dbManagementId}/model` | semantic `view` |
+| POST | `/api/DbSemantic` | semantic `edit` |
+| DELETE | `/api/DbSemantic/{id}` | semantic `edit` |
+| POST | `/api/DbSemantic/relationship` | semantic `edit` |
+| DELETE | `/api/DbSemantic/relationship/{id}` | semantic `edit` |
+| POST | `/api/DbSemantic/metric` | semantic `edit` |
+| DELETE | `/api/DbSemantic/metric/{id}` | semantic `edit` |
+
+Ici, `semantic` signifie `/runtime/db-management/semantic`.
+
+## Runtime des clés MCP — `/api/runtime`
+
+| Method | Route | Permission |
+| --- | --- | --- |
+| GET | `/api/runtime/mcp-keys` | MCP keys `view` |
+| GET | `/api/runtime/mcp-keys/available-tools?dbManagementId=...` | MCP keys `view` |
+| POST | `/api/runtime/mcp-keys` | MCP keys `create` |
+| PUT | `/api/runtime/mcp-keys/{id}` | MCP keys `edit` |
+| POST | `/api/runtime/mcp-keys/{id}/rotate` | MCP keys `edit` |
+| POST | `/api/runtime/mcp-keys/{id}/clone` | MCP keys `create` |
+| POST | `/api/runtime/mcp-keys/{id}/revoke` | MCP keys `revoke` |
+| POST | `/api/runtime/mcp-keys/test-db-connection` | l’une des permissions configurées MCP-key/DB create-edit |
+| GET | `/api/runtime/client-config` | MCP keys `view` |
+
+L’endpoint client-config retourne l’endpoint MCP public configuré utilisé pour générer la configuration cliente.
+
+## Custom Tools — `/api/CustomSqlTool`
+
+| Method | Route | Usage |
+| --- | --- | --- |
+| GET | `/api/CustomSqlTool` | lister les outils |
+| GET | `/api/CustomSqlTool/{id}` | lire un outil |
+| POST | `/api/CustomSqlTool` | créer un brouillon |
+| PUT | `/api/CustomSqlTool/{id}` | modifier un brouillon |
+| DELETE | `/api/CustomSqlTool/{id}` | supprimer l’outil |
+| GET | `/api/CustomSqlTool/{id}/revisions` | lister les révisions |
+| GET | `/api/CustomSqlTool/{id}/impact` | inspecter impact/dépendances |
+| POST | `/api/CustomSqlTool/{id}/publish` | valider et publier |
+| POST | `/api/CustomSqlTool/{id}/disable` | désactiver un outil publié |
+| POST | `/api/CustomSqlTool/{id}/rollback/{revisionId}` | valider et revenir à une révision |
+| POST | `/api/CustomSqlTool/test-execute` | exécution de test ; le chemin DML prévisualise sans commit |
+
+Ces routes utilisent `/runtime/custom-tools` avec `view`, `create`, `edit` ou `delete` selon l’opération.
+
+## Audit et Operability — `/api/runtime`
+
+| Zone | Routes |
+| --- | --- |
+| Audit | `/audit`, `/audit/daily-summary`, `/audit/export`, `/audit/retention`, `/audit/retention/dry-run`, `/audit/retention/execute` |
+| Operability | `/operability/metrics`, `/operability/db-health`, `/operability/key-usage`, `/operability/deliveries`, `/operability/deliveries/{id}/retry` |
+
+Consultez [Audit](/fr/docs/administration/audit) et [Opérabilité](/fr/docs/administration/operability) pour les filtres, champs de réponse et permissions.
+
+## Security Policy — `/api/runtime/security`
+
+| Method | Route | Permission |
+| --- | --- | --- |
+| GET | `/api/runtime/security` | `/runtime/security` → `view` |
+| PUT | `/api/runtime/security` | `/runtime/security` → `edit` |
+
+## État Credential
+
+`GET /api/Credential/status` existe en 2.0.1 et retourne un simple état de fonctionnement de la Credential API. Le contrôleur lui-même ne possède pas d’attribut `[Authorize]`. Traitez-le comme un endpoint de statut étroit, pas comme une API authentifiée de gestion d’identifiants.
+
+## Erreurs et compatibilité
+
+Les contrôleurs utilisent des codes HTTP ordinaires : 400 pour validation, 401/403 pour authentification/autorisation, 404 pour les ressources absentes, 409 pour les états conflictuels d’outil/rôle, 413 pour un export d’audit trop volumineux et 429 lorsque la pression sur les opérations SQL bornées l’exige.
+
+Pour l’automatisation cliente, fixez la version 2.0.1 et validez le modèle de réponse réellement consommé. Cette page documente les routes et contrats importants sans prétendre que chaque modèle de vue Admin constitue un SDK externe versionné de façon permanente.

@@ -1,0 +1,43 @@
+---
+title: Déploiement
+description: Recommandations de production pour une instance hs-sql-agent, le routage MCP public, la persistance et la télémétrie.
+sidebar:
+  group: Exploitation
+  order: 100
+---
+
+La configuration par défaut du dépôt convient à un déploiement simple à une instance : le plan de contrôle peut utiliser SQLite et les providers locaux au processus peuvent utiliser Memory.
+
+Avant d’exposer le service hors du développement, rendez explicites les éléments publics et persistants.
+
+## URL MCP publique
+
+Définissez `MCP_PUBLIC_ENDPOINT` sur l’URL réellement accessible aux clients MCP, en incluant `/mcp`.
+
+```env
+MCP_PUBLIC_ENDPOINT=https://sql-agent.example.com/mcp
+```
+
+Ne supposez pas qu’elle soit identique à l’origine de l’Admin UI. Un reverse proxy peut exposer l’interface et MCP via des hosts, ports ou chemins différents.
+
+## Secrets
+
+Remplacez les clés HMAC et JWT d’exemple par des secrets indépendants, uniques et d’au moins 32 octets.
+
+Conservez les identifiants de base, SMTP, secrets client OIDC, secrets de signature webhook et chaînes Redis hors du contrôle de source.
+
+## Persister l’état du plan de contrôle
+
+La base Admin SQLite par défaut se trouve sous `/app/data`. Si vous utilisez le plan de contrôle local intégré, persistez ces données au-delà des remplacements de conteneur.
+
+Si OIDC/TOTP ou un autre état protégé utilise ASP.NET Core data protection, persistez aussi `DATA_PROTECTION_KEY_PATH`. Perdre ces clés peut rendre l’état MFA/connexion déjà protégé illisible.
+
+## Observabilité
+
+Les métriques Prometheus peuvent être activées sur un listener dédié. L’exemple utilise le port `9000`, séparé du port principal de l’API.
+
+Un collector OTLP peut également être configuré avec `OTLP_ENDPOINT`, tandis que `OTEL_SERVICE_NAME` contrôle le nom de service.
+
+## Quand passer aux paramètres distribués
+
+Dès que plusieurs instances applicatives sont utilisées, la mémoire locale au processus n’est plus partagée. Passez les sous-systèmes sensibles à la coordination vers leurs providers distribués et utilisez une base Admin partagée. Consultez [Déploiement distribué](/fr/docs/operations/distributed-deployment).
