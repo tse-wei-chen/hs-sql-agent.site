@@ -1,0 +1,57 @@
+---
+title: 分布式部署
+description: 在同一服务端点后运行多个 hs-sql-agent 实例时需要共享的状态和协调能力。
+sidebar:
+  group: 运维
+  order: 110
+---
+
+仓库提供 `.env.distributed.example` 作为多实例拓扑示例。关键不只是“加 Redis”，而是所有必须在节点间保持一致的状态都需要共享 provider。
+
+## 共享控制平面
+
+分布式示例使用 PostgreSQL 作为 Admin database，而不是本地 SQLite：
+
+```env
+ADMIN_DATABASE_PROVIDER=Postgres
+ADMIN_DATABASE_CONNECTION_STRING=Host=postgres;Port=5432;Database=hsqlagent;Username=postgres;Password=postgres;
+```
+
+如果多个实例共同提供同一个逻辑 hs-sql-agent deployment，它们都应连接同一控制平面数据库。
+
+## Redis 协调
+
+分布式示例把以下子系统切换到 Redis：
+
+- cache
+- rate limiter
+- security-policy synchronization
+- outbound-delivery synchronization
+- SQL concurrency coordination
+
+示例：
+
+```env
+CACHE_PROVIDER=Redis
+CACHE_CONNECTION_STRING=redis:6379
+
+RATE_LIMITER_PROVIDER=Redis
+RATE_LIMITER_CONNECTION_STRING=redis:6379
+RATE_LIMITER_FAILURE_MODE=FailClosed
+
+SQL_CONCURRENCY_PROVIDER=Redis
+SQL_CONCURRENCY_CONNECTION_STRING=redis:6379
+SQL_CONCURRENCY_FAILURE_MODE=FailClosed
+```
+
+## Failure mode 很重要
+
+对于用于保护执行边界的协调机制，示例选择 `FailClosed`。分布式 coordinator 不可用时，拒绝操作比让每个节点悄悄独立作出允许决定更安全。
+
+## 持久化身份保护 key
+
+即使采用分布式部署，也要持久化用于受保护身份验证/MFA 状态的 ASP.NET Core data-protection key material。这些 key 属于部署状态，不应作为一次性容器文件处理。
+
+## 验证拓扑
+
+增加实例前，应明确哪些决策刻意保持进程本地，哪些状态必须共享。只扩容应用副本却没有迁移对应 state provider，可能导致限流不一致、安全策略陈旧或 SQL 并发控制失去协调。

@@ -1,0 +1,85 @@
+---
+title: 安全策略
+description: 从管理控制平面配置 hs-sql-agent 2.0.1 的 SQL、DML、限流和并发运行时策略。
+sidebar:
+  group: 管理
+  order: 82
+---
+
+import Callout from "@/components/docs/mdx/Callout.astro";
+import CardGrid from "@/components/docs/mdx/CardGrid.astro";
+import DocCard from "@/components/docs/mdx/DocCard.astro";
+
+<CardGrid columns={3}>
+  <DocCard title="查询策略" icon="Q" description="限制受控查询的结果行数和执行超时。" />
+  <DocCard title="DML 策略" icon="DML" description="要求条件、限制全表修改，并限制最大影响行数。" />
+  <DocCard title="运行时限制" icon="LIM" description="设置默认 MCP 密钥限流和最大 SQL 并发操作数。" />
+</CardGrid>
+
+Security Policy 是**运行时强制执行的策略**，不是给 Agent 参考的行为建议。当前策略直接用于 Query/DML 执行和运行时 limiter。
+
+## 2.0.1 策略字段
+
+| 字段 | 默认值 | 有效范围 / 含义 |
+| --- | ---: | --- |
+| `QueryMaxRows` | `1000` | 1–100,000 |
+| `QueryTimeoutSeconds` | `30` | 1–600 秒 |
+| `RequireWhereForUpdate` | `true` | UPDATE 必须带条件 |
+| `RequireWhereForDelete` | `true` | DELETE 必须带条件 |
+| `AllowFullTableUpdate` | `false` | 显式允许全表 UPDATE |
+| `AllowFullTableDelete` | `false` | 显式允许全表 DELETE |
+| `DmlMaxAffectedRows` | `100` | 1–1,000,000 |
+| `KeyPermitLimit` | `120` | 每个配置窗口 1–1,000,000 个请求 |
+| `KeyWindowSeconds` | `60` | 1–86,400 秒 |
+| `MaxConcurrentSql` | `16` | 1–10,000 个并发 SQL 操作 |
+
+服务会拒绝超出范围的值，而不是静默改成另一套策略。
+
+## 管理授权
+
+| 操作 | 权限 |
+| --- | --- |
+| 读取当前策略 | `/runtime/security` → `view` |
+| 更新策略 | `/runtime/security` → `edit` |
+
+更新策略会写入审计事件并立即替换运行时策略状态。变更还会通过配置的 security-policy synchronization provider 发布，使分布式部署中的实例可以同步策略。
+
+<Callout type="warning" title="策略修改会影响正在运行的决策">
+修改查询行数、DML 上限、密钥限流或 SQL 并发不是普通界面设置。应把它作为生产授权/可用性变更审核，并在上线后观察审计和运行状态。
+</Callout>
+
+## 查询限制
+
+`QueryMaxRows` 通过编译器/运行时策略限制查询输出。`QueryTimeoutSeconds` 控制运行时查询超时契约。这些都是服务端约束，不依赖客户端是否记得加 `LIMIT` 或实现取消逻辑。
+
+## UPDATE 和 DELETE 条件
+
+默认策略要求 UPDATE 和 DELETE 带条件，并禁止全表修改。
+
+允许全表更新需要明确表达意图：仅关闭 `RequireWhereForUpdate` 并不等同于启用 `AllowFullTableUpdate`。除非运维流程确实需要大范围修改，否则建议保留保守默认值。
+
+## DML 影响行数上限
+
+`DmlMaxAffectedRows` 限制数据修改影响范围。它是 Safe DML 审批协议的补充，而不是替代。数据修改仍必须成功完成 parse/validate/compile，并在 MCP DML 路径中完成审批和提交时重新验证。
+
+详见 [Safe DML](/zh-hans/docs/sql-compiler/safe-dml)。
+
+## MCP 密钥限流
+
+安全策略提供默认的每密钥请求额度和窗口。单个 MCP 密钥可以：
+
+- 继承策略
+- 使用自定义覆盖值
+- 显式设为无限制
+
+密钥级模式见 [MCP 密钥](/zh-hans/docs/administration/mcp-keys)。
+
+## SQL 并发
+
+`MaxConcurrentSql` 是运行时 SQL 并发上限。该限制只作用于单进程，还是由多个实例共同协调，取决于配置的 SQL concurrency provider。
+
+如果限制必须代表整个集群，而不是每个节点单独计算，请使用分布式 provider。
+
+<Callout type="tip" title="安全策略与数据库权限应分层设计">
+运行时策略、MCP 密钥范围和编译器检查都应叠加在最小权限数据库账号之上。不要依赖其中任何一层作为防止非预期 SQL 的唯一保护。
+</Callout>

@@ -1,0 +1,62 @@
+---
+title: 管理界面概览
+description: 用于管理数据库访问、MCP 凭据、身份、授权、审计、安全策略和运行时运维的控制平面。
+sidebar:
+  group: 管理
+  order: 70
+---
+
+import Callout from "@/components/docs/mdx/Callout.astro";
+import CardGrid from "@/components/docs/mdx/CardGrid.astro";
+import DocCard from "@/components/docs/mdx/DocCard.astro";
+import Flow from "@/components/docs/mdx/Flow.astro";
+
+管理界面是 hs-sql-agent 面向运维人员的**控制平面**。管理员在这里定义 MCP 客户端可以访问哪些资源、SQL 受到哪些约束；MCP 客户端则通过独立认证的 `/mcp` 端点工作。
+
+<CardGrid columns={2}>
+  <DocCard title="数据库管理" icon="DB" href="/zh-hans/docs/administration/database-management" description="登记数据库连接、测试连通性，并控制 MCP 密钥可以绑定到哪个数据库。" />
+  <DocCard title="MCP 密钥" icon="KEY" href="/zh-hans/docs/administration/mcp-keys" description="签发、轮换、撤销和限制 MCP 凭据，并生成客户端配置。" />
+  <DocCard title="语义元数据" icon="AI" href="/zh-hans/docs/administration/semantic-metadata" description="为架构发现补充易读名称、说明、同义词、关系和指标。" />
+  <DocCard title="自定义工具" icon="SQL" href="/zh-hans/docs/administration/custom-tools" description="在不绕过运行时策略的前提下，把受控 SQL 操作发布为具名 MCP 工具。" />
+  <DocCard title="安全" icon="SEC" href="/zh-hans/docs/security/overview" description="了解身份验证、授权、表/工具范围、失败即拒绝的 SQL 策略和审计边界。" />
+  <DocCard title="运维" icon="OPS" href="/zh-hans/docs/operations/configuration" description="配置部署、共享状态、可观测性、保留策略、限制和生产运行时行为。" />
+</CardGrid>
+
+## 身份、治理与运维
+
+<CardGrid columns={3}>
+  <DocCard title="成员与角色" icon="USR" href="/zh-hans/docs/administration/members-roles" description="创建管理用户、分配角色、撤销会话，并安全管理角色生命周期。" />
+  <DocCard title="权限" icon="RBAC" href="/zh-hans/docs/administration/permissions" description="了解管理控制器使用的 permission path + action 授权模型。" />
+  <DocCard title="审计" icon="AUD" href="/zh-hans/docs/administration/audit" description="检索、汇总、导出运行时和安全审计记录，并执行保留策略。" />
+  <DocCard title="安全策略" icon="POL" href="/zh-hans/docs/administration/security-policies" description="管理查询、DML、每密钥限流和 SQL 并发限制。" />
+  <DocCard title="运行状态" icon="P95" href="/zh-hans/docs/administration/operability" description="查看执行指标、数据库健康、密钥使用情况和出站投递状态。" />
+  <DocCard title="Admin HTTP API" icon="API" href="/zh-hans/docs/reference/api-reference" description="查看内置管理界面使用的 2.0.2 控制器路由和授权接口。" />
+</CardGrid>
+
+## 推荐管理流程
+
+<Flow items={["登记数据库", "签发 MCP 密钥", "设置工具/表范围", "补充元数据", "连接客户端", "监控与审计"]} />
+
+1. 登记要暴露给 Agent 的数据库连接并验证连通性。
+2. 签发绑定到该数据库的 MCP 密钥，只开放客户端所需的工具和表。
+3. 当物理架构名称不足以让 Agent 稳定理解业务含义时，补充语义元数据。
+4. 生成客户端配置，通过公开的 Streamable HTTP `/mcp` 端点连接。
+5. 通过审计和运行状态页面检查运行时行为，并按需收紧策略。
+
+<Callout type="info" title="管理身份验证与 MCP 身份验证彼此独立">
+管理账号用于操作控制平面，MCP 客户端使用 MCP 密钥进行身份验证。给用户授予管理权限不会自动创建 MCP 凭据，MCP 密钥也不能用于登录管理界面。
+</Callout>
+
+## MCP 密钥生命周期
+
+签发、轮换或复制密钥后，界面可以为支持的客户端格式直接生成 Streamable HTTP 配置。明文密钥只在该生命周期对话框中显示一次，服务端不会为了后续再次展示而保存它。
+
+关闭对话框前，请复制生成的客户端配置。
+
+## 内置管理界面和内置身份系统都是可选的
+
+ASP.NET Core 宿主可以只暴露 HsSqlAgent Admin API，而不提供内置管理界面。模块化集成时使用 `UseHsSqlAgentAdminApi()`，并由宿主自行调用 `MapControllers()`；只有确实需要内置界面时才添加 `UseHsSqlAgentAdminUi()`。
+
+宿主也可以通过 `AddHsSqlAgentHostAuthorization(...)` 保留现有登录和权限系统，而不安装 HsSqlAgent 的成员、角色、JWT、SMTP 或 OIDC。MCP 则通过 `AddHsSqlAgentMcp(...)` / `UseHsSqlAgentMcp()` 独立选择和挂载。
+
+完整的 2.0.2 组合模型见 [ASP.NET Core 集成](/zh-hans/docs/integration/aspnet-core)。

@@ -1,0 +1,94 @@
+---
+title: 升级指南
+description: 从 hs-sql-agent 2.0.1 文档基线升级到后续版本时的安全检查清单。
+sidebar:
+  group: 参考
+  order: 144
+---
+
+import Callout from "@/components/docs/mdx/Callout.astro";
+import CardGrid from "@/components/docs/mdx/CardGrid.astro";
+import DocCard from "@/components/docs/mdx/DocCard.astro";
+import Steps from "@/components/docs/mdx/Steps.astro";
+import Step from "@/components/docs/mdx/Step.astro";
+
+<CardGrid columns={3}>
+  <DocCard title="控制平面状态" icon="DB" description="保护保存身份、角色、MCP 密钥、策略、审计和其他运行时状态的 Admin 数据库。" />
+  <DocCard title="Secret 与受保护状态" icon="KEY" description="保留 HMAC/JWT 配置以及持久化 ASP.NET Core data-protection key。" />
+  <DocCard title="行为契约" icon="MCP" description="变更版本后重新测试客户端传输、SQL capability、密钥范围和 DML Elicitation。" />
+</CardGrid>
+
+文档版本管理从 **2.0.1** 开始。站点刻意不提供 2.0.1 之前的升级矩阵。本页定义离开 2.0.1 基线时的运维检查清单；目标版本特有的破坏性变更应以该目标版本文档为准。
+
+<Callout type="warning" title="不要从本页推断未来版本的迁移要求">
+升级前请阅读目标版本 release notes 和对应版本文档。如果后续版本修改了存储 schema、配置、SQL capability 或 API 契约，应以该版本说明为权威来源。
+</Callout>
+
+## 切换运行版本之前
+
+<Steps>
+  <Step title="记录当前部署" description="记录准确的 hs-sql-agent 版本、container/package 版本、拓扑、Admin database provider 和 shared-state provider。" />
+  <Step title="备份控制平面状态" description="在新 binary 有机会修改持久化状态前，创建可以恢复的 Admin database 备份。" />
+  <Step title="保留受保护的 key material" description="确保升级后仍可使用 HMAC_KEY、JWT_KEY、Webhook secret 和持久化 DATA_PROTECTION_KEY_PATH 数据。" />
+  <Step title="对比配置" description="把目标版本的示例/options 与实际运行的 2.0.1 配置逐项比较，不要用新示例直接覆盖生产值。" />
+  <Step title="盘点集成" description="列出 MCP 客户端、Custom Tools、OIDC、SMTP、Webhook/SIEM、Prometheus/OTLP、Redis/shared-state、反向代理和外部 Admin API 使用方。" />
+</Steps>
+
+## 不应随意重新生成的状态
+
+### HMAC 与 JWT secret
+
+`HMAC_KEY` 用于保护 MCP 密钥验证，`JWT_KEY` 用于签名 Admin 身份验证 token。secret rotation 应作为显式安全迁移处理，而不是部署新镜像时顺便发生的副作用。
+
+### Data-protection key ring
+
+当受保护身份/MFA 状态使用 ASP.NET Core data protection 时，应把 `DATA_PROTECTION_KEY_PATH` 放在持久化存储上。替换 key ring 可能导致之前保护的数据无法读取。
+
+### Admin 数据库
+
+Admin 数据库承载控制平面：身份/角色、数据库登记、MCP key record、策略、语义元数据、Custom Tool 定义/revision、审计数据和其他运维状态。任何可能改变持久化结构的升级前，都应按 SQLite 或 PostgreSQL 对应流程做好备份。
+
+## 配置差异检查清单
+
+不要从一份空的新 `.env` 重新配置。至少明确比较：
+
+- application host 和 public MCP endpoint
+- Admin database provider/connection
+- HMAC/JWT 与身份设置
+- bootstrap 配置
+- OIDC/MFA/data protection
+- audit retention 与 outbound delivery
+- rate limiting 与 security-policy sync
+- cache / SQL concurrency / 其他 Redis-backed coordination
+- Prometheus 与 OTLP
+
+2.0.1 基线见 [配置参考](/zh-hans/docs/operations/configuration)。
+
+## 升级后验证
+
+<Steps>
+  <Step title="Admin 身份验证" description="登录并确认角色/权限符合预期；启用 OIDC/MFA 时也要分别验证。" />
+  <Step title="数据库连接" description="对实际使用的每个 provider 检查管理连接和 schema metadata 浏览。" />
+  <Step title="MCP 密钥范围" description="抽取代表性密钥，确认仍解析到预期数据库、工具、表白名单和实际限制。" />
+  <Step title="只读 SQL" description="运行代表性的受支持 Query，确认编译器和输出行为。" />
+  <Step title="Safe DML" description="在非生产目标上分别测试 Decline 和 Accept Elicitation，并确认提交时行为。" />
+  <Step title="运维" description="检查审计、健康、密钥使用、遥测导出和出站投递状态。" />
+</Steps>
+
+## Custom Tools 与语义元数据
+
+逐个验证已发布 Custom Tool 在目标版本 compiler/policy 下仍能通过校验，并确认预期 database/key exposure 没有变化。语义元数据则要确认表/列说明、关系和指标仍按预期出现在 schema discovery 中。
+
+## API 使用方
+
+2.0.1 Admin controller 没有放在 versioned `/v1` 契约下。如果外部自动化直接调用 Admin HTTP route，应把 route/request/response compatibility 列为显式升级测试。
+
+见 [Admin HTTP API 参考](/zh-hans/docs/reference/api-reference)。
+
+## 回滚计划
+
+<Callout type="danger" title="回滚 binary 不等于回滚数据">
+如果新版本修改了持久化控制平面 schema 或 state，直接让旧 binary 连接已经变更的数据库可能并不安全。保留升级前数据库备份，并遵循目标版本的 rollback guidance。
+</Callout>
+
+稳妥的 rollout 应在新版本完成功能和运维 smoke test 之前，持续保留旧 deployment artifact/configuration、升级前 Admin database backup 和受保护 key material。

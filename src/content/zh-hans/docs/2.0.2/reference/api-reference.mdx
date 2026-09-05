@@ -1,0 +1,171 @@
+---
+title: Admin HTTP API 参考
+description: 基于 hs-sql-agent 2.0.1 源码整理内置管理界面实际使用的 HTTP controller 接口。
+sidebar:
+  group: 参考
+  order: 142
+---
+
+import Callout from "@/components/docs/mdx/Callout.astro";
+import CardGrid from "@/components/docs/mdx/CardGrid.astro";
+import DocCard from "@/components/docs/mdx/DocCard.astro";
+
+<CardGrid columns={3}>
+  <DocCard title="身份与认证" icon="AUTH" description="登录、refresh、OIDC、MFA、密码恢复、账号、会话、成员和角色。" />
+  <DocCard title="运行时控制" icon="OPS" description="数据库、MCP 密钥、语义元数据、Custom Tools、安全策略、审计和运行状态。" />
+  <DocCard title="MCP 独立" icon="MCP" description="/mcp Streamable HTTP transport 不属于本 Admin REST 参考。" />
+</CardGrid>
+
+本页记录的是 **hs-sql-agent 2.0.1 源码中实际存在的 controller route**，内置管理界面使用的就是这些接口。
+
+<Callout type="warning" title="这是 2.0.1 源码契约，不是独立版本化的 REST 标准">
+2.0.1 server 没有把这些 controller 暴露在 `/v1` compatibility namespace 下。内置管理界面之外的集成方应固定 hs-sql-agent 版本，并在升级时重新核对本参考。
+</Callout>
+
+## 身份验证与授权
+
+大多数 Admin route 都要求已经认证的 Admin 身份。受保护运行时操作还会使用 path/action 权限检查，例如 `/runtime/db-management` → `view`、`/auth/role` → `edit`。
+
+部分流程必须在 Admin session 存在之前启动，因此允许匿名访问，包括 first-run/sign-in/sign-up、部分 OIDC endpoint、密码恢复和 MFA challenge completion。
+
+详见 [权限](/zh-hans/docs/administration/permissions)。
+
+## Auth — `/api/Auth`
+
+| Method | Route | 用途 |
+| --- | --- | --- |
+| GET | `/api/Auth/first-run` | 查看初始设置状态 |
+| POST | `/api/Auth/sign-in` | 验证 Admin 凭据 |
+| POST | `/api/Auth/sign-up` | 在允许的 first-run 流程中创建首个 Admin |
+| POST | `/api/Auth/refresh-token` | 交换 refresh credential |
+| POST | `/api/Auth/sign-out` | 结束当前会话 |
+| GET | `/api/Auth/sessions` | 列出当前用户会话 |
+| DELETE | `/api/Auth/sessions/{sessionId}` | 撤销单个会话 |
+| DELETE | `/api/Auth/sessions` | 撤销其他会话 |
+| GET | `/api/Auth/oidc/status` | 查看 OIDC 可用状态 |
+| GET | `/api/Auth/oidc/login` | 启动 OIDC 登录 |
+| GET | `/api/Auth/oidc/callback` | external-login callback |
+| POST | `/api/Auth/oidc/exchange` | 交换短期 OIDC login code |
+| GET | `/api/Auth/mfa/status` | 查看 MFA 状态 |
+| POST | `/api/Auth/mfa/setup` | 开始 TOTP 设置 |
+| POST | `/api/Auth/mfa/confirm` | 确认 TOTP 设置 |
+| POST | `/api/Auth/mfa/disable` | 验证后禁用 TOTP |
+| POST | `/api/Auth/mfa/verify` | 完成 MFA 登录 challenge |
+| POST | `/api/Auth/forgot-password` | 请求密码重置 |
+| POST | `/api/Auth/reset-password` | 消费 reset token 并设置新密码 |
+| GET | `/api/Auth/account` | 读取当前账号 profile |
+| PUT | `/api/Auth/account` | 更新 username/email |
+| PUT | `/api/Auth/account/password` | 修改当前密码 |
+
+## Members — `/api/Member`
+
+| Method | Route | 权限 |
+| --- | --- | --- |
+| POST | `/api/Member` | `/auth/user` → `create` |
+| GET | `/api/Member` | `/auth/user` → `view` |
+| PUT | `/api/Member/{id}/roles` | `/auth/user` → `edit` |
+| PUT | `/api/Member/{id}/status` | `/auth/user` → `edit` |
+| DELETE | `/api/Member/{id}/sessions` | `/auth/user` → `edit` |
+| PUT | `/api/Member/{id}/password-change-required` | `/auth/user` → `edit` |
+| DELETE | `/api/Member/{id}` | `/auth/user` → `delete` |
+
+自我锁定保护和生命周期规则见 [成员与角色](/zh-hans/docs/administration/members-roles)。
+
+## Roles — `/api/Role`
+
+| Method | Route | 权限 |
+| --- | --- | --- |
+| GET | `/api/Role` | `/auth/role` → `view` |
+| POST | `/api/Role` | `/auth/role` → `create` |
+| PUT | `/api/Role/{id}` | `/auth/role` → `edit` |
+| DELETE | `/api/Role/{id}?force=false` | `/auth/role` → `delete` |
+| GET | `/api/Role/{id}/dependencies` | `/auth/role` → `view` |
+| GET | `/api/Role/permission-action-templates` | `/auth/role` → `view` |
+
+## Database Management — `/api/DbManagement`
+
+| Method | Route | 权限 |
+| --- | --- | --- |
+| GET | `/api/DbManagement` | `/runtime/db-management` → `view` |
+| GET | `/api/DbManagement/{id}` | `/runtime/db-management` → `view` |
+| POST | `/api/DbManagement` | `/runtime/db-management` → `create` |
+| PUT | `/api/DbManagement/{id}` | `/runtime/db-management` → `edit` |
+| DELETE | `/api/DbManagement/{id}` | `/runtime/db-management` → `delete` |
+| GET | `/api/DbManagement/{id}/schemas` | `/runtime/db-management` → `view` |
+| GET | `/api/DbManagement/{id}/tables?schema=...` | `/runtime/db-management` → `view` |
+| GET | `/api/DbManagement/{id}/columns?schema=...&table=...` | `/runtime/db-management` → `view` |
+
+## 语义元数据 — `/api/DbSemantic`
+
+| Method | Route | 权限 |
+| --- | --- | --- |
+| GET | `/api/DbSemantic/{dbManagementId}` | semantic `view` |
+| GET | `/api/DbSemantic/{dbManagementId}/model` | semantic `view` |
+| POST | `/api/DbSemantic` | semantic `edit` |
+| DELETE | `/api/DbSemantic/{id}` | semantic `edit` |
+| POST | `/api/DbSemantic/relationship` | semantic `edit` |
+| DELETE | `/api/DbSemantic/relationship/{id}` | semantic `edit` |
+| POST | `/api/DbSemantic/metric` | semantic `edit` |
+| DELETE | `/api/DbSemantic/metric/{id}` | semantic `edit` |
+
+这里的 `semantic` 指 `/runtime/db-management/semantic`。
+
+## MCP-key runtime — `/api/runtime`
+
+| Method | Route | 权限 |
+| --- | --- | --- |
+| GET | `/api/runtime/mcp-keys` | MCP keys `view` |
+| GET | `/api/runtime/mcp-keys/available-tools?dbManagementId=...` | MCP keys `view` |
+| POST | `/api/runtime/mcp-keys` | MCP keys `create` |
+| PUT | `/api/runtime/mcp-keys/{id}` | MCP keys `edit` |
+| POST | `/api/runtime/mcp-keys/{id}/rotate` | MCP keys `edit` |
+| POST | `/api/runtime/mcp-keys/{id}/clone` | MCP keys `create` |
+| POST | `/api/runtime/mcp-keys/{id}/revoke` | MCP keys `revoke` |
+| POST | `/api/runtime/mcp-keys/test-db-connection` | 已配置 MCP-key/DB create-edit 权限之一 |
+| GET | `/api/runtime/client-config` | MCP keys `view` |
+
+client-config 端点返回用于生成客户端配置的 MCP public endpoint。
+
+## Custom Tools — `/api/CustomSqlTool`
+
+| Method | Route | 用途 |
+| --- | --- | --- |
+| GET | `/api/CustomSqlTool` | 列出工具 |
+| GET | `/api/CustomSqlTool/{id}` | 获取单个工具 |
+| POST | `/api/CustomSqlTool` | 创建草稿 |
+| PUT | `/api/CustomSqlTool/{id}` | 编辑草稿 |
+| DELETE | `/api/CustomSqlTool/{id}` | 删除工具 |
+| GET | `/api/CustomSqlTool/{id}/revisions` | 列出 revision |
+| GET | `/api/CustomSqlTool/{id}/impact` | 查看 impact/dependency |
+| POST | `/api/CustomSqlTool/{id}/publish` | 校验并发布 |
+| POST | `/api/CustomSqlTool/{id}/disable` | 禁用已发布工具 |
+| POST | `/api/CustomSqlTool/{id}/rollback/{revisionId}` | 校验并回滚 |
+| POST | `/api/CustomSqlTool/test-execute` | 测试执行；DML 测试只预览，不提交 |
+
+这些 route 按操作使用 `/runtime/custom-tools` 的 `view`、`create`、`edit` 或 `delete`。
+
+## Audit 与 Operability — `/api/runtime`
+
+| 区域 | Route |
+| --- | --- |
+| Audit | `/audit`, `/audit/daily-summary`, `/audit/export`, `/audit/retention`, `/audit/retention/dry-run`, `/audit/retention/execute` |
+| Operability | `/operability/metrics`, `/operability/db-health`, `/operability/key-usage`, `/operability/deliveries`, `/operability/deliveries/{id}/retry` |
+
+过滤条件、响应字段和权限见 [审计](/zh-hans/docs/administration/audit) 与 [运行状态](/zh-hans/docs/administration/operability)。
+
+## Security Policy — `/api/runtime/security`
+
+| Method | Route | 权限 |
+| --- | --- | --- |
+| GET | `/api/runtime/security` | `/runtime/security` → `view` |
+| PUT | `/api/runtime/security` | `/runtime/security` → `edit` |
+
+## Credential status
+
+2.0.1 中存在 `GET /api/Credential/status`，只返回简单的 Credential API 运行状态。该 controller 自身没有 `[Authorize]` attribute。应把它视为范围很窄的 status endpoint，而不是需要认证的 credential-management API。
+
+## 错误与兼容性
+
+controller 使用常规 HTTP status code，例如 validation 400、authentication/authorization 401/403、资源不存在 404、tool/role state 冲突 409、审计导出过大 413，以及适用场景下受控 SQL 操作压力导致的 429。
+
+如果外部自动化依赖这些接口，应固定 2.0.1，并验证自己实际消费的 response model。本页刻意记录 route 和重要契约，但不会把每一个 Admin view model 假定为永久版本化的外部 SDK。

@@ -1,0 +1,75 @@
+---
+title: 成员与角色
+description: 管理 hs-sql-agent 2.0.1 的管理用户、会话、角色分配和角色生命周期。
+sidebar:
+  group: 管理
+  order: 78
+---
+
+import Callout from "@/components/docs/mdx/Callout.astro";
+import CardGrid from "@/components/docs/mdx/CardGrid.astro";
+import DocCard from "@/components/docs/mdx/DocCard.astro";
+import Flow from "@/components/docs/mdx/Flow.astro";
+
+<CardGrid columns={3}>
+  <DocCard title="成员" icon="USR" description="创建管理用户、启用或停用账号，并查看已分配角色和活跃会话。" />
+  <DocCard title="角色" icon="ROL" description="把允许的 permission/action 组合成可复用的授权角色。" />
+  <DocCard title="会话失效" icon="REV" description="涉及安全的成员或角色变更会让相关运行时授权状态失效。" />
+</CardGrid>
+
+管理成员是**控制平面**的身份，与用于验证 `/mcp` 客户端的 MCP 密钥彼此独立。
+
+## 成员生命周期
+
+<Flow items={["创建成员", "分配角色", "使用管理界面", "调整访问权限", "必要时撤销会话"]} />
+
+新成员必须使用有效邮箱和至少 8 个字符的密码。用户名可选，最长 100 个字符。创建时可以显式指定角色 ID，也可以请求分配全部角色。
+
+成员列表支持按搜索词、启用状态和角色过滤，并支持分页。2.0.1 的成员视图会显示账号状态、创建/最后登录时间、活跃会话数以及当前角色 ID/名称。
+
+## 成员管理操作
+
+| 操作 | 权限 | 重要保护规则 |
+| --- | --- | --- |
+| 创建成员 | `/auth/user` → `create` | 校验邮箱和密码 |
+| 列表/搜索成员 | `/auth/user` → `view` | 支持状态/角色/搜索过滤 |
+| 替换成员角色 | `/auth/user` → `edit` | 不能修改自己的角色 |
+| 启用/停用账号 | `/auth/user` → `edit` | 不能停用自己 |
+| 撤销成员全部会话 | `/auth/user` → `edit` | 立即让该成员会话失效 |
+| 要求修改密码 | `/auth/user` → `edit` | 下次登录时强制执行 |
+| 删除成员 | `/auth/user` → `delete` | 不能删除自己 |
+
+<Callout type="warning" title="会导致自己被锁在系统外的操作会被拒绝">
+2.0.1 控制器明确禁止管理员通过这些管理端点修改自己的角色、停用自己的账号或删除自己的成员记录。
+</Callout>
+
+## 角色
+
+角色包含唯一名称、可选说明，以及一组 permission/action 选择。角色分配是多对多关系：一个成员可以拥有多个角色，一个角色也可以分配给多个成员。
+
+内置 `SuperUser` 角色受到保护，不能修改或删除，新建或重命名角色也不能使用这一受保护身份。
+
+## 修改角色会影响当前授权状态
+
+角色权限集合发生变化时，2.0.1 会找到所有使用该角色的成员，递增他们的 security version，并通过 auth runtime-state cache barrier 执行变更。这用于防止已经登录的会话在角色定义变化后长期保留旧授权。
+
+删除已分配给成员的角色时也遵循同一原则。
+
+## 删除角色前先检查依赖
+
+角色 dependency 端点会返回：
+
+- 角色包含的 permission/action 条目
+- 当前被分配该角色的成员
+
+默认情况下，只要仍有成员使用该角色，删除就会被拒绝。虽然存在显式的 `force=true` 路径，但管理员应先查看依赖，因为受影响成员会失去该角色，其 security state 也会失效。
+
+<Callout type="danger" title="强制删除角色属于授权变更">
+不要把强制删除当作普通清理操作。先核对成员依赖列表，并确认这些用户依靠剩余角色仍能保留所需权限。
+</Callout>
+
+## 密码与会话处理
+
+成员管理可以要求账号下次登录时修改密码，也可以撤销目标成员的全部会话。用户还可以通过 Auth API 管理自己的会话。
+
+角色背后的授权模型见 [权限](/zh-hans/docs/administration/permissions)。

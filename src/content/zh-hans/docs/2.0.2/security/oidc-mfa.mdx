@@ -1,0 +1,51 @@
+---
+title: OIDC SSO 与 TOTP MFA
+description: 配置企业 OIDC 身份、claim 映射、角色预配、MFA 策略和持久化 data-protection key。
+sidebar:
+  group: 安全
+  order: 115
+---
+
+hs-sql-agent 可以使用外部 OpenID Connect provider 处理管理身份，同时继续由服务端掌控本地运行时授权和 MCP 访问策略。
+
+## OIDC 连接
+
+服务器 options 包括：
+
+```text
+OidcEnabled
+Authority
+ClientId
+ClientSecret
+RequireHttpsMetadata
+```
+
+生产部署应保持 HTTPS metadata validation 开启，除非明确使用受信任的本地身份 provider 并通过 HTTP 连接。
+
+默认 OIDC scope 为 `openid`、`profile`、`email`。
+
+## Claim 映射与预配
+
+身份 options 允许管理员配置 email、display-name、role、email-verification claim 的来源。服务可以要求邮箱已验证，把外部角色映射成本地角色名称，并在启用时自动预配用户。
+
+重要配置包括：
+
+- email 和 name claim 选择
+- role claim 选择与角色映射
+- verified-email 强制检查
+- 默认本地角色 / 自动预配
+- 登录流程使用的 frontend callback path
+
+角色映射属于授权配置，不是装饰性的身份元数据。
+
+## MFA 策略
+
+TOTP 可作为第二认证因素。服务器 options 包含 TOTP issuer 名称以及要求 MFA 的角色列表。这样可以由身份 provider 负责主要登录，同时只对高权限 Admin 角色强制更强认证。
+
+## 持久化 data-protection key
+
+受保护的 MFA secret 和登录状态依赖 ASP.NET Core data-protection key。部署配置包含 data-protection key path。生产环境应跨重启持久化该目录；如果 key 被替换，之前保护的状态可能无法读取。
+
+## MCP 密钥是独立边界
+
+Admin SSO/MFA 保护管理平面。MCP 客户端使用 MCP server key 认证，并继续受自己的数据库、表、工具和运行时策略范围约束。不要把 Admin SSO 当作 MCP 密钥治理的替代方案。

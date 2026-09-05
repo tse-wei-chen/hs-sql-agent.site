@@ -1,0 +1,91 @@
+---
+title: 运行状态
+description: 查看 hs-sql-agent 2.0.1 的运行时执行指标、数据库健康、MCP 密钥使用情况和出站投递。
+sidebar:
+  group: 管理
+  order: 84
+---
+
+import Callout from "@/components/docs/mdx/Callout.astro";
+import CardGrid from "@/components/docs/mdx/CardGrid.astro";
+import DocCard from "@/components/docs/mdx/DocCard.astro";
+
+<CardGrid columns={2}>
+  <DocCard title="执行指标" icon="P95" description="查看 Query/DML 数量、成功率、采样延迟、慢查询数量和限流拒绝。" />
+  <DocCard title="数据库健康" icon="DB" description="查看最近探测状态、延迟、连续失败次数、故障开始时间和最新 provider 错误。" />
+  <DocCard title="MCP 密钥使用情况" icon="KEY" description="查看请求数、成功/失败、最后使用时间和每密钥限流拒绝率。" />
+  <DocCard title="出站投递" icon="OUT" description="查看 Webhook/SIEM 投递状态，并在有权限时重试失败或待处理记录。" />
+</CardGrid>
+
+运行状态页面用于了解**当前受治理运行时实际表现如何**。它与 Audit 和 OpenTelemetry/Prometheus 互为补充：Audit 更关注单个安全/执行事件，后者负责把遥测导出到外部系统。
+
+## 执行指标
+
+指标端点可返回：
+
+- Query 和 DML 数量
+- 成功/失败数量以及成功率
+- p50 / p95 延迟
+- 延迟样本数以及是否采用采样
+- 慢查询数量
+- IP 限流数量
+- MCP 密钥限流数量
+
+可按时间范围、数据库、access key 和工具名过滤。
+
+<Callout type="info" title="采样延迟应按采样数据理解">
+响应会明确返回样本数以及延迟数据是否经过采样。如果运行时说明使用了采样，就不要把 p50/p95 当作所有执行请求的完整时延分布。
+</Callout>
+
+## 数据库健康
+
+每个受管连接的健康项会提供：
+
+| 字段 | 含义 |
+| --- | --- |
+| `Status` | 当前健康状态 |
+| `LastCheckedAt` | 最近探测时间 |
+| `LastSuccessAt` | 最近一次成功探测 |
+| `LatencyMs` | 可用时的探测延迟 |
+| `ConsecutiveFailures` | 当前连续失败次数 |
+| `OutageStartedAt` | 可确定时的当前故障开始时间 |
+| `LastError` | 最近 provider/探测错误 |
+
+健康探测由 `HEALTH_PROBE_*` 配置控制。如果后台探测被关闭，就不要把该页面理解为持续刷新的外部监控系统。
+
+## MCP 密钥使用情况
+
+密钥使用数据会报告密钥身份/名称、最后使用时间、请求数、成功/失败、限流次数以及限流拒绝率。
+
+这些数据可以帮助识别长期不用的凭据、请求量异常的 Agent，以及持续触发配额的密钥。修改范围或限制前，先查看 [MCP 密钥](/zh-hans/docs/administration/mcp-keys)。
+
+## 出站投递
+
+运行时会记录已配置告警/SIEM Webhook 等出站投递尝试，包括：
+
+- 类别和状态
+- 尝试次数
+- 创建/投递/最近尝试时间
+- 最新错误
+
+列表端点支持 `limit` 参数，默认值为 `100`。
+
+## 重试投递
+
+| 操作 | 权限 |
+| --- | --- |
+| 指标 / DB 健康 / 密钥使用 / 投递列表 | `/runtime/operability` → `view` |
+| 重试投递 | `/runtime/operability` → `edit` |
+
+重试属于显式运维修改操作。修复临时目标端或网络问题后可以使用，但不能用不断重试来替代修复错误 endpoint、secret 或下游服务。
+
+<Callout type="warning" title="重试可能再次发送同一事件">
+重试前请确认目标端能够接受重复或延迟投递，并确认原始请求不存在“实际上成功但本地状态未按预期更新”的情况。
+</Callout>
+
+## 下一步排查位置
+
+- [审计](/zh-hans/docs/administration/audit) — 精确查看 actor/action/result 和 SQL 执行上下文。
+- [安全策略](/zh-hans/docs/administration/security-policies) — 查看可能导致拒绝的运行时限制。
+- [可观测性与审计运维](/zh-hans/docs/operations/observability) — Prometheus、OTLP、trace 和外部遥测集成。
+- [分布式部署](/zh-hans/docs/operations/distributed-deployment) — 多节点共享限制和状态时的协调方式。

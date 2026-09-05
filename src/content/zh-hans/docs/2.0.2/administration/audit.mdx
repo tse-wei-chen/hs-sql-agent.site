@@ -1,0 +1,95 @@
+---
+title: 审计
+description: 从管理控制平面查询、汇总、导出并保留 hs-sql-agent 2.0.1 审计记录。
+sidebar:
+  group: 管理
+  order: 80
+---
+
+import Callout from "@/components/docs/mdx/Callout.astro";
+import CardGrid from "@/components/docs/mdx/CardGrid.astro";
+import DocCard from "@/components/docs/mdx/DocCard.astro";
+
+<CardGrid columns={3}>
+  <DocCard title="检索" icon="Q" description="按 action、result、actor、时间范围、数据库、MCP 密钥、工具和关键词过滤事件。" />
+  <DocCard title="导出" icon="EXP" description="使用独立的 export 权限，把当前过滤结果导出为 CSV 或 JSON。" />
+  <DocCard title="保留策略" icon="RET" description="先查看策略并 dry-run 截止范围，再显式执行 Archive 或 Purge。" />
+</CardGrid>
+
+审计页面记录控制平面中的安全活动和运行时活动，主要用于调查和运维复盘，而不是作为应用日志的主输出通道。
+
+## 审计记录结构
+
+2.0.1 的审计项可能包含：
+
+| 范围 | 字段 |
+| --- | --- |
+| 身份 | `ActorType`, `ActorId`, `IpAddress`, `UserAgent` |
+| 事件 | `EventId`, `Action`, `Target`, `Detail`, `Result`, `CreatedAt` |
+| 请求/会话 | `RequestId`, `SessionId` |
+| SQL 范围 | `AccessKeyId`, `DbManagementId`, `DatabaseName`, `ToolName`, `Operation` |
+| 执行 | `DurationMs`, `ReturnedRows`, `AffectedRows` |
+| DML/错误 | `ApprovalStatus`, `ErrorCategory`, `Definition` |
+
+并不是每类事件都会填充全部字段。管理账号变更、MCP SQL 执行、DML 审批和运行时投递天然携带不同的上下文。
+
+## 过滤审计事件
+
+`GET /api/runtime/audit` 支持分页以及以下过滤项：
+
+- `action`
+- `keyword`
+- `from` / `to`
+- `result`
+- `actor`
+- `dbManagementId`
+- `accessKeyId`
+- `toolName`
+
+默认从第 `1` 页开始，每页 `20` 条。
+
+## 每日汇总
+
+`GET /api/runtime/audit/daily-summary` 返回按天聚合的活动数据。默认范围为 7 天，适合先观察整体变化，再深入单条记录。
+
+## 导出
+
+审计导出使用独立的授权能力：
+
+| 操作 | 权限 |
+| --- | --- |
+| 查询 / 汇总 / 查看保留状态 | `/runtime/audit` → `view` |
+| 导出 CSV 或 JSON | `/runtime/audit` → `export` |
+| 保留 dry-run / 执行 | `/runtime/audit` → `edit` |
+
+导出端点接受 `format=csv` 或 `format=json`。2.0.1 会拒绝超过 100,000 行的结果集，而不是尝试无边界下载。
+
+<Callout type="info" title="CSV 导出会防护电子表格公式注入">
+以 `=`、`+`、`-`、`@` 等电子表格公式字符开头的 CSV 值会在导出时加前缀，降低管理员使用电子表格软件打开文件时的公式注入风险。
+</Callout>
+
+## 保留流程
+
+运行时保留策略会报告是否启用、保留天数、模式和计划执行的 UTC 小时。
+
+建议按以下顺序操作：
+
+1. 查看当前保留策略。
+2. 调用 dry-run 端点确认截止时间和匹配行数。
+3. 确认模式和数据量符合预期。
+4. 审核后再执行保留操作。
+
+2.0.1 运行时支持的模式：
+
+- `Archive` — 先把过期记录写入配置的归档路径，再从 Admin 数据库删除。
+- `Purge` — 不创建归档，直接删除过期记录。
+
+如果 `AUDIT_RETENTION_DAYS=0`，自动保留被禁用，显式执行保留操作也会被拒绝。
+
+<Callout type="warning" title="执行破坏性保留操作前先 dry-run">
+即使使用 Archive，也应把保留执行视为破坏性运维操作。手动执行前确认截止时间、匹配数量、归档存储和备份预期。
+</Callout>
+
+## 审计与遥测互为补充
+
+审计回答的是：**谁对哪个受控资源做了什么，结果如何**。指标和 trace 用于观察运行时健康和性能。相关页面见 [运行状态](/zh-hans/docs/administration/operability) 和 [可观测性与审计运维](/zh-hans/docs/operations/observability)。

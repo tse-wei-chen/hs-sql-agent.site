@@ -1,0 +1,104 @@
+---
+title: MCP 密钥
+description: 在 hs-sql-agent 2.0.1 中签发、限制、轮换、复制和撤销 MCP 凭据。
+sidebar:
+  group: 管理
+  order: 74
+---
+
+import Callout from "@/components/docs/mdx/Callout.astro";
+import CardGrid from "@/components/docs/mdx/CardGrid.astro";
+import DocCard from "@/components/docs/mdx/DocCard.astro";
+import Steps from "@/components/docs/mdx/Steps.astro";
+import Step from "@/components/docs/mdx/Step.astro";
+
+<CardGrid columns={3}>
+  <DocCard title="数据库边界" icon="DB" description="每个生产密钥都绑定到一个 Database Management 条目。" />
+  <DocCard title="工具边界" icon="T" description="只开放客户端所需的内置工具和已发布自定义工具。" />
+  <DocCard title="表边界" icon="▦" description="可选地把密钥限制到明确的全限定表白名单。" />
+</CardGrid>
+
+MCP 密钥用于验证 `/mcp` 请求，并携带 hs-sql-agent 运行时授权使用的访问范围。它们与管理用户会话和 OIDC 身份彼此独立。
+
+## 2.0.1 正式内置工具范围
+
+密钥管理服务识别 5 个内置工具：
+
+| 工具 | 范围 |
+| --- | --- |
+| `get_schemas` | schema 发现 |
+| `get_tables` | 表发现 |
+| `get_columns` | 列发现 |
+| `execute_query_sql` | 受控 `SELECT` 执行 |
+| `execute_dml_sql` | 受控 Safe DML |
+
+同一数据库中的已发布 Custom Tools 也可以按名称加入。详见 [自定义工具](/zh-hans/docs/administration/custom-tools)。
+
+<Callout type="info" title="工具范围为空表示不限制，而不是没有工具">
+运行时把空的 `AllowedTools` 视为没有工具名称限制。生产 Agent 应显式选择客户端需要的最小工具集合，不要依赖无限制模式。
+</Callout>
+
+## 签发密钥
+
+<Steps>
+  <Step title="填写名称" description="名称不能为空，最长 100 个字符。" />
+  <Step title="绑定数据库" description="2.0.1 的签发校验要求提供 DbManagementId。" />
+  <Step title="选择工具" description="选择内置工具以及该数据库中已发布的 Custom Tools。" />
+  <Step title="限制数据访问" description="当客户端只应看到绑定数据库的一部分时，启用表白名单。" />
+  <Step title="设置生命周期控制" description="可选配置过期时间、CORS origin 和限流模式/覆盖值。" />
+  <Step title="复制明文密钥" description="关闭生命周期对话框前，把新签发的密钥保存到客户端的 secret store。" />
+</Steps>
+
+## 签发字段
+
+| 字段 | 含义 |
+| --- | --- |
+| `Name` | 管理员可读的密钥名称 |
+| `ExpiresAt` | 可选过期时间；设置后必须是未来时间 |
+| `AllowedTools` | 逗号分隔的工具名；为空表示无限制 |
+| `CorsAllowedOrigins` | 可选，用于限制浏览器发起的 MCP 跨源请求 |
+| `DbManagementId` | 绑定的数据库条目；签发时必填 |
+| `TableWhitelist` | 可选，逗号分隔的全限定表白名单 |
+| `RateLimitMode` | `Inherit`、`Custom` 或 `Unlimited` |
+| `PermitLimitOverride` | 自定义每密钥限流的请求额度 |
+| `WindowSecondsOverride` | 自定义每密钥限流的时间窗口 |
+
+存储后的密钥记录只暴露一个短 prefix 用于识别。原始 secret 通过服务器 HMAC secret 验证，不会为了后续重新展示而保存。
+
+## 轮换密钥
+
+轮换会创建替代密钥，并继承旧密钥的数据库、工具、表、CORS 和限流范围。
+
+管理员可以设置 `0` 到 `1440` 分钟的宽限期：
+
+- `0`：立即撤销旧密钥。
+- 正数：必要时把旧密钥过期时间缩短到宽限期截止时间。
+- 新密钥获得独立的新明文 secret。
+
+<Callout type="tip" title="轮换用于替换 secret，不要借机悄悄改变范围">
+如果新客户端需要明显不同的数据库或表边界，应显式审核这次权限变化，而不是把它包装成普通密钥轮换。
+</Callout>
+
+## 复制密钥
+
+复制会创建一个拥有相同运行时范围、但使用新名称和新 secret 的密钥。适用于两个客户端需要相同权限，却不应共用同一凭据的场景。
+
+复制出的密钥拥有独立生命周期，可以单独撤销或轮换，不影响源密钥。
+
+## 撤销密钥
+
+撤销会把密钥标记为不可用，并在变更提交前向验证缓存路径写入撤销 tombstone，避免刚撤销的凭据因为旧缓存状态继续通过验证。
+
+Bootstrap 管理的密钥不能通过普通生命周期操作编辑、轮换或撤销，它们由 bootstrap 配置管理。
+
+## 限流行为
+
+密钥可以继承运行时默认的每密钥限流策略、使用自定义覆盖值，或显式设置为 Unlimited。管理列表还会展示结合密钥模式和当前安全策略计算出的实际限流值。
+
+多实例部署中，如果限制需要跨节点统一，请使用分布式 rate limiter。
+
+## DML 与 Elicitation
+
+允许 `execute_dml_sql` 会增加客户端兼容性要求。MCP 客户端必须支持用于交互式数据修改审批的 form Elicitation。
+
+给新客户端开放 DML 前，请先阅读 [MCP 客户端连接](/zh-hans/docs/mcp/client-onboarding)。
