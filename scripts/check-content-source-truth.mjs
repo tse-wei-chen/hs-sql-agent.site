@@ -160,20 +160,22 @@ async function checkDoc(path) {
 
 await walkDocs(join(root, "src/content"));
 
-const marketingPaths = [
+const latestCopyPaths = [
   "src/data/marketing.ts",
   "src/data/marketingAspNetCore.ts",
+  "src/data/marketingSafeDml.ts",
   "src/data/marketingLocales",
+  "public/llms.txt",
 ];
 
-async function checkMarketing(path) {
+async function checkLatestCopy(path) {
   const absolute = join(root, path);
   const info = await stat(absolute);
   if (info.isDirectory()) {
     for (const entry of await readdir(absolute, { withFileTypes: true })) {
-      if (entry.isDirectory()) await checkMarketing(join(path, entry.name));
+      if (entry.isDirectory()) await checkLatestCopy(join(path, entry.name));
       else if (entry.isFile() && entry.name.endsWith(".ts")) {
-        await checkMarketing(join(path, entry.name));
+        await checkLatestCopy(join(path, entry.name));
       }
     }
     return;
@@ -188,11 +190,11 @@ async function checkMarketing(path) {
   }
 
   for (const stale of staleVersionsIn(text)) {
-    errors.push(`${path}: marketing copy contains stale product version ${stale}`);
+    errors.push(`${path}: latest-only copy contains stale product version ${stale}`);
   }
 }
 
-for (const path of marketingPaths) await checkMarketing(path);
+for (const path of latestCopyPaths) await checkLatestCopy(path);
 
 const fetchedSources = new Map();
 for (const { key, path } of sourceEntries) {
