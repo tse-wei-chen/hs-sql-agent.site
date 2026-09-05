@@ -3,24 +3,26 @@ import { getRelativeLocaleUrl } from "astro:i18n";
 import MarketingLayout from "@/layouts/MarketingLayout.astro";
 import MarketingBody from "@/components/MarketingBody.astro";
 import {
-  getMarketingRoutes,
+  getLocalizedMarketingRoutes,
   isMarketingSection,
-  type MarketingPage,
-} from "@/data/marketing";
+  type LocalizedMarketingPage,
+} from "@/data/marketingCatalog";
 import { resolveMarketingPage } from "@/data/resolveMarketingPage";
 import { locales } from "@/utils/getPostsByLocale";
 
 export function getStaticPaths() {
-  return getMarketingRoutes().map(route => {
+  return getLocalizedMarketingRoutes().map(route => {
     const page = resolveMarketingPage(route.locale, route.section, route.slug);
     if (!page) {
-      throw new Error(`Missing marketing page: ${route.locale}/${route.section}/${route.slug}`);
+      throw new Error(
+        `Missing marketing page: ${route.locale}/${route.section}/${route.slug}`
+      );
     }
     return { params: route, props: { page } };
   });
 }
 
-type Props = { page: MarketingPage };
+type Props = { page: LocalizedMarketingPage };
 const { page } = Astro.props;
 const sectionParam = Astro.params.section ?? "";
 if (!isMarketingSection(sectionParam)) {
@@ -29,10 +31,15 @@ if (!isMarketingSection(sectionParam)) {
 
 const alternates = locales
   .map(locale => resolveMarketingPage(locale, page.section, page.slug))
-  .filter((candidate): candidate is MarketingPage => Boolean(candidate))
+  .filter((candidate): candidate is LocalizedMarketingPage =>
+    Boolean(candidate)
+  )
   .map(candidate => ({
     locale: candidate.locale,
-    href: getRelativeLocaleUrl(candidate.locale, `${candidate.section}/${candidate.slug}`),
+    href: getRelativeLocaleUrl(
+      candidate.locale,
+      `${candidate.section}/${candidate.slug}`
+    ),
   }));
 ---
 

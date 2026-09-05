@@ -5,11 +5,10 @@ import Header from "@/components/Header.astro";
 import Footer from "@/components/Footer.astro";
 import { locales } from "@/utils/getPostsByLocale";
 import {
-  getMarketingPages,
+  getLocalizedMarketingPages,
   isMarketingSection,
   type MarketingSection,
-} from "@/data/marketing";
-import { getAspNetCoreMarketingPage } from "@/data/marketingAspNetCore";
+} from "@/data/marketingCatalog";
 import { useMarketingUi } from "@/i18n/marketing";
 import config from "@/config";
 import "@/styles/marketing.css";
@@ -27,11 +26,7 @@ if (!isMarketingSection(sectionParam)) {
   throw new Error(`Unknown marketing section: ${sectionParam}`);
 }
 const section: MarketingSection = sectionParam;
-const pages = getMarketingPages(locale, section).map(page =>
-  page.section === "integrations" && page.slug === "aspnet-core"
-    ? getAspNetCoreMarketingPage(locale)
-    : page
-);
+const pages = getLocalizedMarketingPages(locale, section);
 const marketingUi = useMarketingUi(locale);
 const [title, description] = marketingUi.sections[section];
 const urlBase = Astro.site ?? Astro.url;
@@ -43,8 +38,7 @@ const defaultAlternate =
   alternates.find(item => item.locale === config.site.lang) ?? alternates[0];
 
 function getMarketingHref(pageSection: MarketingSection, slug: string): string {
-  const targetLocale = locale === "zh-hant" ? "zh-hant" : "en";
-  return getRelativeLocaleUrl(targetLocale, `${pageSection}/${slug}`);
+  return getRelativeLocaleUrl(locale, `${pageSection}/${slug}`);
 }
 ---
 

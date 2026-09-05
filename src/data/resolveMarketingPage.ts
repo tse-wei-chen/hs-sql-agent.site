@@ -1,14 +1,13 @@
-import { getMarketingPage, type MarketingPage, type MarketingSection } from "@/data/marketing";
-import { getAspNetCoreMarketingPage } from "@/data/marketingAspNetCore";
+import {
+  getLocalizedMarketingPage,
+  type LocalizedMarketingPage,
+  type MarketingSection,
+} from "./marketingCatalog";
 
 export function resolveMarketingPage(
   locale: string,
   section: MarketingSection,
   slug: string
-): MarketingPage | undefined {
-  if (section === "integrations" && slug === "aspnet-core") {
-    return getAspNetCoreMarketingPage(locale);
-  }
-
-  return getMarketingPage(locale, section, slug);
+): LocalizedMarketingPage | undefined {
+  return getLocalizedMarketingPage(locale, section, slug);
 }
