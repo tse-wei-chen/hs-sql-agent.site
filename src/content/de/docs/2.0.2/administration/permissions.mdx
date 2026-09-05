@@ -1,0 +1,82 @@
+---
+title: Berechtigungen
+description: Das Path-and-Action-Autorisierungsmodell für Admin-Operationen in hs-sql-agent 2.0.1 verstehen.
+sidebar:
+  group: Administration
+  order: 79
+---
+
+import Callout from "@/components/docs/mdx/Callout.astro";
+import CardGrid from "@/components/docs/mdx/CardGrid.astro";
+import DocCard from "@/components/docs/mdx/DocCard.astro";
+
+<CardGrid columns={3}>
+  <DocCard title="Permission Path" icon="PATH" description="Kennzeichnet die geschützte Admin-Ressource, etwa /runtime/db-management oder /auth/user." />
+  <DocCard title="Action" icon="ACT" description="Kennzeichnet die erlaubte Operation, etwa view, create, edit, delete oder export." />
+  <DocCard title="Rollenauswahl" icon="RBAC" description="Rollen speichern nur Permission/Action-Paare, die im Template-Bestand des Servers existieren." />
+</CardGrid>
+
+Die Admin-Autorisierung in 2.0.1 wird als Paar aus **Permission Path + Action Code** durchgesetzt. Controller deklarieren das benötigte Paar; angemeldete Mitglieder erhalten Zugriff über ihre zugewiesenen Rollen.
+
+## Beispiele aus der Laufzeit
+
+| Geschützte Operation | Erforderliches Paar |
+| --- | --- |
+| Database Management anzeigen | `/runtime/db-management` → `view` |
+| Database-Management-Eintrag anlegen | `/runtime/db-management` → `create` |
+| semantische Metadaten bearbeiten | `/runtime/db-management/semantic` → `edit` |
+| MCP-Schlüssel ausstellen/verwalten | `/runtime/mcp-keys` mit passender Action |
+| Benutzer anzeigen | `/auth/user` → `view` |
+| Rollen bearbeiten | `/auth/role` → `edit` |
+| Audit anzeigen | `/runtime/audit` → `view` |
+| Audit exportieren | `/runtime/audit` → `export` |
+| Sicherheitsrichtlinie bearbeiten | `/runtime/security` → `edit` |
+| ausgehende Zustellung erneut versuchen | `/runtime/operability` → `edit` |
+
+Authentifizierung allein reicht daher nicht: Das erforderliche Path/Action-Paar muss zusätzlich über die Rollen des Mitglieds aufgelöst werden.
+
+## Permission-Action-Templates sind maßgeblich
+
+Die Role API stellt einen Bestand `permission-action-templates` bereit. Jedes Template enthält:
+
+- Permission-ID, Name und Pfad sowie
+- Action-ID, Code und Name.
+
+Ein Rollen-Payload sendet Auswahlen als `{ PermissionId, ActionId }`-Paare. Der Rollendienst entfernt Duplikate und speichert nur Paare, die im Template-Bestand existieren.
+
+<Callout type="warning" title="Berechtigungen sind keine frei erfundenen Strings">
+Modellieren Sie Autorisierung nicht durch beliebige neue Path/Action-Werte im Client. Eine Rolle kann nur Kombinationen speichern, die durch die Permission-Action-Templates des Servers gestützt sind.
+</Callout>
+
+## Rollen sind die Zuweisungseinheit
+
+Mitgliedern werden Rollen zugewiesen; Rollen enthalten Permission/Action-Auswahlen. Dadurch bleiben Benutzerlebenszyklus und wiederverwendbare Zugriffspolitik getrennt:
+
+```text
+Member
+  └─ Role(s)
+       └─ Permission path + Action
+```
+
+Ein Mitglied kann mehrere Rollen besitzen. Der effektive Admin-Zugriff ist die kombinierte Berechtigungsfläche dieser Rollen.
+
+## Autorisierungsänderungen machen veralteten Zustand ungültig
+
+Rollenänderungen sind sicherheitsrelevant. Wenn sich die Berechtigungen einer Rolle ändern, ermittelt der Dienst betroffene Mitglieder, erhöht deren Security Version und führt die Änderung über die Cache-Barriere für Auth-Laufzeitzustand aus.
+
+So soll verhindert werden, dass bereits authentifizierte Sitzungen mit veralteter Autorisierung weiterlaufen.
+
+## Geschützte SuperUser-Rolle
+
+`SuperUser` ist in 2.0.1 eine integrierte geschützte Rolle. Sie kann über die normale Rollenverwaltung weder bearbeitet noch gelöscht werden. Damit kann die Bootstrap-/Vollzugriffsrolle nicht stillschweigend in eine andere Berechtigungsmenge umdefiniert werden.
+
+<Callout type="tip" title="Berechtigungen nach Verantwortung zuschneiden">
+Erstellen Sie Rollen anhand der tatsächlichen Aufgaben statt für jedes Konto `SuperUser` zu kopieren. Ein Laufzeit-Beobachter benötigt beispielsweise Audit/Operability `view`, aber nicht zwingend Database `edit`, Key `create` oder Security-Policy `edit`.
+</Callout>
+
+## Verwandte Anleitungen
+
+- [Mitglieder und Rollen](/de/docs/administration/members-roles) — Lebenszyklus und Schutzregeln.
+- [Database Management](/de/docs/administration/database-management) — Beispiele für Datenbank- und Semantic-Berechtigungen.
+- [MCP-Schlüssel](/de/docs/administration/mcp-keys) — separate Autorisierungsgrenze gegenüber Admin-Rollen.
+- [Sicherheitsrichtlinien](/de/docs/administration/security-policies) — Laufzeitregeln für SQL, Rate Limits und Parallelität.

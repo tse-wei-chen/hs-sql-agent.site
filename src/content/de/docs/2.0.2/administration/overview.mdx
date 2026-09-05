@@ -1,0 +1,62 @@
+---
+title: Überblick über die Administrationsoberfläche
+description: Die Steuerungsebene für Datenbankzugriff, MCP-Zugangsdaten, Identität, Autorisierung, Audit, Sicherheitsrichtlinien und Runtime-Betrieb.
+sidebar:
+  group: Administration
+  order: 70
+---
+
+import Callout from "@/components/docs/mdx/Callout.astro";
+import CardGrid from "@/components/docs/mdx/CardGrid.astro";
+import DocCard from "@/components/docs/mdx/DocCard.astro";
+import Flow from "@/components/docs/mdx/Flow.astro";
+
+Die Administrationsoberfläche ist die **Steuerungsebene für Betreiber** von hs-sql-agent. Betreiber legen fest, welche Ressourcen ein MCP-Client erreichen darf und wie SQL kontrolliert wird; MCP-Clients verwenden anschließend den separat authentifizierten Endpunkt `/mcp`.
+
+<CardGrid columns={2}>
+  <DocCard title="Database Management" icon="DB" href="/de/docs/administration/database-management" description="Provider-Verbindungen registrieren, die Erreichbarkeit prüfen und steuern, an welche Datenbank ein MCP-Schlüssel gebunden werden darf." />
+  <DocCard title="MCP Keys" icon="KEY" href="/de/docs/administration/mcp-keys" description="MCP-Zugangsdaten ausstellen, rotieren, widerrufen, einschränken und Client-Konfiguration erzeugen." />
+  <DocCard title="Semantic Metadata" icon="AI" href="/de/docs/administration/semantic-metadata" description="Schema-Erkennung um verständliche Namen, Beschreibungen, Synonyme, Beziehungen und Metriken ergänzen." />
+  <DocCard title="Custom Tools" icon="SQL" href="/de/docs/administration/custom-tools" description="Kontrollierte SQL-Operationen als benannte MCP-Tools veröffentlichen, ohne die Runtime-Richtlinien zu umgehen." />
+  <DocCard title="Sicherheit" icon="SEC" href="/de/docs/security/overview" description="Authentifizierung, Autorisierung, Tabellen-/Tool-Grenzen, fail-closed SQL-Richtlinien und Audit-Grenzen verstehen." />
+  <DocCard title="Betrieb" icon="OPS" href="/de/docs/operations/configuration" description="Deployment, gemeinsamen Zustand, Observability, Aufbewahrung, Limits und Produktionsverhalten konfigurieren." />
+</CardGrid>
+
+## Identität, Governance und Betrieb
+
+<CardGrid columns={3}>
+  <DocCard title="Members & Roles" icon="USR" href="/de/docs/administration/members-roles" description="Admin-Benutzer anlegen, Rollen zuweisen, Sitzungen widerrufen und den Rollen-Lebenszyklus sicher verwalten." />
+  <DocCard title="Permissions" icon="RBAC" href="/de/docs/administration/permissions" description="Das von Admin-Controllern erzwungene Modell aus Berechtigungspfad und Aktion verstehen." />
+  <DocCard title="Audit" icon="AUD" href="/de/docs/administration/audit" description="Runtime- und Sicherheitsereignisse suchen, zusammenfassen, exportieren und Aufbewahrung anwenden." />
+  <DocCard title="Security Policies" icon="POL" href="/de/docs/administration/security-policies" description="Query-, DML-, Schlüssel-Limits und SQL-Parallelität verwalten." />
+  <DocCard title="Operability" icon="P95" href="/de/docs/administration/operability" description="Ausführungsmetriken, Datenbankzustand, Schlüsselnutzung und ausgehende Zustellungen untersuchen." />
+  <DocCard title="Admin HTTP API" icon="API" href="/de/docs/reference/api-reference" description="Die quellcodebasierten 2.0.1/2.0.2-Controller-Routen und Autorisierungsoberfläche der mitgelieferten UI nachschlagen." />
+</CardGrid>
+
+## Empfohlener Betreiberablauf
+
+<Flow items={["Datenbank registrieren", "MCP-Schlüssel ausstellen", "Tool-/Tabellenumfang festlegen", "Metadaten anreichern", "Client verbinden", "Beobachten und auditieren"]} />
+
+1. Registrieren und prüfen Sie die Datenbankverbindung, die der Agent verwenden soll.
+2. Stellen Sie einen an diese Datenbank gebundenen MCP-Schlüssel aus und erlauben Sie nur die benötigten Tools und Tabellen.
+3. Ergänzen Sie semantische Metadaten, wenn physische Schemanamen für eine verlässliche Agent-Erkennung nicht ausreichen.
+4. Erzeugen Sie die Client-Konfiguration und verbinden Sie den Client über den öffentlichen Streamable-HTTP-Endpunkt `/mcp`.
+5. Nutzen Sie Audit und Operability, um das Runtime-Verhalten zu prüfen und Richtlinien bei Bedarf enger zu fassen.
+
+<Callout type="info" title="Admin- und MCP-Authentifizierung sind getrennt">
+Admin-Konten bedienen die Steuerungsebene. MCP-Clients authentifizieren sich mit MCP-Schlüsseln. Admin-Zugriff erzeugt nicht automatisch MCP-Zugangsdaten, und ein MCP-Schlüssel gewährt keinen Zugriff auf die Administrationsoberfläche.
+</Callout>
+
+## Lebenszyklus von MCP-Schlüsseln
+
+Beim Ausstellen, Rotieren oder Duplizieren eines Schlüssels kann die UI direkte Streamable-HTTP-Konfiguration für unterstützte Client-Formate erzeugen. Das Klartext-Secret wird nur in diesem Lebenszyklusdialog angezeigt und nicht für eine spätere Anzeige gespeichert.
+
+Kopieren Sie die erzeugte Konfiguration, bevor Sie den Dialog schließen.
+
+## Eingebettete UI und eingebaute Identität sind optional
+
+Ein ASP.NET-Core-Host kann die HsSqlAgent Admin API bereitstellen, ohne die mitgelieferte Admin UI auszuliefern. Verwenden Sie im modularen Integrationspfad `UseHsSqlAgentAdminApi()` und lassen Sie den Host `MapControllers()` aufrufen; fügen Sie `UseHsSqlAgentAdminUi()` nur hinzu, wenn die mitgelieferte UI gewünscht ist.
+
+Mit `AddHsSqlAgentHostAuthorization(...)` kann der Host außerdem sein bestehendes Login- und Berechtigungssystem beibehalten, statt HsSqlAgent-Members, Rollen, JWT, SMTP oder OIDC zu installieren. MCP wird unabhängig mit `AddHsSqlAgentMcp(...)` / `UseHsSqlAgentMcp()` ausgewählt und eingebunden.
+
+Das vollständige 2.0.2-Kompositionsmodell finden Sie unter [ASP.NET-Core-Integration](/de/docs/integration/aspnet-core).

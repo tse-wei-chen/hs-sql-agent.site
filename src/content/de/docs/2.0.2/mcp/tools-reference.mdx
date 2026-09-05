@@ -1,0 +1,186 @@
+---
+title: MCP Tools Reference
+description: Formale Verträge der integrierten MCP-Tools in hs-sql-agent 2.0.1 mit Parametern, Antworten, Autorisierung und Risikogrenzen.
+sidebar:
+  group: MCP
+  order: 35
+---
+
+import Callout from "@/components/docs/mdx/Callout.astro";
+import CardGrid from "@/components/docs/mdx/CardGrid.astro";
+import DocCard from "@/components/docs/mdx/DocCard.astro";
+import Flow from "@/components/docs/mdx/Flow.astro";
+
+<CardGrid columns={3}>
+  <DocCard title="Schema-Ermittlung" icon="▦" badge="geringes Risiko" description="get_schemas, get_tables und get_columns ermitteln die an den Schlüssel gebundene Datenbankstruktur vor der SQL-Erzeugung." />
+  <DocCard title="Query SQL" icon="SELECT" badge="Lesen" description="execute_query_sql akzeptiert genau ein kontrolliertes SELECT und liefert serialisierte Ergebniszeilen." />
+  <DocCard title="Safe DML" icon="DML" badge="Freigabe" description="execute_dml_sql akzeptiert unterstützte Mutationen nur über Preview, Elicitation und Revalidierung vor dem Commit." />
+</CardGrid>
+
+Die **formale integrierte Tool-Oberfläche von 2.0.1, die durch MCP-Schlüssel verwaltet wird**, enthält genau fünf Tool-Namen:
+
+| Tool | Öffentliche Eingabe | Ergebnisform | Risiko |
+| --- | --- | --- | --- |
+| `get_schemas` | keine | kommagetrennte Schema-Namen | Metadaten lesen |
+| `get_tables` | `schemaName: string` | kommagetrennte Tabellenbeschreibungen | Metadaten lesen |
+| `get_columns` | `schemaName: string`, `tableName: string` | JSON-Array mit Spaltenobjekten | Metadaten lesen |
+| `execute_query_sql` | `sql: string` | JSON-Array mit Ergebniszeilen oder Fehlertext | Daten lesen |
+| `execute_dml_sql` | `sql: string` | Text zum Freigabe-/Ausführungsergebnis | Daten ändern |
+
+Veröffentlichte Custom Tools können die Tool-Sammlung einer gebundenen Datenbank erweitern, sind aber keine zusätzlichen integrierten Tools.
+
+<Callout type="warning" title="Auch Tool-Ermittlung ist durch Autorisierung begrenzt">
+Die MCP-Sitzung baut ihre Tool-Sammlung erst nach erfolgreicher MCP-Key-Authentifizierung auf. Ist `AllowedTools` ausdrücklich konfiguriert, werden nur passende integrierte oder veröffentlichte Custom Tools angeboten. Eine leere Tool-Allowlist bedeutet uneingeschränkten Zugriff nach Tool-Namen; produktive Schlüssel sollten daher normalerweise eine explizite Minimalmenge wählen.
+</Callout>
+
+## Empfohlener Discovery-Ablauf
+
+<Flow items={["get_schemas", "get_tables", "get_columns", "execute_query_sql"]} caption="Physische Struktur ermitteln, bevor das Modell SQL erzeugt. DML gehört bewusst nicht zum standardmäßigen Leseablauf." />
+
+Verwenden Sie die Metadaten-Ermittlung, wenn der Client die Datenbankstruktur nicht bereits zuverlässig kennt. Schema-Tools laufen im Datenbankkontext des authentifizierten Schlüssels und akzeptieren keinen vom Client gelieferten Connection String.
+
+## `get_schemas`
+
+Liefert die Schemas, die die Provider-Metadatenlaufzeit für die an den MCP-Schlüssel gebundene Datenbank meldet.
+
+**Parameter:** keine.
+
+**Erfolgsresultat:** Schema-Namen als kommagetrennter String.
+
+**Autorisierung und Grenzen:**
+
+- Bei expliziter Tool-Allowlist muss der Schlüssel `get_schemas` verwenden dürfen.
+- Datenbank-Provider und Verbindung müssen aus dem authentifizierten Schlüssel aufgelöst worden sein.
+- Die Operation belegt den gemeinsamen SQL-Concurrency-Limiter.
+- Erfolg und Fehler werden im Audit-Pfad als `mcp.get_schemas` erfasst.
+
+Das Tool akzeptiert weder eine Datenbank-ID noch einen Connection String vom Modell.
+
+## `get_tables`
+
+```text
+get_tables(schemaName: string)
+```
+
+Liefert die vom Provider gemeldeten Tabellen im angeforderten Schema und filtert sie anhand der Tabellen-Whitelist des MCP-Schlüssels, sofern eine konfiguriert ist.
+
+Existieren semantische Metadaten für den gebundenen Database-Management-Eintrag, kann jede sichtbare Tabelle zusätzlich enthalten:
+
+- Anzeigename;
+- Beschreibung;
+- Synonyme;
+- Metrikbeschreibungen dieser Tabelle.
+
+**Erfolgsresultat:** ein kommagetrennter String. Einträge können daher mehr Informationen als nur physische Tabellennamen enthalten.
+
+**Audit-Action:** `mcp.get_tables`.
+
+<Callout type="info" title="Eine Tabellen-Whitelist begrenzt auch Discovery">
+Ein eingeschränkter Schlüssel soll über `get_tables` keine Tabellen außerhalb seiner Tabellengrenze kennenlernen. Semantische Anreicherung erweitert diese Grenze nicht.
+</Callout>
+
+## `get_columns`
+
+```text
+get_columns(schemaName: string, tableName: string)
+```
+
+Der Server prüft zuerst, ob die angeforderte qualifizierte Tabelle durch den MCP-Schlüssel erlaubt ist. Danach liest er Provider-Spaltenmetadaten und serialisiert ein JSON-Array.
+
+Jedes `ColumnInfo`-Objekt in 2.0.1 enthält:
+
+| Property | Bedeutung |
+| --- | --- |
+| `Name` | physischer Spaltenname |
+| `Column` | Alias desselben Spaltennamens |
+| `Type` | vom Provider gemeldeter Spaltentyp |
+| `Description` | semantische Anreicherung, sofern vorhanden |
+| `IsPrimaryKey` | ob Provider-Metadaten die Spalte als Teil des Primary Key markieren |
+| `PrimaryKeyOrdinal` | optionale Position innerhalb eines zusammengesetzten Primary Key |
+
+Semantische Anreicherung kann Anzeigenamen, Beschreibungen, Synonyme und Beziehungsbeschreibungen in `Description` ergänzen. Beziehungskontext wird nur aufgenommen, wenn beide beteiligten Tabellen durch die Tabellen-Whitelist des Schlüssels erlaubt sind.
+
+**Audit-Action:** `mcp.get_columns`.
+
+## `execute_query_sql`
+
+```text
+execute_query_sql(sql: string)
+```
+
+Akzeptiert **genau eine `SELECT`-SQL-Anweisung**. Die öffentliche Beschreibung in 2.0.1 nennt ausdrücklich häufige Formen wie JOIN, WHERE, GROUP BY, HAVING, ORDER BY, LIMIT/OFFSET, DISTINCT, CTEs, Subqueries sowie UNION/INTERSECT/EXCEPT.
+
+<Flow items={["Parse", "Bind", "Tabellen autorisieren", "Policy validieren", "Unveränderliches Kommando kompilieren", "Ausführen"]} caption="Raw SQL wird nicht direkt an den Provider weitergereicht." />
+
+Die Anfrage läuft durch die typisierte F#-Query-Laufzeit. Je nach Laufzeit-Capabilities werden dabei Fakten wie referenzierte Tabellen, CTE-Nutzung und Subquery-Nutzung auf demselben kontrollierten Pfad gesammelt und als Audit-Nachweis verwendet.
+
+**Erfolgsresultat:** JSON-Serialisierung der Ergebniszeilen.
+
+**Fehlerresultat:** Text beginnend mit `Execution failed:` gefolgt von der Fehlermeldung. Vom Aufrufer angeforderte Cancellation wird weitergereicht und nicht in einen normalen Ergebnisstring umgewandelt.
+
+**Laufzeitgrenzen:**
+
+- MCP-Tool-Allowlist;
+- Datenbankbindung des MCP-Schlüssels;
+- Tabellen-Whitelist;
+- aktuelle Security-/Query-Policy;
+- SQL-Concurrency-Limiter;
+- Source-/Target-SQL-Capability-Prüfungen;
+- Audit-Ereignis `mcp.query.executed` mit Operation, Dauer, zurückgegebenen Zeilen und vom Compiler abgeleiteten Definitionsfakten.
+
+Eine lesbare Capability-Zusammenfassung steht in der [SQL-Support-Referenz](/de/docs/sql-compiler/sql-support).
+
+## `execute_dml_sql`
+
+```text
+execute_dml_sql(sql: string)
+```
+
+Die öffentliche MCP-Eingabe ist SQL. Der `McpServer` und der Cancellation Token der .NET-Methode werden von der Laufzeit injiziert und sind keine Felder, die ein Agent mitsendet.
+
+Unterstützte Statement-Klassen im MCP-DML-Pfad von 2.0.1:
+
+| Anweisung | Status |
+| --- | --- |
+| `UPDATE` | unterstützt, wenn Parse-, Capability-, Policy- und Freigabeanforderungen erfüllt sind |
+| `DELETE` | unterstützt, wenn Parse-, Capability-, Policy- und Freigabeanforderungen erfüllt sind |
+| `INSERT ... VALUES` | unterstützt mit Freigabesemantik für unveränderlichen Payload |
+| `INSERT ... SELECT` | in 2.0.1 fail-closed abgelehnt |
+
+<Flow items={["Parsen + Profil prüfen", "Mutation kompilieren", "Exakte Auswirkung als Preview", "Menschliche Elicitation", "Revalidierung in Transaktion", "Commit"]} caption="Die Freigabe ist an den validierten Mutationskontext gebunden, nicht nur an den ursprünglichen SQL-Text." />
+
+Bei UPDATE und DELETE wird die Freigabe an die exakte Primary-Key-Zeilenmenge gebunden; vor dem Commit werden die Zeilenidentitäten innerhalb der Transaktion erneut geprüft. Bei INSERT VALUES bindet die Freigabe an den unveränderlichen Literal-Payload und das exakte kompilierte Kommando; beim Commit wird die freigegebene Payload-Zeilenanzahl verifiziert.
+
+Lehnt der Mensch ab oder kann die Validierung nicht abgeschlossen werden, findet kein Commit statt. Audit-Ereignisse verwenden `mcp.dml.executed` und speichern Operation, Verarbeitungsdauer, betroffene Zeilen, Freigabestatus und gegebenenfalls Fehlerkategorie.
+
+<Callout type="danger" title="DML nicht an Clients ohne kompatible MCP Form Elicitation freigeben">
+Tool-Call-Unterstützung allein reicht nicht. Der Client muss das interaktive Freigabeformular des Safe-DML-Ablaufs anzeigen und beantworten können.
+</Callout>
+
+Das vollständige Protokoll steht unter [Safe DML](/de/docs/sql-compiler/safe-dml).
+
+## Gemeinsame Fehler der integrierten Tools
+
+Typische Fehler sind:
+
+- MCP-Autorisierungskontext fehlt;
+- explizite Tool-Allowlist enthält das Tool nicht;
+- Datenbank-Provider oder Verbindungskonfiguration ist ungültig;
+- SQL-Concurrency-Limit kann keinen Lease vergeben (`Server busy`);
+- angeforderte Tabelle liegt außerhalb der Schlüssel-Whitelist;
+- SQL ist leer, nicht unterstützt, von der Policy abgelehnt oder scheitert an einer Capability-Grenze;
+- Provider-Ausführung schlägt fehl.
+
+Die Tools liefern bewusst begrenzte Fehlerinformationen, statt auf uneingeschränkte Provider-Ausführung zurückzufallen.
+
+## Custom Tools
+
+Veröffentlichte Custom Tools werden für den gebundenen Database-Management-Eintrag des MCP-Schlüssels geladen und können in derselben `AllowedTools`-Menge nach Namen ausgewählt werden. Auch ihre Ausführung durchläuft Datenbankbindung, Tabellen-Whitelist, Sicherheitsrichtlinie, Concurrency-Steuerung und Audit; DML-Custom-Tools laufen zusätzlich durch den Freigabeprozess.
+
+Siehe [Custom Tools](/de/docs/administration/custom-tools).
+
+## Semantische Metadaten sind kein sechstes integriertes Tool
+
+Das Repository 2.0.1 enthält Implementierungsdetails zur Semantikverwaltung, doch der formale MCP-Key-Registry- und Admin-Key-Management-Pfad kennt die fünf auf dieser Seite aufgeführten Tools. Die offizielle Dokumentation behandelt semantische Metadaten daher als **Admin-/Control-Plane-Capability, die von Schema Discovery konsumiert wird**, nicht als zusätzlichen integrierten MCP-Vertrag.
+
+Siehe [Semantische Metadaten](/de/docs/administration/semantic-metadata).

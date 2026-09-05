@@ -1,0 +1,95 @@
+---
+title: Audit
+description: Audit-Datensätze von hs-sql-agent über die Admin-Steuerungsebene abfragen, zusammenfassen, exportieren und aufbewahren.
+sidebar:
+  group: Administration
+  order: 80
+---
+
+import Callout from "@/components/docs/mdx/Callout.astro";
+import CardGrid from "@/components/docs/mdx/CardGrid.astro";
+import DocCard from "@/components/docs/mdx/DocCard.astro";
+
+<CardGrid columns={3}>
+  <DocCard title="Suche" icon="Q" description="Ereignisse nach Aktion, Ergebnis, Akteur, Zeitraum, Datenbank, MCP-Schlüssel, Tool und Stichwort filtern." />
+  <DocCard title="Export" icon="EXP" description="Die gefilterte Audit-Menge mit eigener Export-Berechtigung als CSV oder JSON exportieren." />
+  <DocCard title="Aufbewahrung" icon="RET" description="Richtlinie prüfen, den Stichtag per Dry Run testen und anschließend Archive oder Purge explizit ausführen." />
+</CardGrid>
+
+Die Audit-Oberfläche ist der Datensatz der Steuerungsebene für Sicherheits- und Runtime-Aktivitäten. Sie dient Untersuchung und Betriebsprüfung und ist nicht als primärer Anwendungs-Logstream gedacht.
+
+## Aufbau eines Audit-Datensatzes
+
+Ein Audit-Eintrag kann folgende Felder enthalten:
+
+| Bereich | Felder |
+| --- | --- |
+| Identität | `ActorType`, `ActorId`, `IpAddress`, `UserAgent` |
+| Ereignis | `EventId`, `Action`, `Target`, `Detail`, `Result`, `CreatedAt` |
+| Request/Session | `RequestId`, `SessionId` |
+| SQL-Umfang | `AccessKeyId`, `DbManagementId`, `DatabaseName`, `ToolName`, `Operation` |
+| Ausführung | `DurationMs`, `ReturnedRows`, `AffectedRows` |
+| DML/Fehler | `ApprovalStatus`, `ErrorCategory`, `Definition` |
+
+Nicht jedes Ereignis befüllt jedes Feld. Änderungen an Admin-Konten, MCP-SQL-Ausführung, DML-Freigaben und ausgehende Zustellungen tragen naturgemäß unterschiedliche Kontexte.
+
+## Audit-Ereignisse filtern
+
+`GET /api/runtime/audit` unterstützt Paginierung und folgende Filter:
+
+- `action`
+- `keyword`
+- `from` / `to`
+- `result`
+- `actor`
+- `dbManagementId`
+- `accessKeyId`
+- `toolName`
+
+Standardmäßig wird Seite `1` mit `20` Datensätzen pro Seite zurückgegeben.
+
+## Tageszusammenfassung
+
+`GET /api/runtime/audit/daily-summary` liefert eine tägliche Aggregation der Aktivität. Standardmäßig werden 7 Tage betrachtet, sodass grobe Veränderungen sichtbar werden, bevor einzelne Datensätze untersucht werden.
+
+## Export
+
+Der Audit-Export ist eine eigene Autorisierungsfähigkeit:
+
+| Operation | Berechtigung |
+| --- | --- |
+| Abfrage / Zusammenfassung / Aufbewahrungsstatus | `/runtime/audit` → `view` |
+| CSV- oder JSON-Export | `/runtime/audit` → `export` |
+| Aufbewahrungs-Dry-Run / Ausführung | `/runtime/audit` → `edit` |
+
+Der Export-Endpunkt akzeptiert `format=csv` oder `format=json`. 2.0.1 lehnt Exportmengen über 100.000 Zeilen ab, statt einen unbegrenzten Download zu versuchen.
+
+<Callout type="info" title="CSV-Export schützt Tabellenkalkulationszellen">
+CSV-Werte, die mit Formelzeichen wie `=`, `+`, `-` oder `@` beginnen, erhalten vor dem Export ein Präfix. Das reduziert das Risiko einer Formelinjektion, wenn Betreiber die Datei in Tabellenkalkulationssoftware öffnen.
+</Callout>
+
+## Aufbewahrungsablauf
+
+Die Runtime-Richtlinie zeigt an, ob Aufbewahrung aktiviert ist, wie viele Tage gelten, welchen Modus sie verwendet und zu welcher UTC-Stunde sie geplant ist.
+
+Empfohlener Ablauf:
+
+1. Prüfen Sie die aktive Aufbewahrungsrichtlinie.
+2. Führen Sie den Dry Run aus und kontrollieren Sie Stichtag und Trefferzahl.
+3. Bestätigen Sie Modus und erwartetes Volumen.
+4. Führen Sie die Aufbewahrung erst nach dieser Prüfung aus.
+
+Gültige Runtime-Modi sind:
+
+- `Archive` — abgelaufene Datensätze vor dem Löschen aus der Admin-Datenbank in den konfigurierten Archivpfad schreiben;
+- `Purge` — abgelaufene Datensätze ohne Archiv löschen.
+
+Bei `AUDIT_RETENTION_DAYS=0` ist automatische Aufbewahrung deaktiviert und eine explizite Ausführung wird abgelehnt.
+
+<Callout type="warning" title="Vor destruktiver Aufbewahrung immer einen Dry Run durchführen">
+Behandeln Sie auch Archive als destruktive Betreiberaktion. Prüfen Sie vor manueller Ausführung Stichtag, Trefferzahl, Archivspeicher und Backup-Erwartungen.
+</Callout>
+
+## Audit und Telemetrie ergänzen sich
+
+Audit-Datensätze beantworten **wer was an welcher kontrollierten Ressource mit welchem Ergebnis getan hat**. Metriken und Traces beantworten Fragen zu Runtime-Zustand und Performance. Siehe [Betriebszustand](/de/docs/administration/operability) und [Observability](/de/docs/operations/observability).

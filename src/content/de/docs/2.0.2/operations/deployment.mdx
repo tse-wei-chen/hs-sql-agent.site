@@ -1,0 +1,43 @@
+---
+title: Bereitstellung
+description: Produktionsorientierte Hinweise für eine einzelne hs-sql-agent-Instanz, öffentliche MCP-Routen, Persistenz und Telemetrie.
+sidebar:
+  group: Betrieb
+  order: 100
+---
+
+Die Standardkonfiguration im Repository eignet sich für ein einfaches Single-Instance-Deployment: Die Steuerungsebene kann SQLite verwenden und prozesslokale Provider können im Speicher arbeiten.
+
+Bevor der Dienst außerhalb einer Entwicklungsumgebung erreichbar ist, sollten alle extern sichtbaren und persistenten Bestandteile ausdrücklich konfiguriert werden.
+
+## Öffentliche MCP-URL
+
+Setzen Sie `MCP_PUBLIC_ENDPOINT` auf die URL, die MCP-Clients tatsächlich erreichen können, einschließlich `/mcp`.
+
+```env
+MCP_PUBLIC_ENDPOINT=https://sql-agent.example.com/mcp
+```
+
+Gehen Sie nicht davon aus, dass sie mit dem Origin der Admin UI identisch ist. Reverse Proxies können UI und MCP-Endpunkt über unterschiedliche Hosts, Ports oder Pfade veröffentlichen.
+
+## Secrets
+
+Ersetzen Sie die Beispielwerte für HMAC- und JWT-Schlüssel durch voneinander unabhängige, eindeutige Secrets mit mindestens 32 Bytes.
+
+Datenbankzugangsdaten, SMTP-Zugangsdaten, OIDC-Client-Secrets, Webhook-Signing-Secrets und Redis-Connection-Strings gehören nicht ins Source Control.
+
+## Zustand der Steuerungsebene persistent speichern
+
+Die Standard-SQLite-Admin-Datenbank liegt unter `/app/data`. Wenn Sie die eingebettete lokale Steuerungsebene verwenden, muss dieser Zustand Container-Ersetzungen überleben.
+
+Wenn OIDC/TOTP oder anderer geschützter Zustand ASP.NET Core Data Protection verwendet, persistieren Sie auch `DATA_PROTECTION_KEY_PATH`. Gehen diese Schlüssel verloren, können geschützte MFA-/Login-Daten unlesbar werden.
+
+## Observability
+
+Prometheus-Metriken können auf einem eigenen Listener aktiviert werden. Das Beispiel verwendet Port `9000`, getrennt vom Haupt-API-Port.
+
+Über `OTLP_ENDPOINT` lässt sich zusätzlich ein OTLP-Collector konfigurieren; `OTEL_SERVICE_NAME` bestimmt den Service-Namen.
+
+## Wann auf verteilte Konfiguration wechseln?
+
+Sobald mehr als eine Anwendungsinstanz läuft, ist prozesslokaler Speicher nicht mehr gemeinsam. Verschieben Sie koordinationsrelevante Subsysteme auf verteilte Provider und verwenden Sie eine gemeinsame Admin-Datenbank. Siehe [Verteilte Bereitstellung](/de/docs/operations/distributed-deployment).

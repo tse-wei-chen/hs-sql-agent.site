@@ -1,0 +1,57 @@
+---
+title: Verteilte Bereitstellung
+description: Anforderungen an gemeinsam genutzten Zustand beim Betrieb mehrerer hs-sql-agent-Instanzen hinter einem Service-Endpunkt.
+sidebar:
+  group: Betrieb
+  order: 110
+---
+
+Das Repository enthält `.env.distributed.example` als Beispiel für eine Multi-Instance-Topologie. Der entscheidende Unterschied ist nicht einfach „Redis hinzufügen“: Jeder Zustand, der zwischen Knoten konsistent sein muss, benötigt einen gemeinsamen Provider.
+
+## Gemeinsame Steuerungsebene
+
+Das verteilte Beispiel verwendet PostgreSQL als Admin-Datenbank statt lokalem SQLite:
+
+```env
+ADMIN_DATABASE_PROVIDER=Postgres
+ADMIN_DATABASE_CONNECTION_STRING=Host=postgres;Port=5432;Database=hsqlagent;Username=postgres;Password=postgres;
+```
+
+Wenn mehrere Instanzen dasselbe logische hs-sql-agent-Deployment bedienen, sollten sie auf dieselbe Control-Plane-Datenbank zeigen.
+
+## Koordination über Redis
+
+Im verteilten Beispiel wechseln folgende Subsysteme zu Redis:
+
+- Cache
+- Rate Limiter
+- Synchronisierung der Sicherheitsrichtlinie
+- Synchronisierung ausgehender Zustellungen
+- SQL-Concurrency-Koordination
+
+Beispiel:
+
+```env
+CACHE_PROVIDER=Redis
+CACHE_CONNECTION_STRING=redis:6379
+
+RATE_LIMITER_PROVIDER=Redis
+RATE_LIMITER_CONNECTION_STRING=redis:6379
+RATE_LIMITER_FAILURE_MODE=FailClosed
+
+SQL_CONCURRENCY_PROVIDER=Redis
+SQL_CONCURRENCY_CONNECTION_STRING=redis:6379
+SQL_CONCURRENCY_FAILURE_MODE=FailClosed
+```
+
+## Failure Mode ist Teil der Sicherheitsgrenze
+
+Für Koordination, die eine Ausführungsgrenze schützt, verwendet das Beispiel `FailClosed`. Ist der verteilte Coordinator nicht verfügbar, ist eine Ablehnung sicherer, als jeden Knoten stillschweigend unabhängig entscheiden zu lassen.
+
+## Identity-Schutz persistent halten
+
+Auch in einer verteilten Bereitstellung müssen die ASP.NET-Core-Data-Protection-Keys für geschützte Authentifizierungs-/MFA-Zustände persistent gespeichert werden. Behandeln Sie diese Schlüssel als Deployment-Zustand und nicht als wegwerfbare Container-Dateien.
+
+## Topologie validieren
+
+Prüfen Sie vor dem Hinzufügen weiterer Instanzen, welche Entscheidungen bewusst prozesslokal bleiben und welcher Zustand geteilt werden muss. Mehr Replikate ohne Migration des zugehörigen State Providers können zu inkonsistenten Rate Limits, veralteten Sicherheitsrichtlinien oder unkoordinierter SQL-Parallelität führen.

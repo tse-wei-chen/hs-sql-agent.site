@@ -1,0 +1,110 @@
+---
+title: Semantische Metadaten
+description: Datenbank-Ermittlung in hs-sql-agent 2.0.1 um Bedeutungen von Tabellen und Spalten, Beziehungen und Metrik-Metadaten ergänzen.
+sidebar:
+  group: Administration
+  order: 76
+---
+
+import Callout from "@/components/docs/mdx/Callout.astro";
+import CardGrid from "@/components/docs/mdx/CardGrid.astro";
+import DocCard from "@/components/docs/mdx/DocCard.astro";
+
+<CardGrid columns={3}>
+  <DocCard title="Entitäten" icon="Aa" description="Anzeigenamen, Beschreibungen und Synonyme für Tabellen und Spalten hinterlegen." />
+  <DocCard title="Beziehungen" icon="↔" description="Benannte Beziehungen zwischen Quell- und Zielspalten mit Kardinalität und Richtung beschreiben." />
+  <DocCard title="Metriken" icon="∑" description="Tabellenbezogene Metrik-Metadaten mit Formel, Aggregation, Grain, Filter und Synonymen pflegen." />
+</CardGrid>
+
+Semantische Metadaten gehören zu einem Database-Management-Eintrag. Sie ergänzen die Beschreibung der physischen Datenbank bei der Schema-Ermittlung, ohne das physische Schema selbst zu verändern.
+
+## Entitätsmetadaten
+
+Ein Entitätseintrag kann eine Tabelle oder eine einzelne Spalte innerhalb einer Tabelle beschreiben.
+
+| Feld | Bedeutung |
+| --- | --- |
+| `DbManagementId` | Database-Management-Eintrag, dem der semantische Datensatz gehört |
+| `SchemaName` | Optionales Schema |
+| `TableName` | Erforderlicher physischer Tabellenname |
+| `ColumnName` | Optional; für Metadaten auf Tabellenebene weglassen |
+| `DisplayName` | Lesbarer Anzeigename |
+| `Description` | Fachliche oder betriebliche Beschreibung |
+| `Synonyms` | Alternative Bezeichnungen für Tabelle oder Spalte |
+
+Synonyme werden normalisiert: leere Werte werden entfernt, Groß-/Kleinschreibung wird beim Deduplizieren ignoriert und pro Datensatz werden höchstens 100 Werte gespeichert.
+
+## Beziehungen
+
+Beziehungsmetadaten beschreiben den Zusammenhang zwischen zwei physischen Spalten.
+
+| Feld | Bedeutung |
+| --- | --- |
+| `Name` | Stabiler Beziehungsname |
+| `SourceSchema` / `SourceTable` / `SourceColumn` | Quellseite |
+| `TargetSchema` / `TargetTable` / `TargetColumn` | Zielseite |
+| `Cardinality` | Standard `many-to-one` |
+| `Direction` | Standard `source-to-target` |
+| `Description` | Optionale fachliche oder betriebliche Erklärung |
+
+Die Schema-Ermittlung zeigt Beziehungsbeschreibungen nur dann, wenn beide beteiligten Tabellen durch die Tabellen-Whitelist des authentifizierten MCP-Schlüssels erlaubt sind.
+
+## Metriken
+
+Metrik-Metadaten sind an eine Tabelle gebunden und können ein fachliches Maß beschreiben:
+
+| Feld | Bedeutung |
+| --- | --- |
+| `Name` | Stabiler Metrik-Identifier |
+| `DisplayName` | Lesbarer Anzeigename |
+| `Description` | Fachliche Erklärung |
+| `Formula` | Formel-Metadaten |
+| `Aggregation` | Standard `custom`; beschreibt die beabsichtigte Aggregation |
+| `Grain` | Optionale Grain-Metadaten |
+| `Filter` | Optionale Filter-Metadaten |
+| `Synonyms` | Alternative Bezeichnungen für die Metrik |
+| `Executable` | im Modell 2.0.1 `false` |
+
+<Callout type="warning" title="Metriken sind Metadaten, kein Ausführungs-Bypass">
+Im semantischen Metrikmodell von 2.0.1 ist `Executable` auf `false` gesetzt. Eine Metrikbeschreibung kann einem Agent helfen, die Bedeutung des Schemas zu verstehen, wird aber weder zu einem ausführbaren SQL-Makro noch umgeht sie Compiler oder Autorisierung.
+</Callout>
+
+## Nutzung durch MCP-Schema-Ermittlung
+
+Die formalen MCP-Schema-Tools bleiben `get_schemas`, `get_tables` und `get_columns`.
+
+Wenn für den gebundenen Database-Management-Eintrag semantische Metadaten vorhanden sind:
+
+- kann `get_tables` Anzeigename, Beschreibung, Synonyme und passende Metrikbeschreibungen ergänzen;
+- kann `get_columns` Spalten-Anzeigenamen, Beschreibung, Synonyme und passende Beziehungsbeschreibungen ergänzen;
+- filtern Tabellen-Whitelist-Regeln weiterhin die Sichtbarkeit physischer Tabellen und den Beziehungskontext.
+
+Semantische Metadaten erweitern damit die Beschreibung, nicht die Zugriffsrechte eines Schlüssels.
+
+## Admin-API-Oberfläche
+
+Die Admin API von 2.0.1 verwaltet Semantik unter `api/DbSemantic`:
+
+| Operation | Berechtigung |
+| --- | --- |
+| Entitätseinträge einer Datenbank lesen | `/runtime/db-management/semantic` → `view` |
+| kombiniertes Entitäts-/Beziehungs-/Metrikmodell lesen | `/runtime/db-management/semantic` → `view` |
+| Entitätsmetadaten anlegen/aktualisieren | `/runtime/db-management/semantic` → `edit` |
+| Entitätsmetadaten löschen | `/runtime/db-management/semantic` → `edit` |
+| Beziehung anlegen/aktualisieren/löschen | `/runtime/db-management/semantic` → `edit` |
+| Metrik anlegen/aktualisieren/löschen | `/runtime/db-management/semantic` → `edit` |
+
+<Callout type="info" title="Admin-Funktion, kein sechstes integriertes MCP-Tool">
+Für die Dokumentation zu 2.0.1 besteht die formale Tool-Oberfläche aus den fünf integrierten Tools der MCP Tools Reference plus veröffentlichten Custom Tools. Semantische Metadaten werden über die Admin-Steuerung verwaltet und von der Schema-Ermittlung genutzt.
+</Callout>
+
+## Modellierungsempfehlungen
+
+Verwenden Sie semantische Metadaten für Begriffe, die stabil genug sind, mehreren Agents und Administratoren zu helfen:
+
+- fachliche Namen, die von physischen Tabellen-/Spaltennamen abweichen;
+- Abkürzungen und Domänen-Synonyme;
+- Beziehungen, die für die Query-Erzeugung wichtig sind;
+- Metrikdefinitionen, die Formel und Grain präzisieren.
+
+Nutzen Sie Schema-Beschreibungen nicht, um Zugangsdaten, Laufzeitanweisungen oder Autorisierungsentscheidungen einzuschleusen. Zugriffskontrolle bleibt eine getrennte, durchgesetzte Schicht.

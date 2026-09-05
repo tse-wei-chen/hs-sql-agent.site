@@ -1,0 +1,73 @@
+---
+title: Observability und Audit-Betrieb
+description: Health Probes, Slow-Query-Schwellen, Prometheus, OTLP, Audit-Aufbewahrung und signierte ausgehende Zustellungen konfigurieren.
+sidebar:
+  group: Betrieb
+  order: 95
+---
+
+hs-sql-agent trennt Laufzeit-Observability von der SQL-Steuerungsebene. In Produktion lassen sich Health Checks, Metriken, Telemetrie-Export, Audit-Aufbewahrung und ausgehende Alert-/SIEM-Zustellung kombinieren, ohne die Audit-Tabelle der Datenbank zum einzigen Betriebssignal zu machen.
+
+## Health und Slow-Query-Monitoring
+
+Die Beispielumgebung stellt bereit:
+
+```text
+HEALTH_PROBE_ENABLED
+HEALTH_PROBE_INTERVAL_SECONDS
+HEALTH_PROBE_TIMEOUT_SECONDS
+HEALTH_PROBE_MAX_CONCURRENCY
+SLOW_QUERY_THRESHOLD_MS
+```
+
+Health Probes sind optional. Der Slow-Query-Schwellwert bestimmt, ab welcher Laufzeit SQL-Aktivität für die betriebliche Beobachtung als langsam eingestuft wird.
+
+## Prometheus und OTLP
+
+Prometheus läuft auf einem **separaten Listener** und nicht auf dem Port der Application API:
+
+```text
+PROMETHEUS_ENABLED=false
+PROMETHEUS_HOST=0.0.0.0
+PROMETHEUS_PORT=9000
+```
+
+Optionaler OpenTelemetry-Export wird konfiguriert mit:
+
+```text
+OTLP_ENDPOINT=
+OTEL_SERVICE_NAME=hs-sql-agent
+```
+
+Verwenden Sie den Prometheus-Listener für Scrape-basierte Metriken und OTLP, wenn ein Collector Teil der Deployment-Topologie ist.
+
+## Alert- und SIEM-Zustellung
+
+Der Server unterstützt optionale signierte ausgehende Ziele:
+
+```text
+ALERT_WEBHOOK_URL=
+ALERT_WEBHOOK_SECRET=
+SIEM_WEBHOOK_URL=
+SIEM_WEBHOOK_SECRET=
+DELIVERY_MAX_ATTEMPTS=6
+DELIVERY_MAX_CONCURRENCY=4
+```
+
+Eine leere Ziel-URL deaktiviert die jeweilige Integration. Signing Secrets sollten wie andere Deployment-Zugangsdaten persistent gespeichert und geschützt werden.
+
+## Audit-Aufbewahrung
+
+Die Aufbewahrung wird unabhängig von der Live-Request-Verarbeitung gesteuert. `AUDIT_RETENTION_DAYS=0` deaktiviert die automatische Retention-Verarbeitung. Die aktuelle Service-Implementierung akzeptiert `Archive` und `Purge`; bei `Archive` werden abgelaufene Datensätze vor dem Löschen in den konfigurierten Archivpfad geschrieben.
+
+Relevante Einstellungen:
+
+```text
+AUDIT_RETENTION_DAYS
+AUDIT_RETENTION_MODE
+AUDIT_ARCHIVE_PATH
+AUDIT_FALLBACK_PATH
+AUDIT_RETENTION_RUN_HOUR_UTC
+```
+
+Der Fallback-Pfad ist für den Betrieb bei Fehlern wichtig. Wenn das Deployment auf archivierte oder Fallback-Audit-Ausgaben angewiesen ist, muss der konfigurierte Speicher persistent sein.

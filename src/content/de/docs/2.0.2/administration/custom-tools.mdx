@@ -1,0 +1,36 @@
+---
+title: Custom Tools
+description: Zweckgebundene Query- oder DML-MCP-Tools erstellen und veröffentlichen, ohne die Richtliniengrenzen von hs-sql-agent zu umgehen.
+sidebar:
+  group: Administration
+  order: 75
+---
+
+Mit Custom Tools können Betreiber eine benannte, zweckgebundene MCP-Operation auf SQL-Basis bereitstellen, statt jeden Client die vollständige Anweisung neu erzeugen zu lassen.
+
+Ein veröffentlichtes Tool wird für die Datenbank aufgelöst, die an den authentifizierten MCP-Schlüssel gebunden ist. Der Server lädt die veröffentlichte Definition, rendert das konfigurierte SQL-Template mit den deklarierten Argumenten und leitet die Ausführung je nach Tooltyp an den typisierten Query- oder DML-Runtimepfad weiter.
+
+## Tooltypen
+
+Ein aktuelles Custom Tool besitzt einen von zwei Ausführungstypen:
+
+- **Query** — läuft über den Query-Compiler-/Runtimepfad und liefert serialisierte Ergebniszeilen.
+- **DML** — parst die gerenderte Mutation über den typisierten DML-Runtimepfad und verwendet denselben DML-Freigabeablauf wie die eingebaute Mutationsausführung.
+
+Unbekannte Tooltypen werden abgelehnt.
+
+## Veröffentlichung gehört zur Verfügbarkeit
+
+Die Runtime löst nur ein **veröffentlichtes** Tool für die Datenbank des aktuellen MCP-Schlüssels auf. Ein Tool, das in der Administrationsoberfläche existiert, aber nicht veröffentlicht wurde, ist unter seinem MCP-Namen nicht verfügbar.
+
+Bearbeitung und Prüfung bleiben dadurch von der aktiven MCP-Oberfläche getrennt.
+
+## Custom bedeutet nicht unkontrolliert
+
+Vor der Ausführung prüft der Proxy Toolzugriff und Datenbankbindung. Query-Tools verwenden die aktuelle Sicherheitsrichtlinie, Tabellen-Whitelist und den SQL-Concurrency-Limiter. DML-Tools verwenden den typisierten DML-Parser sowie `TypedDmlApprovalFlow`, einschließlich Auflösung der Tabellen-Whitelist und menschlicher Freigabe.
+
+Auch die Ausführung erzeugt Audit-Ereignisse. Ein Custom Tool ist damit eine wiederverwendbare Schnittstelle **innerhalb** derselben Sicherheitsgrenze und kein Ausweg um sie herum.
+
+## Freigabe über MCP-Schlüssel
+
+Namen von Custom Tools können zusammen mit den eingebauten Toolnamen in die Liste erlaubter Tools eines MCP-Schlüssels aufgenommen werden. Geben Sie möglichst nur die benannten Tools frei, die ein Client tatsächlich benötigt, statt die Tooloberfläche uneingeschränkt zu lassen.

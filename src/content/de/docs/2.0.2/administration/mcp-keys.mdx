@@ -1,0 +1,104 @@
+---
+title: MCP-Schlüssel
+description: MCP-Zugangsdaten in hs-sql-agent 2.0.1 ausstellen, einschränken, rotieren, duplizieren und widerrufen.
+sidebar:
+  group: Administration
+  order: 74
+---
+
+import Callout from "@/components/docs/mdx/Callout.astro";
+import CardGrid from "@/components/docs/mdx/CardGrid.astro";
+import DocCard from "@/components/docs/mdx/DocCard.astro";
+import Steps from "@/components/docs/mdx/Steps.astro";
+import Step from "@/components/docs/mdx/Step.astro";
+
+<CardGrid columns={3}>
+  <DocCard title="Datenbankgrenze" icon="DB" description="Jeder produktive Schlüssel ist an einen Eintrag in Database Management gebunden." />
+  <DocCard title="Tool-Grenze" icon="T" description="Geben Sie nur die integrierten und veröffentlichten Custom Tools frei, die der Client tatsächlich benötigt." />
+  <DocCard title="Tabellengrenze" icon="▦" description="Beschränken Sie den Schlüssel optional auf eine explizite Whitelist qualifizierter Tabellen." />
+</CardGrid>
+
+MCP-Schlüssel authentifizieren Anfragen an `/mcp` und tragen den Laufzeit-Berechtigungsumfang, den hs-sql-agent durchsetzt. Sie sind von Admin-Sitzungen und OIDC-Identitäten getrennt.
+
+## Integrierte Tool-Oberfläche in 2.0.1
+
+Der Schlüsselverwaltungsdienst kennt fünf integrierte Tools:
+
+| Tool | Zweck |
+| --- | --- |
+| `get_schemas` | Schema-Ermittlung |
+| `get_tables` | Tabellen-Ermittlung |
+| `get_columns` | Spalten-Ermittlung |
+| `execute_query_sql` | kontrollierte `SELECT`-Ausführung |
+| `execute_dml_sql` | kontrolliertes Safe DML |
+
+Veröffentlichte Custom Tools derselben Datenbank können zusätzlich nach Namen ausgewählt werden. Siehe [Custom Tools](/de/docs/administration/custom-tools).
+
+<Callout type="info" title="Ein leerer Tool-Umfang bedeutet uneingeschränkt, nicht keine Tools">
+Die Laufzeit interpretiert ein leeres `AllowedTools` als keine Einschränkung nach Tool-Namen. Für produktive Agents sollten Sie ausdrücklich die kleinste benötigte Tool-Menge wählen, statt sich auf die uneingeschränkte Variante zu verlassen.
+</Callout>
+
+## Schlüssel ausstellen
+
+<Steps>
+  <Step title="Namen festlegen" description="Der Request benötigt einen nicht leeren Namen mit maximal 100 Zeichen." />
+  <Step title="Datenbank binden" description="DbManagementId ist bei der Ausstellung in 2.0.1 erforderlich." />
+  <Step title="Tools auswählen" description="Wählen Sie integrierte Tools sowie veröffentlichte Custom Tools dieser Datenbank." />
+  <Step title="Datenzugriff einschränken" description="Aktivieren Sie eine Tabellen-Whitelist, wenn der Client nur einen Teil der gebundenen Datenbank sehen soll." />
+  <Step title="Lebenszyklus festlegen" description="Konfigurieren Sie optional Ablaufzeit, CORS-Origins und Rate-Limit-Modus beziehungsweise Overrides." />
+  <Step title="Klartext-Secret kopieren" description="Speichern Sie den neu ausgestellten Schlüssel im Secret Store des Clients, bevor Sie den Lebenszyklusdialog schließen." />
+</Steps>
+
+## Felder bei der Ausstellung
+
+| Feld | Bedeutung |
+| --- | --- |
+| `Name` | Anzeigename des Schlüssels für Administratoren |
+| `ExpiresAt` | Optionales Ablaufdatum; muss in der Zukunft liegen |
+| `AllowedTools` | Kommagetrennte Tool-Namen; leer bedeutet uneingeschränkt |
+| `CorsAllowedOrigins` | Optionale Origin-Beschränkung für MCP-Anfragen aus Browsern |
+| `DbManagementId` | Gebundener Datenbankeintrag; bei Ausstellung erforderlich |
+| `TableWhitelist` | Optionale kommagetrennte Allowlist qualifizierter Tabellen |
+| `RateLimitMode` | `Inherit`, `Custom` oder `Unlimited` |
+| `PermitLimitOverride` | Override für ein benutzerdefiniertes Rate Limit pro Schlüssel |
+| `WindowSecondsOverride` | Zeitfenster für ein benutzerdefiniertes Rate Limit pro Schlüssel |
+
+Im gespeicherten Datensatz wird zur Identifikation nur ein kurzer Präfix angezeigt. Das Raw Secret wird mit dem HMAC-Secret des Servers geprüft und später absichtlich nicht erneut angezeigt.
+
+## Schlüssel rotieren
+
+Bei einer Rotation entsteht ein Ersatzschlüssel mit demselben Datenbank-, Tool-, Tabellen-, CORS- und Rate-Limit-Umfang wie der alte Schlüssel.
+
+Die Übergangsfrist kann zwischen `0` und `1440` Minuten liegen:
+
+- `0` widerruft den alten Schlüssel sofort;
+- ein positiver Wert verkürzt dessen Ablaufzeit bei Bedarf auf das Ende der Übergangsfrist;
+- der Ersatzschlüssel erhält ein neu erzeugtes Klartext-Secret.
+
+<Callout type="tip" title="Rotation dient dem Secret-Austausch, nicht stillen Berechtigungsänderungen">
+Wenn der neue Client eine wesentlich andere Datenbank- oder Tabellengrenze erhalten soll, prüfen Sie diese Änderung ausdrücklich, statt sie als normale Secret-Rotation zu behandeln.
+</Callout>
+
+## Schlüssel duplizieren
+
+Beim Duplizieren entsteht ein neuer Schlüssel mit kopiertem Laufzeitumfang sowie eigenem Namen und Secret. Das ist sinnvoll, wenn zwei Clients dieselben Berechtigungen benötigen, aber keine gemeinsame Zugangsdaten verwenden sollen.
+
+Der duplizierte Schlüssel hat einen eigenen Lebenszyklus und kann unabhängig vom Ursprungsschlüssel widerrufen oder rotiert werden.
+
+## Schlüssel widerrufen
+
+Ein Widerruf markiert den Schlüssel als inaktiv und schreibt vor dem Commit einen Widerrufs-Tombstone in den Validierungs-Cache. Dadurch soll verhindert werden, dass ein kürzlich widerrufener Schlüssel durch veralteten Cache-Zustand weiter akzeptiert wird.
+
+Per Bootstrap verwaltete Schlüssel lassen sich über die normalen Lebenszyklusaktionen weder bearbeiten noch rotieren oder widerrufen; ihr Lebenszyklus wird durch die Bootstrap-Konfiguration bestimmt.
+
+## Verhalten von Rate Limits
+
+Ein Schlüssel kann die Laufzeitvorgaben erben, eigene Limits definieren oder explizit unbegrenzt sein. Die Admin-Liste zeigt außerdem das effektive Rate Limit nach Zusammenführung des Schlüsselmodus mit der aktuellen Sicherheitsrichtlinie.
+
+Bei mehreren Instanzen sollten Sie den verteilten Rate Limiter verwenden, wenn Limits über alle Knoten hinweg koordiniert werden müssen.
+
+## DML und Elicitation
+
+Mit `execute_dml_sql` steigen die Anforderungen an den Client: Der MCP-Client muss den Form-Elicitation-Ablauf für interaktive Freigaben von Änderungen unterstützen.
+
+Lesen Sie [MCP-Client einrichten](/de/docs/mcp/client-onboarding), bevor Sie einem neuen Client DML-Zugriff geben.

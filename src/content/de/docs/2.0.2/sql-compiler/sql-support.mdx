@@ -1,0 +1,115 @@
+---
+title: SQL-Support-Referenz
+description: Lesbare Zusammenfassung der SQL-Grammatik und Provider-Capabilities von hs-sql-agent 2.0.1.
+sidebar:
+  group: SQL-Compiler
+  order: 62
+---
+
+hs-sql-agent 2.0.1 behandelt die vollständige SQL-Grammatik eines Datenbank-Providers nicht automatisch als vertrauenswürdige Eingabe. SQL wird nur akzeptiert, wenn der F#-Parser die Anweisung darstellen kann, die Quellsemantik validiert, benötigte Capabilities nachgewiesen sind und die Provider-Laufzeit daraus ein unveränderliches Kommando kompilieren kann.
+
+Diese Seite fasst den Vertrag von 2.0.1 zusammen. Maßgeblich bleibt der Compiler: Nicht unterstützte oder versionsgebundene Konstrukte werden abgelehnt, statt ihre Semantik stillschweigend anzunähern.
+
+## Query-Basis
+
+`execute_query_sql` akzeptiert genau eine `SELECT`-Anweisung. Der öffentliche Tool-Vertrag nennt ausdrücklich diese häufigen Query-Formen:
+
+- `JOIN`
+- `WHERE`
+- `GROUP BY`
+- `HAVING`
+- `ORDER BY`
+- `LIMIT` / `OFFSET`
+- `DISTINCT`
+- Common Table Expressions (CTEs)
+- Subqueries
+- `UNION`, `INTERSECT` und `EXCEPT`
+
+Verschachtelte Ausdrücke, Funktionen, Window Expressions, Casts, Operatoren, Zeitwerte, JSON-Operationen und andere fortgeschrittene Syntax werden weiterhin gegen Capabilities geprüft. Leiten Sie aus dieser Basisliste keine Unterstützung beliebiger Herstellererweiterungen ab.
+
+## DML-Basis
+
+`execute_dml_sql` akzeptiert genau eine unterstützte Mutation und führt sie durch den Safe-DML-Freigabeablauf.
+
+| Anweisung | Status im MCP-DML-Pfad 2.0.1 | Freigabemodell |
+| --- | --- | --- |
+| `UPDATE` | unterstützt, wenn Parser- und Provider-Capabilities gültig sind | betroffene Zeilen vorab ermitteln, Freigabe an die exakte Primary-Key-Zeilenmenge binden, im Commit erneut validieren |
+| `DELETE` | unterstützt, wenn Parser- und Provider-Capabilities gültig sind | betroffene Zeilen vorab ermitteln, Freigabe an die exakte Primary-Key-Zeilenmenge binden, im Commit erneut validieren |
+| `INSERT ... VALUES` | unterstützt, wenn Parser- und Provider-Capabilities gültig sind | Freigabe an unveränderlichen Literal-Payload und kompiliertes Kommando binden, freigegebene Payload-Zeilenanzahl beim Commit prüfen |
+| `INSERT ... SELECT` | abgelehnt | Semantik zur Freigabe des Quell-Rowsets ist in 2.0.1 nicht definiert; die Laufzeit lehnt daher standardmäßig ab |
+
+Das vollständige Protokoll steht unter [Safe DML](/de/docs/sql-compiler/safe-dml).
+
+## Modell mit sechs Providern
+
+SQL Core besitzt Capability-Verträge für PostgreSQL, MySQL, SQL Server, Oracle, SQLite und Firebird. Eine Capability kann sein:
+
+- **unterstützt** — das Ziel besitzt die erforderliche native Semantik;
+- **übersetzt** — Core besitzt ein deklariertes Provider-Lowering, das die Semantik erhält;
+- **abgelehnt** — für Provider beziehungsweise Profil existiert kein nachgewiesener Vertrag.
+
+Einige Capabilities hängen zusätzlich von Serverversion oder SQL-Server-Kompatibilitätslevel ab. Ist eine Laufzeitversion erforderlich und kein sicherer Basiswert definiert, bleibt die Capability ohne dieses Profil deaktiviert.
+
+## Ausgewählte Provider-Unterschiede
+
+Die folgende Tabelle zeigt wichtige Unterschiede in 2.0.1. Sie ist bewusst eine Zusammenfassung und keine vollständige Liste aller Capability-IDs aus `CapabilityMatrix.fs`.
+
+| Capability | PostgreSQL | MySQL | SQL Server | Oracle | SQLite | Firebird |
+| --- | --- | --- | --- | --- | --- | --- |
+| `RIGHT JOIN` | übersetzt | übersetzt | übersetzt | übersetzt | Zielprofil 3.39+ | übersetzt |
+| `FULL JOIN` | übersetzt | abgelehnt | übersetzt | übersetzt | Zielprofil 3.39+ | übersetzt |
+| Aggregat-`FILTER` | nativ; PostgreSQL 9.4+ | abgelehnt | abgelehnt | Oracle-26ai+-Profil mit zusätzlichen Prädikatregeln | explizites Profil 3.30+ | explizites Profil 4.0+ |
+| lokale Sortierung innerhalb eines Aggregats | nativ | nativ | SQL Server 14.0+ und Kompatibilitätslevel 110+ | Oracle 11.2+ | explizites Profil 3.44+ | abgelehnt |
+| DML `RETURNING` | übersetzt | abgelehnt | abgelehnt | abgelehnt | explizites Profil 3.35+ | explizites Profil 5.0+ |
+| Upsert-Vertrag | übersetzt | abgelehnt | abgelehnt | abgelehnt | explizites Profil 3.24+ | abgelehnt |
+| Timestamp mit erhaltenem Offset | übersetzt | abgelehnt | übersetzt | übersetzt | übersetzt | explizites Profil 4.0+ |
+| eigenständiges `TIME` | übersetzt | übersetzt | übersetzt | abgelehnt | übersetzt | übersetzt |
+
+`RETURNING`- und Upsert-Unterstützung in SQL Core ändern die Safe-DML-Regel des MCP-Pfads nicht: Die Mutation muss weiterhin den unterstützten Statement-Typen und dem Freigabevertrag der DML-Laufzeit entsprechen.
+
+## JSON-Capabilities
+
+Die Capability-Matrix 2.0.1 deklariert ein portables Lowering für JSON-Extraktion für PostgreSQL, MySQL und SQLite. JSON-Mutation über den kanonischen JSON-Set-Vertrag ist für PostgreSQL, MySQL, SQLite und SQL Server deklariert.
+
+Die nativen PostgreSQL-Operatoren `->` / `->>` werden separat modelliert, weil ihre JSON-versus-Text-Semantik Provider-spezifisch ist. Für Cross-Provider-Lowering bleiben sie fail-closed und benötigen ein PostgreSQL-Ziel, das den deklarierten Versionsvertrag erfüllt.
+
+## Aggregat-`FILTER`
+
+Aggregat-`FILTER` ist absichtlich versionsabhängig:
+
+- PostgreSQL unterstützt den nativen Vertrag ab 9.4; ein ausdrücklich älteres Ziel wird abgelehnt.
+- SQLite benötigt ein explizites Serverprofil ab 3.30.
+- Firebird benötigt ein explizites Serverprofil ab 4.0.
+- Oracle benötigt ein 26ai-/26.0+-Profil; Core lehnt zusätzlich Filterprädikate mit Subqueries, Window Functions oder Outer References bereits vor dem Oracle-Lowering ab.
+- MySQL und SQL Server besitzen in 2.0.1 keinen deklarierten portablen Zielvertrag für diese Capability.
+
+Das zeigt, warum „der Datenbankhersteller kann dieses SQL ausführen“ für hs-sql-agent nicht als Nachweis ausreicht.
+
+## Versionsgrenzen bei Joins
+
+SQLite `RIGHT JOIN` und `FULL JOIN` benötigen SQLite 3.39 oder neuer im Zielprofil. `FULL JOIN` bleibt für MySQL in der Capability-Matrix 2.0.1 abgelehnt.
+
+Eine Query, die eine solche Capability benötigt, wird abgelehnt, wenn der erforderliche Zielvertrag nicht nachgewiesen werden kann.
+
+## DML Returning und Upsert
+
+Die Zielverträge in 2.0.1 enthalten:
+
+- PostgreSQL-`RETURNING` und Upsert-Lowering;
+- SQLite-`RETURNING` mit explizitem Zielprofil 3.35+;
+- Firebird-`RETURNING` mit explizitem Zielprofil 5.0+;
+- Upsert-Verträge für PostgreSQL und SQLite 3.24+.
+
+Andere Provider-Ziele bleiben für diese kanonischen Capabilities in der Matrix 2.0.1 abgelehnt.
+
+## Fail-closed-Diagnosen
+
+Capability-Fehler sind keine normalen Datenbank-Ausführungsfehler. SQL Core unterscheidet Phasen wie Source Validation/Source Capability und Target Capability. Dadurch kann eine Anweisung vor der Ausführung abgelehnt werden, wenn ihre Semantik für Provider oder Profil nicht sicher dargestellt werden kann.
+
+Im Betrieb sollten solche Fehler als Hinweis verstanden werden, die SQL-Form zu ändern oder eine Capability zu verwenden, die von der konfigurierten Datenbank unterstützt wird. Umgehen Sie nicht den Compiler, um diese Grenze zu umgehen.
+
+## Was diese Referenz nicht verspricht
+
+Diese Seite verspricht nicht jeden Funktionsnamen, jede Operatorschreibweise, jedes Cast-Ziel, jede JSON-Pfadform, jeden Window Frame oder jede Herstellererweiterung. Die Capability-Matrix 2.0.1 ist deutlich detaillierter als eine einzelne Tabelle und enthält Laufzeit-Versionsgrenzen.
+
+Für MCP-Clients beschreibt die [MCP Tools Reference](/de/docs/mcp/tools-reference) den öffentlichen Tool-Vertrag. Die tatsächliche Compiler-Akzeptanz bleibt der endgültige begrenzte SQL-Vertrag.
