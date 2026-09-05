@@ -2,44 +2,103 @@
 
 > hs-sql-agent provides secure SQL access for AI agents through MCP, with fail-closed SQL compilation, scoped access policies, safe DML workflows, and support for PostgreSQL, MySQL, SQL Server, Oracle, SQLite, and Firebird.
 
-The canonical documentation is available in English and Traditional Chinese. Prefer the stable, unversioned documentation URLs unless an exact product version is required. Source Markdown links below point to the current 2.0.2 documentation.
+Current documented release: **2.0.2**.
+
+The documentation site is fully localized in English, Traditional Chinese, Simplified Chinese, Japanese, Korean, French, and German. Prefer stable unversioned documentation URLs for navigation. For exact 2.0.2 runtime, API, authorization, configuration, or integration behavior, treat the immutable product tag `v2.0.2` as the source of truth rather than product `main`, old website copy, or another translation.
 
 ## Start here
 
-- [Introduction](https://sql-agent.net/en/docs/getting-started/introduction): Product model, safety boundaries, and documentation map.
-- [Quick start](https://sql-agent.net/en/docs/getting-started/quick-start): Start the service and connect an MCP client.
-- [MCP client onboarding](https://sql-agent.net/en/docs/mcp/client-onboarding): Configure supported MCP clients and authentication.
+- [Introduction](https://sql-agent.net/en/docs/getting-started/introduction): Product model, safety boundaries, supported databases, and documentation map.
+- [Quick start](https://sql-agent.net/en/docs/getting-started/quick-start): Start the service and reach the Admin UI.
+- [MCP client onboarding](https://sql-agent.net/en/docs/mcp/client-onboarding): Issue an MCP key, use the one-time **Save and connect** dialog, copy the generated configuration for Claude Desktop, Cursor, Visual Studio Code, or Generic HTTP, and paste it into the client.
 - [MCP tools reference](https://sql-agent.net/en/docs/mcp/tools-reference): Public discovery, query, and DML tool contracts.
 
-## SQL safety and capabilities
+## SQL compiler and safety
 
 - [Execution model](https://sql-agent.net/en/docs/sql-compiler/execution-model): Parse, bind, validate, prove, compile, and execute pipeline.
 - [SQL support](https://sql-agent.net/en/docs/sql-compiler/sql-support): Supported SQL surface and provider capability boundaries.
-- [Safe DML](https://sql-agent.net/en/docs/sql-compiler/safe-dml): Mutation safety and elicitation requirements.
-- [Security overview](https://sql-agent.net/en/docs/security/overview): Authentication, authorization, policy, and audit boundaries.
+- [Database dialects](https://sql-agent.net/en/docs/sql-compiler/database-dialects): PostgreSQL, MySQL, SQL Server, Oracle, SQLite, and Firebird behavior.
+- [Safe DML](https://sql-agent.net/en/docs/sql-compiler/safe-dml): Preview, approval, revalidation, row-set fingerprinting, and commit safety.
+- [Security overview](https://sql-agent.net/en/docs/security/overview): Authentication, authorization, policy, audit, and fail-closed boundaries.
 
-## Administration and deployment
+## Administration and authorization
 
-- [Administration overview](https://sql-agent.net/en/docs/administration/overview): Control-plane responsibilities and configuration map.
-- [Configuration](https://sql-agent.net/en/docs/operations/configuration): Runtime environment and provider configuration.
+- [Administration overview](https://sql-agent.net/en/docs/administration/overview): Control-plane responsibilities and operator workflow.
+- [MCP keys](https://sql-agent.net/en/docs/administration/mcp-keys): Key lifecycle, scopes, generated client configuration, and rate-limit modes.
+- [Permissions](https://sql-agent.net/en/docs/administration/permissions): Canonical permission identities, built-in authorization, and host authorization.
+- [Members and roles](https://sql-agent.net/en/docs/administration/members-roles): Built-in Admin identity, roles, sessions, and lifecycle rules.
+- [Security policies](https://sql-agent.net/en/docs/administration/security-policies): Runtime SQL and access policy controls.
+- [Database management](https://sql-agent.net/en/docs/administration/database-management): Database connection lifecycle and metadata operations.
+- [Semantic metadata](https://sql-agent.net/en/docs/administration/semantic-metadata): Database semantic descriptions exposed to agents.
+- [Audit](https://sql-agent.net/en/docs/administration/audit): Security and SQL audit records.
+
+## ASP.NET Core integration
+
+- [ASP.NET Core integration](https://sql-agent.net/en/docs/integration/aspnet-core): Embed hs-sql-agent with the 2.0.2 composable capability model.
+- [ASP.NET Core product page](https://sql-agent.net/en/integrations/aspnet-core): Integration overview and representative configuration.
+
+Version 2.0.2 distinguishes two authorization ownership models:
+
+- built-in identity and role authorization managed by hs-sql-agent; or
+- host-owned authorization configured with `AddHsSqlAgentHostAuthorization()`.
+
+These modes are mutually exclusive. Host authorization receives canonical permission keys through `HsSqlAgentPermissionResource.Permissions`; do not infer authorization identity from browser routes or controller URLs.
+
+## Operations and reference
+
+- [Configuration](https://sql-agent.net/en/docs/operations/configuration): Runtime environment, capability-owned options, providers, telemetry, Redis coordination, and security configuration.
 - [Deployment](https://sql-agent.net/en/docs/operations/deployment): Production deployment guidance.
+- [Distributed deployment](https://sql-agent.net/en/docs/operations/distributed-deployment): Shared coordination and multi-instance behavior.
+- [Observability](https://sql-agent.net/en/docs/operations/observability): Health, metrics, tracing, and operational visibility.
+- [Admin HTTP API](https://sql-agent.net/en/docs/reference/api-reference): Admin and management HTTP surface for 2.0.2.
 - [Troubleshooting](https://sql-agent.net/en/docs/reference/troubleshooting): Common operational and integration failures.
+- [Upgrade guide](https://sql-agent.net/en/docs/reference/upgrade-guide): Version transitions and rollback considerations.
 
-## Source Markdown
+## Marketing detail pages
 
-- [Introduction source](https://raw.githubusercontent.com/tse-wei-chen/hs-sql-agent.site/main/src/content/en/docs/2.0.2/getting-started/introduction.mdx): Clean MDX source for the introduction.
-- [Quick start source](https://raw.githubusercontent.com/tse-wei-chen/hs-sql-agent.site/main/src/content/en/docs/2.0.2/getting-started/quick-start.mdx): Clean MDX source for setup instructions.
-- [MCP tools source](https://raw.githubusercontent.com/tse-wei-chen/hs-sql-agent.site/main/src/content/en/docs/2.0.2/mcp/tools-reference.mdx): Clean MDX source for tool contracts.
-- [SQL support source](https://raw.githubusercontent.com/tse-wei-chen/hs-sql-agent.site/main/src/content/en/docs/2.0.2/sql-compiler/sql-support.mdx): Clean MDX source for SQL capabilities.
+- [SQL compiler](https://sql-agent.net/en/features/sql-compiler)
+- [Safe DML](https://sql-agent.net/en/features/safe-dml)
+- [Access control](https://sql-agent.net/en/features/access-control)
+- [PostgreSQL](https://sql-agent.net/en/databases/postgresql)
+- [MySQL](https://sql-agent.net/en/databases/mysql)
+- [SQL Server](https://sql-agent.net/en/databases/sql-server)
+- [Oracle](https://sql-agent.net/en/databases/oracle)
+- [SQLite](https://sql-agent.net/en/databases/sqlite)
+- [Firebird](https://sql-agent.net/en/databases/firebird)
+- [Claude Desktop](https://sql-agent.net/en/integrations/claude-desktop)
+- [Cursor](https://sql-agent.net/en/integrations/cursor)
+- [ASP.NET Core](https://sql-agent.net/en/integrations/aspnet-core)
 
-## Traditional Chinese
+## Localized documentation
 
-- [繁體中文首頁](https://sql-agent.net/zh-hant/): Traditional Chinese product overview.
-- [繁體中文文件](https://sql-agent.net/zh-hant/docs/): Traditional Chinese documentation index.
+- [English](https://sql-agent.net/en/docs/)
+- [繁體中文](https://sql-agent.net/zh-hant/docs/)
+- [简体中文](https://sql-agent.net/zh-hans/docs/)
+- [日本語](https://sql-agent.net/ja/docs/)
+- [한국어](https://sql-agent.net/ko/docs/)
+- [Français](https://sql-agent.net/fr/docs/)
+- [Deutsch](https://sql-agent.net/de/docs/)
+
+Each locale has the complete current documentation tree and localized marketing detail routes. When comparing translations, use the English page only as a navigation/reference baseline; product behavior is governed by the pinned 2.0.2 product source.
+
+## Source of truth
+
+- [Product release v2.0.2](https://github.com/tse-wei-chen/hs-sql-agent/tree/v2.0.2): Immutable product source for the documented release.
+- [Product repository](https://github.com/tse-wei-chen/hs-sql-agent): Active product development; `main` may contain behavior newer than 2.0.2.
+- [Documentation repository](https://github.com/tse-wei-chen/hs-sql-agent.site): Website and documentation source.
+- [Content source policy](https://github.com/tse-wei-chen/hs-sql-agent.site/blob/main/CONTENT_SOURCES.md): Claim/source hierarchy and release-diff audit procedure.
+
+## Source MDX for current documentation
+
+- [Introduction source](https://raw.githubusercontent.com/tse-wei-chen/hs-sql-agent.site/main/src/content/en/docs/2.0.2/getting-started/introduction.mdx)
+- [Quick start source](https://raw.githubusercontent.com/tse-wei-chen/hs-sql-agent.site/main/src/content/en/docs/2.0.2/getting-started/quick-start.mdx)
+- [MCP client onboarding source](https://raw.githubusercontent.com/tse-wei-chen/hs-sql-agent.site/main/src/content/en/docs/2.0.2/mcp/client-onboarding.mdx)
+- [MCP tools source](https://raw.githubusercontent.com/tse-wei-chen/hs-sql-agent.site/main/src/content/en/docs/2.0.2/mcp/tools-reference.mdx)
+- [Permissions source](https://raw.githubusercontent.com/tse-wei-chen/hs-sql-agent.site/main/src/content/en/docs/2.0.2/administration/permissions.mdx)
+- [Admin HTTP API source](https://raw.githubusercontent.com/tse-wei-chen/hs-sql-agent.site/main/src/content/en/docs/2.0.2/reference/api-reference.mdx)
+- [SQL support source](https://raw.githubusercontent.com/tse-wei-chen/hs-sql-agent.site/main/src/content/en/docs/2.0.2/sql-compiler/sql-support.mdx)
 
 ## Optional
 
-- [All documentation](https://sql-agent.net/en/docs/): English documentation index.
-- [Product repository](https://github.com/tse-wei-chen/hs-sql-agent): hs-sql-agent source code.
-- [Documentation repository](https://github.com/tse-wei-chen/hs-sql-agent.site): Website and documentation source.
+- [All English documentation](https://sql-agent.net/en/docs/): Full English documentation index.
 - [Sitemap](https://sql-agent.net/sitemap-index.xml): Complete index of public human-readable pages.
