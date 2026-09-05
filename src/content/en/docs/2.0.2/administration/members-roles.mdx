@@ -1,6 +1,6 @@
 ---
 title: Members & Roles
-description: Manage Admin users, sessions, role assignment, and role lifecycle in hs-sql-agent 2.0.1.
+description: Manage Admin users, sessions, role assignment, and role lifecycle in hs-sql-agent 2.0.2.
 sidebar:
   group: Administration
   order: 78
@@ -25,7 +25,7 @@ Admin members are identities for the **control plane**. They are separate from M
 
 A new member requires a valid email and a password of at least 8 characters. Username is optional and limited to 100 characters. At creation time an operator can assign explicit role IDs or request all roles.
 
-The member list can be filtered by search text, active status, and role, and is paginated. The 2.0.1 member view reports account state, creation/last-login time, active session count, and current role IDs/names.
+The member list can be filtered by search text, active status, and role, and is paginated. The 2.0.2 member view reports account state, creation/last-login time, active session count, and current role IDs/names.
 
 ## Administrative member actions
 
@@ -40,7 +40,7 @@ The member list can be filtered by search text, active status, and role, and is 
 | delete member | `/auth/user` → `delete` | you cannot delete yourself |
 
 <Callout type="warning" title="Self-lockout operations are rejected">
-The 2.0.1 controller explicitly prevents an administrator from changing their own roles, disabling their own account, or deleting their own member record through these management endpoints.
+The 2.0.2 controller explicitly prevents an administrator from changing their own roles, disabling their own account, or deleting their own member record through these management endpoints.
 </Callout>
 
 ## Roles
@@ -51,7 +51,7 @@ The built-in `SuperUser` role is protected. It cannot be modified or deleted, an
 
 ## Editing a role changes active authorization state
 
-When a role's permission set changes, 2.0.1 identifies members assigned to that role, increments their security version, and performs the mutation through the auth runtime-state cache barrier. This prevents an already authenticated session from continuing indefinitely with stale role authorization.
+When a role's permission set changes, 2.0.2 identifies members assigned to that role, increments their security version, and performs the mutation through the auth runtime-state cache barrier. This prevents an already authenticated session from continuing indefinitely with stale role authorization.
 
 The same principle applies when a role assigned to members is removed.
 

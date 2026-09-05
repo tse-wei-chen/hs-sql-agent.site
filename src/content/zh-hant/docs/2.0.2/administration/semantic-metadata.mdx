@@ -1,6 +1,6 @@
 ---
 title: 語意中繼資料
-description: 用資料表與欄位語意、關聯與指標中繼資料，強化 hs-sql-agent 2.0.1 的 schema discovery。
+description: 用資料表與欄位語意、關聯與指標中繼資料，強化 hs-sql-agent 2.0.2 的 schema discovery。
 sidebar:
   group: 管理
   order: 76
@@ -63,10 +63,10 @@ import DocCard from "@/components/docs/mdx/DocCard.astro";
 | `Grain` | 選用的粒度資訊 |
 | `Filter` | 選用的篩選條件 |
 | `Synonyms` | 指標的替代名稱 |
-| `Executable` | 2.0.1 模型固定為 `false` |
+| `Executable` | 2.0.2 模型固定為 `false` |
 
 <Callout type="warning" title="指標是中繼資料，不是繞過執行限制的捷徑">
-2.0.1 語意指標模型中的 `Executable` 固定為 `false`。指標說明可以協助 Agent 理解 schema 的業務含義，但不會變成可執行 SQL macro，也不會繞過 SQL 編譯器或授權流程。
+2.0.2 語意指標模型中的 `Executable` 固定為 `false`。指標說明可以協助 Agent 理解 schema 的業務含義，但不會變成可執行 SQL macro，也不會繞過 SQL 編譯器或授權流程。
 </Callout>
 
 ## MCP schema discovery 如何使用語意資料
@@ -83,7 +83,7 @@ import DocCard from "@/components/docs/mdx/DocCard.astro";
 
 ## 管理端 API
 
-2.0.1 Admin API 在 `api/DbSemantic` 提供語意資料管理：
+2.0.2 Admin API 在 `api/DbSemantic` 提供語意資料管理：
 
 | 操作 | 權限 |
 | --- | --- |
@@ -95,7 +95,7 @@ import DocCard from "@/components/docs/mdx/DocCard.astro";
 | upsert / delete 指標 | `/runtime/db-management/semantic` → `edit` |
 
 <Callout type="info" title="這是管理功能，不會因此多出第六個內建 MCP 工具">
-2.0.1 正式的 MCP 金鑰工具集合，是 MCP Tools Reference 列出的五個內建工具，再加上已發布的 Custom Tools。語意中繼資料由管理介面維護，再提供給 schema discovery 使用。
+2.0.2 正式的 MCP 金鑰工具集合，是 MCP Tools Reference 列出的五個內建工具，再加上已發布的 Custom Tools。語意中繼資料由管理介面維護，再提供給 schema discovery 使用。
 </Callout>
 
 ## 建模建議

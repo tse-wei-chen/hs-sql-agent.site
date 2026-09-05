@@ -1,14 +1,14 @@
 ---
 title: SQL-Support-Referenz
-description: Lesbare Zusammenfassung der SQL-Grammatik und Provider-Capabilities von hs-sql-agent 2.0.1.
+description: Lesbare Zusammenfassung der SQL-Grammatik und Provider-Capabilities von hs-sql-agent 2.0.2.
 sidebar:
   group: SQL-Compiler
   order: 62
 ---
 
-hs-sql-agent 2.0.1 behandelt die vollständige SQL-Grammatik eines Datenbank-Providers nicht automatisch als vertrauenswürdige Eingabe. SQL wird nur akzeptiert, wenn der F#-Parser die Anweisung darstellen kann, die Quellsemantik validiert, benötigte Capabilities nachgewiesen sind und die Provider-Laufzeit daraus ein unveränderliches Kommando kompilieren kann.
+hs-sql-agent 2.0.2 behandelt die vollständige SQL-Grammatik eines Datenbank-Providers nicht automatisch als vertrauenswürdige Eingabe. SQL wird nur akzeptiert, wenn der F#-Parser die Anweisung darstellen kann, die Quellsemantik validiert, benötigte Capabilities nachgewiesen sind und die Provider-Laufzeit daraus ein unveränderliches Kommando kompilieren kann.
 
-Diese Seite fasst den Vertrag von 2.0.1 zusammen. Maßgeblich bleibt der Compiler: Nicht unterstützte oder versionsgebundene Konstrukte werden abgelehnt, statt ihre Semantik stillschweigend anzunähern.
+Diese Seite fasst den Vertrag von 2.0.2 zusammen. Maßgeblich bleibt der Compiler: Nicht unterstützte oder versionsgebundene Konstrukte werden abgelehnt, statt ihre Semantik stillschweigend anzunähern.
 
 ## Query-Basis
 
@@ -31,12 +31,12 @@ Verschachtelte Ausdrücke, Funktionen, Window Expressions, Casts, Operatoren, Ze
 
 `execute_dml_sql` akzeptiert genau eine unterstützte Mutation und führt sie durch den Safe-DML-Freigabeablauf.
 
-| Anweisung | Status im MCP-DML-Pfad 2.0.1 | Freigabemodell |
+| Anweisung | Status im MCP-DML-Pfad 2.0.2 | Freigabemodell |
 | --- | --- | --- |
 | `UPDATE` | unterstützt, wenn Parser- und Provider-Capabilities gültig sind | betroffene Zeilen vorab ermitteln, Freigabe an die exakte Primary-Key-Zeilenmenge binden, im Commit erneut validieren |
 | `DELETE` | unterstützt, wenn Parser- und Provider-Capabilities gültig sind | betroffene Zeilen vorab ermitteln, Freigabe an die exakte Primary-Key-Zeilenmenge binden, im Commit erneut validieren |
 | `INSERT ... VALUES` | unterstützt, wenn Parser- und Provider-Capabilities gültig sind | Freigabe an unveränderlichen Literal-Payload und kompiliertes Kommando binden, freigegebene Payload-Zeilenanzahl beim Commit prüfen |
-| `INSERT ... SELECT` | abgelehnt | Semantik zur Freigabe des Quell-Rowsets ist in 2.0.1 nicht definiert; die Laufzeit lehnt daher standardmäßig ab |
+| `INSERT ... SELECT` | abgelehnt | Semantik zur Freigabe des Quell-Rowsets ist in 2.0.2 nicht definiert; die Laufzeit lehnt daher standardmäßig ab |
 
 Das vollständige Protokoll steht unter [Safe DML](/de/docs/sql-compiler/safe-dml).
 
@@ -52,7 +52,7 @@ Einige Capabilities hängen zusätzlich von Serverversion oder SQL-Server-Kompat
 
 ## Ausgewählte Provider-Unterschiede
 
-Die folgende Tabelle zeigt wichtige Unterschiede in 2.0.1. Sie ist bewusst eine Zusammenfassung und keine vollständige Liste aller Capability-IDs aus `CapabilityMatrix.fs`.
+Die folgende Tabelle zeigt wichtige Unterschiede in 2.0.2. Sie ist bewusst eine Zusammenfassung und keine vollständige Liste aller Capability-IDs aus `CapabilityMatrix.fs`.
 
 | Capability | PostgreSQL | MySQL | SQL Server | Oracle | SQLite | Firebird |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -69,7 +69,7 @@ Die folgende Tabelle zeigt wichtige Unterschiede in 2.0.1. Sie ist bewusst eine 
 
 ## JSON-Capabilities
 
-Die Capability-Matrix 2.0.1 deklariert ein portables Lowering für JSON-Extraktion für PostgreSQL, MySQL und SQLite. JSON-Mutation über den kanonischen JSON-Set-Vertrag ist für PostgreSQL, MySQL, SQLite und SQL Server deklariert.
+Die Capability-Matrix 2.0.2 deklariert ein portables Lowering für JSON-Extraktion für PostgreSQL, MySQL und SQLite. JSON-Mutation über den kanonischen JSON-Set-Vertrag ist für PostgreSQL, MySQL, SQLite und SQL Server deklariert.
 
 Die nativen PostgreSQL-Operatoren `->` / `->>` werden separat modelliert, weil ihre JSON-versus-Text-Semantik Provider-spezifisch ist. Für Cross-Provider-Lowering bleiben sie fail-closed und benötigen ein PostgreSQL-Ziel, das den deklarierten Versionsvertrag erfüllt.
 
@@ -81,26 +81,26 @@ Aggregat-`FILTER` ist absichtlich versionsabhängig:
 - SQLite benötigt ein explizites Serverprofil ab 3.30.
 - Firebird benötigt ein explizites Serverprofil ab 4.0.
 - Oracle benötigt ein 26ai-/26.0+-Profil; Core lehnt zusätzlich Filterprädikate mit Subqueries, Window Functions oder Outer References bereits vor dem Oracle-Lowering ab.
-- MySQL und SQL Server besitzen in 2.0.1 keinen deklarierten portablen Zielvertrag für diese Capability.
+- MySQL und SQL Server besitzen in 2.0.2 keinen deklarierten portablen Zielvertrag für diese Capability.
 
 Das zeigt, warum „der Datenbankhersteller kann dieses SQL ausführen“ für hs-sql-agent nicht als Nachweis ausreicht.
 
 ## Versionsgrenzen bei Joins
 
-SQLite `RIGHT JOIN` und `FULL JOIN` benötigen SQLite 3.39 oder neuer im Zielprofil. `FULL JOIN` bleibt für MySQL in der Capability-Matrix 2.0.1 abgelehnt.
+SQLite `RIGHT JOIN` und `FULL JOIN` benötigen SQLite 3.39 oder neuer im Zielprofil. `FULL JOIN` bleibt für MySQL in der Capability-Matrix 2.0.2 abgelehnt.
 
 Eine Query, die eine solche Capability benötigt, wird abgelehnt, wenn der erforderliche Zielvertrag nicht nachgewiesen werden kann.
 
 ## DML Returning und Upsert
 
-Die Zielverträge in 2.0.1 enthalten:
+Die Zielverträge in 2.0.2 enthalten:
 
 - PostgreSQL-`RETURNING` und Upsert-Lowering;
 - SQLite-`RETURNING` mit explizitem Zielprofil 3.35+;
 - Firebird-`RETURNING` mit explizitem Zielprofil 5.0+;
 - Upsert-Verträge für PostgreSQL und SQLite 3.24+.
 
-Andere Provider-Ziele bleiben für diese kanonischen Capabilities in der Matrix 2.0.1 abgelehnt.
+Andere Provider-Ziele bleiben für diese kanonischen Capabilities in der Matrix 2.0.2 abgelehnt.
 
 ## Fail-closed-Diagnosen
 
@@ -110,6 +110,6 @@ Im Betrieb sollten solche Fehler als Hinweis verstanden werden, die SQL-Form zu 
 
 ## Was diese Referenz nicht verspricht
 
-Diese Seite verspricht nicht jeden Funktionsnamen, jede Operatorschreibweise, jedes Cast-Ziel, jede JSON-Pfadform, jeden Window Frame oder jede Herstellererweiterung. Die Capability-Matrix 2.0.1 ist deutlich detaillierter als eine einzelne Tabelle und enthält Laufzeit-Versionsgrenzen.
+Diese Seite verspricht nicht jeden Funktionsnamen, jede Operatorschreibweise, jedes Cast-Ziel, jede JSON-Pfadform, jeden Window Frame oder jede Herstellererweiterung. Die Capability-Matrix 2.0.2 ist deutlich detaillierter als eine einzelne Tabelle und enthält Laufzeit-Versionsgrenzen.
 
 Für MCP-Clients beschreibt die [MCP Tools Reference](/de/docs/mcp/tools-reference) den öffentlichen Tool-Vertrag. Die tatsächliche Compiler-Akzeptanz bleibt der endgültige begrenzte SQL-Vertrag.

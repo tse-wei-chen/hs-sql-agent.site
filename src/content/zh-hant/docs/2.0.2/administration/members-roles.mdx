@@ -1,6 +1,6 @@
 ---
 title: 成員與角色
-description: 管理 hs-sql-agent 2.0.1 的管理端使用者、工作階段、角色指派與角色生命週期。
+description: 管理 hs-sql-agent 2.0.2 的管理端使用者、工作階段、角色指派與角色生命週期。
 sidebar:
   group: 管理
   order: 78
@@ -25,7 +25,7 @@ import Flow from "@/components/docs/mdx/Flow.astro";
 
 建立成員需要有效的 email 與至少 8 個字元的密碼；Username 可以省略，上限為 100 個字元。建立時可直接指定 Role IDs，也可以要求指派所有角色。
 
-成員清單支援文字搜尋、啟用狀態、角色篩選與分頁。2.0.1 的成員檢視會顯示帳號狀態、建立時間、最後登入時間、有效工作階段數量，以及目前的角色 ID 與名稱。
+成員清單支援文字搜尋、啟用狀態、角色篩選與分頁。2.0.2 的成員檢視會顯示帳號狀態、建立時間、最後登入時間、有效工作階段數量，以及目前的角色 ID 與名稱。
 
 ## 成員管理動作
 
@@ -40,7 +40,7 @@ import Flow from "@/components/docs/mdx/Flow.astro";
 | 刪除成員 | `/auth/user` → `delete` | 不能刪除自己 |
 
 <Callout type="warning" title="系統會拒絕可能讓自己失去管理權限的操作">
-2.0.1 的控制器明確禁止管理員透過這些管理端點修改自己的角色、停用自己的帳號，或刪除自己的成員紀錄。
+2.0.2 的控制器明確禁止管理員透過這些管理端點修改自己的角色、停用自己的帳號，或刪除自己的成員紀錄。
 </Callout>
 
 ## 角色
@@ -51,7 +51,7 @@ import Flow from "@/components/docs/mdx/Flow.astro";
 
 ## 修改角色會更新目前的授權狀態
 
-角色的權限集合改變時，2.0.1 會找出所有使用該角色的成員、遞增其 security version，並透過 auth runtime-state cache barrier 完成變更，避免已登入的工作階段長時間繼續使用舊授權結果。
+角色的權限集合改變時，2.0.2 會找出所有使用該角色的成員、遞增其 security version，並透過 auth runtime-state cache barrier 完成變更，避免已登入的工作階段長時間繼續使用舊授權結果。
 
 刪除已指派的角色也遵循相同原則。
 

@@ -1,6 +1,6 @@
 ---
 title: MCP ツールリファレンス
-description: hs-sql-agent 2.0.1 の組み込み MCP ツールについて、正式な契約、引数、レスポンス、認可、リスク境界を説明します。
+description: hs-sql-agent 2.0.2 の組み込み MCP ツールについて、正式な契約、引数、レスポンス、認可、リスク境界を説明します。
 sidebar:
   group: MCP
   order: 35
@@ -17,7 +17,7 @@ import Flow from "@/components/docs/mdx/Flow.astro";
   <DocCard title="Safe DML" icon="DML" badge="承認" description="execute_dml_sql は preview、Elicitation、コミット時再検証を通過した対応済み更新だけを実行します。" />
 </CardGrid>
 
-**MCP キーで管理される 2.0.1 の正式な組み込みツールサーフェス**には、次の 5 つのツール名だけが含まれます。
+**MCP キーで管理される 2.0.2 の正式な組み込みツールサーフェス**には、次の 5 つのツール名だけが含まれます。
 
 | ツール | 公開入力 | 結果形式 | リスク |
 | --- | --- | --- | --- |
@@ -87,7 +87,7 @@ get_columns(schemaName: string, tableName: string)
 
 サーバーはまず、指定された完全修飾テーブルが MCP キーで許可されていることを確認します。その後 provider のカラムメタデータを読み取り、JSON 配列へシリアライズします。
 
-2.0.1 の各 `ColumnInfo` オブジェクトは次のプロパティを公開します。
+2.0.2 の各 `ColumnInfo` オブジェクトは次のプロパティを公開します。
 
 | プロパティ | 意味 |
 | --- | --- |
@@ -108,7 +108,7 @@ get_columns(schemaName: string, tableName: string)
 execute_query_sql(sql: string)
 ```
 
-**単一の `SELECT` SQL 文**を受け取ります。2.0.1 の公開ツール契約では、JOIN、WHERE、GROUP BY、HAVING、ORDER BY、LIMIT/OFFSET、DISTINCT、CTE、サブクエリ、UNION/INTERSECT/EXCEPT など一般的な Query 形式が明示されています。
+**単一の `SELECT` SQL 文**を受け取ります。2.0.2 の公開ツール契約では、JOIN、WHERE、GROUP BY、HAVING、ORDER BY、LIMIT/OFFSET、DISTINCT、CTE、サブクエリ、UNION/INTERSECT/EXCEPT など一般的な Query 形式が明示されています。
 
 <Flow items={["Parse", "Bind", "テーブルを認可", "ポリシー検証", "immutable command を compile", "実行"]} caption="Raw SQL がそのまま provider に渡ることはありません。" />
 
@@ -138,14 +138,14 @@ execute_dml_sql(sql: string)
 
 MCP から公開される入力は SQL です。.NET メソッドが利用する `McpServer` と cancellation token はランタイムが注入するインフラであり、エージェントが指定するフィールドではありません。
 
-2.0.1 の MCP DML 経路で扱う文種は次のとおりです。
+2.0.2 の MCP DML 経路で扱う文種は次のとおりです。
 
 | 文 | 状態 |
 | --- | --- |
 | `UPDATE` | parse、capability、policy、approval の各要件を満たす場合に対応 |
 | `DELETE` | parse、capability、policy、approval の各要件を満たす場合に対応 |
 | `INSERT ... VALUES` | immutable payload を承認対象として対応 |
-| `INSERT ... SELECT` | 2.0.1 では fail-closed で拒否 |
+| `INSERT ... SELECT` | 2.0.2 では fail-closed で拒否 |
 
 <Flow items={["Parse + profile 検証", "Mutation を compile", "正確な影響を preview", "人による Elicitation", "transaction 内で再検証", "Commit"]} caption="承認は元の SQL 文字列だけではなく、検証済み mutation context に結び付けられます。" />
 
@@ -181,6 +181,6 @@ Tool call に対応しているだけでは不十分です。クライアント�
 
 ## セマンティックメタデータを 6 個目の組み込みツールとしては扱いません
 
-2.0.1 のリポジトリにはセマンティック管理の実装がありますが、正式な MCP key built-in registry と Admin key-management surface が認識する組み込みツールは、このページに記載した 5 つです。そのため 2.0.1 の正式ドキュメントでは、セマンティックメタデータを**管理／コントロールプレーンの capability であり、スキーマ探索から利用されるもの**として扱い、追加の正式な組み込み MCP 契約とはしません。
+2.0.2 のリポジトリにはセマンティック管理の実装がありますが、正式な MCP key built-in registry と Admin key-management surface が認識する組み込みツールは、このページに記載した 5 つです。そのため 2.0.2 の正式ドキュメントでは、セマンティックメタデータを**管理／コントロールプレーンの capability であり、スキーマ探索から利用されるもの**として扱い、追加の正式な組み込み MCP 契約とはしません。
 
 詳しくは [セマンティックメタデータ](/ja/docs/administration/semantic-metadata) を参照してください。

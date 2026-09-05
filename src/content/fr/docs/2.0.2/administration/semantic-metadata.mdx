@@ -1,6 +1,6 @@
 ---
 title: Métadonnées sémantiques
-description: Enrichir la découverte de base avec la sémantique des tables et colonnes, les relations et les métriques dans hs-sql-agent 2.0.1.
+description: Enrichir la découverte de base avec la sémantique des tables et colonnes, les relations et les métriques dans hs-sql-agent 2.0.2.
 sidebar:
   group: Administration
   order: 76
@@ -63,10 +63,10 @@ Les métadonnées de métrique sont limitées à une table et peuvent décrire u
 | `Grain` | Grain facultatif |
 | `Filter` | Filtre facultatif |
 | `Synonyms` | Termes alternatifs |
-| `Executable` | `false` dans le modèle 2.0.1 |
+| `Executable` | `false` dans le modèle 2.0.2 |
 
 <Callout type="warning" title="Les métriques sont des métadonnées, pas une échappatoire d’exécution">
-Le modèle sémantique 2.0.1 fixe `Executable` à false. Une description de métrique peut aider un agent à comprendre le schéma, mais ne devient pas une macro SQL exécutable et ne contourne ni le compilateur SQL ni le pipeline d’autorisation.
+Le modèle sémantique 2.0.2 fixe `Executable` à false. Une description de métrique peut aider un agent à comprendre le schéma, mais ne devient pas une macro SQL exécutable et ne contourne ni le compilateur SQL ni le pipeline d’autorisation.
 </Callout>
 
 ## Consommation par la découverte de schéma MCP
@@ -83,7 +83,7 @@ Les métadonnées sémantiques enrichissent donc la découverte sans élargir l�
 
 ## Surface Admin API
 
-L’API 2.0.1 expose la gestion sémantique sous `api/DbSemantic` :
+L’API 2.0.2 expose la gestion sémantique sous `api/DbSemantic` :
 
 | Opération | Permission |
 | --- | --- |
@@ -95,7 +95,7 @@ L’API 2.0.1 expose la gestion sémantique sous `api/DbSemantic` :
 | upsert/suppression d’une métrique | `/runtime/db-management/semantic` → `edit` |
 
 <Callout type="info" title="Ce n’est pas un sixième outil MCP intégré documenté">
-Pour la documentation 2.0.1, la surface formelle d’une clé MCP est constituée des cinq outils intégrés décrits dans la référence MCP, plus les Custom Tools publiés. Les métadonnées sémantiques sont administrées dans le plan de contrôle et consommées par la découverte de schéma.
+Pour la documentation 2.0.2, la surface formelle d’une clé MCP est constituée des cinq outils intégrés décrits dans la référence MCP, plus les Custom Tools publiés. Les métadonnées sémantiques sont administrées dans le plan de contrôle et consommées par la découverte de schéma.
 </Callout>
 
 ## Conseils de modélisation

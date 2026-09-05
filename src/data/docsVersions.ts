@@ -1,3 +1,5 @@
+import { productRelease } from "./productRelease";
+
 export type DocsVersionStatus = "current" | "supported" | "archived";
 
 export type DocsVersionDefinition = {
@@ -11,8 +13,8 @@ export type DocsVersionDefinition = {
 
 const versionDefinitions = [
   {
-    version: "2.0.2",
-    label: "2.0.2",
+    version: productRelease.version,
+    label: productRelease.version,
     status: "current",
     parent: null,
     removed: [],
@@ -21,12 +23,13 @@ const versionDefinitions = [
 ] as const satisfies readonly DocsVersionDefinition[];
 
 export const docsVersions = {
-  current: "2.0.2",
+  current: productRelease.version,
   versions: versionDefinitions,
 } as const;
 
 /** Widened view used by resolvers so empty literal maps retain Record value types. */
-export const docsVersionDefinitions: readonly DocsVersionDefinition[] = versionDefinitions;
+export const docsVersionDefinitions: readonly DocsVersionDefinition[] =
+  versionDefinitions;
 
 export type DocsVersion = (typeof versionDefinitions)[number]["version"];
 
@@ -41,14 +44,18 @@ export function isDocsVersion(version: string): boolean {
 }
 
 /** Returns the inheritance chain from the oldest baseline to the requested version. */
-export function getDocsVersionLineage(version: string): DocsVersionDefinition[] {
+export function getDocsVersionLineage(
+  version: string
+): DocsVersionDefinition[] {
   const lineage: DocsVersionDefinition[] = [];
   const seen = new Set<string>();
   let current: string | null = version;
 
   while (current) {
     if (seen.has(current)) {
-      throw new Error(`Documentation version inheritance cycle detected at ${current}.`);
+      throw new Error(
+        `Documentation version inheritance cycle detected at ${current}.`
+      );
     }
     seen.add(current);
 

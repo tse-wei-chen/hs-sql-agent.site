@@ -1,6 +1,6 @@
 ---
 title: Audit
-description: Query, summarize, export, and retain hs-sql-agent 2.0.1 audit records from the Admin control plane.
+description: Query, summarize, export, and retain hs-sql-agent 2.0.2 audit records from the Admin control plane.
 sidebar:
   group: Administration
   order: 80
@@ -20,7 +20,7 @@ The audit surface is the control-plane record of security and runtime activity. 
 
 ## Audit record shape
 
-A 2.0.1 audit item can include:
+A 2.0.2 audit item can include:
 
 | Area | Fields |
 | --- | --- |
@@ -62,7 +62,7 @@ Audit export is a separate authorization capability:
 | export CSV or JSON | `/runtime/audit` → `export` |
 | retention dry-run / execute | `/runtime/audit` → `edit` |
 
-The export endpoint accepts `format=csv` or `format=json`. 2.0.1 rejects export sets over 100,000 rows instead of attempting an unbounded download.
+The export endpoint accepts `format=csv` or `format=json`. 2.0.2 rejects export sets over 100,000 rows instead of attempting an unbounded download.
 
 <Callout type="info" title="CSV export protects spreadsheet cells">
 CSV values that begin with spreadsheet formula characters such as `=`, `+`, `-`, or `@` are prefixed before export to reduce formula-injection risk when an operator opens the file in spreadsheet software.
@@ -79,7 +79,7 @@ Use the operator flow:
 3. Confirm the expected mode and volume.
 4. Execute retention only after review.
 
-Valid 2.0.1 runtime modes are:
+Valid 2.0.2 runtime modes are:
 
 - `Archive` — write expired records to the configured archive path before deleting them from the Admin database;
 - `Purge` — delete expired records without creating that archive.

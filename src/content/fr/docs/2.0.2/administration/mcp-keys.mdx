@@ -1,6 +1,6 @@
 ---
 title: Clés MCP
-description: Émettre, restreindre, renouveler, dupliquer et révoquer les identifiants MCP dans hs-sql-agent 2.0.1.
+description: Émettre, restreindre, renouveler, dupliquer et révoquer les identifiants MCP dans hs-sql-agent 2.0.2.
 sidebar:
   group: Administration
   order: 74
@@ -20,7 +20,7 @@ import Step from "@/components/docs/mdx/Step.astro";
 
 Les clés MCP authentifient les requêtes `/mcp` et portent le périmètre d’autorisation runtime utilisé par hs-sql-agent. Elles sont distinctes des sessions utilisateur Admin et des identités OIDC.
 
-## Surface officielle des outils intégrés 2.0.1
+## Surface officielle des outils intégrés 2.0.2
 
 Le service de gestion des clés reconnaît cinq outils intégrés :
 
@@ -42,7 +42,7 @@ Le runtime interprète un `AllowedTools` vide comme l’absence de restriction p
 
 <Steps>
   <Step title="Choisir un nom" description="La requête exige un nom non vide, limité à 100 caractères." />
-  <Step title="Lier une base" description="DbManagementId est requis par le validateur d’émission 2.0.1." />
+  <Step title="Lier une base" description="DbManagementId est requis par le validateur d’émission 2.0.2." />
   <Step title="Sélectionner les outils" description="Choisissez les outils intégrés ainsi que les Custom Tools publiés pour cette base." />
   <Step title="Restreindre l’accès aux données" description="Activez une liste blanche de tables si le client ne doit voir qu’une partie de la base liée." />
   <Step title="Définir le cycle de vie" description="Configurez éventuellement expiration, origines CORS et mode/overrides de limitation de débit." />

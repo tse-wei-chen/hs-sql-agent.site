@@ -1,6 +1,6 @@
 ---
 title: MCP Tools Reference
-description: Formale Verträge der integrierten MCP-Tools in hs-sql-agent 2.0.1 mit Parametern, Antworten, Autorisierung und Risikogrenzen.
+description: Formale Verträge der integrierten MCP-Tools in hs-sql-agent 2.0.2 mit Parametern, Antworten, Autorisierung und Risikogrenzen.
 sidebar:
   group: MCP
   order: 35
@@ -17,7 +17,7 @@ import Flow from "@/components/docs/mdx/Flow.astro";
   <DocCard title="Safe DML" icon="DML" badge="Freigabe" description="execute_dml_sql akzeptiert unterstützte Mutationen nur über Preview, Elicitation und Revalidierung vor dem Commit." />
 </CardGrid>
 
-Die **formale integrierte Tool-Oberfläche von 2.0.1, die durch MCP-Schlüssel verwaltet wird**, enthält genau fünf Tool-Namen:
+Die **formale integrierte Tool-Oberfläche von 2.0.2, die durch MCP-Schlüssel verwaltet wird**, enthält genau fünf Tool-Namen:
 
 | Tool | Öffentliche Eingabe | Ergebnisform | Risiko |
 | --- | --- | --- | --- |
@@ -87,7 +87,7 @@ get_columns(schemaName: string, tableName: string)
 
 Der Server prüft zuerst, ob die angeforderte qualifizierte Tabelle durch den MCP-Schlüssel erlaubt ist. Danach liest er Provider-Spaltenmetadaten und serialisiert ein JSON-Array.
 
-Jedes `ColumnInfo`-Objekt in 2.0.1 enthält:
+Jedes `ColumnInfo`-Objekt in 2.0.2 enthält:
 
 | Property | Bedeutung |
 | --- | --- |
@@ -108,7 +108,7 @@ Semantische Anreicherung kann Anzeigenamen, Beschreibungen, Synonyme und Beziehu
 execute_query_sql(sql: string)
 ```
 
-Akzeptiert **genau eine `SELECT`-SQL-Anweisung**. Die öffentliche Beschreibung in 2.0.1 nennt ausdrücklich häufige Formen wie JOIN, WHERE, GROUP BY, HAVING, ORDER BY, LIMIT/OFFSET, DISTINCT, CTEs, Subqueries sowie UNION/INTERSECT/EXCEPT.
+Akzeptiert **genau eine `SELECT`-SQL-Anweisung**. Die öffentliche Beschreibung in 2.0.2 nennt ausdrücklich häufige Formen wie JOIN, WHERE, GROUP BY, HAVING, ORDER BY, LIMIT/OFFSET, DISTINCT, CTEs, Subqueries sowie UNION/INTERSECT/EXCEPT.
 
 <Flow items={["Parse", "Bind", "Tabellen autorisieren", "Policy validieren", "Unveränderliches Kommando kompilieren", "Ausführen"]} caption="Raw SQL wird nicht direkt an den Provider weitergereicht." />
 
@@ -138,14 +138,14 @@ execute_dml_sql(sql: string)
 
 Die öffentliche MCP-Eingabe ist SQL. Der `McpServer` und der Cancellation Token der .NET-Methode werden von der Laufzeit injiziert und sind keine Felder, die ein Agent mitsendet.
 
-Unterstützte Statement-Klassen im MCP-DML-Pfad von 2.0.1:
+Unterstützte Statement-Klassen im MCP-DML-Pfad von 2.0.2:
 
 | Anweisung | Status |
 | --- | --- |
 | `UPDATE` | unterstützt, wenn Parse-, Capability-, Policy- und Freigabeanforderungen erfüllt sind |
 | `DELETE` | unterstützt, wenn Parse-, Capability-, Policy- und Freigabeanforderungen erfüllt sind |
 | `INSERT ... VALUES` | unterstützt mit Freigabesemantik für unveränderlichen Payload |
-| `INSERT ... SELECT` | in 2.0.1 fail-closed abgelehnt |
+| `INSERT ... SELECT` | in 2.0.2 fail-closed abgelehnt |
 
 <Flow items={["Parsen + Profil prüfen", "Mutation kompilieren", "Exakte Auswirkung als Preview", "Menschliche Elicitation", "Revalidierung in Transaktion", "Commit"]} caption="Die Freigabe ist an den validierten Mutationskontext gebunden, nicht nur an den ursprünglichen SQL-Text." />
 
@@ -181,6 +181,6 @@ Siehe [Custom Tools](/de/docs/administration/custom-tools).
 
 ## Semantische Metadaten sind kein sechstes integriertes Tool
 
-Das Repository 2.0.1 enthält Implementierungsdetails zur Semantikverwaltung, doch der formale MCP-Key-Registry- und Admin-Key-Management-Pfad kennt die fünf auf dieser Seite aufgeführten Tools. Die offizielle Dokumentation behandelt semantische Metadaten daher als **Admin-/Control-Plane-Capability, die von Schema Discovery konsumiert wird**, nicht als zusätzlichen integrierten MCP-Vertrag.
+Das Repository 2.0.2 enthält Implementierungsdetails zur Semantikverwaltung, doch der formale MCP-Key-Registry- und Admin-Key-Management-Pfad kennt die fünf auf dieser Seite aufgeführten Tools. Die offizielle Dokumentation behandelt semantische Metadaten daher als **Admin-/Control-Plane-Capability, die von Schema Discovery konsumiert wird**, nicht als zusätzlichen integrierten MCP-Vertrag.
 
 Siehe [Semantische Metadaten](/de/docs/administration/semantic-metadata).

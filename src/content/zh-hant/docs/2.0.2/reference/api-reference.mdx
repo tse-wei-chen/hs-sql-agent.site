@@ -1,6 +1,6 @@
 ---
 title: Admin HTTP API 參考
-description: 根據 hs-sql-agent 2.0.1 原始碼整理、供內建管理介面使用的 HTTP controller 路由參考。
+description: 根據 hs-sql-agent 2.0.2 原始碼整理、供內建管理介面使用的 HTTP controller 路由參考。
 sidebar:
   group: 參考
   order: 142
@@ -16,19 +16,27 @@ import DocCard from "@/components/docs/mdx/DocCard.astro";
   <DocCard title="MCP 為獨立介面" icon="MCP" description="/mcp 的 Streamable HTTP transport 不屬於這份 Admin REST API 參考。" />
 </CardGrid>
 
-本頁記錄 **hs-sql-agent 2.0.1 原始碼中實際存在的 controller routes**；內建管理介面使用的就是這些端點。
+本頁列出 **hs-sql-agent 2.0.2 原始碼中實際存在的 controller routes**，但 controller 是否公開取決於選用的 capability。內附 Admin UI 一般使用內建身分組合；嵌入既有 ASP.NET Core host 時則可以選擇不同組合。
 
-<Callout type="warning" title="這是 2.0.1 原始碼契約，不是獨立版本化的 REST 標準">
-2.0.1 沒有把這些 controllers 放進 `/v1` 相容命名空間。若有內建管理介面以外的整合直接呼叫這些端點，應固定 hs-sql-agent 版本，並在升級時重新檢查這份參考。
+<Callout type="warning" title="這是 2.0.2 的原始碼契約，不是獨立版本化的 REST 標準">
+2.0.2 server 沒有把這些 controllers 放在 `/v1` 相容 namespace 下。外部整合應固定 hs-sql-agent 版本，升級時重新確認實際選用的 capability surface。
 </Callout>
 
-## 身分驗證與授權
+<Callout type="note" title="內建身分與 host authorization 的身分 API surface 不同">
+選用 `AddHsSqlAgentBuiltInAuth()` 時，內建 Auth、Member、Role controllers 屬於管理端 surface。選用 `AddHsSqlAgentHostAuthorization()` 時，HsSqlAgent 刻意**不會**發布 `AuthController`、`MemberController`、`RoleController`，也不會安裝自己的 identity schema，而是把 canonical permission 檢查委派給宿主。兩種授權模式互斥。
+</Callout>
 
-大部分管理端路由都需要已完成驗證的管理員身分；受保護的執行階段操作還會檢查 path/action 權限，例如 `/runtime/db-management` → `view`、`/auth/role` → `edit`。
+## 身分驗證、授權與 MVC ownership
 
-首次設定、登入、註冊，以及部分 OIDC、密碼復原、MFA challenge completion 等必須在工作階段建立前開始的流程，則有匿名存取例外。
+選用 Admin API capability 時，公開掛載固定為 `/api`。`/auth/role`、`/runtime/db-management` 等 canonical permission paths 是授權資源識別碼，不是 HTTP paths。
+
+在內建身分模式下，受保護的 Admin routes 使用 HsSqlAgent 身分驗證與 canonical permission/action 檢查；first-run、sign-in、部分 OIDC / password-recovery endpoints、MFA challenge completion 等流程有必要的匿名例外。
+
+在 host-authorization 模式下，身分驗證預設值與 authorization policy 都由宿主擁有；要求的 canonical permission keys 會透過 `HsSqlAgentPermissionResource.Permissions` 傳給宿主。modular host 模式中的 `UseHsSqlAgentAdminApi()` 刻意不呼叫 `MapControllers()`，MVC controller endpoint mapping 由宿主決定。
 
 請見 [權限](/zh-hant/docs/administration/permissions)。
+
+下方 Auth、Member、Role 三節只適用於已選用內建身分 capability 的部署。
 
 ## Auth — `/api/Auth`
 
@@ -164,10 +172,10 @@ import DocCard from "@/components/docs/mdx/DocCard.astro";
 
 ## Credential status
 
-2.0.1 提供 `GET /api/Credential/status`，只回傳簡單的 Credential API 運作狀態；controller 本身沒有 `[Authorize]` attribute。應把它視為用途有限的狀態端點，而不是經驗證的憑證管理 API。
+2.0.2 提供 `GET /api/Credential/status`，只回傳簡單的 Credential API 運作狀態；controller 本身沒有 `[Authorize]` attribute。應把它視為用途有限的狀態端點，而不是經驗證的憑證管理 API。
 
 ## 錯誤與相容性
 
 Controllers 使用一般 HTTP status code，例如驗證錯誤 400、身分驗證 / 授權錯誤 401 / 403、找不到資源 404、衝突 409、稽核匯出過大 413，以及部分受限制 SQL 壓力路徑的 429。
 
-若外部自動化直接依賴這套 API，請固定使用 2.0.1，並驗證實際使用的 response model。本文件刻意記錄路由與重要契約，不把所有管理端 view model 宣稱成永久、版本化的外部 SDK。
+若外部自動化直接依賴這套 API，請固定使用 2.0.2，並驗證實際使用的 response model。本文件刻意記錄路由與重要契約，不把所有管理端 view model 宣稱成永久、版本化的外部 SDK。

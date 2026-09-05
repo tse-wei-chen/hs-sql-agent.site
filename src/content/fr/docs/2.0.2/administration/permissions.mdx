@@ -1,6 +1,6 @@
 ---
 title: Permissions
-description: Comprendre le modèle d’autorisation chemin + action utilisé par les opérations Admin de hs-sql-agent 2.0.1.
+description: Comprendre le modèle d’autorisation chemin + action utilisé par les opérations Admin de hs-sql-agent 2.0.2.
 sidebar:
   group: Administration
   order: 79
@@ -16,7 +16,13 @@ import DocCard from "@/components/docs/mdx/DocCard.astro";
   <DocCard title="Sélection de rôle" icon="RBAC" description="Les rôles ne stockent que des paires permission/action présentes dans l’inventaire de modèles du serveur." />
 </CardGrid>
 
-L’autorisation Admin en 2.0.1 est appliquée comme une paire **chemin de permission + code d’action**. Les contrôleurs déclarent la paire requise et les membres authentifiés reçoivent l’accès via leurs rôles.
+L’autorisation Admin en 2.0.2 utilise un **canonical permission path + action code**. Le chemin canonique est un identifiant stable de ressource d’autorisation ; ce n’est ni une route de l’Admin UI ni un chemin de montage HTTP. Par exemple, `/runtime/db-management` et `/auth/role` restent les mêmes identifiants d’autorisation même si la navigation ou les URL des contrôleurs changent.
+
+<Callout type="warning" title="Les permissions canoniques ne sont pas des routes">
+Ne dérivez pas l’autorisation de `route.path` et ne supposez pas qu’un canonical permission path est directement appelable en HTTP. En 2.0.2, les montages publics sont des contrats distincts : MCP est exposé sous `/mcp`, l’API d’administration sous `/api` et l’interface d’administration sous `/`.
+</Callout>
+
+Les mêmes identifiants canoniques servent deux modes d’autorisation d’administration mutuellement exclusifs. Avec l’identité intégrée, les membres et rôles HsSqlAgent résolvent les modèles permission/action. Avec `AddHsSqlAgentHostAuthorization()`, HsSqlAgent transmet les clés de permission canoniques demandées via `HsSqlAgentPermissionResource.Permissions` et l’application hôte les mappe vers sa propre politique. Sauf mention contraire, les sections sur les rôles et modèles ci-dessous décrivent le **mode d’identité intégré**.
 
 ## Exemples du runtime
 
@@ -33,7 +39,7 @@ L’autorisation Admin en 2.0.1 est appliquée comme une paire **chemin de permi
 | modifier la politique de sécurité | `/runtime/security` → `edit` |
 | relancer une livraison sortante | `/runtime/operability` → `edit` |
 
-L’authentification seule n’est donc pas suffisante : la paire chemin/action requise doit aussi être résolue via les rôles du membre.
+En mode d’identité intégré, l’authentification seule n’est donc pas suffisante : la paire chemin/action requise doit aussi être résolue via les rôles du membre. En mode d’autorisation hôte, le même besoin de permission est délégué à la politique de l’application hôte.
 
 ## Les modèles permission-action font autorité
 
@@ -68,7 +74,7 @@ Le but est d’empêcher une session déjà authentifiée de conserver une autor
 
 ## Rôle SuperUser protégé
 
-`SuperUser` est un rôle intégré protégé en 2.0.1. Il ne peut pas être modifié ni supprimé par la gestion normale des rôles. Le rôle bootstrap/de contrôle complet ne peut donc pas être redéfini silencieusement avec un autre ensemble de permissions.
+`SuperUser` est un rôle intégré protégé en 2.0.2. Il ne peut pas être modifié ni supprimé par la gestion normale des rôles. Le rôle bootstrap/de contrôle complet ne peut donc pas être redéfini silencieusement avec un autre ensemble de permissions.
 
 <Callout type="tip" title="Privilégiez le moindre privilège par responsabilité">
 Créez les rôles autour des responsabilités opérateur plutôt que de copier SuperUser pour chaque compte. Par exemple, un observateur runtime peut avoir besoin de `view` sur audit/operability, sans avoir besoin de `edit` sur les bases, `create` sur les clés ou `edit` sur la politique de sécurité.

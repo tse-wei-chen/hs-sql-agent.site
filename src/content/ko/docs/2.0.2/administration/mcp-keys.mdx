@@ -1,6 +1,6 @@
 ---
 title: MCP 키
-description: hs-sql-agent 2.0.1에서 MCP 자격 증명을 발급하고 범위를 지정하며 교체·복제·폐기합니다.
+description: hs-sql-agent 2.0.2에서 MCP 자격 증명을 발급하고 범위를 지정하며 교체·복제·폐기합니다.
 sidebar:
   group: 관리
   order: 74
@@ -20,7 +20,7 @@ import Step from "@/components/docs/mdx/Step.astro";
 
 MCP 키는 `/mcp` 요청을 인증하고 hs-sql-agent가 사용하는 런타임 authorization scope를 전달합니다. Admin 사용자 세션이나 OIDC ID와는 별개의 경계입니다.
 
-## 공식 2.0.1 내장 도구 표면
+## 공식 2.0.2 내장 도구 표면
 
 키 관리 서비스가 인식하는 내장 도구는 다섯 개입니다.
 
@@ -42,7 +42,7 @@ MCP 키는 `/mcp` 요청을 인증하고 hs-sql-agent가 사용하는 런타임 
 
 <Steps>
   <Step title="이름 지정" description="요청에는 빈 값이 아닌 이름이 필요하며 최대 100자입니다." />
-  <Step title="데이터베이스 바인딩" description="2.0.1 발급 validator는 DbManagementId를 필수로 요구합니다." />
+  <Step title="데이터베이스 바인딩" description="2.0.2 발급 validator는 DbManagementId를 필수로 요구합니다." />
   <Step title="도구 선택" description="내장 도구와 해당 데이터베이스에 게시된 Custom Tool을 선택합니다." />
   <Step title="데이터 접근 제한" description="클라이언트가 바인딩된 데이터베이스의 일부만 봐야 한다면 table whitelist를 활성화합니다." />
   <Step title="수명 주기 제어" description="필요한 경우 만료, CORS origin, rate-limit mode/override를 설정합니다." />

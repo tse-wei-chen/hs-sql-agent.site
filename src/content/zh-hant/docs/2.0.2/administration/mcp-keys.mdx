@@ -1,6 +1,6 @@
 ---
 title: MCP 金鑰
-description: 在 hs-sql-agent 2.0.1 簽發、限制、輪替、複製與撤銷 MCP 憑證。
+description: 在 hs-sql-agent 2.0.2 簽發、限制、輪替、複製與撤銷 MCP 憑證。
 sidebar:
   group: 管理
   order: 74
@@ -20,7 +20,7 @@ import Step from "@/components/docs/mdx/Step.astro";
 
 MCP 金鑰用來驗證送往 `/mcp` 的請求，並攜帶 hs-sql-agent 執行階段所需的授權範圍。它和管理端使用者工作階段、OIDC 身分屬於不同的安全邊界。
 
-## 2.0.1 內建工具
+## 2.0.2 內建工具
 
 金鑰管理服務正式辨識五個內建工具：
 
@@ -42,7 +42,7 @@ MCP 金鑰用來驗證送往 `/mcp` 的請求，並攜帶 hs-sql-agent 執行階
 
 <Steps>
   <Step title="設定名稱" description="請求必須提供非空白名稱，上限為 100 個字元。" />
-  <Step title="綁定資料庫" description="2.0.1 的簽發驗證要求提供 DbManagementId。" />
+  <Step title="綁定資料庫" description="2.0.2 的簽發驗證要求提供 DbManagementId。" />
   <Step title="選擇工具" description="選取需要的內建工具，以及該資料庫已發布的 Custom Tools。" />
   <Step title="限制資料存取" description="如果用戶端只能查看部分資料表，請啟用資料表白名單。" />
   <Step title="設定生命週期限制" description="需要時可設定到期時間、CORS 來源，以及速率限制模式或覆寫值。" />

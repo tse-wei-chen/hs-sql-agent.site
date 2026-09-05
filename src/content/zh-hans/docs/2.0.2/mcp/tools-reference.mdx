@@ -1,6 +1,6 @@
 ---
 title: MCP 工具参考
-description: hs-sql-agent 2.0.1 内置 MCP 工具的正式契约、参数、响应、授权和风险边界。
+description: hs-sql-agent 2.0.2 内置 MCP 工具的正式契约、参数、响应、授权和风险边界。
 sidebar:
   group: MCP
   order: 35
@@ -17,7 +17,7 @@ import Flow from "@/components/docs/mdx/Flow.astro";
   <DocCard title="Safe DML" icon="DML" badge="审批" description="execute_dml_sql 只执行通过预览、Elicitation 和提交时重新验证的受支持数据修改。" />
 </CardGrid>
 
-**由 MCP 密钥管理的 2.0.1 正式内置工具面**恰好包含 5 个工具：
+**由 MCP 密钥管理的 2.0.2 正式内置工具面**恰好包含 5 个工具：
 
 | 工具 | 公共输入 | 返回形式 | 风险 |
 | --- | --- | --- | --- |
@@ -87,7 +87,7 @@ get_columns(schemaName: string, tableName: string)
 
 服务端先检查请求的全限定表是否被当前 MCP 密钥允许，再读取 provider 列元数据并序列化为 JSON 数组。
 
-2.0.1 的 `ColumnInfo` 对象公开：
+2.0.2 的 `ColumnInfo` 对象公开：
 
 | 属性 | 含义 |
 | --- | --- |
@@ -108,7 +108,7 @@ get_columns(schemaName: string, tableName: string)
 execute_query_sql(sql: string)
 ```
 
-接受**一条 `SELECT` SQL 语句**。2.0.1 公共工具契约明确包含常见 Query 结构，例如 JOIN、WHERE、GROUP BY、HAVING、ORDER BY、LIMIT/OFFSET、DISTINCT、CTE、子查询以及 UNION/INTERSECT/EXCEPT。
+接受**一条 `SELECT` SQL 语句**。2.0.2 公共工具契约明确包含常见 Query 结构，例如 JOIN、WHERE、GROUP BY、HAVING、ORDER BY、LIMIT/OFFSET、DISTINCT、CTE、子查询以及 UNION/INTERSECT/EXCEPT。
 
 <Flow items={["Parse", "Bind", "授权表", "验证策略", "编译 immutable command", "执行"]} caption="Raw SQL 不会直接交给 provider。" />
 
@@ -138,14 +138,14 @@ execute_dml_sql(sql: string)
 
 MCP 对外输入只有 SQL。.NET 方法使用的 `McpServer` 和 cancellation token 是运行时注入的基础设施，不是 Agent 提供的字段。
 
-2.0.1 MCP DML 路径支持：
+2.0.2 MCP DML 路径支持：
 
 | 语句 | 状态 |
 | --- | --- |
 | `UPDATE` | parse、capability、policy、approval 全部满足时支持 |
 | `DELETE` | parse、capability、policy、approval 全部满足时支持 |
 | `INSERT ... VALUES` | 使用 immutable payload 审批语义支持 |
-| `INSERT ... SELECT` | 2.0.1 中失败即拒绝 |
+| `INSERT ... SELECT` | 2.0.2 中失败即拒绝 |
 
 <Flow items={["Parse + 验证 profile", "编译数据修改", "精确预览影响", "人工 Elicitation", "事务内重新验证", "提交"]} caption="审批绑定到已验证的数据修改上下文，而不只是原始 SQL 文本。" />
 
@@ -181,6 +181,6 @@ UPDATE 和 DELETE 的审批会绑定到精确的 primary-key row set，提交时
 
 ## 语义元数据不是第六个内置工具
 
-2.0.1 仓库包含语义管理实现，但正式 MCP key built-in registry 和 Admin key-management surface 只识别本页列出的 5 个工具。因此官方 2.0.1 文档把语义元数据视为**由管理控制平面维护、由 schema discovery 消费的 capability**，而不是额外的正式 MCP 内置契约。
+2.0.2 仓库包含语义管理实现，但正式 MCP key built-in registry 和 Admin key-management surface 只识别本页列出的 5 个工具。因此官方 2.0.2 文档把语义元数据视为**由管理控制平面维护、由 schema discovery 消费的 capability**，而不是额外的正式 MCP 内置契约。
 
 详见 [语义元数据](/zh-hans/docs/administration/semantic-metadata)。

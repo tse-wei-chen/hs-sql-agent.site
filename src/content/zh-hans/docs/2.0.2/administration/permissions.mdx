@@ -1,6 +1,6 @@
 ---
 title: 权限
-description: 了解 hs-sql-agent 2.0.1 管理操作使用的 permission path + action 授权模型。
+description: 了解 hs-sql-agent 2.0.2 管理操作使用的 permission path + action 授权模型。
 sidebar:
   group: 管理
   order: 79
@@ -16,7 +16,13 @@ import DocCard from "@/components/docs/mdx/DocCard.astro";
   <DocCard title="角色选择" icon="RBAC" description="角色只能保存服务器模板清单中实际存在的 permission/action 组合。" />
 </CardGrid>
 
-2.0.1 的管理授权以 **permission path + action code** 组合执行。控制器声明所需组合，已登录成员则通过分配到的角色获得访问权限。
+2.0.2 的管理端授权使用 **canonical permission path + action code**。canonical path 是稳定的授权资源标识符，不是 Admin UI 路由，也不是 HTTP 挂载路径。例如 `/runtime/db-management` 和 `/auth/role` 即使导航或 controller URL 调整，仍表示同一个授权身份。
+
+<Callout type="warning" title="Canonical permission 不是路由">
+不要从 `route.path` 推导授权，也不要假设 canonical permission path 可以直接通过 HTTP 调用。2.0.2 的公开挂载是另一组固定契约：MCP 为 `/mcp`、管理 API 为 `/api`、管理 UI 为 `/`。
+</Callout>
+
+相同的 canonical identifiers 支持两种互斥的管理端授权模式。使用内置身份系统时，HsSqlAgent 的 member / role 会解析 permission/action templates；使用 host authorization 时，HsSqlAgent 会通过 `HsSqlAgentPermissionResource.Permissions` 把请求的 canonical permission keys 交给宿主，由宿主映射到自己的 policy model。除非特别说明，下方角色与 template 章节描述的是 **内置身份模式**。
 
 ## 运行时示例
 
@@ -68,7 +74,7 @@ Member
 
 ## 受保护的 SuperUser 角色
 
-`SuperUser` 是 2.0.1 内置受保护角色，无法通过普通角色管理编辑或删除，避免 bootstrap/全权限角色被悄悄改造成另一套权限。
+`SuperUser` 是 2.0.2 内置受保护角色，无法通过普通角色管理编辑或删除，避免 bootstrap/全权限角色被悄悄改造成另一套权限。
 
 <Callout type="tip" title="按职责设计最小权限角色">
 不要给每个账号复制 SuperUser。应围绕管理员职责设计角色。例如监控人员可能需要 audit/operability 的 `view`，但不需要 database `edit`、key `create` 或 security-policy `edit`。

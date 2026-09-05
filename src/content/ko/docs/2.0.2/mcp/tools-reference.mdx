@@ -1,6 +1,6 @@
 ---
 title: MCP 도구 레퍼런스
-description: hs-sql-agent 2.0.1 내장 MCP 도구의 공식 계약, 파라미터, 응답, 권한, 위험 경계를 설명합니다.
+description: hs-sql-agent 2.0.2 내장 MCP 도구의 공식 계약, 파라미터, 응답, 권한, 위험 경계를 설명합니다.
 sidebar:
   group: MCP
   order: 35
@@ -17,7 +17,7 @@ import Flow from "@/components/docs/mdx/Flow.astro";
   <DocCard title="Safe DML" icon="DML" badge="승인" description="execute_dml_sql은 preview, Elicitation, commit-time revalidation을 모두 거친 지원 mutation만 실행합니다." />
 </CardGrid>
 
-**MCP 키가 관리하는 공식 2.0.1 내장 도구 표면**에는 정확히 다섯 개 도구 이름이 있습니다.
+**MCP 키가 관리하는 공식 2.0.2 내장 도구 표면**에는 정확히 다섯 개 도구 이름이 있습니다.
 
 | Tool | Public input | 결과 형태 | 위험 |
 | --- | --- | --- | --- |
@@ -87,7 +87,7 @@ get_columns(schemaName: string, tableName: string)
 
 서버는 먼저 요청한 qualified table이 MCP 키에서 허용되는지 검사합니다. 그 뒤 provider column metadata를 읽어 JSON 배열로 직렬화합니다.
 
-각 2.0.1 `ColumnInfo` object에는 다음 property가 있습니다.
+각 2.0.2 `ColumnInfo` object에는 다음 property가 있습니다.
 
 | Property | 의미 |
 | --- | --- |
@@ -108,7 +108,7 @@ Semantic enrichment는 `Description`에 display name, description, synonym, rela
 execute_query_sql(sql: string)
 ```
 
-**하나의 `SELECT` SQL statement**를 받습니다. 공개 2.0.1 도구 계약은 JOIN, WHERE, GROUP BY, HAVING, ORDER BY, LIMIT/OFFSET, DISTINCT, CTE, subquery, UNION/INTERSECT/EXCEPT 같은 일반 Query 형태를 명시적으로 포함합니다.
+**하나의 `SELECT` SQL statement**를 받습니다. 공개 2.0.2 도구 계약은 JOIN, WHERE, GROUP BY, HAVING, ORDER BY, LIMIT/OFFSET, DISTINCT, CTE, subquery, UNION/INTERSECT/EXCEPT 같은 일반 Query 형태를 명시적으로 포함합니다.
 
 <Flow items={["Parse", "Bind", "테이블 권한 확인", "정책 검증", "immutable command compile", "실행"]} caption="Raw SQL이 provider로 바로 전달되지 않습니다." />
 
@@ -138,14 +138,14 @@ execute_dml_sql(sql: string)
 
 MCP에 노출되는 입력은 SQL입니다. .NET method의 `McpServer`와 cancellation token은 런타임이 주입하는 infrastructure이지 에이전트가 제공하는 field가 아닙니다.
 
-2.0.1 MCP DML 경로에서 지원되는 statement class는 다음과 같습니다.
+2.0.2 MCP DML 경로에서 지원되는 statement class는 다음과 같습니다.
 
 | Statement | 상태 |
 | --- | --- |
 | `UPDATE` | parse, capability, policy, approval 요구 사항을 통과하면 지원 |
 | `DELETE` | parse, capability, policy, approval 요구 사항을 통과하면 지원 |
 | `INSERT ... VALUES` | immutable-payload approval semantics로 지원 |
-| `INSERT ... SELECT` | 2.0.1에서 fail-closed로 거부 |
+| `INSERT ... SELECT` | 2.0.2에서 fail-closed로 거부 |
 
 <Flow items={["Parse + profile 확인", "mutation compile", "정확한 영향 preview", "사람 Elicitation", "transaction revalidation", "Commit"]} caption="승인은 단순한 원본 SQL text가 아니라 검증된 mutation context에 바인딩됩니다." />
 
@@ -181,6 +181,6 @@ Tool call 지원만으로는 충분하지 않습니다. 클라이언트는 Safe 
 
 ## Semantic metadata를 여섯 번째 내장 도구로 문서화하지 않습니다
 
-2.0.1 저장소에는 semantic-management 구현이 있지만 공식 MCP key built-in registry와 Admin key-management surface는 이 페이지에 나열된 다섯 도구를 인식합니다. 따라서 공식 2.0.1 문서에서 semantic metadata는 **Admin/control-plane capability이며 schema discovery가 소비하는 정보**로 다룹니다.
+2.0.2 저장소에는 semantic-management 구현이 있지만 공식 MCP key built-in registry와 Admin key-management surface는 이 페이지에 나열된 다섯 도구를 인식합니다. 따라서 공식 2.0.2 문서에서 semantic metadata는 **Admin/control-plane capability이며 schema discovery가 소비하는 정보**로 다룹니다.
 
 자세한 내용은 [Semantic Metadata](/ko/docs/administration/semantic-metadata)를 참고하십시오.

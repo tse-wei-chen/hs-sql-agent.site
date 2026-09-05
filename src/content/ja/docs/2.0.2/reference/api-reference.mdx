@@ -1,6 +1,6 @@
 ---
 title: Admin HTTP API リファレンス
-description: 同梱 Admin UI が利用する、hs-sql-agent 2.0.1 ソースに基づく HTTP controller surface のリファレンスです。
+description: 同梱 Admin UI が利用する、hs-sql-agent 2.0.2 ソースに基づく HTTP controller surface のリファレンスです。
 sidebar:
   group: リファレンス
   order: 142
@@ -16,19 +16,27 @@ import DocCard from "@/components/docs/mdx/DocCard.astro";
   <DocCard title="MCP は別サーフェス" icon="MCP" description="/mcp の Streamable HTTP transport は、この Admin REST リファレンスには含まれません。" />
 </CardGrid>
 
-このページは、**hs-sql-agent 2.0.1 のソースに実在する controller route** を記載しています。同梱 Admin UI はこのサーフェスを利用します。
+このページは **hs-sql-agent 2.0.2 のソースに実在する controller route** を列挙しますが、controller が公開されるかどうかは選択した capability に依存します。同梱 Admin UI は通常、組み込み ID の構成を使用します。既存の ASP.NET Core host へ組み込む場合は別の構成を選べます。
 
-<Callout type="warning" title="これは 2.0.1 のソース契約であり、独立して versioning された REST standard ではありません">
-2.0.1 server はこれらの controller を `/v1` compatibility namespace 配下には公開していません。同梱 Admin UI 以外から連携する場合は hs-sql-agent version を固定し、アップグレード時にこのリファレンスを再確認してください。
+<Callout type="warning" title="これは 2.0.2 のソース契約であり、独立して versioning された REST standard ではありません">
+2.0.2 server はこれらの controller を `/v1` compatibility namespace 配下には公開していません。外部連携では hs-sql-agent version を固定し、アップグレード時に選択した capability surface を再確認してください。
 </Callout>
 
-## 認証と認可
+<Callout type="note" title="組み込み ID と host authorization では identity API surface が異なります">
+`AddHsSqlAgentBuiltInAuth()` を選択すると、組み込みの Auth、Member、Role controller が管理 surface に含まれます。`AddHsSqlAgentHostAuthorization()` を選択すると、HsSqlAgent は意図的に `AuthController`、`MemberController`、`RoleController` を公開せず、identity schema も導入せず、canonical permission check をホストへ委譲します。2 つの認可モードは相互排他的です。
+</Callout>
 
-ほとんどの Admin route では、認証済み Admin identity が必要です。保護された runtime action では、さらに `/runtime/db-management` → `view` や `/auth/role` → `edit` のような path/action permission check が適用されます。
+## 認証、認可、MVC の ownership
 
-Admin session が存在する前に開始する必要がある flow には匿名アクセスの例外があります。たとえば first-run / sign-in / sign-up、特定の OIDC endpoint、password recovery、MFA challenge completion です。
+Admin API capability を選択した場合、公開 mount は `/api` のままです。`/auth/role` や `/runtime/db-management` などの canonical permission path は認可リソース識別子であり、HTTP path ではありません。
+
+組み込み ID モードでは、保護された Admin route に HsSqlAgent の認証と canonical permission/action check が適用されます。first-run、sign-in、一部の OIDC / password-recovery endpoint、MFA challenge completion などには必要な匿名例外があります。
+
+host-authorization モードでは、認証の default と authorization policy をホストが所有します。要求された canonical permission key は `HsSqlAgentPermissionResource.Permissions` でホストへ渡されます。modular host モードの `UseHsSqlAgentAdminApi()` は意図的に `MapControllers()` を呼ばないため、MVC controller endpoint mapping もホストが所有します。
 
 詳しくは [権限](/ja/docs/administration/permissions) を参照してください。
+
+以下の Auth、Member、Role セクションは、組み込み ID capability を選択した構成にだけ適用されます。
 
 ## Auth — `/api/Auth`
 
@@ -162,10 +170,10 @@ filter、response field、permission については [監査](/ja/docs/administr
 
 ## Credential status
 
-`GET /api/Credential/status` は 2.0.1 に存在し、Credential API の簡単な稼働状態を返します。controller 自体には `[Authorize]` attribute がありません。認証済み credential-management API ではなく、限定的な status endpoint として扱ってください。
+`GET /api/Credential/status` は 2.0.2 に存在し、Credential API の簡単な稼働状態を返します。controller 自体には `[Authorize]` attribute がありません。認証済み credential-management API ではなく、限定的な status endpoint として扱ってください。
 
 ## エラーと互換性
 
 controller は通常の HTTP status code を使用します。たとえば validation は 400、authentication / authorization は 401/403、存在しない resource は 404、tool / role state の競合は 409、大きすぎる audit export は 413、制限された SQL operation の混雑時は該当箇所で 429 です。
 
-クライアント自動化では 2.0.1 を固定し、利用する実際の response model を検証してください。このページでは route と重要な契約を記載しますが、すべての Admin view model が永続的に versioning された外部 SDK であるかのようには扱いません。
+クライアント自動化では 2.0.2 を固定し、利用する実際の response model を検証してください。このページでは route と重要な契約を記載しますが、すべての Admin view model が永続的に versioning された外部 SDK であるかのようには扱いません。

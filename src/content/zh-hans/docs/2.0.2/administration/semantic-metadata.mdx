@@ -1,6 +1,6 @@
 ---
 title: 语义元数据
-description: 在 hs-sql-agent 2.0.1 中使用表/列语义、关系和指标元数据增强数据库发现。
+description: 在 hs-sql-agent 2.0.2 中使用表/列语义、关系和指标元数据增强数据库发现。
 sidebar:
   group: 管理
   order: 76
@@ -63,10 +63,10 @@ import DocCard from "@/components/docs/mdx/DocCard.astro";
 | `Grain` | 可选粒度元数据 |
 | `Filter` | 可选过滤条件元数据 |
 | `Synonyms` | 指标的其他称呼 |
-| `Executable` | 2.0.1 模型中固定为 `false` |
+| `Executable` | 2.0.2 模型中固定为 `false` |
 
 <Callout type="warning" title="指标是元数据，不是执行绕过机制">
-2.0.1 语义指标模型把 `Executable` 设为 false。指标说明可以帮助 Agent 理解 schema 含义，但不会变成可执行 SQL 宏，也不会绕过 SQL 编译器或授权流水线。
+2.0.2 语义指标模型把 `Executable` 设为 false。指标说明可以帮助 Agent 理解 schema 含义，但不会变成可执行 SQL 宏，也不会绕过 SQL 编译器或授权流水线。
 </Callout>
 
 ## MCP schema discovery 如何使用语义信息
@@ -83,7 +83,7 @@ import DocCard from "@/components/docs/mdx/DocCard.astro";
 
 ## Admin API 接口
 
-2.0.1 Admin API 在 `api/DbSemantic` 下提供语义管理：
+2.0.2 Admin API 在 `api/DbSemantic` 下提供语义管理：
 
 | 操作 | 权限 |
 | --- | --- |
@@ -95,7 +95,7 @@ import DocCard from "@/components/docs/mdx/DocCard.astro";
 | upsert/删除指标 | `/runtime/db-management/semantic` → `edit` |
 
 <Callout type="info" title="这是管理功能，不是第六个内置 MCP 工具">
-2.0.1 正式 MCP 密钥工具面是 MCP Tools Reference 中列出的 5 个内置工具，加上已发布 Custom Tools。语义元数据通过管理控制平面维护，由 schema discovery 消费，不作为额外的正式内置 MCP 契约。
+2.0.2 正式 MCP 密钥工具面是 MCP Tools Reference 中列出的 5 个内置工具，加上已发布 Custom Tools。语义元数据通过管理控制平面维护，由 schema discovery 消费，不作为额外的正式内置 MCP 契约。
 </Callout>
 
 ## 建模建议

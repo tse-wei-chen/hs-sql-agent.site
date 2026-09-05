@@ -1,6 +1,6 @@
 ---
 title: MCP Tools Reference
-description: Formal hs-sql-agent 2.0.1 built-in MCP tool contracts, parameters, responses, authorization, and risk boundaries.
+description: Formal hs-sql-agent 2.0.2 built-in MCP tool contracts, parameters, responses, authorization, and risk boundaries.
 sidebar:
   group: MCP
   order: 35
@@ -17,7 +17,7 @@ import Flow from "@/components/docs/mdx/Flow.astro";
   <DocCard title="Safe DML" icon="DML" badge="approval" description="execute_dml_sql accepts supported mutations only through preview, Elicitation, and commit-time revalidation." />
 </CardGrid>
 
-The **formal 2.0.1 built-in tool surface managed by MCP keys** contains exactly five tool names:
+The **formal 2.0.2 built-in tool surface managed by MCP keys** contains exactly five tool names:
 
 | Tool | Public input | Result shape | Risk |
 | --- | --- | --- | --- |
@@ -87,7 +87,7 @@ get_columns(schemaName: string, tableName: string)
 
 The server first checks that the requested qualified table is allowed by the MCP key. It then reads provider column metadata and serializes a JSON array.
 
-Each 2.0.1 `ColumnInfo` object exposes these properties:
+Each 2.0.2 `ColumnInfo` object exposes these properties:
 
 | Property | Meaning |
 | --- | --- |
@@ -108,7 +108,7 @@ Semantic enrichment can add display names, descriptions, synonyms, and relations
 execute_query_sql(sql: string)
 ```
 
-Accepts **one `SELECT` SQL statement**. The public 2.0.1 description explicitly calls out common query forms including JOIN, WHERE, GROUP BY, HAVING, ORDER BY, LIMIT/OFFSET, DISTINCT, CTEs, subqueries, and UNION/INTERSECT/EXCEPT.
+Accepts **one `SELECT` SQL statement**. The public 2.0.2 description explicitly calls out common query forms including JOIN, WHERE, GROUP BY, HAVING, ORDER BY, LIMIT/OFFSET, DISTINCT, CTEs, subqueries, and UNION/INTERSECT/EXCEPT.
 
 <Flow items={["Parse", "Bind", "Authorize tables", "Validate policy", "Compile immutable command", "Execute"]} caption="Raw SQL does not go straight to the provider." />
 
@@ -138,14 +138,14 @@ execute_dml_sql(sql: string)
 
 The MCP-visible input is SQL. The `McpServer` and cancellation token used by the .NET method are runtime-injected infrastructure, not fields an agent supplies.
 
-Supported statement classes in the 2.0.1 MCP DML path are:
+Supported statement classes in the 2.0.2 MCP DML path are:
 
 | Statement | Status |
 | --- | --- |
 | `UPDATE` | supported when parse, capability, policy, and approval requirements pass |
 | `DELETE` | supported when parse, capability, policy, and approval requirements pass |
 | `INSERT ... VALUES` | supported with immutable-payload approval semantics |
-| `INSERT ... SELECT` | rejected fail-closed in 2.0.1 |
+| `INSERT ... SELECT` | rejected fail-closed in 2.0.2 |
 
 <Flow items={["Parse + verify profile", "Compile mutation", "Preview exact impact", "Human Elicitation", "Transaction revalidation", "Commit"]} caption="Approval is tied to the validated mutation context, not merely to the original SQL text." />
 
@@ -181,6 +181,6 @@ See [Custom Tools](/en/docs/administration/custom-tools).
 
 ## Semantic metadata is not documented as a sixth built-in
 
-The 2.0.1 repository contains semantic-management implementation details, but the formal MCP key built-in registry and Admin key-management surface recognize the five tools listed on this page. Official 2.0.1 documentation therefore treats semantic metadata as an **Admin/control-plane capability consumed by schema discovery**, not as an additional formal built-in MCP contract.
+The 2.0.2 repository contains semantic-management implementation details, but the formal MCP key built-in registry and Admin key-management surface recognize the five tools listed on this page. Official 2.0.2 documentation therefore treats semantic metadata as an **Admin/control-plane capability consumed by schema discovery**, not as an additional formal built-in MCP contract.
 
 See [Semantic Metadata](/en/docs/administration/semantic-metadata).

@@ -1,6 +1,6 @@
 ---
 title: MCP 密钥
-description: 在 hs-sql-agent 2.0.1 中签发、限制、轮换、复制和撤销 MCP 凭据。
+description: 在 hs-sql-agent 2.0.2 中签发、限制、轮换、复制和撤销 MCP 凭据。
 sidebar:
   group: 管理
   order: 74
@@ -20,7 +20,7 @@ import Step from "@/components/docs/mdx/Step.astro";
 
 MCP 密钥用于验证 `/mcp` 请求，并携带 hs-sql-agent 运行时授权使用的访问范围。它们与管理用户会话和 OIDC 身份彼此独立。
 
-## 2.0.1 正式内置工具范围
+## 2.0.2 正式内置工具范围
 
 密钥管理服务识别 5 个内置工具：
 
@@ -42,7 +42,7 @@ MCP 密钥用于验证 `/mcp` 请求，并携带 hs-sql-agent 运行时授权使
 
 <Steps>
   <Step title="填写名称" description="名称不能为空，最长 100 个字符。" />
-  <Step title="绑定数据库" description="2.0.1 的签发校验要求提供 DbManagementId。" />
+  <Step title="绑定数据库" description="2.0.2 的签发校验要求提供 DbManagementId。" />
   <Step title="选择工具" description="选择内置工具以及该数据库中已发布的 Custom Tools。" />
   <Step title="限制数据访问" description="当客户端只应看到绑定数据库的一部分时，启用表白名单。" />
   <Step title="设置生命周期控制" description="可选配置过期时间、CORS origin 和限流模式/覆盖值。" />

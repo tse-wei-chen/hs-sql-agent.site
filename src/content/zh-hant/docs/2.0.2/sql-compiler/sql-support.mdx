@@ -1,14 +1,14 @@
 ---
 title: SQL 支援參考
-description: hs-sql-agent 2.0.1 的 SQL 語法與六種資料庫 capability 支援摘要。
+description: hs-sql-agent 2.0.2 的 SQL 語法與六種資料庫 capability 支援摘要。
 sidebar:
   group: SQL 編譯器
   order: 62
 ---
 
-hs-sql-agent 2.0.1 不會把各資料庫完整的 SQL 語法直接視為可信任輸入。SQL 必須先能由 F# parser 表示、通過來源語意驗證、證明需要的 capability，並由對應 provider 執行階段編譯成不可變命令後才會執行。
+hs-sql-agent 2.0.2 不會把各資料庫完整的 SQL 語法直接視為可信任輸入。SQL 必須先能由 F# parser 表示、通過來源語意驗證、證明需要的 capability，並由對應 provider 執行階段編譯成不可變命令後才會執行。
 
-本頁是 2.0.1 契約的易讀摘要。真正的權威仍是編譯器：不支援或需要特定執行階段 profile 的語法會以 fail-closed 方式拒絕，不會偷偷改寫成語意近似的另一段 SQL。
+本頁是 2.0.2 契約的易讀摘要。真正的權威仍是編譯器：不支援或需要特定執行階段 profile 的語法會以 fail-closed 方式拒絕，不會偷偷改寫成語意近似的另一段 SQL。
 
 ## Query 基礎範圍
 
@@ -31,12 +31,12 @@ hs-sql-agent 2.0.1 不會把各資料庫完整的 SQL 語法直接視為可信�
 
 `execute_dml_sql` 接受單一受支援的資料修改，並且一律走 Safe DML 核准流程。
 
-| Statement | 2.0.1 MCP DML 狀態 | 核准模型 |
+| Statement | 2.0.2 MCP DML 狀態 | 核准模型 |
 | --- | --- | --- |
 | `UPDATE` | 解析與 provider capability 合法時支援 | 預覽受影響資料列，把核准綁定到精確主鍵資料列集合，並在提交交易中再次驗證 |
 | `DELETE` | 解析與 provider capability 合法時支援 | 預覽受影響資料列，把核准綁定到精確主鍵資料列集合，並在提交交易中再次驗證 |
 | `INSERT ... VALUES` | 解析與 provider capability 合法時支援 | 核准綁定不可變 literal payload 與 compiled command，提交時驗證已核准 payload 的資料列數 |
-| `INSERT ... SELECT` | 拒絕 | 2.0.1 尚未定義來源資料列集合的核准語意，因此 fail closed |
+| `INSERT ... SELECT` | 拒絕 | 2.0.2 尚未定義來源資料列集合的核准語意，因此 fail closed |
 
 完整流程請見 [Safe DML](/zh-hant/docs/sql-compiler/safe-dml)。
 
@@ -52,7 +52,7 @@ SQL Core 對 PostgreSQL、MySQL、SQL Server、Oracle、SQLite、Firebird 都有
 
 ## 重要 provider 差異
 
-下表整理 2.0.1 幾個重要差異；它不是 `CapabilityMatrix.fs` 全部 capability ID 的完整清單。
+下表整理 2.0.2 幾個重要差異；它不是 `CapabilityMatrix.fs` 全部 capability ID 的完整清單。
 
 | Capability | PostgreSQL | MySQL | SQL Server | Oracle | SQLite | Firebird |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -69,7 +69,7 @@ SQL Core 具有 `RETURNING` 或 upsert capability，不代表可以繞過 MCP Sa
 
 ## JSON capabilities
 
-2.0.1 capability matrix 對 PostgreSQL、MySQL、SQLite 宣告可攜式 JSON extraction lowering。Canonical JSON-set mutation contract 則宣告於 PostgreSQL、MySQL、SQLite、SQL Server。
+2.0.2 capability matrix 對 PostgreSQL、MySQL、SQLite 宣告可攜式 JSON extraction lowering。Canonical JSON-set mutation contract 則宣告於 PostgreSQL、MySQL、SQLite、SQL Server。
 
 PostgreSQL 原生的 `->` / `->>` operator 因 JSON 與文字結果語意具有 provider-specific 差異，因此使用獨立模型；它不會被任意跨 provider lowering，而且 PostgreSQL 目標版本必須符合宣告條件。
 
@@ -81,26 +81,26 @@ Aggregate `FILTER` 明確受執行階段版本限制：
 - SQLite 需要明確的 3.30+ server profile。
 - Firebird 需要明確的 4.0+ server profile。
 - Oracle 需要 26ai / 26.0+ profile，而且 Core 在 Oracle lowering 前還會拒絕包含 subquery、window function 或 outer reference 的 FILTER predicate。
-- MySQL 與 SQL Server 在 2.0.1 沒有宣告可攜式 target contract。
+- MySQL 與 SQL Server 在 2.0.2 沒有宣告可攜式 target contract。
 
 這正是「資料庫本身能執行」仍不足以代表 hs-sql-agent 應該接受該 SQL 的例子。
 
 ## JOIN 版本條件
 
-SQLite `RIGHT JOIN` 與 `FULL JOIN` 需要 target capability profile 明確為 SQLite 3.39+。MySQL 的 `FULL JOIN` 在 2.0.1 capability matrix 中仍是 rejected。
+SQLite `RIGHT JOIN` 與 `FULL JOIN` 需要 target capability profile 明確為 SQLite 3.39+。MySQL 的 `FULL JOIN` 在 2.0.2 capability matrix 中仍是 rejected。
 
 無法證明目標契約時，依賴這些能力的查詢會在執行前被拒絕。
 
 ## DML `RETURNING` 與 upsert
 
-2.0.1 target contracts 包含：
+2.0.2 target contracts 包含：
 
 - PostgreSQL `RETURNING` 與 upsert lowering；
 - SQLite 在明確 3.35+ profile 下的 `RETURNING`；
 - Firebird 在明確 5.0+ profile 下的 `RETURNING`；
 - PostgreSQL 與 SQLite 3.24+ 的 upsert contract。
 
-其他 provider 目標對這些 canonical capability，在 2.0.1 matrix 中維持 rejected。
+其他 provider 目標對這些 canonical capability，在 2.0.2 matrix 中維持 rejected。
 
 ## Fail-closed 診斷
 
@@ -110,6 +110,6 @@ Capability failure 不是一般資料庫執行錯誤。SQL Core 會區分 source
 
 ## 本頁不保證的內容
 
-本頁不宣稱每個 function name、operator spelling、CAST target、JSON path、window frame 或 vendor extension 都已支援。2.0.1 capability matrix 比單一文件表格更細，而且包含執行階段版本條件。
+本頁不宣稱每個 function name、operator spelling、CAST target、JSON path、window frame 或 vendor extension 都已支援。2.0.2 capability matrix 比單一文件表格更細，而且包含執行階段版本條件。
 
 MCP 用戶端請搭配 [MCP 工具參考](/zh-hant/docs/mcp/tools-reference) 查看公開工具契約；實際編譯器是否接受，才是最終的 SQL 支援邊界。

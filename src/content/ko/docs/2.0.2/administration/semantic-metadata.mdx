@@ -1,6 +1,6 @@
 ---
 title: Semantic Metadata
-description: hs-sql-agent 2.0.1에서 테이블/컬럼 의미, 관계, 지표 메타데이터로 데이터베이스 탐색 정보를 보강합니다.
+description: hs-sql-agent 2.0.2에서 테이블/컬럼 의미, 관계, 지표 메타데이터로 데이터베이스 탐색 정보를 보강합니다.
 sidebar:
   group: 관리
   order: 76
@@ -63,10 +63,10 @@ Metric metadata는 테이블 범위의 비즈니스 measure를 설명할 수 있
 | `Grain` | 선택적 grain metadata |
 | `Filter` | 선택적 filter metadata |
 | `Synonyms` | metric의 대체 용어 |
-| `Executable` | 2.0.1 모델에서는 `false` |
+| `Executable` | 2.0.2 모델에서는 `false` |
 
 <Callout type="warning" title="Metric은 metadata이지 실행 우회 수단이 아닙니다">
-2.0.1 semantic metric model의 `Executable`은 false입니다. Metric 설명은 에이전트가 schema 의미를 이해하도록 도울 수 있지만 실행 가능한 SQL macro가 되지 않으며 SQL compiler나 authorization pipeline을 우회하지 않습니다.
+2.0.2 semantic metric model의 `Executable`은 false입니다. Metric 설명은 에이전트가 schema 의미를 이해하도록 도울 수 있지만 실행 가능한 SQL macro가 되지 않으며 SQL compiler나 authorization pipeline을 우회하지 않습니다.
 </Callout>
 
 ## MCP schema discovery에서의 활용
@@ -83,7 +83,7 @@ Metric metadata는 테이블 범위의 비즈니스 measure를 설명할 수 있
 
 ## Admin API 표면
 
-2.0.1 Admin API는 `api/DbSemantic` 아래에서 semantic management를 제공합니다.
+2.0.2 Admin API는 `api/DbSemantic` 아래에서 semantic management를 제공합니다.
 
 | 작업 | 권한 |
 | --- | --- |
@@ -95,7 +95,7 @@ Metric metadata는 테이블 범위의 비즈니스 measure를 설명할 수 있
 | metric upsert/delete | `/runtime/db-management/semantic` → `edit` |
 
 <Callout type="info" title="이 기능을 여섯 번째 공식 내장 MCP tool로 문서화하지 않습니다">
-2.0.1의 공식 MCP key tool surface는 MCP Tools Reference에 나오는 다섯 개 내장 도구와 게시된 Custom Tool입니다. Semantic metadata는 Admin 제어 평면에서 관리하고 schema discovery가 소비합니다.
+2.0.2의 공식 MCP key tool surface는 MCP Tools Reference에 나오는 다섯 개 내장 도구와 게시된 Custom Tool입니다. Semantic metadata는 Admin 제어 평면에서 관리하고 schema discovery가 소비합니다.
 </Callout>
 
 ## 모델링 지침

@@ -19,23 +19,23 @@ The site is organized by user journey and product capability so URLs can remain 
 
 ## Content-source rule
 
-Migration is source-driven. Content may be rewritten, split, merged, or presented through reusable MDX components, but factual behavior must be traceable to the matching hs-sql-agent source/release (README, source code, checked-in guides, configuration examples, or the legacy Wiki where appropriate).
+Migration is source-driven. Content may be rewritten, split, merged, or presented through reusable MDX components, but factual behavior must be traceable to the matching immutable hs-sql-agent release tag.
 
-For version-specific documentation, prefer the corresponding product tag. The `2.0.1` baseline should describe behavior supported by `v2.0.1`, not silently inherit later `main` behavior.
+The currently published baseline is **2.0.2**, and its runtime claims must be supported by product tag `v2.0.2`. Do not silently import behavior from product `main`, because `main` can contain post-release or unreleased changes.
 
-If a legacy Wiki page cannot be retrieved reliably, do not invent its details. Migrate the parts that can be verified from the product repository first, then fill remaining sections when authoritative source material is available.
+If a legacy Wiki page cannot be retrieved reliably, do not invent its details. Migrate the parts that can be verified from the product repository first, then fill remaining sections when authoritative source material is available. See `CONTENT_SOURCES.md` for the claim/source hierarchy.
 
 ## Documentation version rule
 
-Documentation versioning starts at **2.0.1**. Earlier versions are intentionally not published by this site.
+This site's published documentation history starts at **2.0.2**. Earlier product releases are intentionally not published as version trees here.
 
-`2.0.1` is the first complete baseline under:
+The current baseline lives under:
 
 ```text
-src/content/<locale>/docs/2.0.1/
+src/content/<locale>/docs/2.0.2/
 ```
 
-Future versions are deltas, not full copies. Version metadata and parent relationships live in `src/data/docsVersions.ts`. If `2.1.0` inherits from `2.0.1`, only pages that changed in 2.1.0 should be added under `docs/2.1.0/`; every other page resolves from the parent baseline.
+Future versions are deltas, not full copies. Version metadata and parent relationships live in `src/data/docsVersions.ts`. If `2.1.0` inherits from `2.0.2`, only pages that changed in 2.1.0 should be added under `docs/2.1.0/`; every other page resolves from the parent baseline.
 
 A version manifest may declare:
 
@@ -46,6 +46,8 @@ A version manifest may declare:
 Do not put `version` or inheritance metadata in individual MDX frontmatter.
 
 Public `/docs/*` URLs always represent the configured current version. `/docs/<version>/*` URLs are immutable version-specific routes. This separation lets external links target latest documentation while preserving stable historical documentation once a newer version becomes current.
+
+A version bump is not a text replacement. Before publishing a new documentation version, compare the previous and new product tags and audit the changed public surfaces. Only then update the affected semantics and propagate them across locales. Historical from/to versions in upgrade guides must remain explicit.
 
 ## MDX and theme boundary
 

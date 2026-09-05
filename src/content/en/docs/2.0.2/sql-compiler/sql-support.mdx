@@ -1,14 +1,14 @@
 ---
 title: SQL Support Reference
-description: Human-readable SQL grammar and provider capability summary for hs-sql-agent 2.0.1.
+description: Human-readable SQL grammar and provider capability summary for hs-sql-agent 2.0.2.
 sidebar:
   group: SQL Compiler
   order: 62
 ---
 
-hs-sql-agent 2.0.1 does not treat a database provider's full SQL grammar as automatically trusted input. SQL is accepted only when the F# parser can represent the statement, source semantics validate, required capabilities are proven, and the provider runtime can compile the resulting immutable command.
+hs-sql-agent 2.0.2 does not treat a database provider's full SQL grammar as automatically trusted input. SQL is accepted only when the F# parser can represent the statement, source semantics validate, required capabilities are proven, and the provider runtime can compile the resulting immutable command.
 
-This page summarizes the 2.0.1 contract. The compiler remains authoritative: an unsupported or version-gated construct fails closed rather than being approximated silently.
+This page summarizes the 2.0.2 contract. The compiler remains authoritative: an unsupported or version-gated construct fails closed rather than being approximated silently.
 
 ## Query baseline
 
@@ -31,12 +31,12 @@ Nested expressions, functions, window expressions, casts, operators, temporal va
 
 `execute_dml_sql` accepts one supported mutation and routes it through Safe DML approval.
 
-| Statement | 2.0.1 MCP DML status | Approval model |
+| Statement | 2.0.2 MCP DML status | Approval model |
 | --- | --- | --- |
 | `UPDATE` | Supported when the parsed/provider capabilities are valid | Preview affected rows, bind approval to the exact primary-key row set, revalidate in the commit transaction |
 | `DELETE` | Supported when the parsed/provider capabilities are valid | Preview affected rows, bind approval to the exact primary-key row set, revalidate in the commit transaction |
 | `INSERT ... VALUES` | Supported when the parsed/provider capabilities are valid | Bind approval to the immutable literal payload and compiled command, verify approved payload row count at commit |
-| `INSERT ... SELECT` | Rejected | Source-rowset approval semantics are not defined in 2.0.1, so the runtime fails closed |
+| `INSERT ... SELECT` | Rejected | Source-rowset approval semantics are not defined in 2.0.2, so the runtime fails closed |
 
 See [Safe DML](/en/docs/sql-compiler/safe-dml) for the complete approval protocol.
 
@@ -52,7 +52,7 @@ Some capabilities also depend on the target server version or SQL Server compati
 
 ## Selected provider differences
 
-The table below highlights important 2.0.1 differences. It is intentionally a summary, not a dump of every capability ID in `CapabilityMatrix.fs`.
+The table below highlights important 2.0.2 differences. It is intentionally a summary, not a dump of every capability ID in `CapabilityMatrix.fs`.
 
 | Capability | PostgreSQL | MySQL | SQL Server | Oracle | SQLite | Firebird |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -69,7 +69,7 @@ The table below highlights important 2.0.1 differences. It is intentionally a su
 
 ## JSON capabilities
 
-The 2.0.1 capability matrix declares a portable JSON extraction lowering for PostgreSQL, MySQL, and SQLite. JSON mutation via the canonical JSON-set contract is declared for PostgreSQL, MySQL, SQLite, and SQL Server.
+The 2.0.2 capability matrix declares a portable JSON extraction lowering for PostgreSQL, MySQL, and SQLite. JSON mutation via the canonical JSON-set contract is declared for PostgreSQL, MySQL, SQLite, and SQL Server.
 
 PostgreSQL native `->` / `->>` operators are modeled separately because their JSON-versus-text result semantics are provider-specific. They remain fail-closed for cross-provider lowering and require a PostgreSQL target that satisfies the declared version contract.
 
@@ -81,26 +81,26 @@ Aggregate `FILTER` is deliberately version-sensitive:
 - SQLite requires an explicit server profile of 3.30 or newer.
 - Firebird requires an explicit server profile of 4.0 or newer.
 - Oracle requires a 26ai/26.0+ profile and Core additionally rejects filter predicates containing subqueries, window functions, or outer references before Oracle lowering.
-- MySQL and SQL Server have no declared 2.0.1 portable target contract for this capability.
+- MySQL and SQL Server have no declared 2.0.2 portable target contract for this capability.
 
 This is an example of why "the vendor can execute this SQL" is not sufficient for hs-sql-agent to accept it.
 
 ## Join version gates
 
-SQLite `RIGHT JOIN` and `FULL JOIN` require SQLite 3.39 or newer in the target capability profile. `FULL JOIN` remains rejected for MySQL in the 2.0.1 capability matrix.
+SQLite `RIGHT JOIN` and `FULL JOIN` require SQLite 3.39 or newer in the target capability profile. `FULL JOIN` remains rejected for MySQL in the 2.0.2 capability matrix.
 
 A query that depends on one of these capabilities is rejected when the required target contract cannot be proven.
 
 ## DML returning and upsert
 
-The 2.0.1 target contracts include:
+The 2.0.2 target contracts include:
 
 - PostgreSQL `RETURNING` and upsert lowering;
 - SQLite `RETURNING` with an explicit 3.35+ target profile;
 - Firebird `RETURNING` with an explicit 5.0+ target profile;
 - PostgreSQL and SQLite 3.24+ upsert contracts.
 
-Other provider targets remain rejected for these canonical capabilities in the 2.0.1 matrix.
+Other provider targets remain rejected for these canonical capabilities in the 2.0.2 matrix.
 
 ## Fail-closed diagnostics
 
@@ -110,6 +110,6 @@ Operationally, treat these errors as a request to change the SQL shape or use a 
 
 ## What this reference does not promise
 
-This page does not promise every function name, operator spelling, cast target, JSON path form, window frame, or vendor extension. The 2.0.1 capability matrix is significantly more detailed than a single documentation table and includes runtime-version gates.
+This page does not promise every function name, operator spelling, cast target, JSON path form, window frame, or vendor extension. The 2.0.2 capability matrix is significantly more detailed than a single documentation table and includes runtime-version gates.
 
 For MCP clients, use [MCP Tools Reference](/en/docs/mcp/tools-reference) for the public tool contract, and treat actual compiler acceptance as the final bounded SQL contract.

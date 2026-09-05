@@ -1,6 +1,6 @@
 ---
 title: Mitglieder und Rollen
-description: Admin-Benutzer, Sitzungen, Rollenzuweisungen und den Rollenlebenszyklus in hs-sql-agent 2.0.1 verwalten.
+description: Admin-Benutzer, Sitzungen, Rollenzuweisungen und den Rollenlebenszyklus in hs-sql-agent 2.0.2 verwalten.
 sidebar:
   group: Administration
   order: 78
@@ -25,7 +25,7 @@ Admin-Mitglieder sind Identitäten für die **Steuerungsebene**. Sie sind von MC
 
 Ein neues Mitglied benötigt eine gültige E-Mail-Adresse und ein Passwort mit mindestens 8 Zeichen. Der Benutzername ist optional und auf 100 Zeichen begrenzt. Beim Anlegen können konkrete Rollen-IDs oder alle Rollen zugewiesen werden.
 
-Die Mitgliederliste lässt sich nach Suchtext, Aktivstatus und Rolle filtern und wird paginiert. Die Ansicht in 2.0.1 zeigt Kontostatus, Erstellungs- und letzte Anmeldezeit, Anzahl aktiver Sitzungen sowie aktuelle Rollen-IDs und -namen.
+Die Mitgliederliste lässt sich nach Suchtext, Aktivstatus und Rolle filtern und wird paginiert. Die Ansicht in 2.0.2 zeigt Kontostatus, Erstellungs- und letzte Anmeldezeit, Anzahl aktiver Sitzungen sowie aktuelle Rollen-IDs und -namen.
 
 ## Administrative Aktionen für Mitglieder
 
@@ -40,7 +40,7 @@ Die Mitgliederliste lässt sich nach Suchtext, Aktivstatus und Rolle filtern und
 | Mitglied löschen | `/auth/user` → `delete` | das eigene Konto kann nicht gelöscht werden |
 
 <Callout type="warning" title="Selbstaussperrung wird verhindert">
-Der Controller in 2.0.1 verhindert ausdrücklich, dass Administratoren über diese Verwaltungsendpunkte ihre eigenen Rollen ändern, ihr eigenes Konto deaktivieren oder ihren eigenen Mitgliedsdatensatz löschen.
+Der Controller in 2.0.2 verhindert ausdrücklich, dass Administratoren über diese Verwaltungsendpunkte ihre eigenen Rollen ändern, ihr eigenes Konto deaktivieren oder ihren eigenen Mitgliedsdatensatz löschen.
 </Callout>
 
 ## Rollen
@@ -51,7 +51,7 @@ Die integrierte Rolle `SuperUser` ist geschützt. Sie kann weder geändert noch 
 
 ## Rollenänderungen ändern die aktive Autorisierung
 
-Wenn sich die Berechtigungen einer Rolle ändern, ermittelt 2.0.1 die zugewiesenen Mitglieder, erhöht deren Security Version und führt die Änderung über die Cache-Barriere für Auth-Laufzeitzustand aus. Dadurch soll verhindert werden, dass eine bereits authentifizierte Sitzung unbegrenzt mit veralteten Rollenrechten weiterläuft.
+Wenn sich die Berechtigungen einer Rolle ändern, ermittelt 2.0.2 die zugewiesenen Mitglieder, erhöht deren Security Version und führt die Änderung über die Cache-Barriere für Auth-Laufzeitzustand aus. Dadurch soll verhindert werden, dass eine bereits authentifizierte Sitzung unbegrenzt mit veralteten Rollenrechten weiterläuft.
 
 Dasselbe Prinzip gilt, wenn eine zugewiesene Rolle entfernt wird.
 

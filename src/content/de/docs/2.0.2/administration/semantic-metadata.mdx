@@ -1,6 +1,6 @@
 ---
 title: Semantische Metadaten
-description: Datenbank-Ermittlung in hs-sql-agent 2.0.1 um Bedeutungen von Tabellen und Spalten, Beziehungen und Metrik-Metadaten ergänzen.
+description: Datenbank-Ermittlung in hs-sql-agent 2.0.2 um Bedeutungen von Tabellen und Spalten, Beziehungen und Metrik-Metadaten ergänzen.
 sidebar:
   group: Administration
   order: 76
@@ -63,10 +63,10 @@ Metrik-Metadaten sind an eine Tabelle gebunden und können ein fachliches Maß b
 | `Grain` | Optionale Grain-Metadaten |
 | `Filter` | Optionale Filter-Metadaten |
 | `Synonyms` | Alternative Bezeichnungen für die Metrik |
-| `Executable` | im Modell 2.0.1 `false` |
+| `Executable` | im Modell 2.0.2 `false` |
 
 <Callout type="warning" title="Metriken sind Metadaten, kein Ausführungs-Bypass">
-Im semantischen Metrikmodell von 2.0.1 ist `Executable` auf `false` gesetzt. Eine Metrikbeschreibung kann einem Agent helfen, die Bedeutung des Schemas zu verstehen, wird aber weder zu einem ausführbaren SQL-Makro noch umgeht sie Compiler oder Autorisierung.
+Im semantischen Metrikmodell von 2.0.2 ist `Executable` auf `false` gesetzt. Eine Metrikbeschreibung kann einem Agent helfen, die Bedeutung des Schemas zu verstehen, wird aber weder zu einem ausführbaren SQL-Makro noch umgeht sie Compiler oder Autorisierung.
 </Callout>
 
 ## Nutzung durch MCP-Schema-Ermittlung
@@ -83,7 +83,7 @@ Semantische Metadaten erweitern damit die Beschreibung, nicht die Zugriffsrechte
 
 ## Admin-API-Oberfläche
 
-Die Admin API von 2.0.1 verwaltet Semantik unter `api/DbSemantic`:
+Die Admin API von 2.0.2 verwaltet Semantik unter `api/DbSemantic`:
 
 | Operation | Berechtigung |
 | --- | --- |
@@ -95,7 +95,7 @@ Die Admin API von 2.0.1 verwaltet Semantik unter `api/DbSemantic`:
 | Metrik anlegen/aktualisieren/löschen | `/runtime/db-management/semantic` → `edit` |
 
 <Callout type="info" title="Admin-Funktion, kein sechstes integriertes MCP-Tool">
-Für die Dokumentation zu 2.0.1 besteht die formale Tool-Oberfläche aus den fünf integrierten Tools der MCP Tools Reference plus veröffentlichten Custom Tools. Semantische Metadaten werden über die Admin-Steuerung verwaltet und von der Schema-Ermittlung genutzt.
+Für die Dokumentation zu 2.0.2 besteht die formale Tool-Oberfläche aus den fünf integrierten Tools der MCP Tools Reference plus veröffentlichten Custom Tools. Semantische Metadaten werden über die Admin-Steuerung verwaltet und von der Schema-Ermittlung genutzt.
 </Callout>
 
 ## Modellierungsempfehlungen

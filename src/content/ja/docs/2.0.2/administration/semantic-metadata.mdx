@@ -1,6 +1,6 @@
 ---
 title: セマンティックメタデータ
-description: hs-sql-agent 2.0.1 で、テーブル／カラムの意味、リレーション、メトリクスメタデータを使ってデータベース探索を補強します。
+description: hs-sql-agent 2.0.2 で、テーブル／カラムの意味、リレーション、メトリクスメタデータを使ってデータベース探索を補強します。
 sidebar:
   group: 管理
   order: 76
@@ -63,10 +63,10 @@ import DocCard from "@/components/docs/mdx/DocCard.astro";
 | `Grain` | 任意の grain メタデータ |
 | `Filter` | 任意の filter メタデータ |
 | `Synonyms` | メトリクスの別名 |
-| `Executable` | 2.0.1 モデルでは `false` |
+| `Executable` | 2.0.2 モデルでは `false` |
 
 <Callout type="warning" title="メトリクスはメタデータであり、実行経路を迂回するものではありません">
-2.0.1 のセマンティックメトリクスモデルでは `Executable` は false です。メトリクスの説明はエージェントがスキーマの意味を理解する助けになりますが、実行可能な SQL マクロになるわけではなく、SQL コンパイラや認可パイプラインも迂回しません。
+2.0.2 のセマンティックメトリクスモデルでは `Executable` は false です。メトリクスの説明はエージェントがスキーマの意味を理解する助けになりますが、実行可能な SQL マクロになるわけではなく、SQL コンパイラや認可パイプラインも迂回しません。
 </Callout>
 
 ## MCP のスキーマ探索での利用方法
@@ -83,7 +83,7 @@ import DocCard from "@/components/docs/mdx/DocCard.astro";
 
 ## Admin API サーフェス
 
-2.0.1 の Admin API は `api/DbSemantic` 配下でセマンティック管理機能を公開します。
+2.0.2 の Admin API は `api/DbSemantic` 配下でセマンティック管理機能を公開します。
 
 | 操作 | 権限 |
 | --- | --- |
@@ -95,7 +95,7 @@ import DocCard from "@/components/docs/mdx/DocCard.astro";
 | メトリクスを upsert／削除 | `/runtime/db-management/semantic` → `edit` |
 
 <Callout type="info" title="これは管理機能であり、6 個目の組み込み MCP ツールではありません">
-2.0.1 の正式な MCP キーツールサーフェスは、MCP Tools Reference に記載された 5 つの組み込みツールと、公開済み Custom Tool です。セマンティックメタデータは管理コントロールプレーンから設定され、スキーマ探索で利用されます。
+2.0.2 の正式な MCP キーツールサーフェスは、MCP Tools Reference に記載された 5 つの組み込みツールと、公開済み Custom Tool です。セマンティックメタデータは管理コントロールプレーンから設定され、スキーマ探索で利用されます。
 </Callout>
 
 ## モデリングの指針

@@ -1,6 +1,6 @@
 ---
 title: MCP Keys
-description: Issue, scope, rotate, clone, and revoke MCP credentials in hs-sql-agent 2.0.1.
+description: Issue, scope, rotate, clone, and revoke MCP credentials in hs-sql-agent 2.0.2.
 sidebar:
   group: Administration
   order: 74
@@ -20,7 +20,7 @@ import Step from "@/components/docs/mdx/Step.astro";
 
 MCP keys authenticate `/mcp` requests and carry the runtime authorization scope used by hs-sql-agent. They are separate from Admin user sessions and OIDC identities.
 
-## Formal 2.0.1 built-in tool surface
+## Formal 2.0.2 built-in tool surface
 
 The key-management service recognizes five built-in tools:
 
@@ -42,7 +42,7 @@ The runtime treats an empty `AllowedTools` value as no tool-name restriction. Fo
 
 <Steps>
   <Step title="Choose a name" description="The request requires a non-empty name and limits it to 100 characters." />
-  <Step title="Bind a database" description="DbManagementId is required by the 2.0.1 issuance validator." />
+  <Step title="Bind a database" description="DbManagementId is required by the 2.0.2 issuance validator." />
   <Step title="Select tools" description="Choose built-in tools plus any published Custom Tools for that database." />
   <Step title="Restrict data access" description="Enable a table whitelist when the client should see only a subset of the bound database." />
   <Step title="Set lifecycle controls" description="Optionally configure expiration, CORS origins, and rate-limit mode/overrides." />

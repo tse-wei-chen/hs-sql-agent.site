@@ -1,6 +1,6 @@
 ---
 title: 审计
-description: 从管理控制平面查询、汇总、导出并保留 hs-sql-agent 2.0.1 审计记录。
+description: 从管理控制平面查询、汇总、导出并保留 hs-sql-agent 2.0.2 审计记录。
 sidebar:
   group: 管理
   order: 80
@@ -20,7 +20,7 @@ import DocCard from "@/components/docs/mdx/DocCard.astro";
 
 ## 审计记录结构
 
-2.0.1 的审计项可能包含：
+2.0.2 的审计项可能包含：
 
 | 范围 | 字段 |
 | --- | --- |
@@ -62,7 +62,7 @@ import DocCard from "@/components/docs/mdx/DocCard.astro";
 | 导出 CSV 或 JSON | `/runtime/audit` → `export` |
 | 保留 dry-run / 执行 | `/runtime/audit` → `edit` |
 
-导出端点接受 `format=csv` 或 `format=json`。2.0.1 会拒绝超过 100,000 行的结果集，而不是尝试无边界下载。
+导出端点接受 `format=csv` 或 `format=json`。2.0.2 会拒绝超过 100,000 行的结果集，而不是尝试无边界下载。
 
 <Callout type="info" title="CSV 导出会防护电子表格公式注入">
 以 `=`、`+`、`-`、`@` 等电子表格公式字符开头的 CSV 值会在导出时加前缀，降低管理员使用电子表格软件打开文件时的公式注入风险。
@@ -79,7 +79,7 @@ import DocCard from "@/components/docs/mdx/DocCard.astro";
 3. 确认模式和数据量符合预期。
 4. 审核后再执行保留操作。
 
-2.0.1 运行时支持的模式：
+2.0.2 运行时支持的模式：
 
 - `Archive` — 先把过期记录写入配置的归档路径，再从 Admin 数据库删除。
 - `Purge` — 不创建归档，直接删除过期记录。
