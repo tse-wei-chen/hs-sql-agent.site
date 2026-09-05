@@ -1,36 +1,36 @@
 ---
 title: Custom Tools
-description: 建立並 publish purpose-specific Query / DML MCP tool，同時保留 hs-sql-agent 的完整 policy boundary。
+description: 建立並發布特定用途的 Query / DML MCP 工具，同時保留 hs-sql-agent 的完整安全政策邊界。
 sidebar:
-  group: Administration
+  group: 管理
   order: 75
 ---
 
-Custom Tools 讓 operator 暴露具名、purpose-specific MCP operation，由已設定 SQL 支援，而不是每次都要求 client 從頭產生完整 statement。
+Custom Tools 讓管理者把特定用途的 SQL 操作包裝成具名 MCP 工具，由既有 SQL 定義驅動，不必讓用戶端每次都從頭產生完整 SQL 語句。
 
-Published tool 會依 authenticated MCP key 綁定的 database 解析。Server 讀取 published definition、依 declared arguments render SQL template，再根據 tool type 進入 typed query runtime 或 typed DML runtime。
+已發布的工具會依照目前驗證通過的 MCP 金鑰所綁定的資料庫解析。伺服器讀取已發布定義，依宣告的參數展開 SQL 範本，再根據工具類型送進型別化的查詢或 DML 執行流程。
 
-## Tool type
+## 工具類型
 
-目前 Custom Tool 有兩種 execution type：
+目前 Custom Tool 有兩種執行類型：
 
-- **Query** — 經 query compiler/runtime path 執行並回傳 serialized rows。
-- **DML** — rendered mutation 先進 typed DML runtime，再進入與 built-in mutation 相同的 DML approval flow。
+- **Query** — 經查詢編譯器與執行階段處理，回傳序列化後的資料列。
+- **DML** — 展開完成的資料修改 SQL 先進入型別化 DML 執行流程，再沿用和內建資料修改工具相同的 DML 核准流程。
 
-未知 tool type 直接拒絕。
+未知的工具類型會直接拒絕。
 
-## Publish 才代表可用
+## 只有發布後才可使用
 
-Runtime 只會為目前 MCP key 綁定的 database 找到 **published** tool。Admin Panel 裡存在、但尚未 publish 的定義，不會透過該 MCP tool name 提供給 client。
+執行階段只會在目前 MCP 金鑰綁定的資料庫中尋找**已發布**工具。即使某個定義已存在於管理介面，只要尚未發布，就不會以對應的 MCP 工具名稱提供給用戶端。
 
-因此 editing/review 與 active MCP surface 可以分開。
+因此，編輯與審查可以和實際對外開放的 MCP 工具集合分開進行。
 
-## Custom 不代表 ungoverned
+## Custom 不代表繞過治理
 
-Execution 前 proxy 先驗證 tool access 與 database binding。Query tool 使用目前 security policy、table whitelist 與 SQL concurrency limiter；DML tool 使用 typed DML parser 與 `TypedDmlApprovalFlow`，包含 table-whitelist resolution 與 human approval。
+執行前，proxy 會先驗證工具存取權與資料庫綁定。Query 工具仍套用目前的安全政策、資料表白名單與 SQL 並行執行限制；DML 工具則使用型別化 DML parser 與 `TypedDmlApprovalFlow`，包含資料表白名單解析與人工核准。
 
-Execution 同時寫入 audit event。換句話說，Custom Tool 是同一安全 boundary **裡面**的 reusable interface，不是繞過 boundary 的 escape hatch。
+每次執行也會寫入稽核事件。換句話說，Custom Tool 是同一安全邊界內的可重用介面，不是繞過安全邊界的捷徑。
 
-## MCP key exposure
+## MCP 金鑰可見範圍
 
-Custom tool name 可以跟 built-in tool name 一起放進 MCP key allowed-tool list。建議只暴露 client 真正需要的具名 tool，不要把整個 tool surface 保持 unrestricted。
+Custom Tool 名稱可以和內建工具名稱一起加入 MCP 金鑰的允許工具清單。建議只開放用戶端真正需要的具名工具，不要讓整個工具集合維持不受限制的狀態。

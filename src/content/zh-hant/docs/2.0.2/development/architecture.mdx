@@ -1,45 +1,45 @@
 ---
-title: 架構與 Contribution Flow
-description: 從 contributor 角度理解 backend、Admin frontend、文件網站與變更流程。
+title: 架構與貢獻流程
+description: 從貢獻者角度了解後端、管理前端、文件網站與變更流程。
 sidebar:
   group: 開發
   order: 130
 ---
 
-hs-sql-agent 目前可分成 backend、Admin frontend，以及獨立的 static product/documentation site。
+hs-sql-agent 目前可分為後端、管理介面前端，以及獨立的產品與文件網站。
 
-## Repository responsibility
+## 程式庫分工
 
 高層次來看：
 
-- `backend/`：server、SQL compiler/runtime modules、persistence 與 tests。
-- `frontend/`：embedded Nuxt Admin Panel。
-- `hs-sql-agent.site`：獨立 Astro product/documentation site。
+- `backend/`：伺服器、SQL 編譯器與執行階段模組、持久化層與測試。
+- `frontend/`：內嵌式 Nuxt 管理介面。
+- `hs-sql-agent.site`：獨立的 Astro 產品與文件網站。
 
-SQL compiler 含有 F# modules 與明確 rewrite/validation stage、capability-proof 概念。Server hosting 由 `HsSqlAgent.Server` 以 composable ASP.NET Core class library 形式提供：新整合從 `AddHsSqlAgentCore()` 開始，再選 Runtime、AdminStore、HostAuthorization 或 BuiltInAuth、AdminApi、MCP、Telemetry 等 capabilities。`AddHsSqlAgent()` / `UseHsSqlAgent()` 保留給既有 consumer 相容，不再是第一方推薦 integration model。
+SQL 編譯器以 F# 模組實作，包含明確的改寫與驗證階段，以及能力證明（capability proof）機制。伺服器掛載能力由 `HsSqlAgent.Server` 以可組合的 ASP.NET Core 類別庫提供：新的整合從 `AddHsSqlAgentCore()` 開始，再依需求選擇 Runtime、AdminStore、HostAuthorization 或 BuiltInAuth、AdminApi、MCP、Telemetry 等模組。`AddHsSqlAgent()` / `UseHsSqlAgent()` 則保留給既有使用者維持相容性，不再是第一方建議的新整合方式。
 
-## Contribution flow
+## 貢獻流程
 
-Main repository contribution guide 要求 contributor：
+主程式庫的貢獻指南要求貢獻者：
 
-1. Fork repository。
-2. 實作 focused change，補上需要的 test 或 docs。
-3. Local run 並確認 tests。
-4. 開 Pull Request，說明 motivation、change 與 testing evidence。
+1. Fork 程式庫。
+2. 實作聚焦的變更，並補上必要的測試或文件。
+3. 在本機執行並確認相關測試通過。
+4. 建立 Pull Request，說明變更動機、修改內容與測試證據。
 
-讓一個 PR 聚焦在單一 task，通常更容易 review / merge。
+讓一個 PR 聚焦在單一任務，通常更容易審查與合併。
 
-## Documentation change
+## 文件變更
 
-Docs 應描述 current code behavior，而不是尚未實作的預期功能。
+文件應描述目前程式碼真正具備的行為，而不是尚未實作的預期功能。
 
-SQL capability、DML safety、MCP compatibility、hosting config、Admin behavior 或 deployment requirement 改變時，應同步更新對應 docs。
+當 SQL 功能支援、DML 安全機制、MCP 相容性、host 設定、管理介面行為或部署需求改變時，應同步更新對應文件。
 
-Site 使用 path-based locale 與 documentation version：
+網站以 URL 路徑區分語系，並在文件路徑中保留版本號：
 
 ```text
 src/content/en/docs/<version>/<section>/<slug>.mdx
 src/content/zh-hant/docs/<version>/<section>/<slug>.mdx
 ```
 
-兩種語言刻意共用相同 version/section/slug，再由 locale-prefixed route 隔離。目前完整 documentation baseline 為 2.0.2。
+各語系刻意共用相同的 version/section/slug 結構，再由語系前綴隔離路由。目前完整文件基準版本為 2.0.2。

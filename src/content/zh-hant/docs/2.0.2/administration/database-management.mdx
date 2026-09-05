@@ -2,15 +2,15 @@
 title: 資料庫管理
 description: 設定與操作 hs-sql-agent 2.0.1 對外提供的資料庫連線。
 sidebar:
-  group: Administration
+  group: 管理
   order: 72
 ---
 
-Database Management 是 Admin control plane 中管理資料庫連線的區域，之後 MCP key 會綁定到這些連線。資料庫 entry 保存 provider 與 connection metadata；MCP client 不會在每次 request 中自行提供任意 connection string。
+Database Management 是管理介面中維護資料庫連線的區域，之後 MCP 金鑰會綁定到這些連線。每筆資料庫設定會保存資料庫類型與連線資訊；MCP 用戶端不會在每次請求中自行提供任意 connection string。
 
-## 支援的 provider
+## 支援的資料庫
 
-2.0.1 透過共用 SQL provider runtime 支援：
+2.0.1 透過共用 SQL provider 執行階段支援：
 
 - PostgreSQL
 - MySQL
@@ -19,105 +19,105 @@ Database Management 是 Admin control plane 中管理資料庫連線的區域，
 - SQLite
 - Firebird
 
-設定的 provider 同時決定 query / DML 執行時使用的 SQL dialect 與 capability profile。
+選定的 provider 同時決定 Query / DML 執行時使用的 SQL 方言與能力設定。
 
 ## 連線欄位
 
-2.0.1 database request model 包含：
+2.0.1 的資料庫請求模型包含：
 
 | 欄位 | 用途 |
 | --- | --- |
-| `Name` | 操作者辨識此連線的名稱 |
+| `Name` | 方便管理者辨識此連線的名稱 |
 | `SqlProvider` | 資料庫 provider / dialect |
-| `Host` | DB host 或 provider-specific location |
-| `Port` | 以文字保存的 provider port |
-| `Username` | DB login user |
-| `Password` | DB password；只有 SQLite 不要求密碼 |
-| `Database` | 交給 provider connection-string factory 的 database/catalog/file 值 |
-| `ExtraSettings` | 選用的 provider-specific connection settings |
+| `Host` | 資料庫主機或 provider 專用位置 |
+| `Port` | 以文字保存的 provider 連接埠 |
+| `Username` | 資料庫登入帳號 |
+| `Password` | 資料庫密碼；只有 SQLite 不要求密碼 |
+| `Database` | 交給 provider connection-string factory 的 database / catalog / file 值 |
+| `ExtraSettings` | 選用的 provider 專用連線設定 |
 
-`CreatedBy`、`UpdatedBy` 也存在 service request model，但屬於 control-plane metadata，不是 MCP client 可以控制的欄位。
+`CreatedBy`、`UpdatedBy` 也存在於 service request model，但屬於管理端中繼資料，不是 MCP 用戶端可以控制的欄位。
 
 ## 建立連線
 
 在 **Runtime → Database Management**：
 
-1. 建立 database entry，使用清楚且穩定的操作名稱。
+1. 建立資料庫項目，使用清楚且穩定的管理名稱。
 2. 選擇 provider。
-3. 輸入 provider 所需的連線欄位。
-4. 使用只具備 hs-sql-agent 實際需要權限的專用 DB account。
-5. 儲存後先驗證連線，再綁定 production MCP key。
+3. 輸入該 provider 所需的連線欄位。
+4. 使用只具備 hs-sql-agent 實際需要權限的專用資料庫帳號。
+5. 儲存後先驗證連線，再綁定正式環境的 MCP 金鑰。
 
-Backend 會拒絕空白 `Name`。除 SQLite 外，其餘 provider 也會拒絕缺少 password 的建立要求。
+後端會拒絕空白的 `Name`。除 SQLite 外，其餘 provider 也會拒絕缺少密碼的建立要求。
 
 ## 測試連線
 
-Admin runtime 提供 connection test。測試既有 Database Management entry 時，server 會載入已保存的連線資料、解密 password、重新建立 provider connection string，再執行 provider connection test。
+管理端提供連線測試。測試既有 Database Management 項目時，伺服器會載入已保存的連線資料、解密密碼、重新建立 provider connection string，再執行對應 provider 的連線測試。
 
-如果這一步失敗，應先視為 connection/configuration 問題，而不是先追 MCP SQL 行為。
+如果這一步失敗，應先從連線或設定問題著手，而不是直接追查 MCP SQL 行為。
 
 常見原因包括：
 
-- hs-sql-agent process 無法連到 host / port；
-- database/catalog 名稱錯誤；
-- credentials 無效；
-- `ExtraSettings` 缺少 TLS/encryption 設定；
-- DB firewall 或 network policy；
-- provider-specific authentication requirement。
+- hs-sql-agent 程序無法連到指定 host / port；
+- database / catalog 名稱錯誤；
+- 登入憑證無效；
+- `ExtraSettings` 缺少必要的 TLS / encryption 設定；
+- 資料庫防火牆或網路政策阻擋；
+- provider 有額外的身分驗證需求。
 
-## 瀏覽 metadata
+## 瀏覽資料庫中繼資料
 
-具有 `/runtime/db-management` 的 `view` permission 時，Admin API 可以從已保存連線讀取 provider metadata：
+具備 `/runtime/db-management` 的 `view` 權限時，Admin API 可以透過已保存的連線讀取 provider metadata：
 
 - schemas；
-- 某 schema 下的 tables；
-- 某 table 的 columns。
+- 指定 schema 下的資料表；
+- 指定資料表的欄位。
 
-這些操作使用保存的 Database Management entry 重建 provider connection。它與 MCP schema discovery 不完全相同；MCP discovery 還會套用已驗證 MCP key 的 table whitelist 與 semantic enrichment。
+這些操作會使用保存的 Database Management 項目重新建立 provider 連線。它和 MCP schema discovery 不完全相同；MCP discovery 還會套用已驗證 MCP 金鑰的資料表白名單與語意中繼資料。
 
-## 綁定 MCP key
+## 綁定 MCP 金鑰
 
-Production MCP key 必須指向一個 Database Management entry，該 connection 就成為 key 的 database boundary。
+正式環境使用的 MCP 金鑰必須指向一個 Database Management 項目，該連線就會成為這把金鑰的資料庫邊界。
 
-MCP key 還可以再縮小權限：
+MCP 金鑰還可以進一步縮小權限：
 
-- tool allowlist；
-- table whitelist；
-- CORS origins；
-- expiration；
-- rate-limit mode / overrides。
+- 工具允許清單；
+- 資料表白名單；
+- CORS 來源；
+- 到期時間；
+- 速率限制模式與覆寫值。
 
-請見 [MCP Keys](/zh-hant/docs/administration/mcp-keys)。
+請見 [MCP 金鑰](/zh-hant/docs/administration/mcp-keys)。
 
-## Table whitelist 不存在 database entry 上
+## 資料表白名單不設定在 Database Management
 
-Database Management 定義 connection；table authorization 則套用在 MCP key。
+Database Management 定義的是連線；資料表授權則套用在 MCP 金鑰上。
 
-因此多個 MCP key 可以共用同一個實體 DB connection，但各自擁有不同 table/tool scope。例如 reporting key 只暴露報表 tables，另一個 operator workflow key 則可以擁有不同 table 集合與 DML 能力。
+因此，多把 MCP 金鑰可以共用同一個實體資料庫連線，但各自擁有不同的資料表與工具範圍。例如報表用金鑰可以只開放報表資料表，另一把給操作流程使用的金鑰則可以擁有不同資料表集合與 DML 能力。
 
-## Semantic metadata 綁定 Database Management
+## 語意中繼資料綁定 Database Management
 
-Table/column 的 display name、description、synonyms、relationships、metrics 都關聯到 Database Management entry。Schema discovery 因此可以在不修改實體 DB schema 的情況下提供更豐富的 MCP metadata。
+資料表與欄位的顯示名稱、說明、同義詞、關聯與指標，都會關聯到 Database Management 項目。因此 schema discovery 可以在不修改實體資料庫 schema 的情況下，提供更豐富的 MCP 中繼資料。
 
-請見 [Semantic Metadata](/zh-hant/docs/administration/semantic-metadata)。
+請見 [語意中繼資料](/zh-hant/docs/administration/semantic-metadata)。
 
-## Permissions
+## 權限
 
-2.0.1 Admin API 對 Database Management operation 使用明確 permission：
+2.0.1 Admin API 對 Database Management 操作使用明確權限：
 
-| Operation | Permission |
+| 操作 | 權限 |
 | --- | --- |
-| list/read connections 與 metadata | `/runtime/db-management` → `view` |
-| create | `/runtime/db-management` → `create` |
-| edit | `/runtime/db-management` → `edit` |
-| delete | `/runtime/db-management` → `delete` |
-| view semantic metadata | `/runtime/db-management/semantic` → `view` |
-| edit semantic metadata | `/runtime/db-management/semantic` → `edit` |
+| 列出 / 讀取連線與中繼資料 | `/runtime/db-management` → `view` |
+| 建立 | `/runtime/db-management` → `create` |
+| 編輯 | `/runtime/db-management` → `edit` |
+| 刪除 | `/runtime/db-management` → `delete` |
+| 查看語意中繼資料 | `/runtime/db-management/semantic` → `view` |
+| 編輯語意中繼資料 | `/runtime/db-management/semantic` → `edit` |
 
-因此 Admin user 已登入不代表自動具備所有 operation；每個 operation 還會做 authorization check。
+因此，管理端使用者已登入不代表自動具備所有操作權限；每個操作仍會個別執行授權檢查。
 
 ## 操作建議
 
-Database Management entry 應使用穩定名稱，避免在 active MCP keys 仍綁定時偷偷改變該 connection 所代表的資料庫意義。如果 key 必須移動到另一個 database boundary，建議明確走 key lifecycle 並重新確認 table/tool scope。
+Database Management 項目應使用穩定名稱，也不要在仍有有效 MCP 金鑰綁定時，悄悄改變該連線所代表的資料庫意義。如果金鑰必須移動到另一個資料庫邊界，建議明確走一次金鑰生命週期流程，並重新確認資料表與工具範圍。
 
-Database credentials 與 provider-specific secret 應視為 secret。不要把它們寫進 Custom Tool template 或 client configuration；client 只需要 MCP endpoint 與 MCP key。
+資料庫憑證與 provider 專用密鑰都應視為敏感資訊。不要把它們寫進 Custom Tool 範本或用戶端設定；用戶端只需要 MCP endpoint 與 MCP 金鑰。

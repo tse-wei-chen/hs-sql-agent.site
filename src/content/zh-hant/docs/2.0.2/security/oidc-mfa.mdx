@@ -1,16 +1,16 @@
 ---
 title: OIDC SSO 與 TOTP MFA
-description: 設定 enterprise OIDC identity、claim mapping、role provisioning、MFA policy 與 persistent data-protection keys。
+description: 設定企業 OIDC 身分、claim mapping、角色佈建、MFA 政策與持久化的 data-protection keys。
 sidebar:
-  group: Security
+  group: 安全
   order: 115
 ---
 
-hs-sql-agent 可以使用 external OpenID Connect provider 處理 Admin identity，同時讓 local runtime authorization 與 MCP access policy 保持在 server 控制範圍內。
+hs-sql-agent 可以使用外部 OpenID Connect provider 處理管理端身分，同時讓本機執行階段授權與 MCP 存取政策繼續由伺服器控制。
 
-## OIDC connection
+## OIDC 連線
 
-Server options 包含：
+伺服器選項包含：
 
 ```text
 OidcEnabled
@@ -20,32 +20,32 @@ ClientSecret
 RequireHttpsMetadata
 ```
 
-Production 應維持 HTTPS metadata validation，除非明確是在可信任 local identity provider 上使用 HTTP。
+正式環境應維持 HTTPS metadata validation；只有在明確使用可信任的本機 identity provider，而且確實需要 HTTP 時才應關閉。
 
-Default OIDC scopes 是 `openid`、`profile`、`email`。
+預設 OIDC scopes 為 `openid`、`profile`、`email`。
 
-## Claim mapping 與 provisioning
+## Claim mapping 與使用者佈建
 
-Identity options 可對 incoming email、display-name、role、email-verification claims 做 mapping。Service 可以要求 verified email、把 external role map 到 local role name，並在啟用時 auto-provision user。
+身分設定可以對外部登入傳入的 email、display name、role 與 email verification claims 做 mapping。服務也可以要求已驗證 email、把外部角色映射到本機角色名稱，並在啟用時自動建立使用者。
 
-重要概念包含：
+重要設定包括：
 
-- email / name claim selection；
-- role claim selection 與 role mappings；
-- verified-email enforcement；
-- default local role / auto provisioning；
-- login flow 使用的 frontend callback path。
+- email / name claim 的選擇；
+- role claim 與角色映射；
+- 已驗證 email 的強制要求；
+- 預設本機角色與自動佈建；
+- 登入流程使用的前端 callback path。
 
-Role mapping 是 authorization configuration，不只是外觀 identity metadata。
+角色映射屬於授權設定，不只是顯示用的身分中繼資料。
 
-## MFA policy
+## MFA 政策
 
-TOTP 是可用的 second-factor mechanism。Server options 包含 TOTP issuer name 與要求 MFA 的 role list，因此可以針對 privileged Admin role 提高 authentication 強度，同時讓 identity provider 負責 primary sign-in。
+TOTP 是可使用的第二驗證因素。伺服器可以設定 TOTP issuer 名稱，以及必須使用 MFA 的角色清單，因此可對高權限管理角色提高驗證強度，同時繼續讓 identity provider 處理主要登入流程。
 
-## Persist data-protection keys
+## 持久化 data-protection keys
 
-Protected MFA secret 與 login state 依賴 ASP.NET Core data-protection keys。Deployment configuration 提供 data-protection key path；這個 directory 必須跨 restart persist，否則原本 protected state 可能無法解讀。
+受保護的 MFA 密鑰與登入狀態依賴 ASP.NET Core data-protection keys。部署設定提供 data-protection key 路徑；這個目錄必須跨重新啟動持久保存，否則原本受保護的狀態可能無法再次解密。
 
-## MCP key 是另一條 boundary
+## MCP 金鑰是另一條安全邊界
 
-Admin SSO/MFA 保護 management plane；MCP Client 使用 MCP server key authentication，並各自受到 database、table、tool 與 runtime-policy scope 約束。不要把 Admin SSO 當成 MCP key governance 的替代品。
+管理端 SSO / MFA 保護的是管理平面；MCP 用戶端使用 MCP server key 驗證，並各自受到資料庫、資料表、工具與執行階段政策範圍限制。不要把管理端 SSO 當成 MCP 金鑰治理的替代品。

@@ -1,6 +1,6 @@
 ---
-title: Security Policies
-description: 從 Admin control plane 設定 hs-sql-agent 2.0.1 runtime SQL、DML、rate-limit 與 concurrency policy。
+title: 安全政策
+description: 從管理介面設定 hs-sql-agent 2.0.1 執行階段的 SQL、DML、速率限制與並行執行政策。
 sidebar:
   group: 管理
   order: 82
@@ -11,75 +11,75 @@ import CardGrid from "@/components/docs/mdx/CardGrid.astro";
 import DocCard from "@/components/docs/mdx/DocCard.astro";
 
 <CardGrid columns={3}>
-  <DocCard title="Query policy" icon="Q" description="限制 governed query 的 result size 與 execution timeout。" />
-  <DocCard title="DML policy" icon="DML" description="要求 predicate、限制 full-table mutation，並控制 affected rows。" />
-  <DocCard title="Runtime limits" icon="LIM" description="設定 MCP-key 預設 rate limit 與 maximum concurrent SQL operations。" />
+  <DocCard title="查詢政策" icon="Q" description="限制受治理查詢的回傳資料量與執行逾時。" />
+  <DocCard title="DML 政策" icon="DML" description="要求 UPDATE / DELETE 條件、限制全表修改，並控制最多可影響的資料列數。" />
+  <DocCard title="執行階段限制" icon="LIM" description="設定 MCP 金鑰的預設速率限制，以及 SQL 最大並行執行數。" />
 </CardGrid>
 
-Security Policy 是真正被 runtime **強制執行的 policy**，不是只告訴 agent「最好這樣做」的提示。Query/DML execution 與 runtime limiter 都會消費目前 policy。
+Security Policy 是執行階段真正會**強制套用的規則**，不是只提醒 Agent「最好這樣做」的提示。查詢與 DML 執行流程，以及執行階段限制器，都會讀取目前的政策設定。
 
-## 2.0.1 policy fields
+## 2.0.1 政策欄位
 
-| Field | Default | Valid range / 意義 |
+| 欄位 | 預設值 | 有效範圍 / 意義 |
 | --- | ---: | --- |
 | `QueryMaxRows` | `1000` | 1–100,000 |
-| `QueryTimeoutSeconds` | `30` | 1–600 seconds |
-| `RequireWhereForUpdate` | `true` | 要求 UPDATE predicate |
-| `RequireWhereForDelete` | `true` | 要求 DELETE predicate |
-| `AllowFullTableUpdate` | `false` | 是否明確允許 full-table UPDATE |
-| `AllowFullTableDelete` | `false` | 是否明確允許 full-table DELETE |
+| `QueryTimeoutSeconds` | `30` | 1–600 秒 |
+| `RequireWhereForUpdate` | `true` | UPDATE 必須有條件 |
+| `RequireWhereForDelete` | `true` | DELETE 必須有條件 |
+| `AllowFullTableUpdate` | `false` | 是否明確允許全表 UPDATE |
+| `AllowFullTableDelete` | `false` | 是否明確允許全表 DELETE |
 | `DmlMaxAffectedRows` | `100` | 1–1,000,000 |
-| `KeyPermitLimit` | `120` | 每個 configured key window 1–1,000,000 requests |
-| `KeyWindowSeconds` | `60` | 1–86,400 seconds |
-| `MaxConcurrentSql` | `16` | 1–10,000 concurrent SQL operations |
+| `KeyPermitLimit` | `120` | 每個設定的金鑰時間視窗可允許 1–1,000,000 個請求 |
+| `KeyWindowSeconds` | `60` | 1–86,400 秒 |
+| `MaxConcurrentSql` | `16` | 同時執行 1–10,000 個 SQL 操作 |
 
-Service 對超出範圍的值直接拒絕，不會 silently normalize 成另一套 policy。
+Service 對超出範圍的值會直接拒絕，不會悄悄修正成另一組政策設定。
 
-## Admin authorization
+## 管理端授權
 
-| Operation | Permission |
+| 操作 | 權限 |
 | --- | --- |
-| 讀取目前 policy | `/runtime/security` → `view` |
-| 更新 policy | `/runtime/security` → `edit` |
+| 讀取目前政策 | `/runtime/security` → `view` |
+| 更新政策 | `/runtime/security` → `edit` |
 
-Policy 更新會寫 audit event，並立即替換 runtime policy state；同時透過 configured security-policy synchronization provider publish change，讓 distributed deployment 可以把 policy 傳到其他 instances。
+政策更新會寫入稽核事件，並立即取代執行階段中的目前政策狀態；同時透過設定的 security-policy synchronization provider 發布變更，讓分散式部署可以把新政策同步到其他執行個體。
 
-<Callout type="warning" title="Policy edit 會直接影響 live runtime decision">
-調整 query rows、DML bounds、key limits 或 SQL concurrency 不是 cosmetic setting。把它當 production authorization/availability change review，rollout 後搭配 audit 與 operability 觀察。
+<Callout type="warning" title="政策變更會直接影響線上執行結果">
+調整查詢資料列上限、DML 範圍、金鑰速率限制或 SQL 並行執行數，都不是單純的介面設定。應把它視為正式環境中的授權或可用性變更，並在套用後搭配稽核與運作狀態觀察結果。
 </Callout>
 
-## Query limits
+## 查詢限制
 
-`QueryMaxRows` 透過 compiler/runtime policy 限制 query output；`QueryTimeoutSeconds` 則控制 runtime query timeout contract。這些都是 server-side constraint，不依賴 client 自己記得加 `LIMIT` 或 cancellation。
+`QueryMaxRows` 透過編譯器與執行階段政策限制查詢輸出；`QueryTimeoutSeconds` 則控制查詢執行的逾時規則。這些都是伺服器端強制條件，不依賴用戶端自行記得加入 `LIMIT` 或送出取消要求。
 
-## UPDATE / DELETE predicates
+## UPDATE / DELETE 條件
 
-Default policy 要求 UPDATE/DELETE predicate，並拒絕 full-table mutation。
+預設政策要求 UPDATE / DELETE 必須有條件，並拒絕全表修改。
 
-Full-table allowance 應該是明確決策：關掉 `RequireWhereForUpdate` 並不等於已表達「允許 full-table UPDATE」的相同安全意圖。除非 workflow 真正需要 broad mutation，否則保留 conservative defaults。
+允許全表修改應該是明確的安全決策：關閉 `RequireWhereForUpdate`，不等於已經表達「允許全表 UPDATE」的相同安全意圖。除非實際流程確實需要大範圍修改，否則建議保留較保守的預設值。
 
-## DML affected-row cap
+## DML 影響資料列上限
 
-`DmlMaxAffectedRows` 限制 mutation impact，但它只是一層 guardrail，不會取代 Safe DML protocol。Mutation 仍必須成功 parse/validate/compile；透過 MCP 的 DML 還要完成 approval 與 commit-time revalidation。
+`DmlMaxAffectedRows` 用來限制單次資料修改的影響範圍，但它只是一層保護措施，不會取代 Safe DML 協定。資料修改仍必須成功完成解析、驗證與編譯；透過 MCP 執行的 DML 還必須完成人工核准，以及提交前的重新驗證。
 
 請見 [Safe DML](/zh-hant/docs/sql-compiler/safe-dml)。
 
-## MCP-key rate limits
+## MCP 金鑰速率限制
 
-Security policy 提供預設 per-key permit limit/window。個別 MCP key 可以：
+安全政策提供每把金鑰的預設請求上限與時間視窗。個別 MCP 金鑰可以：
 
-- inherit policy；
-- 使用 custom override；
-- 明確設定 unlimited。
+- 繼承政策；
+- 使用自訂覆寫值；
+- 明確設定為不限速。
 
-Key-level mode 請見 [MCP Keys](/zh-hant/docs/administration/mcp-keys)。
+金鑰層級的模式請見 [MCP 金鑰](/zh-hant/docs/administration/mcp-keys)。
 
-## SQL concurrency
+## SQL 並行執行
 
-`MaxConcurrentSql` 是 runtime SQL concurrency limit。這個限制是 process-local 還是跨 instances 協調，取決於 configured SQL concurrency provider。
+`MaxConcurrentSql` 是執行階段的 SQL 並行執行上限。這個限制只作用在單一程序內，或能跨執行個體協調，取決於目前設定的 SQL concurrency provider。
 
-Cluster 若需要整個 deployment 共用一個 limit，就應使用 distributed provider，而不是讓每個 node 各自擁有完整 quota。
+如果叢集需要讓整個部署共用同一個上限，就應使用 distributed provider，而不是讓每個節點各自擁有完整配額。
 
-<Callout type="tip" title="Safety policy 與 database privilege 要分層">
-Runtime policy、MCP-key scope、compiler checks 應該疊在 least-privilege database account 上。不要只依賴其中任何一層當唯一防線。
+<Callout type="tip" title="安全政策與資料庫權限應分層">
+執行階段政策、MCP 金鑰範圍與編譯器檢查，應疊加在最小權限的資料庫帳號之上。不要只依賴其中任何一層作為唯一防線。
 </Callout>

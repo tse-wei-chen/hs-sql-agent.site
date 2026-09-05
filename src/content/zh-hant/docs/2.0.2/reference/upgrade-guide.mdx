@@ -1,8 +1,8 @@
 ---
-title: Upgrade Guide
-description: 從 hs-sql-agent 2.0.1 documentation baseline 升到後續 release 時的安全升級 checklist。
+title: 升級指南
+description: 從 hs-sql-agent 2.0.1 文件基準升到後續版本時使用的安全升級檢查表。
 sidebar:
-  group: Reference
+  group: 參考
   order: 144
 ---
 
@@ -13,82 +13,82 @@ import Steps from "@/components/docs/mdx/Steps.astro";
 import Step from "@/components/docs/mdx/Step.astro";
 
 <CardGrid columns={3}>
-  <DocCard title="Control-plane state" icon="DB" description="保護保存 identities、roles、MCP keys、policy、audit 與其他 runtime state 的 Admin database。" />
-  <DocCard title="Secrets & protected state" icon="KEY" description="保留 HMAC/JWT configuration 與 durable ASP.NET Core data-protection keys。" />
-  <DocCard title="Behavior contracts" icon="MCP" description="更版後重新驗證 client transport、SQL capability、key scope 與 DML Elicitation。" />
+  <DocCard title="控制平面狀態" icon="DB" description="保護保存身分、角色、MCP 金鑰、政策、稽核與其他執行階段狀態的管理資料庫。" />
+  <DocCard title="密鑰與受保護狀態" icon="KEY" description="保留 HMAC / JWT 設定，以及持久化的 ASP.NET Core data-protection keys。" />
+  <DocCard title="行為契約" icon="MCP" description="升級後重新驗證用戶端傳輸、SQL capability、金鑰範圍與 DML Elicitation。" />
 </CardGrid>
 
-Documentation versioning 從 **2.0.1** 開始，本站刻意不提供更早版本的 upgrade matrix。這頁定義的是「離開 2.0.1 baseline」時的 operational checklist；真正 destination-specific breaking changes 應由後續版本自己的文件說明。
+文件版本化從 **2.0.1** 開始，本站刻意不提供更早版本的升級矩陣。本頁定義的是「離開 2.0.1 基準」時應做的維運檢查；目標版本特有的不相容變更，應以該版本自己的文件為準。
 
-<Callout type="warning" title="不要從這頁推測未來 release 的 migration requirements">
-升級前一定要閱讀 target release notes 與該版本 docs。若後續版本改了 storage schema、configuration、SQL capability 或 API contract，以該 release 為準。
+<Callout type="warning" title="不要從本頁推測未來版本的遷移需求">
+升級前一定要閱讀目標版本的版本說明與文件。如果後續版本改了儲存結構、設定、SQL capability 或 API 契約，以該版本說明為準。
 </Callout>
 
-## 切換 running version 前
+## 切換執行版本前
 
 <Steps>
-  <Step title="記錄目前 deployment" description="保存精確 hs-sql-agent/container/package version、topology、Admin DB provider 與 shared-state providers。" />
-  <Step title="備份 control-plane state" description="在新 binary 有機會改 persistent state 前，先建立可還原的 Admin database backup。" />
-  <Step title="保存 protected key material" description="確保 HMAC_KEY、JWT_KEY、webhook secrets 與 durable DATA_PROTECTION_KEY_PATH material 能被新 deployment 延續使用。" />
-  <Step title="Diff configuration" description="拿 target release 的 example/options 跟目前 2.0.1 production config 比對，不要用新 sample 直接蓋掉 production values。" />
-  <Step title="盤點 integrations" description="列出 MCP clients、Custom Tools、OIDC、SMTP、webhooks/SIEM、Prometheus/OTLP、Redis/shared state、reverse proxy 與 external Admin API consumers。" />
+  <Step title="記錄目前部署" description="保存精確的 hs-sql-agent、容器或套件版本、拓樸、管理資料庫 provider 與共用狀態 provider。" />
+  <Step title="備份控制平面狀態" description="在新版程式有機會修改持久狀態之前，先建立可還原的管理資料庫備份。" />
+  <Step title="保存受保護的金鑰資料" description="確認 HMAC_KEY、JWT_KEY、webhook 密鑰與 DATA_PROTECTION_KEY_PATH 內容都能讓新部署繼續使用。" />
+  <Step title="比對設定差異" description="把目標版本的範例與 options 跟目前 2.0.1 正式環境設定逐項比對，不要直接用新範例覆蓋正式設定值。" />
+  <Step title="盤點整合項目" description="列出 MCP 用戶端、Custom Tools、OIDC、SMTP、webhooks / SIEM、Prometheus / OTLP、Redis / 共用狀態、反向代理，以及外部 Admin API 使用者。" />
 </Steps>
 
-## 不應隨便重新產生的 state
+## 不應在升級時隨意重新產生的狀態
 
-### HMAC / JWT secrets
+### HMAC / JWT 密鑰
 
-`HMAC_KEY` 參與 MCP-key verification，`JWT_KEY` 用於 Admin authentication token。Secret rotation 應該是明確的 security migration，不應只是部署新 image 時的副作用。
+`HMAC_KEY` 參與 MCP 金鑰驗證，`JWT_KEY` 用於管理端身分驗證 token。密鑰輪替應該是明確的安全性遷移，不應只是部署新映像檔時順便發生的副作用。
 
 ### Data-protection key ring
 
-Protected identity/MFA state 使用 ASP.NET Core data protection 時，`DATA_PROTECTION_KEY_PATH` 必須放 durable storage。若 key ring 被替換，先前 protected values 可能無法再讀取。
+受保護的身分與 MFA 狀態使用 ASP.NET Core data protection 時，`DATA_PROTECTION_KEY_PATH` 必須放在持久儲存空間。如果 key ring 被替換，先前受保護的資料可能無法再次讀取。
 
-### Admin database
+### 管理資料庫
 
-Admin database 是 control plane，保存 identities/roles、database registrations、MCP key records、policies、semantic metadata、Custom Tool definitions/revisions、audit data 與其他 operational state。任何可能改 persistence 的 upgrade 前，都要依 SQLite/PostgreSQL topology 做正式 backup。
+管理資料庫就是控制平面，會保存身分與角色、資料庫註冊、MCP 金鑰紀錄、政策、語意中繼資料、Custom Tool 定義與修訂版本、稽核資料，以及其他維運狀態。任何可能變更持久化內容的升級，都應依 SQLite / PostgreSQL 拓樸先做好正式備份。
 
-## Configuration diff checklist
+## 設定差異檢查表
 
-不要從空白新 `.env` 重建 production config，逐組比對：
+不要從全新的 `.env` 重建正式環境設定；應逐組比對：
 
-- application host / public MCP endpoint；
-- Admin database provider/connection；
-- HMAC/JWT / identity；
+- 應用程式 host / 公開 MCP endpoint；
+- 管理資料庫 provider / connection；
+- HMAC / JWT / 身分設定；
 - bootstrap；
-- OIDC/MFA/data protection；
-- audit retention / outbound delivery；
-- rate limiting / security-policy sync；
-- cache / SQL concurrency / Redis-backed coordination；
+- OIDC / MFA / data protection；
+- 稽核保留 / 外送；
+- 速率限制 / 安全政策同步；
+- cache / SQL concurrency / Redis 協調；
 - Prometheus / OTLP。
 
-2.0.1 baseline 請見 [Configuration Reference](/zh-hant/docs/operations/configuration)。
+2.0.1 基準請見 [設定參考](/zh-hant/docs/operations/configuration)。
 
-## Upgrade 後驗證
+## 升級後驗證
 
 <Steps>
-  <Step title="Admin authentication" description="登入並確認 expected roles/permissions；有啟用時也驗證 OIDC/MFA。" />
-  <Step title="Database connectivity" description="對實際使用的 providers 驗證 managed connections 與 schema metadata browsing。" />
-  <Step title="MCP key scope" description="確認代表性 keys 仍解析到正確 database、tools、table whitelist 與 effective limits。" />
-  <Step title="Read-only SQL" description="跑代表性的 supported query shapes，確認 compiler/output behavior。" />
-  <Step title="Safe DML" description="用非 production target 同時測 Decline/Accept Elicitation，確認 commit-time behavior。" />
-  <Step title="Operations" description="檢查 audit、health、key usage、telemetry export 與 outbound-delivery state。" />
+  <Step title="管理端身分驗證" description="登入並確認預期角色與權限；若有啟用，也要驗證 OIDC / MFA。" />
+  <Step title="資料庫連線" description="對實際使用的 provider 驗證受管理連線與 schema 中繼資料瀏覽。" />
+  <Step title="MCP 金鑰範圍" description="確認代表性金鑰仍對應正確資料庫、工具、資料表白名單與實際生效限制。" />
+  <Step title="唯讀 SQL" description="執行代表性的已支援查詢形式，確認編譯器與輸出行為。" />
+  <Step title="Safe DML" description="使用非正式環境目標，同時測試拒絕（Decline）與接受（Accept）Elicitation，確認提交前後行為。" />
+  <Step title="維運" description="檢查稽核、健康狀態、金鑰使用、遙測匯出與外送狀態。" />
 </Steps>
 
-## Custom Tools / semantic metadata
+## Custom Tools / 語意中繼資料
 
-對每個 published Custom Tool，確認 target compiler/policy 仍能 validate，且 database/key exposure 沒有漂移。Semantic metadata 則確認 table/column descriptions、relationships、metrics 仍能如預期出現在 schema discovery。
+對每個已發布的 Custom Tool，確認目標版本的編譯器與政策仍能通過驗證，而且資料庫與金鑰的對外範圍沒有漂移。語意中繼資料則確認資料表 / 欄位說明、關聯與指標，仍能如預期出現在 schema discovery。
 
-## API consumers
+## API 使用者
 
-2.0.1 Admin controllers 沒有放在 versioned `/v1` contract 下。外部 automation 若直接呼叫 Admin HTTP routes，route/request/response compatibility 必須列入 upgrade test。
+2.0.1 Admin controllers 沒有放在版本化的 `/v1` 契約下。如果外部自動化直接呼叫 Admin HTTP routes，路由、請求與回應相容性都必須列入升級測試。
 
-請見 [Admin HTTP API Reference](/zh-hant/docs/reference/api-reference)。
+請見 [Admin HTTP API 參考](/zh-hant/docs/reference/api-reference)。
 
-## Rollback planning
+## 回復規劃
 
-<Callout type="danger" title="Binary rollback 不等於 data rollback">
-如果新 release 改了 persistent control-plane schema/state，把舊 binary 直接接回已修改的 database 不一定安全。保留 pre-upgrade database backup，並遵循 target release 的 rollback guidance。
+<Callout type="danger" title="回復舊版程式不等於資料回復">
+如果新版本改了持久化的控制平面 schema 或狀態，直接把舊版程式接回已修改的資料庫不一定安全。請保留升級前的資料庫備份，並遵循目標版本提供的回復指引。
 </Callout>
 
-實際 rollout 應保留舊 deployment artifacts/configuration、pre-upgrade Admin DB backup 與 protected key material，直到新版本完成 functional / operational smoke test。
+實際上線時，應保留舊版部署成品與設定、升級前的管理資料庫備份，以及受保護的金鑰資料，直到新版本完成必要的功能與維運基本驗證（smoke test）。

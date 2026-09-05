@@ -1,16 +1,16 @@
 ---
-title: Observability 與 Audit Operations
-description: 設定 health probe、slow-query threshold、Prometheus、OTLP、audit retention 與 signed outbound delivery。
+title: 可觀測性與稽核維運
+description: 設定健康檢查、慢查詢門檻、Prometheus、OTLP、稽核資料保留，以及帶簽章的外送通知。
 sidebar:
-  group: Operations
+  group: 維運
   order: 95
 ---
 
-hs-sql-agent 把 runtime observability 與 SQL control plane 分開。Production operator 可以組合 health check、metrics、telemetry export、audit retention 與 outbound alert/SIEM delivery，不需要把 database audit table 當成唯一 operational signal。
+hs-sql-agent 將執行階段的可觀測性與 SQL 控制機制分開。正式環境可以搭配健康檢查、指標、遙測匯出、稽核資料保留，以及告警或 SIEM 外送，不必把資料庫中的稽核資料表當成唯一的維運訊號。
 
-## Health 與 slow-query monitoring
+## 健康檢查與慢查詢監控
 
-Sample environment 提供：
+範例環境設定提供：
 
 ```text
 HEALTH_PROBE_ENABLED
@@ -20,11 +20,11 @@ HEALTH_PROBE_MAX_CONCURRENCY
 SLOW_QUERY_THRESHOLD_MS
 ```
 
-Health probe 是 optional；slow-query threshold 用來判斷 SQL activity 何時進入 slow-query operational visibility。
+健康探測為選配；`SLOW_QUERY_THRESHOLD_MS` 則用來定義查詢超過多久後要視為慢查詢並納入監控。
 
 ## Prometheus 與 OTLP
 
-Prometheus 使用與 application API **分離的 listener**：
+Prometheus 使用與應用程式 API **分離的監聽端點**：
 
 ```text
 PROMETHEUS_ENABLED=false
@@ -32,18 +32,18 @@ PROMETHEUS_HOST=0.0.0.0
 PROMETHEUS_PORT=9000
 ```
 
-Optional OpenTelemetry export：
+也可以選擇匯出 OpenTelemetry：
 
 ```text
 OTLP_ENDPOINT=
 OTEL_SERVICE_NAME=hs-sql-agent
 ```
 
-Prometheus listener 適合 scrape-based metrics；部署 topology 有 collector 時可使用 OTLP。
+Prometheus 適合由監控系統定期抓取（scrape）指標；如果部署架構中已有 OpenTelemetry Collector，則可透過 OTLP 匯出遙測資料。
 
-## Alert 與 SIEM delivery
+## 告警與 SIEM 外送
 
-Server 支援 optional signed outbound target：
+伺服器可設定帶簽章的外送目標：
 
 ```text
 ALERT_WEBHOOK_URL=
@@ -54,11 +54,11 @@ DELIVERY_MAX_ATTEMPTS=6
 DELIVERY_MAX_CONCURRENCY=4
 ```
 
-Target URL 留空就停用該 integration。Signing secret 應跟其他 deployment credential 一樣持久保存與保護。
+目標 URL 留空即可停用該整合。簽章密鑰應和其他部署憑證一樣妥善保存，並確保持久化。
 
-## Audit retention
+## 稽核資料保留
 
-Retention 與 live request handling 分開控制。`AUDIT_RETENTION_DAYS=0` 會停用 automatic retention processing。目前 service implementation 接受 `Archive` 與 `Purge`；Archive 會先把 expired records 保存到設定 archive path，再刪除 live records。
+資料保留與即時請求處理分開控制。`AUDIT_RETENTION_DAYS=0` 會停用自動保留處理。目前服務支援 `Archive` 與 `Purge`；`Archive` 會先把過期紀錄寫入設定的封存路徑，再從線上紀錄中刪除。
 
 相關設定：
 
@@ -70,4 +70,4 @@ AUDIT_FALLBACK_PATH
 AUDIT_RETENTION_RUN_HOUR_UTC
 ```
 
-Fallback path 對 operational failure handling 很重要；若部署依賴 archived/fallback audit output，對應 storage 必須 persistent。
+備援路徑是處理維運失敗情境的重要保護。若部署流程依賴封存或備援的稽核輸出，對應儲存空間必須具備持久性。

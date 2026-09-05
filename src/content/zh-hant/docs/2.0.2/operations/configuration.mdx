@@ -1,6 +1,6 @@
 ---
 title: 設定參考
-description: hs-sql-agent 2.0.2 的 source-backed environment 與 runtime configuration reference。
+description: 根據 hs-sql-agent 2.0.2 原始碼整理的環境變數與執行階段設定參考。
 sidebar:
   group: 維運
   order: 90
@@ -11,228 +11,228 @@ import CardGrid from "@/components/docs/mdx/CardGrid.astro";
 import DocCard from "@/components/docs/mdx/DocCard.astro";
 
 <CardGrid columns={3}>
-  <DocCard title="單一 instance" icon="1" description="從 .env.example 開始；除非 runtime state 必須跨 instance 共用，否則可先使用 process-local provider。" />
-  <DocCard title="Distributed" icon="N" description="使用 Postgres control-plane storage，加上 Redis-backed cache、limits、policy sync、delivery sync 與 SQL concurrency。" />
-  <DocCard title="Embedded .NET" icon=".NET" description="新整合使用 capability-specific options；HsSqlAgentServiceOptions 只保留給 legacy aggregate compatibility。" />
+  <DocCard title="單一執行個體" icon="1" description="從 .env.example 開始；除非執行階段狀態必須跨執行個體共用，否則可先使用程序內的 provider。" />
+  <DocCard title="分散式部署" icon="N" description="使用 PostgreSQL 控制平面資料庫，再搭配 Redis 提供快取、限制器、政策同步、外送同步與 SQL 並行協調。" />
+  <DocCard title="內嵌 .NET" icon=".NET" description="新的整合方式使用各 capability 自己的 options；HsSqlAgentServiceOptions 只保留給舊版整合 API 相容使用。" />
 </CardGrid>
 
-Checked-in 的 **v2.0.2 `.env.example`** 是預設 Compose deployment path 的 environment inventory。本頁以該檔案的 environment variable 名稱為基準；若 sample comment 與 v2.0.2 runtime validation 不一致，則以 executable runtime code 為準。
+程式庫中的 **v2.0.2 `.env.example`** 是預設 Compose 部署方式的環境變數清單。本頁以該檔案的變數名稱為基準；如果範例註解和 v2.0.2 執行階段驗證邏輯不一致，則以實際可執行的程式碼為準。
 
-<Callout type="warning" title="Production 啟動前請先產生真正的 secrets">
-`HMAC_KEY` 與 `JWT_KEY` 都必須至少 32 bytes，而且應使用彼此獨立的值。Repository 內的字串只是 placeholder。若啟用 webhook URL，對應 webhook secret 也必須至少 32 bytes。
+<Callout type="warning" title="正式環境啟動前請先產生真正的密鑰">
+`HMAC_KEY` 與 `JWT_KEY` 都必須至少 32 bytes，而且應使用彼此獨立的值。程式庫中的字串只是 placeholder。若啟用 webhook URL，對應的 webhook secret 也必須至少 32 bytes。
 </Callout>
 
-## Application 與 control plane
+## 應用程式與控制平面
 
-| Variable | `.env.example` 範例/預設 | 用途 |
+| 變數 | `.env.example` 範例 / 預設 | 用途 |
 | --- | --- | --- |
-| `ASPNETCORE_URLS` | `http://+:8080` | Main ASP.NET Core listener |
+| `ASPNETCORE_URLS` | `http://+:8080` | ASP.NET Core 主要監聽位址 |
 | `ALLOWED_HOSTS` | `*` | ASP.NET Core host filtering |
-| `ADMIN_DATABASE_PROVIDER` | `Sqlite` | Admin/control-plane database provider |
-| `ADMIN_DATABASE_CONNECTION_STRING` | `Data Source=/app/data/hsqlagent.db` | 儲存 accounts、roles、keys、audit records、policies 與其他 control-plane state |
-| `HMAC_KEY` | placeholder | 保護/驗證 issued MCP keys 的 HMAC secret；至少 32 bytes |
-| `MCP_PUBLIC_ENDPOINT` | `http://localhost:8080/mcp` | 產生 MCP client configuration 時使用的 absolute endpoint |
+| `ADMIN_DATABASE_PROVIDER` | `Sqlite` | 管理端 / 控制平面資料庫 provider |
+| `ADMIN_DATABASE_CONNECTION_STRING` | `Data Source=/app/data/hsqlagent.db` | 儲存帳號、角色、金鑰、稽核紀錄、政策與其他控制平面狀態 |
+| `HMAC_KEY` | placeholder | 保護並驗證已簽發 MCP 金鑰的 HMAC secret；至少 32 bytes |
+| `MCP_PUBLIC_ENDPOINT` | `http://localhost:8080/mcp` | 產生 MCP 用戶端設定時使用的絕對端點 URL |
 
-`MCP_PUBLIC_ENDPOINT` 必須是 absolute HTTP/HTTPS URL。Production 應填入 **client 真正可連線**的 URL，並包含 `/mcp`；不要填只有 container internal network 才能解析的位址。
+`MCP_PUBLIC_ENDPOINT` 必須是 HTTP / HTTPS 絕對 URL。正式環境應填入**用戶端真正能連線**的 URL，並包含 `/mcp`；不要填只有 container 內部網路才能解析的位址。
 
-### Admin database topology
+### 管理資料庫拓樸
 
-Single-instance example 使用 SQLite；distributed example 使用 PostgreSQL：
+單一執行個體範例使用 SQLite；分散式範例使用 PostgreSQL：
 
 ```text
 ADMIN_DATABASE_PROVIDER=Postgres
 ADMIN_DATABASE_CONNECTION_STRING=Host=postgres;Port=5432;Database=hsqlagent;Username=postgres;Password=...
 ```
 
-當多個 hs-sql-agent instances 必須共用 identities、keys、policies 與 audit/control-plane records 時，應使用 shared Admin database。
+當多個 hs-sql-agent 執行個體必須共用身分、金鑰、政策、稽核與其他控制平面紀錄時，應使用共用的管理資料庫。
 
-## Cache
+## 快取
 
-| Variable | Single-instance | Distributed | 用途 |
+| 變數 | 單一執行個體 | 分散式 | 用途 |
 | --- | --- | --- | --- |
-| `CACHE_PROVIDER` | `Memory` | `Redis` | Runtime cache provider |
-| `CACHE_CONNECTION_STRING` | empty | `redis:6379` | 選擇 Redis 時的 connection |
-| `CACHE_KEY_PREFIX` | `hsqlagent:cache:` | 相同 | Cache key namespace |
+| `CACHE_PROVIDER` | `Memory` | `Redis` | 執行階段快取 provider |
+| `CACHE_CONNECTION_STRING` | empty | `redis:6379` | 選擇 Redis 時使用的連線字串 |
+| `CACHE_KEY_PREFIX` | `hsqlagent:cache:` | 相同 | 快取 key namespace |
 
-只有在 cache state 不需要跨 application instance 共用時，process-local `Memory` 才適合。
+只有在快取狀態不需要跨應用程式執行個體共用時，程序內的 `Memory` provider 才適合。
 
-## Bootstrap / auto-provisioning
+## Bootstrap / 自動佈建
 
-| Variable | 範例 | 用途 |
+| 變數 | 範例 | 用途 |
 | --- | --- | --- |
-| `BOOTSTRAP_ENABLED` | `false` | 啟用 startup provisioning/synchronization |
-| `BOOTSTRAP_DB_ID` | `default-db` | Initial database 的 stable bootstrap identity |
-| `BOOTSTRAP_DB_NAME` | `Default DB` | Admin-facing database name |
-| `BOOTSTRAP_DB_PROVIDER` | empty | 要 provision 的 provider |
-| `BOOTSTRAP_DB_HOST` | `localhost` | Database host |
-| `BOOTSTRAP_DB_PORT` | `5432` | Database port |
-| `BOOTSTRAP_DB_DATABASE` | `mydb` | Database/catalog/file value |
-| `BOOTSTRAP_DB_USERNAME` | `myuser` | Database username |
-| `BOOTSTRAP_DB_PASSWORD` | `mypassword` | Database password |
-| `BOOTSTRAP_DB_EXTRA_SETTINGS` | empty | Provider-specific connection settings |
-| `BOOTSTRAP_MCP_KEY_ID` | `default-key` | Initial MCP key 的 stable bootstrap identity |
-| `BOOTSTRAP_MCP_KEY_NAME` | `Default MCP Key` | Admin-facing key name |
-| `BOOTSTRAP_MCP_KEY` | placeholder | Initial raw key value |
-| `BOOTSTRAP_MCP_ALLOWED_TOOLS` | empty | Bootstrap key 的 tool restriction |
+| `BOOTSTRAP_ENABLED` | `false` | 啟用啟動時的佈建與同步 |
+| `BOOTSTRAP_DB_ID` | `default-db` | 初始資料庫的穩定 bootstrap 識別字 |
+| `BOOTSTRAP_DB_NAME` | `Default DB` | 管理介面顯示的資料庫名稱 |
+| `BOOTSTRAP_DB_PROVIDER` | empty | 要佈建的資料庫 provider |
+| `BOOTSTRAP_DB_HOST` | `localhost` | 資料庫主機 |
+| `BOOTSTRAP_DB_PORT` | `5432` | 資料庫連接埠 |
+| `BOOTSTRAP_DB_DATABASE` | `mydb` | database / catalog / file 值 |
+| `BOOTSTRAP_DB_USERNAME` | `myuser` | 資料庫使用者名稱 |
+| `BOOTSTRAP_DB_PASSWORD` | `mypassword` | 資料庫密碼 |
+| `BOOTSTRAP_DB_EXTRA_SETTINGS` | empty | provider 專用的額外連線設定 |
+| `BOOTSTRAP_MCP_KEY_ID` | `default-key` | 初始 MCP 金鑰的穩定 bootstrap 識別字 |
+| `BOOTSTRAP_MCP_KEY_NAME` | `Default MCP Key` | 管理介面顯示的金鑰名稱 |
+| `BOOTSTRAP_MCP_KEY` | placeholder | 初始原始金鑰值 |
+| `BOOTSTRAP_MCP_ALLOWED_TOOLS` | empty | Bootstrap 金鑰的工具限制 |
 
-Bootstrap-managed MCP key 不走一般 key lifecycle；不能透過正常 UI 流程 edit、rotate 或 revoke。要修改時應改其 source configuration。
+由 bootstrap 管理的 MCP 金鑰不走一般金鑰生命週期，不能透過正常管理介面編輯、輪替或撤銷。需要修改時，應變更它的來源設定。
 
-## Admin authentication
+## 管理端身分驗證
 
-| Variable | 範例 | 用途 |
+| 變數 | 範例 | 用途 |
 | --- | --- | --- |
-| `JWT_KEY` | placeholder | JWT signing secret；至少 32 bytes |
+| `JWT_KEY` | placeholder | JWT 簽章密鑰；至少 32 bytes |
 | `JWT_ISS` | `HS-Agent` | JWT issuer |
 | `JWT_AUD` | `HS-Agent-Users` | JWT audience |
-| `JWT_ACCESS_TOKEN_EXPIRATION_MINUTES` | `10` | Access-token lifetime |
-| `JWT_REFRESH_TOKEN_EXPIRATION_DAYS` | `1` | Refresh-token lifetime |
-| `AUTH_LOCKOUT_THRESHOLD` | `5` | 暫時 lockout 前允許的 failed sign-ins；小於 1 會視為 1 |
-| `AUTH_LOCKOUT_MINUTES` | `15` | Temporary lockout duration |
+| `JWT_ACCESS_TOKEN_EXPIRATION_MINUTES` | `10` | Access token 有效時間 |
+| `JWT_REFRESH_TOKEN_EXPIRATION_DAYS` | `1` | Refresh token 有效天數 |
+| `AUTH_LOCKOUT_THRESHOLD` | `5` | 暫時鎖定前允許的登入失敗次數；小於 1 時會視為 1 |
+| `AUTH_LOCKOUT_MINUTES` | `15` | 暫時鎖定時間 |
 
-這組設定管理的是 **Admin authentication**，不是 MCP-key authentication。
+這組設定管理的是**管理端身分驗證**，不是 MCP 金鑰驗證。
 
-## Password reset 與 SMTP
+## 密碼重設與 SMTP
 
-若 SMTP host 或 sender 為空，password-reset mail 實際上不會送出。
+如果 SMTP host 或 sender 為空，密碼重設郵件實際上不會送出。
 
-| Variable | 範例 | 用途 |
+| 變數 | 範例 | 用途 |
 | --- | --- | --- |
-| `PASSWORD_RESET_BASE_URL` | `http://localhost:3000/reset-password` | 對外可到達的 reset page；server 會附加 `?token=...` |
-| `PASSWORD_RESET_EXPIRATION_MINUTES` | `30` | One-time reset-token lifetime |
-| `SMTP_HOST` | `smtp.example.com` | SMTP host |
-| `SMTP_PORT` | `587` | SMTP port |
-| `SMTP_ENABLE_SSL` | `true` | Mail sender 使用的 SSL/STARTTLS behavior |
-| `SMTP_USERNAME` | example | SMTP credential |
-| `SMTP_PASSWORD` | example | SMTP credential |
-| `SMTP_FROM` | `no-reply@example.com` | SMTP provider 接受的 sender address |
+| `PASSWORD_RESET_BASE_URL` | `http://localhost:3000/reset-password` | 外部可到達的重設頁面；伺服器會附加 `?token=...` |
+| `PASSWORD_RESET_EXPIRATION_MINUTES` | `30` | 一次性重設 token 的有效時間 |
+| `SMTP_HOST` | `smtp.example.com` | SMTP 主機 |
+| `SMTP_PORT` | `587` | SMTP 連接埠 |
+| `SMTP_ENABLE_SSL` | `true` | 寄信服務使用的 SSL / STARTTLS 行為 |
+| `SMTP_USERNAME` | example | SMTP 憑證 |
+| `SMTP_PASSWORD` | example | SMTP 憑證 |
+| `SMTP_FROM` | `no-reply@example.com` | SMTP provider 接受的寄件者位址 |
 
 ## OIDC / SSO 與 MFA
 
-| Variable | 範例 | 用途 |
+| 變數 | 範例 | 用途 |
 | --- | --- | --- |
-| `OIDC_ENABLED` | `false` | 啟用 OIDC authentication |
-| `OIDC_AUTHORITY` | empty | Identity-provider authority |
+| `OIDC_ENABLED` | `false` | 啟用 OIDC 身分驗證 |
+| `OIDC_AUTHORITY` | empty | Identity provider authority |
 | `OIDC_CLIENT_ID` | empty | OIDC client ID |
 | `OIDC_CLIENT_SECRET` | empty | OIDC client secret |
-| `OIDC_REQUIRE_HTTPS_METADATA` | `true` | 要求 HTTPS discovery metadata |
-| `OIDC_EMAIL_CLAIM` | `email` | Email claim name |
-| `OIDC_NAME_CLAIM` | `name` | Display-name claim |
+| `OIDC_REQUIRE_HTTPS_METADATA` | `true` | 要求使用 HTTPS discovery metadata |
+| `OIDC_EMAIL_CLAIM` | `email` | Email claim 名稱 |
+| `OIDC_NAME_CLAIM` | `name` | Display name claim |
 | `OIDC_ROLE_CLAIM` | `roles` | Role claim |
-| `OIDC_EMAIL_VERIFIED_CLAIM` | `email_verified` | Verified-email claim |
-| `OIDC_REQUIRE_VERIFIED_EMAIL` | `true` | 依設定 claim 拒絕未驗證 email 的 identity |
-| `OIDC_SCOPE_0..2` | `openid`, `profile`, `email` | Default scopes |
-| `OIDC_ROLE_MAPPING_SQL_ADMINS` | `SuperUser` | External-role → local-role mapping 範例 |
-| `OIDC_AUTO_PROVISION` | `true` | External identity 成功解析後自動 provision user |
-| `OIDC_FRONTEND_CALLBACK_URL` | `/sso-callback` | Frontend completion route |
-| `OIDC_LOGIN_CODE_EXPIRATION_MINUTES` | `2` | Short-lived login-code lifetime |
-| `OIDC_TOTP_ISSUER` | `HS SQL Agent` | TOTP issuer label |
-| `DATA_PROTECTION_KEY_PATH` | `/app/data/data-protection-keys` | Persistent ASP.NET Core data-protection key directory |
+| `OIDC_EMAIL_VERIFIED_CLAIM` | `email_verified` | Email 驗證狀態 claim |
+| `OIDC_REQUIRE_VERIFIED_EMAIL` | `true` | 依設定的 claim 拒絕未驗證 email 的身分 |
+| `OIDC_SCOPE_0..2` | `openid`, `profile`, `email` | 預設 scopes |
+| `OIDC_ROLE_MAPPING_SQL_ADMINS` | `SuperUser` | 外部角色 → 本機角色映射範例 |
+| `OIDC_AUTO_PROVISION` | `true` | 外部身分成功解析後自動建立使用者 |
+| `OIDC_FRONTEND_CALLBACK_URL` | `/sso-callback` | 前端完成登入的 callback route |
+| `OIDC_LOGIN_CODE_EXPIRATION_MINUTES` | `2` | 短效登入 code 的有效時間 |
+| `OIDC_TOTP_ISSUER` | `HS SQL Agent` | TOTP issuer 標籤 |
+| `DATA_PROTECTION_KEY_PATH` | `/app/data/data-protection-keys` | 持久保存 ASP.NET Core data-protection keys 的目錄 |
 
-<Callout type="danger" title="使用 protected identity state 時必須持久化 data-protection keys">
-若 restart 後 data-protection key ring 消失，受保護的 MFA secrets 與 external-login state 可能無法再次解密。Production 請將 `DATA_PROTECTION_KEY_PATH` 掛載到 durable storage。
+<Callout type="danger" title="使用受保護的身分狀態時，必須持久化 data-protection keys">
+如果重新啟動後 data-protection key ring 消失，受保護的 MFA secrets 與外部登入狀態可能無法再次解密。正式環境請把 `DATA_PROTECTION_KEY_PATH` 掛載到持久儲存空間。
 </Callout>
 
 請參考 [OIDC 與 MFA](/zh-hant/docs/security/oidc-mfa)。
 
-## Health、slow query、delivery 與 audit retention
+## 健康檢查、慢查詢、外送與稽核保留
 
-| Variable | 範例 | 用途 |
+| 變數 | 範例 | 用途 |
 | --- | --- | --- |
-| `HEALTH_PROBE_ENABLED` | `false` | 啟用 background DB health probing |
-| `HEALTH_PROBE_INTERVAL_SECONDS` | `60` | Probe cadence |
-| `HEALTH_PROBE_TIMEOUT_SECONDS` | `10` | Per-probe timeout |
-| `HEALTH_PROBE_MAX_CONCURRENCY` | `4` | 限制 concurrent probe work |
-| `SLOW_QUERY_THRESHOLD_MS` | `1000` | Duration 大於等於此值的 query 會記錄為 slow |
-| `ALERT_WEBHOOK_URL` | empty | Optional signed alert destination |
-| `ALERT_WEBHOOK_SECRET` | empty | HMAC/signing secret；URL 啟用時至少 32 bytes |
-| `SIEM_WEBHOOK_URL` | empty | Optional signed SIEM destination |
-| `SIEM_WEBHOOK_SECRET` | empty | HMAC/signing secret；URL 啟用時至少 32 bytes |
-| `DELIVERY_MAX_ATTEMPTS` | `6` | Outbound delivery retry bound |
-| `DELIVERY_MAX_CONCURRENCY` | `4` | 限制 concurrent outbound deliveries |
-| `AUDIT_RETENTION_DAYS` | `90` | Retention period；`0` 代表停用 automatic retention |
-| `AUDIT_RETENTION_MODE` | `Archive` | **Runtime 合法值：`Archive` 或 `Purge`** |
-| `AUDIT_ARCHIVE_PATH` | `/app/data/audit-archive` | Archive mode 的 destination |
-| `AUDIT_FALLBACK_PATH` | `/app/data/audit-fallback.jsonl` | Audit fallback path；startup validation 要求存在設定 |
-| `AUDIT_RETENTION_RUN_HOUR_UTC` | `2` | Scheduled UTC hour；runtime 會 clamp 到 0–23 |
+| `HEALTH_PROBE_ENABLED` | `false` | 啟用背景資料庫健康探測 |
+| `HEALTH_PROBE_INTERVAL_SECONDS` | `60` | 探測間隔 |
+| `HEALTH_PROBE_TIMEOUT_SECONDS` | `10` | 單次探測逾時 |
+| `HEALTH_PROBE_MAX_CONCURRENCY` | `4` | 限制同時進行的探測工作數 |
+| `SLOW_QUERY_THRESHOLD_MS` | `1000` | 執行時間大於等於此值的查詢會記錄為慢查詢 |
+| `ALERT_WEBHOOK_URL` | empty | 選用的帶簽章告警目的地 |
+| `ALERT_WEBHOOK_SECRET` | empty | HMAC / signing secret；啟用 URL 時至少 32 bytes |
+| `SIEM_WEBHOOK_URL` | empty | 選用的帶簽章 SIEM 目的地 |
+| `SIEM_WEBHOOK_SECRET` | empty | HMAC / signing secret；啟用 URL 時至少 32 bytes |
+| `DELIVERY_MAX_ATTEMPTS` | `6` | 外送最多嘗試次數 |
+| `DELIVERY_MAX_CONCURRENCY` | `4` | 限制同時進行的外送數 |
+| `AUDIT_RETENTION_DAYS` | `90` | 保留天數；`0` 代表停用自動保留處理 |
+| `AUDIT_RETENTION_MODE` | `Archive` | **執行階段合法值：`Archive` 或 `Purge`** |
+| `AUDIT_ARCHIVE_PATH` | `/app/data/audit-archive` | `Archive` 模式的封存目的地 |
+| `AUDIT_FALLBACK_PATH` | `/app/data/audit-fallback.jsonl` | 稽核備援路徑；啟動驗證要求有設定 |
+| `AUDIT_RETENTION_RUN_HOUR_UTC` | `2` | 排程執行的 UTC 小時；執行階段會限制在 0–23 |
 
-<Callout type="warning" title="v2.0.2 sample comment 提到 Delete，但 runtime code 使用 Purge">
-`AuditRetentionService` 只接受 `Archive` 與 `Purge`。其他非 Archive 值（包含 `Delete`）會觸發 `AuditRetentionMode must be Purge or Archive.`。本 reference 以可執行的 v2.0.2 runtime code 為準，而不是 stale sample comment。
+<Callout type="warning" title="v2.0.2 範例註解提到 Delete，但執行階段使用 Purge">
+`AuditRetentionService` 只接受 `Archive` 與 `Purge`。其他非 Archive 值（包含 `Delete`）會觸發 `AuditRetentionMode must be Purge or Archive.`。本參考頁以實際可執行的 v2.0.2 程式碼為準，不採用已過時的範例註解。
 </Callout>
 
-`Archive` 會先將過期 audit rows 寫入 JSONL archive，再從 Admin database 刪除；`Purge` 則直接刪除符合 retention 條件的 records，不建立該 archive。
+`Archive` 會先把過期稽核資料列寫入 JSONL 封存檔，再從管理資料庫刪除；`Purge` 則直接刪除符合保留條件的紀錄，不建立封存檔。
 
-## Global 與 per-key rate limiting
+## 全域與每把金鑰的速率限制
 
-| Variable | Single-instance | Distributed | 用途 |
+| 變數 | 單一執行個體 | 分散式 | 用途 |
 | --- | --- | --- | --- |
-| `RATE_LIMITING_PERMIT_LIMIT` | `0` | `0` | Global IP permit limit；limit/window 都為 0 時代表 unlimited |
-| `RATE_LIMITING_WINDOW_SECONDS` | `0` | `0` | Global IP window |
-| `RATE_LIMITER_PROVIDER` | `Memory` | `Redis` | Shared limiter implementation |
-| `RATE_LIMITER_CONNECTION_STRING` | empty | `redis:6379` | Redis connection |
-| `RATE_LIMITER_FAILURE_MODE` | `FailClosed` | `FailClosed` | Distributed limiter unavailable 時的 behavior |
+| `RATE_LIMITING_PERMIT_LIMIT` | `0` | `0` | 全域 IP 請求上限；limit / window 都為 0 時代表不限速 |
+| `RATE_LIMITING_WINDOW_SECONDS` | `0` | `0` | 全域 IP 時間視窗 |
+| `RATE_LIMITER_PROVIDER` | `Memory` | `Redis` | 共用限制器實作 |
+| `RATE_LIMITER_CONNECTION_STRING` | empty | `redis:6379` | Redis 連線字串 |
+| `RATE_LIMITER_FAILURE_MODE` | `FailClosed` | `FailClosed` | 分散式限制器無法使用時的行為 |
 | `RATE_LIMITER_KEY_PREFIX` | `hsqlagent:ratelimit:` | 相同 | Redis key namespace |
 
-MCP key 另外可以 inherit、override 或 disable 自己的 per-key limit。請參考 [MCP Keys](/zh-hant/docs/administration/mcp-keys)。
+MCP 金鑰還可以自行繼承、覆寫或停用每把金鑰的速率限制。請參考 [MCP 金鑰](/zh-hant/docs/administration/mcp-keys)。
 
-## Runtime policy synchronization
+## 執行階段政策同步
 
-| Variable | Single-instance | Distributed | 用途 |
+| 變數 | 單一執行個體 | 分散式 | 用途 |
 | --- | --- | --- | --- |
-| `SECURITY_POLICY_SYNC_PROVIDER` | `Memory` | `Redis` | Runtime policy synchronization provider |
-| `SECURITY_POLICY_SYNC_CONNECTION_STRING` | empty | `redis:6379` | Redis connection |
+| `SECURITY_POLICY_SYNC_PROVIDER` | `Memory` | `Redis` | 執行階段政策同步 provider |
+| `SECURITY_POLICY_SYNC_CONNECTION_STRING` | empty | `redis:6379` | Redis 連線字串 |
 | `SECURITY_POLICY_SYNC_KEY_PREFIX` | `hsqlagent:security-policy:` | 相同 | Key namespace |
-| `SECURITY_POLICY_SYNC_REFRESH_INTERVAL_SECONDS` | `30` | `30` | Refresh interval |
+| `SECURITY_POLICY_SYNC_REFRESH_INTERVAL_SECONDS` | `30` | `30` | 重新整理間隔 |
 
-當 policy changes 必須跨多個 hs-sql-agent instances 傳播時，請使用 Redis。
+當政策變更必須傳播到多個 hs-sql-agent 執行個體時，請使用 Redis。
 
-## Outbound-delivery synchronization
+## 外送同步
 
-| Variable | Single-instance | Distributed | 用途 |
+| 變數 | 單一執行個體 | 分散式 | 用途 |
 | --- | --- | --- | --- |
-| `OUTBOUND_DELIVERY_SYNC_PROVIDER` | `Memory` | `Redis` | Delivery signal coordination |
-| `OUTBOUND_DELIVERY_SYNC_CONNECTION_STRING` | empty | `redis:6379` | Redis connection |
+| `OUTBOUND_DELIVERY_SYNC_PROVIDER` | `Memory` | `Redis` | 外送訊號協調 |
+| `OUTBOUND_DELIVERY_SYNC_CONNECTION_STRING` | empty | `redis:6379` | Redis 連線字串 |
 | `OUTBOUND_DELIVERY_SYNC_KEY_PREFIX` | `hsqlagent:outbound-delivery:` | 相同 | Key namespace |
 
-## SQL concurrency coordination
+## SQL 並行執行協調
 
-| Variable | Single-instance | Distributed | 用途 |
+| 變數 | 單一執行個體 | 分散式 | 用途 |
 | --- | --- | --- | --- |
-| `SQL_CONCURRENCY_PROVIDER` | `Memory` | `Redis` | SQL concurrency limiter provider |
-| `SQL_CONCURRENCY_CONNECTION_STRING` | empty | `redis:6379` | Redis connection |
-| `SQL_CONCURRENCY_FAILURE_MODE` | `FailClosed` | `FailClosed` | Distributed coordination 失敗時的 behavior |
-| `SQL_CONCURRENCY_KEY` | `hsqlagent:sql-concurrency` | 相同 | Shared coordination key |
-| `SQL_CONCURRENCY_LEASE_SECONDS` | `30` | `30` | Lease duration |
+| `SQL_CONCURRENCY_PROVIDER` | `Memory` | `Redis` | SQL 並行限制器 provider |
+| `SQL_CONCURRENCY_CONNECTION_STRING` | empty | `redis:6379` | Redis 連線字串 |
+| `SQL_CONCURRENCY_FAILURE_MODE` | `FailClosed` | `FailClosed` | 分散式協調失敗時的行為 |
+| `SQL_CONCURRENCY_KEY` | `hsqlagent:sql-concurrency` | 相同 | 共用協調 key |
+| `SQL_CONCURRENCY_LEASE_SECONDS` | `30` | `30` | Lease 有效時間 |
 
-Metadata discovery、query、DML planning/execution 與 health-related SQL work 都會走 bounded runtime paths。若 concurrency limit 必須跨整個 cluster 生效，而不是各 process 分別計算，就應使用 distributed SQL concurrency。
+中繼資料探索、查詢、DML 規劃與執行，以及健康檢查相關 SQL 工作，都會走有界限的執行路徑。如果並行上限必須在整個叢集中共同生效，而不是讓各程序分別計算，就應使用分散式 SQL concurrency provider。
 
-## Observability
+## 可觀測性
 
-| Variable | 範例 | 用途 |
+| 變數 | 範例 | 用途 |
 | --- | --- | --- |
 | `PROMETHEUS_ENABLED` | `false` | 啟用 Prometheus HTTP listener |
-| `PROMETHEUS_HOST` | `0.0.0.0` | Metrics listener bind host |
-| `PROMETHEUS_PORT` | `9000` | 獨立 metrics listener port；啟用時需介於 1–65535 |
-| `OTLP_ENDPOINT` | empty | Absolute HTTP(S) OTLP collector endpoint |
-| `OTEL_SERVICE_NAME` | `hs-sql-agent` | OpenTelemetry service name；不可為 blank |
+| `PROMETHEUS_HOST` | `0.0.0.0` | 指標 listener 綁定位址 |
+| `PROMETHEUS_PORT` | `9000` | 獨立指標 listener 連接埠；啟用時需介於 1–65535 |
+| `OTLP_ENDPOINT` | empty | HTTP(S) OTLP collector 的絕對端點 URL |
+| `OTEL_SERVICE_NAME` | `hs-sql-agent` | OpenTelemetry service name；不可為空白 |
 
-Prometheus 刻意使用 **獨立 listener**，不與 Admin/MCP application port 共用。當 `OTLP_ENDPOINT` 有設定時，v2.0.2 會匯出 telemetry，包含 SQL compile-evidence tracing/log integration。
+Prometheus 刻意使用**獨立 listener**，不和 Admin / MCP 應用程式連接埠共用。當 `OTLP_ENDPOINT` 有設定時，v2.0.2 會匯出遙測資料，包含 SQL compile-evidence 的 tracing / log 整合。
 
-請參考 [Observability](/zh-hant/docs/operations/observability)。
+請參考 [可觀測性](/zh-hant/docs/operations/observability)。
 
-## Docker environment 與 embedded .NET capability options
+## Docker 環境變數與內嵌 .NET capability options
 
-Docker/ToolBox environment 是完整 standalone-server configuration surface。新的 NuGet integration 不同：`AddHsSqlAgentCore()` 本身沒有 options，每個被選到的 capability 只擁有自己的設定。
+Docker / ToolBox 環境變數代表完整的獨立伺服器設定介面。新的 NuGet 整合方式不同：`AddHsSqlAgentCore()` 本身沒有 options，每個被啟用的 capability 只擁有自己的設定。
 
 例如：
 
-- `HsSqlAgentAdminStoreOptions`：Admin database provider 與 connection string；
+- `HsSqlAgentAdminStoreOptions`：管理資料庫 provider 與 connection string；
 - `HsSqlAgentRuntimeOptions`：cache、rate limiting、synchronization、SQL concurrency、DML approval storage、bootstrap、operability；
 - `HsSqlAgentBuiltInAuthOptions`：JWT、password reset/SMTP、enterprise identity/OIDC；
-- `McpOptions`：public MCP endpoint 與 HMAC secret；
+- `McpOptions`：公開 MCP endpoint 與 HMAC secret；
 - `TelemetryOptions`：Prometheus 與 OTLP settings。
 
-`HsSqlAgentServiceOptions` 只保留成 legacy aggregate compatibility DTO。沒有選到的 capability 不會建立或驗證它的 options，因此使用 `AddHsSqlAgentHostAuthorization(...)` 的 embedded host 不需要 HsSqlAgent JWT、SMTP、password-reset 或 OIDC settings。
+`HsSqlAgentServiceOptions` 只保留作為舊版整合 API 的相容 DTO。沒有啟用的 capability 不會建立或驗證它的 options，因此使用 `AddHsSqlAgentHostAuthorization(...)` 的內嵌 host 不需要設定 HsSqlAgent JWT、SMTP、password-reset 或 OIDC。
 
-Modular API 保留原有 code defaults；`.env.example` 仍是 standalone ToolBox deployment example，不代表每個 embedded host 都必須設定每個 capability。
+模組化 API 保留原有程式預設值；`.env.example` 仍是獨立 ToolBox 部署的範例，不代表每個內嵌 host 都必須設定所有 capability。
 
 請參考 [ASP.NET Core 整合](/zh-hant/docs/integration/aspnet-core)。

@@ -1,37 +1,37 @@
 ---
-title: Deployment
-description: 單一 hs-sql-agent instance 上 production 時的 public MCP routing、持久化與 telemetry 基本原則。
+title: 部署
+description: 單一 hs-sql-agent 執行個體上正式環境時，公開 MCP 路由、持久化與遙測的基本原則。
 sidebar:
   group: 維運
   order: 100
 ---
 
-預設 repository configuration 適合簡單 single-instance deployment：control plane 可使用 SQLite，process-local provider 可使用 Memory。
+程式庫預設設定適合簡單的單一執行個體部署：控制平面可以使用 SQLite，程序內狀態則可使用 `Memory` provider。
 
-正式對外前，請把外部 URL、secret 與 persistence 明確設定。
+正式對外服務前，請明確設定外部 URL、密鑰與持久化儲存位置。
 
-## Public MCP URL
+## 公開 MCP URL
 
-把 `MCP_PUBLIC_ENDPOINT` 設成 MCP client 真正能連到的 URL，且包含 `/mcp`：
+把 `MCP_PUBLIC_ENDPOINT` 設成 MCP 用戶端真正能連到、且包含 `/mcp` 的 URL：
 
 ```env
 MCP_PUBLIC_ENDPOINT=https://sql-agent.example.com/mcp
 ```
 
-不要假設它一定與 Admin UI origin 相同；reverse proxy 可能把兩者放在不同 host、port 或 path。
+不要假設它一定和管理介面使用相同來源（origin）；反向代理可能把兩者配置在不同主機、連接埠或路徑。
 
-## Secrets
+## 密鑰與憑證
 
-把 example HMAC / JWT key 換成互相獨立、至少 32 bytes 的 unique secret。Database credential、SMTP credential、OIDC client secret、webhook signing secret 與 Redis connection string 不應進 source control。
+把範例中的 HMAC / JWT 密鑰換成彼此獨立、至少 32 bytes 的唯一值。資料庫憑證、SMTP 憑證、OIDC 用戶端密鑰、webhook 簽章密鑰與 Redis 連線字串都不應提交到版本控制。
 
-## Persist control-plane state
+## 持久保存控制平面狀態
 
-預設 SQLite admin DB 位於 `/app/data` 下。若使用 embedded local control plane，container replacement 後仍需要保留這些 data。
+預設 SQLite 管理資料庫位於 `/app/data`。如果使用內嵌的本機控制平面，容器被替換後仍必須保留這些資料。
 
-若 OIDC/TOTP 或其他 protected state 使用 ASP.NET Core data protection，也要 persist `DATA_PROTECTION_KEY_PATH`；遺失 key material 可能讓既有 MFA/login state 無法讀取。
+如果 OIDC / TOTP 或其他受保護狀態使用 ASP.NET Core data protection，也要持久保存 `DATA_PROTECTION_KEY_PATH`；遺失金鑰資料可能讓既有 MFA 或登入狀態無法讀取。
 
-## Observability
+## 可觀測性
 
-Prometheus 可在獨立 listener 啟用；example 使用 `9000`，與 main API port 分離。也可使用 `OTLP_ENDPOINT` 設定 collector，並以 `OTEL_SERVICE_NAME` 指定 service name。
+Prometheus 可以在獨立監聽端點啟用；範例使用 `9000`，和主要 API 連接埠分開。也可以透過 `OTLP_ENDPOINT` 設定 OpenTelemetry Collector，並使用 `OTEL_SERVICE_NAME` 指定服務名稱。
 
-多 instance deployment 請改看 [Distributed Deployment](/zh-hant/docs/operations/distributed-deployment)。
+若要部署多個執行個體，請改看 [分散式部署](/zh-hant/docs/operations/distributed-deployment)。
