@@ -1,0 +1,45 @@
+---
+title: Safe DML
+description: 审批一个或多个 DML，重新验证精确证据，并在单一事务中原子提交获批内容。
+sidebar:
+  group: SQL Compiler
+  order: 50
+---
+
+DML 比 Query 使用更严格的执行路径，因为真正 commit 时，审批内容仍必须描述**同一份 Mutation Evidence**。
+
+## 一个 Tool，同时支持单语句与多语句
+
+`execute_dml_sql` 可以接受一个或多个受支持的 `UPDATE`、`DELETE`、`INSERT ... VALUES`，多个 Statement 用分号分隔。
+
+没有额外的 batch DML Tool。多语句输入会解析成一个 Batch，只审批一次，按原始顺序执行，最后在一个由服务器掌握的 Transaction 中原子提交。
+
+Client 不能传入 `BEGIN`、`COMMIT`、`ROLLBACK` 等 Transaction-control SQL；事务边界由服务器掌握。
+
+## 审批绑定的内容
+
+`UPDATE` / `DELETE` 审批绑定 Preview 时观察到的精确 Primary Key Row Set。Commit Transaction 内每个 Statement 在真正修改前都会立即重新验证。
+
+`INSERT ... VALUES` 审批绑定不可变的 Literal Payload 与精确编译 Command。`INSERT ... SELECT` 在来源 Row Set 审批语义定义完成前仍不开放。
+
+如果前一个 Statement 改变了后一个 Statement 原本获批的 Row Set，整个 Batch 会 fail closed 并 rollback。
+
+## 审批 Provider
+
+MCP Elicitation 仍是第一方默认 Provider。Host 也可以使用官方 `HsSqlAgent.Approvals.Webhook` adapter，或在 `HsSqlAgent.Server` 实现 `IDmlApprovalProvider`。
+
+审批 Provider 收到的是与传输方式无关的 Evidence，不是 SQL 执行 primitive；不会取得 Database Connection、Transaction、已验证 Plan 或 commit 权限。
+
+## Durable Pending Approval
+
+Provider 可以为异步流程返回 `Pending`。存在 Admin Store 时，hs-sql-agent 会保存受保护的 Resume Intent 与 Approval Fingerprint。
+
+之后收到完成决策时，服务器会重新加载当前授权与数据库配置、重新 Parse / Preview DML、比对审批 Evidence，再创建新的短效 Execution Challenge。授权、数据库配置、Policy、Plan、Row Set 或 affected-row Evidence 只要变化，就会被视为 stale 而不是 commit。
+
+完成流程恢复的是**执行意图**，不是旧 Database Session。
+
+## Fail-closed 规则
+
+审批被拒绝、过期、stale、Fingerprint 不匹配、权限被撤销、违反当前 Policy，或无法重现审批 Row Set 时，都不会提交 DML。
+
+另见 [MCP Tools 参考](/zh-hans/docs/mcp/tools-reference)、[配置参考](/zh-hans/docs/operations/configuration)和 [ASP.NET Core 集成](/zh-hans/docs/integration/aspnet-core)。

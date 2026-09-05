@@ -1,0 +1,40 @@
+---
+title: 產品介紹
+description: 認識 hs-sql-agent 的安全邊界，並選擇 2.0.3 適合的使用方式。
+sidebar:
+  group: 開始使用
+  order: 10
+---
+
+hs-sql-agent 是提供**受治理 SQL 存取**的 HTTP MCP Server。它讓 MCP Client 連接 PostgreSQL、MySQL、SQL Server、Oracle、SQLite 與 Firebird，同時把身分驗證、存取政策、SQL 驗證、DML 核准與資料庫執行留在伺服器端。
+
+模型產生的 SQL 一律視為不受信任的輸入。模型可以提出 SQL，但能不能執行、語意是否支援、權限是否足夠，都由伺服器判斷。
+
+## 三種使用方式
+
+### 獨立部署
+
+若 hs-sql-agent 要作為獨立服務執行，使用官方 Docker 映像或 repository 內的 Compose 設定。這是啟動完整第一方產品最直接的方式。
+
+### 嵌入完整產品
+
+.NET 應用若要嵌入與官方 Docker 映像相同的標準第一方組合與設定契約，使用 `HsSqlAgent.Hosting`。
+
+### 建立客製整合
+
+既有 ASP.NET Core 應用若要自行掌握驗證、授權、Middleware 順序、前端、遙測或核准提供者組合，使用 `HsSqlAgent.Server`。從 `AddHsSqlAgentCore()` 開始，只加入實際需要的能力。
+
+## 安全邊界
+
+Query 會依序經過解析、繫結、授權、政策驗證、Capability 驗證、Provider-specific 編譯與執行。不支援的語法或語意會 fail closed，不會退回原始 SQL 直接交給資料庫。
+
+DML 是獨立的高風險路徑。`execute_dml_sql` 可接受一個或多個以分號分隔且受支援的 DML，但仍必須經過伺服器持有的核准證據、重新驗證與原子交易執行。
+
+核准 adapter 不會拿到資料庫連線、Transaction、已驗證執行計畫或 commit primitive；真正的執行權仍留在 hs-sql-agent。
+
+## 接下來
+
+- [快速開始](/zh-hant/docs/getting-started/quick-start)
+- [ASP.NET Core 整合](/zh-hant/docs/integration/aspnet-core)
+- [Safe DML](/zh-hant/docs/sql-compiler/safe-dml)
+- [MCP Tools 參考](/zh-hant/docs/mcp/tools-reference)

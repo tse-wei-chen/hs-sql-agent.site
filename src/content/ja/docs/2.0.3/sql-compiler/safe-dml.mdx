@@ -1,0 +1,45 @@
+---
+title: Safe DML
+description: 1 つ以上の DML を承認し、正確な Evidence を再検証して、承認済み Transaction を原子的に commit します。
+sidebar:
+  group: SQL Compiler
+  order: 50
+---
+
+DML は Query より厳格な実行経路を使います。実際の commit 時にも、承認内容が**同じ Mutation Evidence**を示している必要があるためです。
+
+## 1 つの Tool で単一・複数 Statement に対応
+
+`execute_dml_sql` は、1 つ以上の対応 `UPDATE`、`DELETE`、`INSERT ... VALUES` を受け取れます。複数 Statement はセミコロンで区切ります。
+
+専用の batch DML Tool はありません。複数 Statement は 1 つの Batch として Parse され、1 回だけ承認され、元の順序で実行され、1 つのサーバー所有 Transaction で原子的に commit されます。
+
+Client から `BEGIN`、`COMMIT`、`ROLLBACK` などの Transaction-control SQL は受け付けません。Transaction 境界はサーバーが所有します。
+
+## 承認が結び付く Evidence
+
+`UPDATE` / `DELETE` は Preview で観測した正確な Primary Key Row Set に承認を結び付けます。Commit Transaction 内で各 Statement の変更直前に再検証します。
+
+`INSERT ... VALUES` は不変な Literal Payload と正確な Compile 済み Command に結び付けます。`INSERT ... SELECT` は source Row Set の承認意味論が定義されるまで未対応です。
+
+前の Statement が後続 Statement の承認済み Row Set を変えた場合、Batch 全体が fail closed となり rollback します。
+
+## 承認 Provider
+
+第一方の既定は MCP Elicitation です。Host は公式 `HsSqlAgent.Approvals.Webhook` adapter を利用することも、`HsSqlAgent.Server` で `IDmlApprovalProvider` を実装することもできます。
+
+承認 Provider が受け取るのは transport-neutral な Evidence であり、SQL 実行 primitive ではありません。Database Connection、Transaction、検証済み Plan、commit 権限は渡されません。
+
+## Durable Pending Approval
+
+非同期 Workflow の Provider は `Pending` を返せます。Admin Store がある場合、hs-sql-agent は保護された Resume Intent と Approval Fingerprint を保存します。
+
+後から完了 Decision が届くと、現在の認可と DB 設定を再読み込みし、DML を再 Parse / Preview し、承認 Evidence を比較して、新しい短命 Execution Challenge を作成します。認可、DB 設定、Policy、Plan、Row Set、affected-row Evidence のいずれかが変われば stale として扱い commit しません。
+
+再開されるのは**実行 Intent**であり、古い Database Session ではありません。
+
+## Fail-closed ルール
+
+承認拒否、期限切れ、stale、Fingerprint 不一致、権限失効、現在の Policy 違反、承認 Row Set の再現失敗では DML は commit されません。
+
+[MCP Tools Reference](/ja/docs/mcp/tools-reference)、[設定](/ja/docs/operations/configuration)、[ASP.NET Core 統合](/ja/docs/integration/aspnet-core)も参照してください。

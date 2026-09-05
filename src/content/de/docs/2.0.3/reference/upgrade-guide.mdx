@@ -1,0 +1,35 @@
+---
+title: Upgrade-Leitfaden
+description: hs-sql-agent von 2.0.2 auf 2.0.3 aktualisieren – mit Standard-Hosting, atomarem Mehrfach-DML und austauschbaren dauerhaften Freigaben.
+sidebar:
+  group: Referenz
+  order: 144
+---
+
+import Callout from "@/components/docs/mdx/Callout.astro";
+
+## Wesentliche Änderungen in 2.0.3
+
+2.0.3 behält die bestehenden SQL- und Sicherheitsgrenzen bei und erweitert zugleich Hosting und DML-Freigaben.
+
+- `HsSqlAgent.Hosting` stellt die vollständige ASP.NET-Core-Komposition bereit, die auch vom offiziellen ToolBox-/Docker-Host verwendet wird.
+- `HsSqlAgent.Server` bleibt das modulare Paket für Anwendungen, die Authentifizierung, Autorisierung, Admin-Oberfläche, Middleware-Reihenfolge, Telemetrie oder Freigabe-Komposition selbst steuern.
+- `execute_dml_sql` akzeptiert jetzt eine oder mehrere durch Semikolon getrennte `UPDATE`-, `DELETE`- oder `INSERT ... VALUES`-Anweisungen. Mehrere Anweisungen werden einmal freigegeben und anschließend in ihrer ursprünglichen Reihenfolge atomar in einer Transaktion committed. **Es gibt kein neues Batch-MCP-Tool.**
+- DML-Freigaben sind über `IDmlApprovalProvider` vom Transport entkoppelt. Ein Provider kann freigeben, ablehnen oder `Pending` für eine asynchrone Fertigstellung zurückgeben.
+- `HsSqlAgent.Approvals.Webhook` ist der offizielle generische asynchrone Adapter. SQL-Validierung, Bindung des Approval-Fingerprints, erneute Prüfung des aktuellen Zustands und der endgültige Commit bleiben Eigentum von HsSqlAgent.
+
+<Callout type="warning" title="Admin Store vor dem Upgrade sichern">
+Wenn die Admin-Store-Capability vorhanden ist, nutzen dauerhafte Pending-Freigaben die HsSqlAgent-Persistenz. Behandle die Control-Plane-Datenbank und geschütztes Schlüsselmaterial als Upgrade-Zustand und nicht als wegwerfbaren Cache.
+</Callout>
+
+## Hosting-Pfad bewusst wählen
+
+Für einen eigenständigen Dienst bleibt das offizielle Docker-Image der direkte Weg. Soll ein .NET-Host dieselbe vollständige Komposition einbetten, verwende `HsSqlAgent.Hosting` mit `AddHsSqlAgentStandardHost()` / `UseHsSqlAgentStandardHost()`. Für eine angepasste Integration verwende `HsSqlAgent.Server` und die `AddHsSqlAgent*`-APIs.
+
+## Safe DML erneut testen
+
+Teste auf einer Nicht-Produktionsdatenbank sowohl eine einzelne Anweisung als auch eine Mehrfach-Transaktion. Prüfe Freigabe, Ablehnung, Rollback bei Fehlern und Revalidierung vor dem Commit. Bei asynchronen Providern sollten auch doppelte Callbacks, Ablauf und stale approvals geprüft werden.
+
+## Konfiguration prüfen
+
+Standard-Hosting wählt den Freigabe-Provider über `DmlApproval:Provider`; `McpElicitation` bleibt der Standard. Webhook benötigt zusätzlich Endpoint, Callback URL und Signing Secret. Ein modularer `HsSqlAgent.Server`-Host wählt den Provider per DI.

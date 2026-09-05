@@ -1,0 +1,62 @@
+---
+title: MCP Tools Reference
+description: hs-sql-agent 2.0.3의 built-in MCP Tool 계약과 원자적 multi-statement DML.
+sidebar:
+  group: MCP
+  order: 35
+---
+
+Built-in MCP Surface는 의도적으로 작게 유지됩니다. 2.0.3에서도 MCP Key Scope가 관리하는 built-in Tool 이름은 정확히 5개입니다.
+
+| Tool | 공개 입력 | 용도 |
+| --- | --- | --- |
+| `get_schemas` | 없음 | Schema Discovery |
+| `get_tables` | `schemaName: string` | 보이는 Table Discovery |
+| `get_columns` | `schemaName: string`, `tableName: string` | Column 및 Key Metadata Discovery |
+| `execute_query_sql` | `sql: string` | 하나의 통제된 SELECT Query 실행 |
+| `execute_dml_sql` | `sql: string` | 하나 이상의 승인된 DML을 원자적으로 실행 |
+
+Published Custom Tools는 Database의 Tool Collection을 확장할 수 있지만 새로운 built-in Tool은 아닙니다.
+
+## Discovery보다 먼저 적용되는 권한
+
+MCP Session은 MCP Key 인증 후 구성됩니다. 명시적인 `AllowedTools`는 노출할 built-in 및 Published Custom Tool 이름을 제한합니다. Database Binding, Table Allowlist, Rate Limit, SQL Concurrency, Policy, Audit는 서버 측 제어입니다.
+
+Metadata Tools는 모델이 전달한 Connection String을 받지 않습니다.
+
+## `execute_query_sql`
+
+```text
+execute_query_sql(sql: string)
+```
+
+하나의 지원 `SELECT`를 받아 Typed Query Pipeline에서 Parse, Bind, Table Authorization, Policy와 source semantics 검증, target Capability 증명, immutable Provider Command Compile을 거친 뒤 실행합니다.
+
+지원하지 않는 SQL은 fail closed이며 Raw SQL 실행으로 우회하지 않습니다.
+
+## `execute_dml_sql`
+
+```text
+execute_dml_sql(sql: string)
+```
+
+같은 Tool이 세미콜론으로 구분한**하나 이상의** 지원 DML을 받습니다. 기존 Tool을 확장한 것이며 `execute_dml_sql_batch`는 추가하지 않습니다.
+
+| Statement | 상태 |
+| --- | --- |
+| `UPDATE` | Capability, Policy, 승인, 재검증을 모두 통과하면 지원 |
+| `DELETE` | Capability, Policy, 승인, 재검증을 모두 통과하면 지원 |
+| `INSERT ... VALUES` | immutable-payload approval semantics로 지원 |
+| `INSERT ... SELECT` | source-rowset approval semantics가 정의될 때까지 fail closed |
+
+Multi-statement Request는 Batch 전체를 검증하고 Statement별 Evidence를 만든 뒤 Atomic Transaction으로 한 번만 승인 요청을 보냅니다. 서버가 하나의 Transaction을 열고 각 Statement를 변경 직전에 다시 검증해 원래 순서대로 실행합니다. 하나라도 실패하거나 stale이면 Transaction 전체를 rollback합니다.
+
+Client-supplied Transaction-control SQL은 거부됩니다.
+
+## 승인 Transport
+
+기본 공식 방식은 MCP Elicitation이지만 DML Architecture가 Elicitation에 고정된 것은 아닙니다. Standard Hosting은 공식 Webhook adapter를 선택할 수 있고, Modular Host는 `HsSqlAgent.Approvals.Webhook` 또는 자체 `IDmlApprovalProvider`를 등록할 수 있습니다.
+
+비동기 Provider는 `Pending`을 반환할 수 있습니다. Durable Completion은 서버가 소유하며 이후 commit 전에 현재 권한, 설정, Policy, Plan, Row Set, affected-row Evidence를 다시 검증합니다.
+
+[Safe DML](/ko/docs/sql-compiler/safe-dml)을 참고하세요.

@@ -1,0 +1,45 @@
+---
+title: Safe DML
+description: 하나 이상의 DML을 승인하고 정확한 Evidence를 재검증한 뒤 승인된 Transaction을 원자적으로 commit합니다.
+sidebar:
+  group: SQL Compiler
+  order: 50
+---
+
+DML은 Query보다 더 엄격한 실행 경로를 사용합니다. 실제 commit 시점에도 승인 내용이**동일한 Mutation Evidence**를 설명해야 하기 때문입니다.
+
+## 하나의 Tool로 단일·다중 Statement 지원
+
+`execute_dml_sql`은 하나 이상의 지원 `UPDATE`, `DELETE`, `INSERT ... VALUES`를 받을 수 있으며 여러 Statement는 세미콜론으로 구분합니다.
+
+별도 batch DML Tool은 없습니다. 여러 Statement는 하나의 Batch로 Parse되고 한 번 승인된 뒤 원래 순서대로 실행되며 하나의 서버 소유 Transaction에서 원자적으로 commit됩니다.
+
+Client가 보내는 `BEGIN`, `COMMIT`, `ROLLBACK` 같은 Transaction-control SQL은 허용하지 않습니다. Transaction 경계는 서버가 소유합니다.
+
+## 승인에 바인딩되는 Evidence
+
+`UPDATE` / `DELETE` 승인은 Preview에서 관찰한 정확한 Primary Key Row Set에 바인딩됩니다. Commit Transaction 안에서 각 Statement의 실제 변경 직전에 다시 검증합니다.
+
+`INSERT ... VALUES`는 불변 Literal Payload와 정확한 Compile Command에 바인딩됩니다. `INSERT ... SELECT`는 source Row Set 승인 의미론이 정의될 때까지 지원하지 않습니다.
+
+앞선 Statement가 뒤 Statement의 승인된 Row Set을 바꾸면 Batch 전체가 fail closed로 rollback됩니다.
+
+## 승인 Provider
+
+기본 공식 Provider는 MCP Elicitation입니다. Host는 공식 `HsSqlAgent.Approvals.Webhook` adapter를 사용하거나 `HsSqlAgent.Server`에서 `IDmlApprovalProvider`를 구현할 수 있습니다.
+
+승인 Provider는 transport-neutral Evidence를 받을 뿐 SQL 실행 primitive를 받지 않습니다. Database Connection, Transaction, 검증된 Plan, commit 권한은 제공되지 않습니다.
+
+## Durable Pending Approval
+
+비동기 Workflow의 Provider는 `Pending`을 반환할 수 있습니다. Admin Store가 있으면 hs-sql-agent는 보호된 Resume Intent와 Approval Fingerprint를 저장합니다.
+
+나중에 완료 Decision이 오면 현재 권한과 DB 설정을 다시 읽고 DML을 재 Parse / Preview하며 승인 Evidence를 비교한 뒤 새로운 단기 Execution Challenge를 만듭니다. 권한, DB 설정, Policy, Plan, Row Set, affected-row Evidence가 바뀌면 stale로 처리하고 commit하지 않습니다.
+
+재개되는 것은**실행 Intent**이지 오래된 Database Session이 아닙니다.
+
+## Fail-closed 규칙
+
+승인 거절, 만료, stale, Fingerprint 불일치, 권한 철회, 현재 Policy 위반, 승인 Row Set 재현 실패 시 DML을 commit하지 않습니다.
+
+[MCP Tools Reference](/ko/docs/mcp/tools-reference), [설정](/ko/docs/operations/configuration), [ASP.NET Core 통합](/ko/docs/integration/aspnet-core)을 참고하세요.

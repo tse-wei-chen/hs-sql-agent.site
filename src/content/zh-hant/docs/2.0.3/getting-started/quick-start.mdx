@@ -1,0 +1,61 @@
+---
+title: 快速開始
+description: 在 Docker、HsSqlAgent.Hosting 與 HsSqlAgent.Server 之間選擇，並連接第一個 MCP Client。
+sidebar:
+  group: 開始使用
+  order: 20
+---
+
+先決定誰要掌握 Host，再選使用方式。
+
+| 方式 | 適用情境 |
+| --- | --- |
+| Docker | hs-sql-agent 作為獨立服務執行 |
+| `HsSqlAgent.Hosting` | .NET Host 要嵌入完整第一方產品 |
+| `HsSqlAgent.Server` | 既有 ASP.NET Core 應用需要客製組合 |
+
+## 獨立部署：Docker Compose
+
+複製環境設定範例、替換範例 secrets，再啟動服務：
+
+```bash
+cp .env.example .env
+docker compose up -d
+```
+
+`HMAC_KEY` 與 `JWT_KEY` 請使用不同且至少 32 bytes 的 secrets。預設應用程式監聽 `8080`，MCP endpoint 為 `/mcp`。
+
+外部 MCP Client 請把 `MCP_PUBLIC_ENDPOINT` 設成 Client 真正能連到的絕對 URL，並包含 `/mcp`。
+
+## 嵌入完整產品：HsSqlAgent.Hosting
+
+```bash
+dotnet add package HsSqlAgent.Hosting
+```
+
+```csharp
+using HsSqlAgent.Hosting;
+
+var builder = WebApplication.CreateBuilder(args);
+builder.AddHsSqlAgentStandardHost();
+
+var app = builder.Build();
+app.UseHsSqlAgentStandardHost();
+await app.RunAsync();
+```
+
+這條路徑使用與 Docker 相同的標準第一方能力組合與 DML 核准提供者設定契約。
+
+## 客製 ASP.NET Core 整合：HsSqlAgent.Server
+
+安裝 `HsSqlAgent.Server`，呼叫 `AddHsSqlAgentCore()`，再明確加入 Runtime、Admin Store/API、MCP、身分驗證、遙測與核准能力。詳見 [ASP.NET Core 整合](/zh-hant/docs/integration/aspnet-core)。
+
+## 建立 MCP Key
+
+在 Admin UI 建立 MCP Key，綁定單一受管理資料庫，並只開放 Client 真正需要的 Tools 與 Tables。可直接使用產生的 Client 設定，或以 `X-MCP-Server-Key` 呼叫 Streamable HTTP endpoint。
+
+## DML 核准
+
+MCP Elicitation 仍是第一方預設核准方式。標準 Hosting 可透過設定選擇官方 Webhook adapter；客製 Server Host 則可註冊 `HsSqlAgent.Approvals.Webhook` 或自己的 `IDmlApprovalProvider`。
+
+不需要新增 batch DML Tool：既有 `execute_dml_sql` 本身就接受一個或多個受支援、以分號分隔的 DML，核准後以單一交易原子提交。

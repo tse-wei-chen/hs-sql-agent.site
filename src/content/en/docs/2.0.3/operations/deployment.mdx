@@ -1,0 +1,56 @@
+---
+title: Deployment
+description: Production deployment guidance for standalone, standard embedded, and modular hs-sql-agent hosts.
+sidebar:
+  group: Operations
+  order: 100
+---
+
+Choose the deployment shape by deciding who owns the web host.
+
+| Path | Recommended use |
+| --- | --- |
+| Official Docker image | standalone hs-sql-agent service |
+| `HsSqlAgent.Hosting` | complete product embedded in a .NET host |
+| `HsSqlAgent.Server` | custom ASP.NET Core composition |
+
+## Standalone Docker
+
+Start from the repository `.env.example`, replace all sample secrets, and persist `/app/data` when using the default local control plane. Persist `DATA_PROTECTION_KEY_PATH` whenever protected identity state is enabled.
+
+Set `MCP_PUBLIC_ENDPOINT` to the absolute URL MCP clients can actually reach, including `/mcp`. Reverse proxies may expose Admin UI, MCP, metrics, and approval callbacks through different public routes.
+
+## Standard embedded host
+
+`HsSqlAgent.Hosting` embeds the same standard first-party composition and configuration contract as the official Docker image. URL binding and logging remain normal ASP.NET Core host concerns.
+
+Use `HsSqlAgent.Server` instead when the application must replace authentication, authorization, UI, telemetry, middleware ordering, or the DML approval provider.
+
+## Webhook approval deployment
+
+When `DML_APPROVAL_PROVIDER=Webhook`:
+
+- the Webhook endpoint must be reachable from hs-sql-agent;
+- the callback URL must be reachable by the approval service;
+- the signing secret must be unique and at least 32 UTF-8 bytes;
+- TLS should be used for public production traffic;
+- the callback resumes protected intent and still revalidates current authorization, database configuration, policy, plan, and row-set evidence before commit.
+
+The approval system does not receive SQL execution authority.
+
+## Scale out
+
+For more than one application instance, use a shared Admin database and distributed coordination providers. Redis-backed cache, rate limiting, security-policy sync, outbound-delivery sync, and SQL concurrency keep process-local state from diverging across instances.
+
+Durable pending approvals also depend on persistent Admin Store state. A restarted or different instance can resume only after current state is reloaded and evidence is revalidated.
+
+## Production checklist
+
+- Replace `HMAC_KEY`, `JWT_KEY`, Webhook signing secrets, database passwords, SMTP credentials, and OIDC secrets.
+- Persist the Admin database, data-protection keys, and audit archives where applicable.
+- Configure externally reachable MCP and approval callback URLs.
+- Put public endpoints behind TLS and an appropriate reverse proxy.
+- Enable Prometheus and/or OTLP as required by the operating environment.
+- Use distributed providers before scaling beyond one instance.
+
+See [Configuration](/en/docs/operations/configuration) and [Distributed Deployment](/en/docs/operations/distributed-deployment).

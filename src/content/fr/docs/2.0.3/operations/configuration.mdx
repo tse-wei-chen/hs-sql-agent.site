@@ -1,0 +1,63 @@
+---
+title: Référence de configuration
+description: Configurer Docker autonome, HsSqlAgent.Hosting standard ou un Host HsSqlAgent.Server modulaire.
+sidebar:
+  group: Opérations
+  order: 90
+---
+
+hs-sql-agent propose trois modes d'utilisation avec la même frontière de sécurité.
+
+| Mode | Modèle de configuration |
+| --- | --- |
+| Docker / ToolBox | surface d'environnement complète de `.env.example` |
+| `HsSqlAgent.Hosting` | même composition officielle standard via la configuration ASP.NET Core |
+| `HsSqlAgent.Server` | Options propres aux Capabilities sélectionnées explicitement par le Host |
+
+## Approbation DML
+
+MCP Elicitation est le Provider officiel par défaut. Docker autonome et `HsSqlAgent.Hosting` peuvent sélectionner l'adapter Webhook officiel sans modifier la primitive d'exécution SQL.
+
+| Variable d'environnement | Usage |
+| --- | --- |
+| `DML_APPROVAL_PROVIDER` | `McpElicitation` ou `Webhook` |
+| `DML_APPROVAL_WEBHOOK_ENDPOINT` | endpoint du service d'approbation externe |
+| `DML_APPROVAL_WEBHOOK_CALLBACK_URL` | callback URL publique pour terminer une pending approval |
+| `DML_APPROVAL_WEBHOOK_SIGNING_SECRET` | secret de signature Webhook, au moins 32 UTF-8 bytes |
+
+```json
+{
+  "DmlApproval": {
+    "Provider": "Webhook",
+    "Webhook": {
+      "Endpoint": "https://approval.example.com/hssqlagent/requests",
+      "CallbackUrl": "https://sql-agent.example.com/api/hs-sql-agent/approvals/webhook",
+      "SigningSecret": "replace-with-a-unique-secret-at-least-32-bytes"
+    }
+  }
+}
+```
+
+Un nom de Provider inconnu fait échouer le démarrage. Un Provider asynchrone peut retourner `Pending` ; le Durable Resume exige l'Admin Store afin de conserver le Resume Intent protégé et les Approval Fingerprints.
+
+Un Host `HsSqlAgent.Server` modulaire peut enregistrer `HsSqlAgent.Approvals.Webhook` ou son propre `IDmlApprovalProvider`. Le Provider ne reçoit ni Database Connection, ni Transaction, ni Plan validé, ni primitive de commit.
+
+## Application et Control Plane
+
+La configuration autonome couvre Application Hosting, Admin Database, MCP HMAC/Public Endpoint, JWT Admin intégré, SMTP/Password Reset, OIDC/MFA, Bootstrap, Audit, Health, Delivery, Cache, Rate Limit, Policy Sync, Outbound Delivery Sync, SQL Concurrency, Prometheus et OTLP.
+
+`HMAC_KEY` et `JWT_KEY` doivent être deux secrets distincts d'au moins 32 bytes. Persistez `DATA_PROTECTION_KEY_PATH` lorsque l'Identity State protégé est utilisé.
+
+## Instance unique et Providers distribués
+
+Une instance unique peut utiliser SQLite pour l'Admin Database et des Providers `Memory` locaux. Plusieurs Instances doivent utiliser une Admin Database partagée et les Providers Redis-backed pour Cache, Rate Limiting, Security Policy Sync, Outbound Delivery Sync et SQL Concurrency.
+
+## Observability
+
+Prometheus utilise un Listener séparé configuré par `PROMETHEUS_ENABLED`, `PROMETHEUS_HOST`, `PROMETHEUS_PORT`. OTLP utilise `OTLP_ENDPOINT` et `OTEL_SERVICE_NAME`.
+
+## Host .NET intégré
+
+`HsSqlAgent.Hosting` possède la composition standard complète. `HsSqlAgent.Server` part de `AddHsSqlAgentCore()` et ne valide que les Options des Capabilities sélectionnées. Host Authorization peut remplacer l'Identity intégrée, et le Provider d'approbation DML peut être remplacé indépendamment.
+
+Voir [Déploiement](/fr/docs/operations/deployment), [Intégration ASP.NET Core](/fr/docs/integration/aspnet-core) et [Safe DML](/fr/docs/sql-compiler/safe-dml).

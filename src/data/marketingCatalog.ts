@@ -10,6 +10,7 @@ import {
   getExtraMarketingCopy,
   isExtraMarketingLocale,
 } from "./marketingLocales";
+import { getSafeDmlMarketingPage } from "./marketingSafeDml";
 
 export const marketingLocales = [
   "en",
@@ -49,10 +50,16 @@ function resolvePage(
   );
   if (!definition) return undefined;
 
+  // Release-sensitive product positioning stays on one latest-only authority per
+  // page so supplemental locale catalogs cannot drift from the current product.
+  if (section === "integrations" && slug === "aspnet-core") {
+    return getAspNetCoreMarketingPage(locale) as LocalizedMarketingPage;
+  }
+  if (section === "features" && slug === "safe-dml") {
+    return getSafeDmlMarketingPage(locale) as LocalizedMarketingPage;
+  }
+
   if (locale === "en" || locale === "zh-hant") {
-    if (section === "integrations" && slug === "aspnet-core") {
-      return getAspNetCoreMarketingPage(locale) as LocalizedMarketingPage;
-    }
     return getCoreMarketingPage(locale, section, slug) as
       | LocalizedMarketingPage
       | undefined;

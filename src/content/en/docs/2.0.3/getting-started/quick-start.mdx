@@ -1,0 +1,63 @@
+---
+title: Quick Start
+description: Choose Docker, HsSqlAgent.Hosting, or HsSqlAgent.Server and connect your first MCP client.
+sidebar:
+  group: Getting Started
+  order: 20
+---
+
+Choose the consumption path that matches who should own the host.
+
+| Path | Use it when |
+| --- | --- |
+| Docker | hs-sql-agent should run as a standalone service |
+| `HsSqlAgent.Hosting` | a .NET host should embed the complete first-party product |
+| `HsSqlAgent.Server` | an existing ASP.NET Core app needs a custom composition |
+
+## Standalone: Docker Compose
+
+Copy the checked-in environment example, replace the sample secrets, and start the service:
+
+```bash
+cp .env.example .env
+docker compose up -d
+```
+
+Set `HMAC_KEY` and `JWT_KEY` to different secrets of at least 32 bytes. The default application listener is port `8080`, and the MCP endpoint is `/mcp`.
+
+For a remote client, set `MCP_PUBLIC_ENDPOINT` to the externally reachable absolute URL, including `/mcp`.
+
+## Complete embedded product: HsSqlAgent.Hosting
+
+Install the batteries-included package:
+
+```bash
+dotnet add package HsSqlAgent.Hosting
+```
+
+```csharp
+using HsSqlAgent.Hosting;
+
+var builder = WebApplication.CreateBuilder(args);
+builder.AddHsSqlAgentStandardHost();
+
+var app = builder.Build();
+app.UseHsSqlAgentStandardHost();
+await app.RunAsync();
+```
+
+This uses the same standard first-party capability composition and approval-provider configuration contract as Docker.
+
+## Custom ASP.NET Core integration: HsSqlAgent.Server
+
+Install `HsSqlAgent.Server`, call `AddHsSqlAgentCore()`, and explicitly add the runtime, Admin Store/API, MCP, identity, telemetry, and approval capabilities that your application needs. See [ASP.NET Core integration](/en/docs/integration/aspnet-core).
+
+## Issue an MCP key
+
+In the Admin UI, create an MCP key, bind it to one managed database, and expose only the tools and tables the client needs. Use the generated client configuration or send the key as `X-MCP-Server-Key` to the Streamable HTTP endpoint.
+
+## DML approval
+
+MCP Elicitation remains the default first-party approval path. Standard Hosting can select the official Webhook adapter through configuration. Custom Server hosts can register `HsSqlAgent.Approvals.Webhook` or their own `IDmlApprovalProvider`.
+
+Do not create a separate batch-DML tool: `execute_dml_sql` itself accepts one or more supported semicolon-separated DML statements and commits an approved batch atomically.

@@ -1,0 +1,37 @@
+---
+title: 升級指南
+description: 從 hs-sql-agent 2.0.2 升級至 2.0.3，涵蓋標準 Hosting、原子多語句 DML 與可替換的持久化核准流程。
+sidebar:
+  group: 參考
+  order: 144
+---
+
+import Callout from "@/components/docs/mdx/Callout.astro";
+
+## 2.0.3 的主要變更
+
+2.0.3 沿用既有 SQL 與安全邊界，但擴充了產品的 Hosting 方式與 DML 核准整合。
+
+- `HsSqlAgent.Hosting` 是第一方 ToolBox / Docker 使用的完整 ASP.NET Core 組合。
+- `HsSqlAgent.Server` 仍是模組化套件，適合要自行掌握驗證、授權、管理介面、Middleware 順序、遙測或核准流程的應用。
+- `execute_dml_sql` 現在可接收一個或多個以分號分隔的 `UPDATE`、`DELETE`、`INSERT ... VALUES`。多個語句只核准一次，依原順序在同一交易中原子提交；**沒有新增 batch MCP tool**。
+- DML 核准透過 `IDmlApprovalProvider` 與傳輸方式解耦；provider 可以核准、拒絕，或回傳 `Pending` 交由非同步流程完成。
+- `HsSqlAgent.Approvals.Webhook` 是官方通用的非同步 adapter。SQL 驗證、核准 fingerprint 綁定、現況重新驗證與最終 commit 仍由 HsSqlAgent 負責。
+
+<Callout type="warning" title="升級前先備份 Admin Store">
+有 Admin Store capability 時，等待中的持久化核准會使用 HsSqlAgent 的持久化層。請把 control-plane database 與受保護的金鑰資料視為升級狀態，不要當成可丟棄快取。
+</Callout>
+
+## 明確選擇 Hosting 路徑
+
+獨立服務繼續使用官方 Docker 映像。若 .NET host 要嵌入與官方映像相同的完整組合，安裝 `HsSqlAgent.Hosting` 並使用 `AddHsSqlAgentStandardHost()` / `UseHsSqlAgentStandardHost()`。需要客製整合時則使用 `HsSqlAgent.Server` 與 `AddHsSqlAgent*` capability API。
+
+## 重新驗證 Safe DML
+
+請在非正式環境分別測試單一語句與多語句交易，確認核准、拒絕、失敗時 rollback，以及 commit 前重新驗證都符合預期。若啟用非同步 provider，也要測試重複 callback、過期與 stale approval completion。
+
+## 設定檢查
+
+標準 Hosting 透過 `DmlApproval:Provider` 選擇核准方式，預設仍是 `McpElicitation`。Webhook 還需要 endpoint、callback URL 與 signing secret。模組化 `HsSqlAgent.Server` host 則透過 DI 選擇 provider，不使用標準 Hosting 的 selector。
+
+除非刻意輪替，請保留既有 HMAC/JWT secrets 與 ASP.NET Core data-protection material；在 smoke test 完成前，也保留升級前的 Admin database 備份。

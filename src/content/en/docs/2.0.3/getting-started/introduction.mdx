@@ -1,0 +1,40 @@
+---
+title: Introduction
+description: Understand hs-sql-agent's security boundary and choose the right consumption path for 2.0.3.
+sidebar:
+  group: Getting Started
+  order: 10
+---
+
+hs-sql-agent is an HTTP MCP server for **governed SQL access**. It connects MCP clients to PostgreSQL, MySQL, SQL Server, Oracle, SQLite, and Firebird while keeping identity, access policy, SQL validation, mutation approval, and database execution on the server side.
+
+Generated SQL is untrusted input. The model may propose SQL, but the server decides whether the request is authorized, semantically supported, and safe to execute.
+
+## Three ways to use the product
+
+### Deploy standalone
+
+Use the official Docker image or repository Compose setup when hs-sql-agent should run as its own service. This is the shortest path to the complete first-party product.
+
+### Embed the complete product
+
+Use `HsSqlAgent.Hosting` when a .NET application should embed the same standard first-party composition and configuration contract as the official Docker image.
+
+### Build a custom integration
+
+Use `HsSqlAgent.Server` when an existing ASP.NET Core application must own authentication, authorization, middleware ordering, frontend, telemetry, or approval-provider composition. Start with `AddHsSqlAgentCore()` and add only the capabilities the host needs.
+
+## Security boundary
+
+Queries go through parsing, binding, authorization, policy validation, capability proof, provider-specific compilation, and execution. Unsupported syntax or semantics fail closed instead of falling back to raw provider execution.
+
+DML is a separate risk class. `execute_dml_sql` can accept one or more supported semicolon-separated mutations, but the whole request still goes through server-owned approval evidence, revalidation, and atomic transaction execution.
+
+Approval adapters never receive a database connection, transaction, validated execution plan, or commit primitive. hs-sql-agent retains ownership of the execution boundary.
+
+## Next steps
+
+- [Quick Start](/en/docs/getting-started/quick-start)
+- [ASP.NET Core integration](/en/docs/integration/aspnet-core)
+- [Safe DML](/en/docs/sql-compiler/safe-dml)
+- [MCP Tools Reference](/en/docs/mcp/tools-reference)

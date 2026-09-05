@@ -1,0 +1,39 @@
+---
+title: 架构
+description: hs-sql-agent 2.0.3 的产品组合、SQL Compiler 边界和 DML 审批架构。
+sidebar:
+  group: 开发
+  order: 120
+---
+
+hs-sql-agent 将**产品如何组合**与**谁拥有执行权**分开。Host 可以决定组合哪些能力，但 SQL 验证、审批证据、重新验证和 commit 仍是服务器掌握的边界。
+
+## 产品组合
+
+- **Docker / ToolBox**：完整的独立第一方组合。
+- **HsSqlAgent.Hosting**：在 .NET Host 中嵌入相同的标准组合。
+- **HsSqlAgent.Server**：允许 Host 替换或省略能力的模块化 building blocks。
+- **HsSqlAgent.Approvals.Abstractions**：`IDmlApprovalProvider`、`IDmlApprovalCompletionSink` 等与传输无关的审批契约。
+- **HsSqlAgent.Approvals.Webhook**：官方通用异步 Webhook 审批 adapter。
+
+`HsSqlAgent.Hosting` 负责标准组合和 Provider selector；需要自定义身份验证、授权、UI、遥测、中间件或审批集成时，使用 `HsSqlAgent.Server`。
+
+## SQL 执行边界
+
+Query 和 DML 不会直接交给数据库 Driver。Typed SQL Pipeline 会先解析、绑定、授权、验证策略和来源语义、证明目标 Capability，最后才生成 Provider-specific Command。
+
+不支持的语义会 fail closed。Provider-specific rendering 是最后阶段，不是绕过验证的捷径。
+
+## DML Transaction 审批
+
+`execute_dml_sql` 可以接受一个或多个受支持的 DML。多语句输入会解析为 Batch，只审批一次，并按原始顺序在一个由服务器掌握的 Transaction 中提交。
+
+`UPDATE` / `DELETE` 审批绑定精确的 Primary Key Row Set，每个 Statement 在实际修改前都会重新验证。`INSERT ... VALUES` 绑定不可变 Literal Payload 与编译后 Command；`INSERT ... SELECT` 在来源 Row Set 审批语义定义完成前仍不开放。
+
+如果前一个 Statement 改变了后一个 Statement 原本获批的 Row Set，整个 Transaction 会 fail closed 并 rollback。
+
+## Durable Approval Lifecycle
+
+审批 Provider 可以返回 `Pending`。存在 Admin Store 时，hs-sql-agent 会保存受保护的 Resume Intent 与审批 Fingerprint。之后收到完成决策时，不会复用旧 Session，而是重新加载授权和数据库配置、重新解析与 Preview DML、比对证据，再建立新的短效执行 Challenge。
+
+审批 adapter 永远拿不到直接 SQL 执行 primitive，使外部工作流保持在 commit 边界之外。

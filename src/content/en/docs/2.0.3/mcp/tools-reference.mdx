@@ -1,0 +1,74 @@
+---
+title: MCP Tools Reference
+description: Built-in MCP tool contracts for hs-sql-agent 2.0.3, including atomic multi-statement DML.
+sidebar:
+  group: MCP
+  order: 35
+---
+
+The built-in MCP surface remains intentionally small. Version 2.0.3 still has exactly five built-in tool names managed by MCP-key scope.
+
+| Tool | Public input | Purpose |
+| --- | --- | --- |
+| `get_schemas` | none | discover schemas |
+| `get_tables` | `schemaName: string` | discover visible tables |
+| `get_columns` | `schemaName: string`, `tableName: string` | discover visible columns and key metadata |
+| `execute_query_sql` | `sql: string` | execute one governed SELECT query |
+| `execute_dml_sql` | `sql: string` | execute one or more approved DML statements atomically |
+
+Published Custom Tools can extend a database's tool collection, but they are not additional built-in tools.
+
+## Authorization applies before discovery
+
+The MCP session is built after MCP-key authentication. An explicit `AllowedTools` list limits which built-in and published Custom Tool names are exposed. Database binding, table allowlists, rate limits, SQL concurrency, policy, and audit remain server-side controls.
+
+Metadata tools never accept a connection string from the model.
+
+## `execute_query_sql`
+
+```text
+execute_query_sql(sql: string)
+```
+
+Accepts one supported `SELECT` statement and sends it through the typed query pipeline: parse, bind, authorize tables, validate policy and source semantics, prove target capabilities, compile an immutable provider command, then execute.
+
+Unsupported SQL fails closed instead of falling back to raw provider execution.
+
+## `execute_dml_sql`
+
+```text
+execute_dml_sql(sql: string)
+```
+
+The same tool now accepts **one or more** supported DML statements separated by semicolons. This expands the existing tool instead of adding `execute_dml_sql_batch`.
+
+Supported mutation classes are:
+
+| Statement | Status |
+| --- | --- |
+| `UPDATE` | supported when capability, policy, approval, and revalidation pass |
+| `DELETE` | supported when capability, policy, approval, and revalidation pass |
+| `INSERT ... VALUES` | supported with immutable-payload approval semantics |
+| `INSERT ... SELECT` | rejected fail closed until source-rowset approval semantics exist |
+
+For a multi-statement request, hs-sql-agent:
+
+1. parses and validates the entire batch;
+2. previews and builds per-statement evidence;
+3. requests one approval for the atomic transaction;
+4. starts one server-owned transaction;
+5. revalidates each statement immediately before its mutation;
+6. executes statements in their original order;
+7. commits only when every statement still matches its approved evidence.
+
+If any statement fails or becomes stale, the whole transaction rolls back.
+
+Client-supplied transaction-control SQL is rejected.
+
+## Approval transport
+
+MCP Elicitation is the default first-party path, but DML is no longer architecturally tied to Elicitation. Standard Hosting can select the official Webhook adapter; modular hosts can register `HsSqlAgent.Approvals.Webhook` or a custom `IDmlApprovalProvider`.
+
+An asynchronous provider may return `Pending`. Durable completion is server-owned and revalidates current authorization, configuration, policy, plan, row-set, and affected-row evidence before any later commit.
+
+See [Safe DML](/en/docs/sql-compiler/safe-dml).

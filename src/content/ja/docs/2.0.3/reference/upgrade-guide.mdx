@@ -1,0 +1,35 @@
+---
+title: アップグレードガイド
+description: hs-sql-agent 2.0.2 から 2.0.3 へ移行し、標準 Hosting、複数 DML の原子的実行、差し替え可能な永続承認フローを導入します。
+sidebar:
+  group: リファレンス
+  order: 144
+---
+
+import Callout from "@/components/docs/mdx/Callout.astro";
+
+## 2.0.3 の主な変更点
+
+2.0.3 は既存の SQL とセキュリティ境界を維持しつつ、Hosting と DML 承認の統合方法を拡張します。
+
+- `HsSqlAgent.Hosting` は、第一方 ToolBox / Docker と同じ完全な ASP.NET Core 構成を提供します。
+- `HsSqlAgent.Server` は引き続き、認証、認可、管理 UI、Middleware の順序、テレメトリ、承認構成をホスト側で管理したい場合のモジュール式パッケージです。
+- `execute_dml_sql` は、セミコロンで区切った複数の `UPDATE`、`DELETE`、`INSERT ... VALUES` を受け取れるようになりました。複数文は一度だけ承認され、元の順序のまま 1 つのトランザクションで原子的に commit されます。**batch 用の新しい MCP tool は追加されません。**
+- DML 承認は `IDmlApprovalProvider` によって transport から分離され、承認、拒否、または非同期完了用の `Pending` を返せます。
+- `HsSqlAgent.Approvals.Webhook` は公式の汎用非同期 adapter です。SQL 検証、承認 fingerprint の束縛、現状態の再検証、最終 commit は HsSqlAgent が保持します。
+
+<Callout type="warning" title="アップグレード前に Admin Store をバックアップしてください">
+Admin Store capability がある場合、Pending の永続承認は HsSqlAgent の永続化層を使用します。control-plane database と保護された鍵素材を、破棄可能な cache ではなくアップグレード状態として扱ってください。
+</Callout>
+
+## Hosting 経路を明示的に選ぶ
+
+スタンドアロンは公式 Docker image を継続利用します。.NET host に同じ完全構成を組み込みたい場合は `HsSqlAgent.Hosting` と `AddHsSqlAgentStandardHost()` / `UseHsSqlAgentStandardHost()` を使います。個別 capability を差し替える場合は `HsSqlAgent.Server` と `AddHsSqlAgent*` API を使います。
+
+## Safe DML を再テストする
+
+非本番 database で単一文と複数文トランザクションをそれぞれ試し、承認、拒否、失敗時 rollback、commit 前再検証を確認してください。非同期 provider を使う場合は、重複 callback、期限切れ、stale approval completion も確認します。
+
+## 設定の確認
+
+標準 Hosting は `DmlApproval:Provider` で承認方式を選び、既定値は `McpElicitation` です。Webhook では endpoint、callback URL、signing secret も必要です。モジュール式 `HsSqlAgent.Server` host は DI で provider を選択します。

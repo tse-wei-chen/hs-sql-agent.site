@@ -1,0 +1,39 @@
+---
+title: 아키텍처
+description: hs-sql-agent 2.0.3의 제품 구성, SQL Compiler 경계, DML 승인 아키텍처.
+sidebar:
+  group: 개발
+  order: 120
+---
+
+hs-sql-agent는 **제품을 어떻게 구성하는가**와 **누가 실행 권한을 소유하는가**를 분리합니다. Host는 필요한 Capability를 선택할 수 있지만 SQL 검증, 승인 Evidence, 재검증, commit은 서버가 소유하는 경계입니다.
+
+## 제품 구성
+
+- **Docker / ToolBox**: 완전한 독립 공식 구성.
+- **HsSqlAgent.Hosting**: 동일한 표준 구성을 .NET Host에 임베드.
+- **HsSqlAgent.Server**: Capability를 교체하거나 제외할 수 있는 모듈형 building blocks.
+- **HsSqlAgent.Approvals.Abstractions**: `IDmlApprovalProvider`, `IDmlApprovalCompletionSink` 같은 transport-neutral 승인 계약.
+- **HsSqlAgent.Approvals.Webhook**: 공식 범용 비동기 Webhook 승인 adapter.
+
+표준 구성과 Provider selector는 `HsSqlAgent.Hosting`이 소유합니다. 인증, 권한 부여, UI, Telemetry, Middleware 또는 승인 통합을 맞춤 구성하려면 `HsSqlAgent.Server`를 사용합니다.
+
+## SQL 실행 경계
+
+Query와 DML은 Database Driver로 바로 전달되지 않습니다. Typed SQL Pipeline이 Parse, Bind, 권한 확인, Policy와 source semantics 검증, target Capability 증명을 거친 뒤 Provider-specific Command를 생성합니다.
+
+지원하지 않는 의미론은 fail closed입니다. Provider-specific rendering은 마지막 단계이며 검증을 대신하지 않습니다.
+
+## DML Transaction 승인
+
+`execute_dml_sql`은 하나 이상의 지원 DML을 받을 수 있습니다. 여러 Statement는 Batch로 Parse되고 한 번 승인된 뒤 원래 순서대로 하나의 서버 소유 Transaction에서 commit됩니다.
+
+`UPDATE` / `DELETE` 승인은 정확한 Primary Key Row Set에 바인딩되고 각 Statement의 실제 변경 직전에 재검증됩니다. `INSERT ... VALUES`는 불변 Literal Payload와 Compile된 Command에 바인딩됩니다. `INSERT ... SELECT`는 source Row Set 승인 의미론이 정의될 때까지 지원하지 않습니다.
+
+앞선 Statement가 뒤 Statement의 승인된 Row Set을 바꾸면 Transaction 전체가 fail closed로 rollback됩니다.
+
+## Durable Approval Lifecycle
+
+승인 Provider는 `Pending`을 반환할 수 있습니다. Admin Store가 있으면 hs-sql-agent는 보호된 Resume Intent와 승인 Fingerprint를 저장합니다. 이후 완료 Decision이 오면 오래된 Session을 재사용하지 않고 권한과 DB 설정을 다시 읽고 DML을 재 Parse / Preview한 뒤 Evidence를 비교하고 새로운 단기 Challenge를 만듭니다.
+
+승인 adapter는 SQL을 직접 실행하는 primitive를 받지 않으므로 외부 Workflow는 commit 경계 밖에 유지됩니다.

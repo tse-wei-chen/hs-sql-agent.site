@@ -1,0 +1,40 @@
+---
+title: Einführung
+description: Die Sicherheitsgrenze von hs-sql-agent verstehen und den passenden Nutzungsweg für 2.0.3 wählen.
+sidebar:
+  group: Einstieg
+  order: 10
+---
+
+hs-sql-agent ist ein HTTP-MCP-Server für **kontrollierten SQL-Zugriff**. Er verbindet MCP-Clients mit PostgreSQL, MySQL, SQL Server, Oracle, SQLite und Firebird, während Identität, Zugriffsrichtlinien, SQL-Validierung, DML-Freigaben und Datenbankausführung auf dem Server bleiben.
+
+Von einem Modell erzeugtes SQL ist nicht vertrauenswürdige Eingabe. Das Modell darf SQL vorschlagen; der Server entscheidet über Berechtigung, unterstützte Semantik und sichere Ausführung.
+
+## Drei Nutzungswege
+
+### Eigenständig deployen
+
+Nutzen Sie das offizielle Docker-Image oder die Compose-Konfiguration im Repository, wenn hs-sql-agent als eigener Dienst laufen soll. Das ist der kürzeste Weg zum vollständigen First-Party-Produkt.
+
+### Das vollständige Produkt einbetten
+
+Nutzen Sie `HsSqlAgent.Hosting`, wenn eine .NET-Anwendung dieselbe offizielle Standardkomposition und denselben Konfigurationsvertrag wie das Docker-Image einbetten soll.
+
+### Eine eigene Integration bauen
+
+Nutzen Sie `HsSqlAgent.Server`, wenn eine bestehende ASP.NET-Core-Anwendung Authentifizierung, Autorisierung, Middleware-Reihenfolge, Frontend, Telemetrie oder die Zusammensetzung der Freigabe-Provider selbst kontrollieren muss. Beginnen Sie mit `AddHsSqlAgentCore()` und fügen Sie nur benötigte Capabilities hinzu.
+
+## Sicherheitsgrenze
+
+Queries durchlaufen Parsing, Binding, Autorisierung, Policy-Validierung, Capability-Nachweis, providerspezifische Kompilierung und Ausführung. Nicht unterstützte Syntax oder Semantik wird fail closed abgelehnt und nicht als Raw SQL direkt an den Provider weitergegeben.
+
+DML ist ein eigener Hochrisikopfad. `execute_dml_sql` kann eine oder mehrere unterstützte, durch Semikolons getrennte Mutationen annehmen; der gesamte Request bleibt jedoch an serverseitige Freigabenachweise, erneute Validierung und atomare Transaction-Ausführung gebunden.
+
+Ein Freigabe-Adapter erhält weder Datenbankverbindung noch Transaction, validierten Ausführungsplan oder Commit-Primitive. Die Ausführungsautorität bleibt bei hs-sql-agent.
+
+## Nächste Schritte
+
+- [Schnellstart](/de/docs/getting-started/quick-start)
+- [ASP.NET-Core-Integration](/de/docs/integration/aspnet-core)
+- [Safe DML](/de/docs/sql-compiler/safe-dml)
+- [MCP Tools Reference](/de/docs/mcp/tools-reference)
