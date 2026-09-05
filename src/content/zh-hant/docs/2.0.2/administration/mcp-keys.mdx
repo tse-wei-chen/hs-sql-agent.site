@@ -1,8 +1,8 @@
 ---
-title: MCP Keys
-description: 在 hs-sql-agent 2.0.1 簽發、限制、rotate、clone 與 revoke MCP credentials。
+title: MCP 金鑰
+description: 在 hs-sql-agent 2.0.1 簽發、限制、輪替、複製與撤銷 MCP 憑證。
 sidebar:
-  group: Administration
+  group: 管理
   order: 74
 ---
 
@@ -13,92 +13,92 @@ import Steps from "@/components/docs/mdx/Steps.astro";
 import Step from "@/components/docs/mdx/Step.astro";
 
 <CardGrid columns={3}>
-  <DocCard title="Database boundary" icon="DB" description="每把 production key 都綁定到一個 Database Management entry。" />
-  <DocCard title="Tool boundary" icon="T" description="只暴露 client 真正需要的 built-in 與 published Custom Tools。" />
-  <DocCard title="Table boundary" icon="▦" description="需要時再以 qualified-table whitelist 限制 key 可見資料表。" />
+  <DocCard title="資料庫邊界" icon="DB" description="正式環境中的每把 MCP 金鑰都會綁定一筆 Database Management 設定。" />
+  <DocCard title="工具邊界" icon="T" description="只開放用戶端真正需要的內建工具與已發布的 Custom Tools。" />
+  <DocCard title="資料表邊界" icon="▦" description="需要時可用完整限定名稱的資料表白名單，進一步限制金鑰可存取的資料表。" />
 </CardGrid>
 
-MCP key 用來驗證 `/mcp` request，並攜帶 hs-sql-agent runtime authorization scope。它與 Admin user session、OIDC identity 是不同的身份邊界。
+MCP 金鑰用來驗證送往 `/mcp` 的請求，並攜帶 hs-sql-agent 執行階段所需的授權範圍。它和管理端使用者工作階段、OIDC 身分屬於不同的安全邊界。
 
-## 2.0.1 正式 built-in tool surface
+## 2.0.1 內建工具
 
-Key-management service 正式辨識五個 built-in tools：
+金鑰管理服務正式辨識五個內建工具：
 
-| Tool | Scope |
+| 工具 | 用途 |
 | --- | --- |
-| `get_schemas` | schema discovery |
-| `get_tables` | table discovery |
-| `get_columns` | column discovery |
-| `execute_query_sql` | governed `SELECT` execution |
-| `execute_dml_sql` | governed Safe DML |
+| `get_schemas` | 取得 schema 清單 |
+| `get_tables` | 取得資料表清單 |
+| `get_columns` | 取得欄位清單 |
+| `execute_query_sql` | 執行受治理的 `SELECT` |
+| `execute_dml_sql` | 執行受治理的 Safe DML |
 
-同一 database 下已 publish 的 Custom Tools 也可以依名稱加入 allowlist。請見 [Custom Tools](/zh-hant/docs/administration/custom-tools)。
+同一資料庫下已發布的 Custom Tools 也可以依名稱加入允許清單。請見 [Custom Tools](/zh-hant/docs/administration/custom-tools)。
 
-<Callout type="info" title="空白 tool scope 代表 unrestricted，不是沒有 tools">
-Runtime 對空白 `AllowedTools` 的解讀是「不限制 tool name」。Production agent 建議明確選出最小必要 tool set，不要依賴 unrestricted 形式。
+<Callout type="info" title="空白工具範圍代表不限制，不是停用所有工具">
+執行階段會把空白的 `AllowedTools` 解讀為「不限制工具名稱」。正式環境建議明確選出最小必要工具集合，不要依賴不受限制的設定。
 </Callout>
 
-## 簽發 key
+## 簽發金鑰
 
 <Steps>
-  <Step title="設定名稱" description="Request 必須有非空白 name，且上限 100 characters。" />
-  <Step title="綁定 database" description="2.0.1 issuance validator 要求 DbManagementId。" />
-  <Step title="選擇 tools" description="選取 built-in tools，以及該 database 已 publish 的 Custom Tools。" />
-  <Step title="限制 data access" description="如果 client 只能看部分資料表，啟用 table whitelist。" />
-  <Step title="設定 lifecycle controls" description="需要時設定 expiration、CORS origins 與 rate-limit mode/overrides。" />
-  <Step title="複製 plaintext secret" description="Lifecycle dialog 關閉前，把新 key 保存到 client secret store。" />
+  <Step title="設定名稱" description="請求必須提供非空白名稱，上限為 100 個字元。" />
+  <Step title="綁定資料庫" description="2.0.1 的簽發驗證要求提供 DbManagementId。" />
+  <Step title="選擇工具" description="選取需要的內建工具，以及該資料庫已發布的 Custom Tools。" />
+  <Step title="限制資料存取" description="如果用戶端只能查看部分資料表，請啟用資料表白名單。" />
+  <Step title="設定生命週期限制" description="需要時可設定到期時間、CORS 來源，以及速率限制模式或覆寫值。" />
+  <Step title="複製明文密鑰" description="關閉生命週期對話框前，先把新金鑰保存到用戶端的安全密鑰儲存區。" />
 </Steps>
 
-## Issuance 欄位
+## 簽發欄位
 
-| Field | 意義 |
+| 欄位 | 意義 |
 | --- | --- |
-| `Name` | 操作者辨識 key 的名稱 |
-| `ExpiresAt` | 選用 expiration；有設定時必須在未來 |
-| `AllowedTools` | comma-separated tool names；空白代表 unrestricted |
-| `CorsAllowedOrigins` | 選用的 browser-origin MCP CORS restriction |
-| `DbManagementId` | 綁定 database entry；簽發時必填 |
-| `TableWhitelist` | 選用 comma-separated qualified-table allowlist |
+| `Name` | 方便管理者辨識金鑰的名稱 |
+| `ExpiresAt` | 選用的到期時間；有設定時必須是未來時間 |
+| `AllowedTools` | 以逗號分隔的工具名稱；空白代表不限制 |
+| `CorsAllowedOrigins` | 選用的瀏覽器來源 MCP CORS 限制 |
+| `DbManagementId` | 綁定的資料庫項目；簽發時必填 |
+| `TableWhitelist` | 選用、以逗號分隔的完整限定資料表白名單 |
 | `RateLimitMode` | `Inherit`、`Custom` 或 `Unlimited` |
-| `PermitLimitOverride` | Custom per-key rate limit 使用 |
-| `WindowSecondsOverride` | Custom per-key rate limit 使用 |
+| `PermitLimitOverride` | `Custom` 模式下每把金鑰的請求上限 |
+| `WindowSecondsOverride` | `Custom` 模式下的時間視窗秒數 |
 
-保存的 key record 只暴露短 prefix 供辨識。Raw secret 透過 server HMAC secret 驗證，不應被設計成日後再次顯示。
+資料庫中保存的金鑰紀錄只會暴露短 prefix 供辨識。原始密鑰由伺服器端 HMAC secret 驗證，不應設計成之後還能再次顯示。
 
-## Rotate key
+## 輪替金鑰
 
-Rotation 會建立 replacement key，並繼承舊 key 的 database/tool/table/CORS/rate-limit scope。
+輪替會建立一把替代金鑰，並繼承舊金鑰的資料庫、工具、資料表、CORS 與速率限制範圍。
 
-Grace period 可以設 `0` 到 `1440` 分鐘：
+寬限期可設為 `0` 到 `1440` 分鐘：
 
-- `0` 會立即 revoke 舊 key；
-- 正值會在需要時把舊 key expiration 縮短到 grace deadline；
-- replacement 會拿到全新產生的 plaintext secret。
+- `0` 會立即撤銷舊金鑰；
+- 正值會在需要時把舊金鑰的到期時間縮短到寬限期限；
+- 替代金鑰會取得全新產生的明文密鑰。
 
-<Callout type="tip" title="Rotation 用來換 secret，不要拿來偷偷改 scope">
-如果新 client 應該取得明顯不同的 database 或 table boundary，請把 scope change 當成獨立 authorization review，而不是普通 secret rotation。
+<Callout type="tip" title="輪替用來更換密鑰，不應順便變更權限範圍">
+如果新用戶端應該取得明顯不同的資料庫或資料表範圍，請把這次變更當成獨立的授權審查，而不是一般密鑰輪替。
 </Callout>
 
-## Clone key
+## 複製金鑰
 
-Clone 會建立新 key，複製 source key 的 runtime scope，但使用新的 name 與 secret。兩個 client 權限相同但不應共用 credential 時很適合使用。
+複製會建立一把新金鑰，沿用來源金鑰的執行階段權限範圍，但使用新的名稱與密鑰。當兩個用戶端需要相同權限、但不應共用同一份憑證時很適合使用。
 
-Clone 後 lifecycle 完全獨立，可以單獨 revoke 或 rotate，不會讓 source key 一起失效。
+複製後兩把金鑰的生命週期完全獨立，可以各自撤銷或輪替，不會讓來源金鑰一起失效。
 
-## Revoke key
+## 撤銷金鑰
 
-Revocation 會把 key 標成 inactive，並在 DB commit 前先把 revocation tombstone 寫入 validation-cache path，目的是避免剛 revoke 的 credential 因 stale cache 繼續被接受。
+撤銷會把金鑰標記為停用，並在資料庫交易提交前先把撤銷標記（tombstone）寫入驗證快取路徑，避免剛撤銷的憑證因舊快取仍被接受。
 
-Bootstrap-managed key 不能走一般 UI lifecycle 做 edit、rotate 或 revoke；它的 lifecycle 由 bootstrap configuration 控制。
+由 bootstrap 設定管理的金鑰不能透過一般管理介面編輯、輪替或撤銷；它的生命週期由 bootstrap configuration 控制。
 
-## Rate-limit behavior
+## 速率限制行為
 
-Key 可以繼承 runtime key rate-limit policy、使用 custom override，或明確 unlimited。Admin list view 會把 key mode 與目前 security policy 合併後顯示 effective rate limit。
+金鑰可以繼承執行階段的預設速率限制政策、使用自訂覆寫值，或明確設為不限速。管理端清單會把金鑰模式與目前的安全政策合併後，顯示實際生效的速率限制。
 
-多節點 deployment 若要全域協調限制，請使用 distributed rate-limiter configuration。
+多節點部署若需要全域協調限制，請使用分散式速率限制設定。
 
 ## DML 與 Elicitation
 
-選取 `execute_dml_sql` 後，client compatibility requirement 也會改變。MCP client 必須支援 mutation approval 使用的 form Elicitation flow。
+開放 `execute_dml_sql` 後，用戶端相容性要求也會提高。MCP 用戶端必須支援資料修改核准流程所使用的 form Elicitation。
 
-授權新 client 使用 DML 前，請先讀 [MCP client onboarding](/zh-hant/docs/mcp/client-onboarding)。
+授權新的用戶端使用 DML 前，請先閱讀 [MCP 用戶端連線](/zh-hant/docs/mcp/client-onboarding)。
