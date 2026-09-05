@@ -1,0 +1,39 @@
+---
+title: 문제 해결
+description: hs-sql-agent의 런타임 불변 조건을 기준으로 일반적인 설정 및 호환성 문제를 진단합니다.
+sidebar:
+  group: 참조
+  order: 140
+---
+
+문제 해결은 요청을 거부한 경계부터 시작하십시오. hs-sql-agent는 여러 지점에서 의도적으로 fail-closed하므로, 거부는 일시적인 SQL 오류가 아니라 설정 또는 capability mismatch를 의미하는 경우가 많습니다.
+
+## 로컬 연결은 되지만 생성된 클라이언트 설정이 잘못됨
+
+`MCP_PUBLIC_ENDPOINT`를 확인하십시오.
+
+외부에서 접근 가능한 절대 HTTP/HTTPS MCP URL이어야 하며 `/mcp`를 포함해야 합니다. Reverse proxy가 Admin UI와 MCP endpoint를 다르게 노출한다면 Admin UI URL에서 추정하지 마십시오.
+
+## Query는 되지만 DML이 거부됨
+
+MCP 연결이 성공했다고 해서 Elicitation 지원까지 확인된 것은 아닙니다.
+
+`execute_dml_sql`과 게시된 DML Custom Tool은 form Elicitation을 요구합니다. 실제 클라이언트 버전에서 Decline과 Accept 흐름을 모두 테스트하십시오. 해당 capability를 지원하지 않는 클라이언트에는 query-only tool만 사용해야 합니다.
+
+## 재시작 후 authentication 또는 MFA 상태가 깨짐
+
+`DATA_PROTECTION_KEY_PATH`가 영속화되었는지 확인하십시오. Container가 바뀔 때마다 ASP.NET Core data-protection key material도 바뀌면 이전에 보호된 login/MFA state를 읽지 못할 수 있습니다.
+
+## Multi-instance 동작이 일관되지 않음
+
+Coordination-sensitive provider가 여전히 `Memory`를 사용하는지 확인하십시오.
+
+분산 배포에서는 cache, rate limiting, security-policy synchronization, outbound-delivery synchronization, SQL concurrency처럼 노드 간 합의가 필요한 subsystem에 shared provider를 사용해야 합니다.
+
+## Prometheus가 application port에 없음
+
+Prometheus는 활성화 시 자체 listener를 사용합니다. 예제 설정은 `9000` port를 사용하므로 main application API listener에 metrics가 자동으로 나타날 것으로 기대하면 안 됩니다.
+
+## 데이터베이스 자체는 SQL을 허용하지만 hs-sql-agent가 거부함
+
+예상된 동작일 수 있습니다. Database provider 지원 범위는 compiler contract로 제한됩니다. 표현하거나 증명되지 않은 syntax/semantics는 arbitrary vendor SQL로 pass-through하지 않고 거부합니다.

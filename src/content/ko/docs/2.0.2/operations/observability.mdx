@@ -1,0 +1,73 @@
+---
+title: 관측성과 감사 운영
+description: health probe, slow-query threshold, Prometheus, OTLP, audit retention 및 서명된 outbound delivery를 구성합니다.
+sidebar:
+  group: 운영
+  order: 95
+---
+
+hs-sql-agent는 런타임 관측성과 SQL 제어 평면을 분리합니다. 운영자는 데이터베이스 audit table 하나에만 의존하지 않고 health check, metrics, telemetry export, audit retention, outbound alert/SIEM delivery를 함께 사용할 수 있습니다.
+
+## Health 및 slow-query monitoring
+
+예제 환경에는 다음 설정이 있습니다.
+
+```text
+HEALTH_PROBE_ENABLED
+HEALTH_PROBE_INTERVAL_SECONDS
+HEALTH_PROBE_TIMEOUT_SECONDS
+HEALTH_PROBE_MAX_CONCURRENCY
+SLOW_QUERY_THRESHOLD_MS
+```
+
+Health probe는 선택 사항입니다. Slow-query threshold는 SQL activity를 느린 Query로 분류해 운영 관측 대상으로 삼는 기준 시간을 정합니다.
+
+## Prometheus와 OTLP
+
+Prometheus는 application API와 **별도의 listener**에서 동작합니다.
+
+```text
+PROMETHEUS_ENABLED=false
+PROMETHEUS_HOST=0.0.0.0
+PROMETHEUS_PORT=9000
+```
+
+선택적 OpenTelemetry export는 다음과 같이 구성합니다.
+
+```text
+OTLP_ENDPOINT=
+OTEL_SERVICE_NAME=hs-sql-agent
+```
+
+Scrape 기반 metrics에는 Prometheus listener를 사용하고, deployment topology에 collector가 있다면 OTLP를 사용하십시오.
+
+## Alert 및 SIEM 전송
+
+서버는 선택적인 signed outbound target을 지원합니다.
+
+```text
+ALERT_WEBHOOK_URL=
+ALERT_WEBHOOK_SECRET=
+SIEM_WEBHOOK_URL=
+SIEM_WEBHOOK_SECRET=
+DELIVERY_MAX_ATTEMPTS=6
+DELIVERY_MAX_CONCURRENCY=4
+```
+
+Target URL이 비어 있으면 해당 integration은 비활성화됩니다. Signing secret은 다른 deployment credential과 동일하게 영속화하고 보호하십시오.
+
+## Audit retention
+
+Retention은 live request handling과 별도로 동작합니다. `AUDIT_RETENTION_DAYS=0`이면 자동 retention processing이 비활성화됩니다. 현재 service implementation이 허용하는 mode는 `Archive`와 `Purge`이며, Archive는 만료 레코드를 삭제하기 전에 설정된 archive path에 보존합니다.
+
+관련 설정은 다음과 같습니다.
+
+```text
+AUDIT_RETENTION_DAYS
+AUDIT_RETENTION_MODE
+AUDIT_ARCHIVE_PATH
+AUDIT_FALLBACK_PATH
+AUDIT_RETENTION_RUN_HOUR_UTC
+```
+
+Fallback path는 운영 장애 처리에 중요합니다. Deployment가 archive 또는 fallback audit output에 의존한다면 해당 storage를 영속화하십시오.

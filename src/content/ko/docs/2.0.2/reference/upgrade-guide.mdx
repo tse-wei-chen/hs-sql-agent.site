@@ -1,0 +1,94 @@
+---
+title: 업그레이드 가이드
+description: hs-sql-agent 2.0.1 documentation baseline에서 이후 release로 이동할 때 사용하는 안전한 업그레이드 체크리스트입니다.
+sidebar:
+  group: 참조
+  order: 144
+---
+
+import Callout from "@/components/docs/mdx/Callout.astro";
+import CardGrid from "@/components/docs/mdx/CardGrid.astro";
+import DocCard from "@/components/docs/mdx/DocCard.astro";
+import Steps from "@/components/docs/mdx/Steps.astro";
+import Step from "@/components/docs/mdx/Step.astro";
+
+<CardGrid columns={3}>
+  <DocCard title="제어 평면 상태" icon="DB" description="identity, role, MCP key, policy, audit 및 기타 runtime state를 저장하는 Admin database를 보호합니다." />
+  <DocCard title="Secret과 보호 상태" icon="KEY" description="HMAC/JWT 설정과 durable ASP.NET Core data-protection key를 유지합니다." />
+  <DocCard title="동작 계약" icon="MCP" description="버전 변경 후 client transport, SQL capability, key scope, DML Elicitation을 다시 테스트합니다." />
+</CardGrid>
+
+Documentation versioning은 **2.0.1**부터 시작합니다. 사이트에는 2.0.1 이전 버전의 upgrade matrix를 의도적으로 제공하지 않습니다. 이 페이지는 2.0.1 baseline을 떠날 때의 운영 체크리스트이며 destination-specific breaking change는 해당 이후 버전 문서가 기준입니다.
+
+<Callout type="warning" title="이 페이지에서 미래 release의 migration 요구 사항을 추정하지 마십시오">
+업그레이드 전 destination release note와 해당 versioned documentation을 읽으십시오. 이후 release가 storage schema, configuration, SQL capability, API contract를 바꾼다면 그 release 문서가 최종 기준입니다.
+</Callout>
+
+## 실행 버전을 바꾸기 전에
+
+<Steps>
+  <Step title="현재 배포 기록" description="정확한 hs-sql-agent version, container/package version, topology, Admin database provider, shared-state provider를 기록합니다." />
+  <Step title="제어 평면 상태 백업" description="새 binary가 persistent state를 변경하기 전에 복구 가능한 Admin database backup을 만듭니다." />
+  <Step title="보호 key material 유지" description="HMAC_KEY, JWT_KEY, webhook secret, durable DATA_PROTECTION_KEY_PATH material을 업그레이드된 deployment에서도 사용할 수 있게 보존합니다." />
+  <Step title="설정 diff 확인" description="새 sample을 운영 값 위에 덮어쓰지 말고 destination release의 example/options를 현재 2.0.1 설정과 비교합니다." />
+  <Step title="Integration inventory 작성" description="MCP client, Custom Tool, OIDC, SMTP, webhook/SIEM, Prometheus/OTLP, Redis/shared-state, reverse proxy, 외부 Admin API consumer를 목록화합니다." />
+</Steps>
+
+## 가볍게 재생성하면 안 되는 상태
+
+### HMAC 및 JWT secret
+
+`HMAC_KEY`는 MCP-key verification을 보호하고 `JWT_KEY`는 Admin authentication token을 서명합니다. Secret rotation은 새 image 배포의 부수 효과가 아니라 명시적인 security migration으로 다뤄야 합니다.
+
+### Data-protection key ring
+
+보호된 identity/MFA state가 ASP.NET Core data protection을 사용한다면 `DATA_PROTECTION_KEY_PATH`를 durable storage에 유지하십시오. Key ring을 교체하면 이전에 보호된 값을 읽을 수 없게 될 수 있습니다.
+
+### Admin database
+
+Admin database에는 identity/role, database registration, MCP key record, policy, semantic metadata, Custom Tool definition/revision, audit data 및 기타 운영 상태가 저장됩니다. Persistence를 바꿀 수 있는 upgrade 전에 SQLite 또는 PostgreSQL에 맞는 방식으로 백업하십시오.
+
+## 설정 diff 체크리스트
+
+빈 새 `.env`에서 다시 시작하지 말고 다음 category를 명시적으로 비교하십시오.
+
+- application host 및 public MCP endpoint
+- Admin database provider/connection
+- HMAC/JWT 및 identity 설정
+- bootstrap configuration
+- OIDC/MFA/data protection
+- audit retention 및 outbound delivery
+- rate limiting 및 security-policy sync
+- cache / SQL concurrency / 기타 Redis-backed coordination
+- Prometheus 및 OTLP
+
+2.0.1 baseline은 [설정 레퍼런스](/ko/docs/operations/configuration)를 참고하십시오.
+
+## 업그레이드 후 검증
+
+<Steps>
+  <Step title="Admin authentication" description="로그인하고 expected role/permission을 확인하며 OIDC/MFA가 켜져 있다면 함께 검증합니다." />
+  <Step title="데이터베이스 연결" description="사용 중인 각 provider에서 managed connection과 schema metadata browsing을 확인합니다." />
+  <Step title="MCP key scope" description="대표 key가 예상 database, tool, table whitelist, effective limit를 계속 해석하는지 확인합니다." />
+  <Step title="Read-only SQL" description="대표적인 지원 Query 형태를 실행해 compiler/output behavior를 확인합니다." />
+  <Step title="Safe DML" description="비운영 target에서 Decline과 Accept Elicitation을 모두 테스트하고 commit-time behavior를 확인합니다." />
+  <Step title="Operations" description="audit, health, key usage, telemetry export, outbound-delivery state를 확인합니다." />
+</Steps>
+
+## Custom Tools와 semantic metadata
+
+게시된 Custom Tool마다 destination compiler/policy 아래에서 계속 validate되는지, 의도한 database/key exposure가 유지되는지 확인하십시오. Semantic metadata는 table/column description, relationship, metric이 schema discovery에 예상대로 나타나는지 검증해야 합니다.
+
+## API consumer
+
+2.0.1 Admin controller는 versioned `/v1` contract 아래에 있지 않습니다. 외부 automation이 Admin HTTP route를 직접 호출한다면 route/request/response compatibility를 명시적인 upgrade test로 다루십시오.
+
+자세한 내용은 [Admin HTTP API 레퍼런스](/ko/docs/reference/api-reference)를 참고하십시오.
+
+## Rollback 계획
+
+<Callout type="danger" title="Binary rollback이 자동으로 data rollback을 의미하지는 않습니다">
+새 release가 persistent control-plane schema 또는 state를 변경했다면 old binary를 수정된 database에 다시 연결하는 것이 안전하지 않을 수 있습니다. Upgrade 전 database backup을 보관하고 destination release의 rollback guidance를 따르십시오.
+</Callout>
+
+안전한 rollout은 새 버전이 기능 및 운영 smoke test를 통과할 때까지 이전 deployment artifact/configuration, pre-upgrade Admin database backup, 보호 key material을 유지합니다.

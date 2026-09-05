@@ -1,0 +1,171 @@
+---
+title: Admin HTTP API 레퍼런스
+description: 번들 Admin UI가 사용하는 hs-sql-agent 2.0.1 source-backed HTTP controller surface를 정리합니다.
+sidebar:
+  group: 참조
+  order: 142
+---
+
+import Callout from "@/components/docs/mdx/Callout.astro";
+import CardGrid from "@/components/docs/mdx/CardGrid.astro";
+import DocCard from "@/components/docs/mdx/DocCard.astro";
+
+<CardGrid columns={3}>
+  <DocCard title="Auth & identity" icon="AUTH" description="로그인, refresh, OIDC, MFA, password recovery, account, session, member, role을 다룹니다." />
+  <DocCard title="Runtime control" icon="OPS" description="데이터베이스, MCP 키, semantic metadata, Custom Tool, security policy, audit, operability를 다룹니다." />
+  <DocCard title="MCP는 별도" icon="MCP" description="/mcp Streamable HTTP transport는 이 Admin REST 레퍼런스 범위가 아닙니다." />
+</CardGrid>
+
+이 페이지는 **hs-sql-agent 2.0.1 source에 실제로 존재하는 controller route**를 문서화합니다. 번들 Admin UI도 이 surface를 사용합니다.
+
+<Callout type="warning" title="이것은 2.0.1 source contract이며 독립적으로 versioned된 REST 표준이 아닙니다">
+2.0.1 server는 이 controller를 `/v1` compatibility namespace 아래에 노출하지 않습니다. 번들 Admin UI 외부의 integration은 hs-sql-agent version을 고정하고 upgrade 시 이 레퍼런스를 다시 확인해야 합니다.
+</Callout>
+
+## Authentication과 authorization
+
+대부분의 Admin route는 인증된 Admin identity가 필요합니다. 보호된 runtime action에는 `/runtime/db-management` → `view`, `/auth/role` → `edit` 같은 path/action permission check가 추가로 적용됩니다.
+
+Admin session이 생기기 전부터 시작되어야 하는 flow에는 익명 예외가 있습니다. First-run/sign-in/sign-up, 일부 OIDC endpoint, password recovery, MFA challenge completion 등이 이에 해당합니다.
+
+자세한 내용은 [권한](/ko/docs/administration/permissions)을 참고하십시오.
+
+## Auth — `/api/Auth`
+
+| Method | Route | 용도 |
+| --- | --- | --- |
+| GET | `/api/Auth/first-run` | 초기 설정 상태 확인 |
+| POST | `/api/Auth/sign-in` | Admin credential 인증 |
+| POST | `/api/Auth/sign-up` | 허용된 first-run flow에서 첫 Admin 생성 |
+| POST | `/api/Auth/refresh-token` | refresh credential 교환 |
+| POST | `/api/Auth/sign-out` | 현재 session 종료 |
+| GET | `/api/Auth/sessions` | 현재 사용자의 session 목록 |
+| DELETE | `/api/Auth/sessions/{sessionId}` | 특정 session 폐기 |
+| DELETE | `/api/Auth/sessions` | 다른 session 폐기 |
+| GET | `/api/Auth/oidc/status` | OIDC 사용 가능 상태 확인 |
+| GET | `/api/Auth/oidc/login` | OIDC login 시작 |
+| GET | `/api/Auth/oidc/callback` | external-login callback |
+| POST | `/api/Auth/oidc/exchange` | short-lived OIDC login code 교환 |
+| GET | `/api/Auth/mfa/status` | MFA 상태 확인 |
+| POST | `/api/Auth/mfa/setup` | TOTP setup 시작 |
+| POST | `/api/Auth/mfa/confirm` | TOTP setup 확인 |
+| POST | `/api/Auth/mfa/disable` | 검증 후 TOTP 비활성화 |
+| POST | `/api/Auth/mfa/verify` | MFA sign-in challenge 완료 |
+| POST | `/api/Auth/forgot-password` | password reset 요청 |
+| POST | `/api/Auth/reset-password` | reset token 사용 후 새 password 설정 |
+| GET | `/api/Auth/account` | 현재 account profile 조회 |
+| PUT | `/api/Auth/account` | username/email 수정 |
+| PUT | `/api/Auth/account/password` | 현재 password 변경 |
+
+## Members — `/api/Member`
+
+| Method | Route | 권한 |
+| --- | --- | --- |
+| POST | `/api/Member` | `/auth/user` → `create` |
+| GET | `/api/Member` | `/auth/user` → `view` |
+| PUT | `/api/Member/{id}/roles` | `/auth/user` → `edit` |
+| PUT | `/api/Member/{id}/status` | `/auth/user` → `edit` |
+| DELETE | `/api/Member/{id}/sessions` | `/auth/user` → `edit` |
+| PUT | `/api/Member/{id}/password-change-required` | `/auth/user` → `edit` |
+| DELETE | `/api/Member/{id}` | `/auth/user` → `delete` |
+
+Self-lockout 및 lifecycle guardrail은 [멤버와 역할](/ko/docs/administration/members-roles)을 참고하십시오.
+
+## Roles — `/api/Role`
+
+| Method | Route | 권한 |
+| --- | --- | --- |
+| GET | `/api/Role` | `/auth/role` → `view` |
+| POST | `/api/Role` | `/auth/role` → `create` |
+| PUT | `/api/Role/{id}` | `/auth/role` → `edit` |
+| DELETE | `/api/Role/{id}?force=false` | `/auth/role` → `delete` |
+| GET | `/api/Role/{id}/dependencies` | `/auth/role` → `view` |
+| GET | `/api/Role/permission-action-templates` | `/auth/role` → `view` |
+
+## Database Management — `/api/DbManagement`
+
+| Method | Route | 권한 |
+| --- | --- | --- |
+| GET | `/api/DbManagement` | `/runtime/db-management` → `view` |
+| GET | `/api/DbManagement/{id}` | `/runtime/db-management` → `view` |
+| POST | `/api/DbManagement` | `/runtime/db-management` → `create` |
+| PUT | `/api/DbManagement/{id}` | `/runtime/db-management` → `edit` |
+| DELETE | `/api/DbManagement/{id}` | `/runtime/db-management` → `delete` |
+| GET | `/api/DbManagement/{id}/schemas` | `/runtime/db-management` → `view` |
+| GET | `/api/DbManagement/{id}/tables?schema=...` | `/runtime/db-management` → `view` |
+| GET | `/api/DbManagement/{id}/columns?schema=...&table=...` | `/runtime/db-management` → `view` |
+
+## Semantic metadata — `/api/DbSemantic`
+
+| Method | Route | 권한 |
+| --- | --- | --- |
+| GET | `/api/DbSemantic/{dbManagementId}` | semantic `view` |
+| GET | `/api/DbSemantic/{dbManagementId}/model` | semantic `view` |
+| POST | `/api/DbSemantic` | semantic `edit` |
+| DELETE | `/api/DbSemantic/{id}` | semantic `edit` |
+| POST | `/api/DbSemantic/relationship` | semantic `edit` |
+| DELETE | `/api/DbSemantic/relationship/{id}` | semantic `edit` |
+| POST | `/api/DbSemantic/metric` | semantic `edit` |
+| DELETE | `/api/DbSemantic/metric/{id}` | semantic `edit` |
+
+여기서 `semantic`은 `/runtime/db-management/semantic`을 의미합니다.
+
+## MCP-key runtime — `/api/runtime`
+
+| Method | Route | 권한 |
+| --- | --- | --- |
+| GET | `/api/runtime/mcp-keys` | MCP keys `view` |
+| GET | `/api/runtime/mcp-keys/available-tools?dbManagementId=...` | MCP keys `view` |
+| POST | `/api/runtime/mcp-keys` | MCP keys `create` |
+| PUT | `/api/runtime/mcp-keys/{id}` | MCP keys `edit` |
+| POST | `/api/runtime/mcp-keys/{id}/rotate` | MCP keys `edit` |
+| POST | `/api/runtime/mcp-keys/{id}/clone` | MCP keys `create` |
+| POST | `/api/runtime/mcp-keys/{id}/revoke` | MCP keys `revoke` |
+| POST | `/api/runtime/mcp-keys/test-db-connection` | 설정된 MCP-key/DB create-edit 권한 중 하나 |
+| GET | `/api/runtime/client-config` | MCP keys `view` |
+
+Client-config endpoint는 클라이언트 설정 생성에 사용하는 configured MCP public endpoint를 반환합니다.
+
+## Custom Tools — `/api/CustomSqlTool`
+
+| Method | Route | 용도 |
+| --- | --- | --- |
+| GET | `/api/CustomSqlTool` | 도구 목록 |
+| GET | `/api/CustomSqlTool/{id}` | 단일 도구 조회 |
+| POST | `/api/CustomSqlTool` | draft 생성 |
+| PUT | `/api/CustomSqlTool/{id}` | draft 수정 |
+| DELETE | `/api/CustomSqlTool/{id}` | 도구 삭제 |
+| GET | `/api/CustomSqlTool/{id}/revisions` | revision 목록 |
+| GET | `/api/CustomSqlTool/{id}/impact` | impact/dependency 확인 |
+| POST | `/api/CustomSqlTool/{id}/publish` | validate 후 publish |
+| POST | `/api/CustomSqlTool/{id}/disable` | published tool 비활성화 |
+| POST | `/api/CustomSqlTool/{id}/rollback/{revisionId}` | validate 후 rollback |
+| POST | `/api/CustomSqlTool/test-execute` | 테스트 실행. DML test path는 preview만 하고 commit하지 않음 |
+
+이 route는 작업에 따라 `/runtime/custom-tools`의 `view`, `create`, `edit`, `delete` 권한을 사용합니다.
+
+## Audit 및 Operability — `/api/runtime`
+
+| 영역 | Route |
+| --- | --- |
+| Audit | `/audit`, `/audit/daily-summary`, `/audit/export`, `/audit/retention`, `/audit/retention/dry-run`, `/audit/retention/execute` |
+| Operability | `/operability/metrics`, `/operability/db-health`, `/operability/key-usage`, `/operability/deliveries`, `/operability/deliveries/{id}/retry` |
+
+Filter, response field, permission은 [감사](/ko/docs/administration/audit)와 [운영 상태](/ko/docs/administration/operability)를 참고하십시오.
+
+## Security Policy — `/api/runtime/security`
+
+| Method | Route | 권한 |
+| --- | --- | --- |
+| GET | `/api/runtime/security` | `/runtime/security` → `view` |
+| PUT | `/api/runtime/security` | `/runtime/security` → `edit` |
+
+## Credential status
+
+2.0.1에는 `GET /api/Credential/status`가 존재하며 간단한 Credential API running status를 반환합니다. 해당 controller 자체에는 `[Authorize]` attribute가 없습니다. 인증된 credential-management API가 아니라 범위가 매우 좁은 status endpoint로 취급하십시오.
+
+## 오류 및 호환성
+
+Controller는 validation 400, authentication/authorization 401/403, missing resource 404, conflicting tool/role state 409, oversized audit export 413, applicable bounded SQL-operation pressure 429 같은 일반 HTTP status code를 사용합니다.
+
+외부 자동화에서 이 API를 사용한다면 2.0.1을 고정하고 실제 소비하는 response model을 검증하십시오. 이 페이지는 route와 중요한 계약을 기록하지만 모든 Admin view model을 영구적인 external SDK 계약으로 간주하지 않습니다.
