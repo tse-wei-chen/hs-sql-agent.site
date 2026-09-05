@@ -1,0 +1,39 @@
+---
+title: 故障排查
+description: 根据 hs-sql-agent 的运行时不变量诊断常见配置和兼容性问题。
+sidebar:
+  group: 参考
+  order: 140
+---
+
+故障排查应从拒绝请求的那一层边界开始。hs-sql-agent 在多个位置刻意采用失败即拒绝，因此拒绝经常意味着配置或 capability 不匹配，而不只是临时 SQL 错误。
+
+## 本地能连接，但生成的客户端配置不对
+
+检查 `MCP_PUBLIC_ENDPOINT`。
+
+它必须是外部可访问的绝对 HTTP/HTTPS MCP URL，并包含 `/mcp`。如果反向代理对 Admin UI 和 MCP endpoint 使用不同暴露方式，不要从 Admin UI URL 推算该地址。
+
+## Query 正常，但 DML 被拒绝
+
+MCP 能成功连接并不代表支持 Elicitation。
+
+`execute_dml_sql` 和已发布 DML Custom Tools 要求 form Elicitation。请用实际客户端版本分别测试 Decline 和 Accept 流程。如果客户端不支持该 capability，就只开放查询工具。
+
+## 重启后身份验证或 MFA 状态失效
+
+检查 `DATA_PROTECTION_KEY_PATH` 是否持久化。每次容器启动都替换 ASP.NET Core data-protection key material 时，之前保护的登录/MFA 状态可能无法读取。
+
+## 多实例行为不一致
+
+检查需要协调的 provider 是否仍在使用 `Memory`。
+
+分布式部署中，cache、rate limiting、security-policy synchronization、outbound-delivery synchronization、SQL concurrency 等需要节点间一致的子系统应使用共享 provider。
+
+## Prometheus 不在应用端口上
+
+启用后 Prometheus 使用自己的 listener。示例配置使用 `9000` 端口，不要预期 metrics 自动出现在主 application API listener 上。
+
+## 数据库本身接受 SQL，但 hs-sql-agent 拒绝
+
+这可能是预期行为。数据库 provider 的支持范围受编译器契约约束。未被表示和证明的语法或语义会被拒绝，而不是作为任意 vendor SQL 直接下发。

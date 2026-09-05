@@ -1,0 +1,43 @@
+---
+title: 部署
+description: 面向生产环境说明单实例 hs-sql-agent、公开 MCP 路由、持久化和遥测配置。
+sidebar:
+  group: 运维
+  order: 100
+---
+
+仓库默认配置适合简单的单实例部署：控制平面可以使用 SQLite，进程内 provider 可以使用 Memory。
+
+在 Development 之外暴露服务前，应明确配置所有需要对外可见和持久化的部分。
+
+## 公开 MCP URL
+
+把 `MCP_PUBLIC_ENDPOINT` 设置为 MCP 客户端实际能够访问的 URL，并包含 `/mcp`。
+
+```env
+MCP_PUBLIC_ENDPOINT=https://sql-agent.example.com/mcp
+```
+
+不要假设它一定与 Admin UI origin 相同。反向代理可能通过不同 host、port 或 path 暴露 UI 和 MCP endpoint。
+
+## Secret
+
+把示例 HMAC key 和 JWT key 替换成彼此独立、至少 32 字节的唯一 secret。
+
+数据库凭据、SMTP 凭据、OIDC client secret、Webhook signing secret 和 Redis connection string 都不应进入源码仓库。
+
+## 持久化控制平面状态
+
+默认 SQLite Admin database 位于 `/app/data` 下。如果使用内置本地控制平面，应确保容器替换后该数据仍然保留。
+
+如果 OIDC/TOTP 或其他受保护状态使用 ASP.NET Core data protection，也要持久化 `DATA_PROTECTION_KEY_PATH`。丢失这些 key 可能导致已经保护的 MFA/登录状态无法读取。
+
+## 可观测性
+
+Prometheus metrics 可以通过独立 listener 开启。示例使用 `9000` 端口，与主 API 端口分离。
+
+也可以通过 `OTLP_ENDPOINT` 配置 OTLP collector endpoint，并用 `OTEL_SERVICE_NAME` 设置 service name。
+
+## 什么时候切换到分布式配置
+
+只要运行多个应用实例，进程内 Memory 就不再共享。需要在节点间保持一致的子系统应切换到分布式 provider，并使用共享 Admin database。详见 [分布式部署](/zh-hans/docs/operations/distributed-deployment)。

@@ -1,0 +1,73 @@
+---
+title: 可观测性与审计运维
+description: 配置健康探测、慢查询阈值、Prometheus、OTLP、审计保留和签名出站投递。
+sidebar:
+  group: 运维
+  order: 95
+---
+
+hs-sql-agent 把运行时可观测性与 SQL 控制平面分开。生产运维可以组合健康检查、指标、遥测导出、审计保留以及告警/SIEM 出站投递，而不是把数据库审计表当成唯一运维信号。
+
+## 健康与慢查询监控
+
+示例环境提供：
+
+```text
+HEALTH_PROBE_ENABLED
+HEALTH_PROBE_INTERVAL_SECONDS
+HEALTH_PROBE_TIMEOUT_SECONDS
+HEALTH_PROBE_MAX_CONCURRENCY
+SLOW_QUERY_THRESHOLD_MS
+```
+
+健康探测可选。慢查询阈值决定 SQL 活动在什么耗时以上被归类为慢查询，用于运维观察。
+
+## Prometheus 与 OTLP
+
+Prometheus 使用与应用 API **独立的 listener**：
+
+```text
+PROMETHEUS_ENABLED=false
+PROMETHEUS_HOST=0.0.0.0
+PROMETHEUS_PORT=9000
+```
+
+可选 OpenTelemetry 导出通过以下设置配置：
+
+```text
+OTLP_ENDPOINT=
+OTEL_SERVICE_NAME=hs-sql-agent
+```
+
+使用 Prometheus listener 提供 scrape 指标；部署拓扑中存在 collector 时使用 OTLP。
+
+## 告警与 SIEM 投递
+
+服务器支持可选的签名出站目标：
+
+```text
+ALERT_WEBHOOK_URL=
+ALERT_WEBHOOK_SECRET=
+SIEM_WEBHOOK_URL=
+SIEM_WEBHOOK_SECRET=
+DELIVERY_MAX_ATTEMPTS=6
+DELIVERY_MAX_CONCURRENCY=4
+```
+
+目标 URL 为空时，对应集成被禁用。签名 secret 应与其他部署凭据一样持久化并妥善保护。
+
+## 审计保留
+
+审计保留与实时请求处理独立。`AUDIT_RETENTION_DAYS=0` 会禁用自动保留处理。当前服务实现支持 `Archive` 和 `Purge` 两种模式；Archive 会在删除过期记录前先写入配置的归档路径。
+
+相关设置：
+
+```text
+AUDIT_RETENTION_DAYS
+AUDIT_RETENTION_MODE
+AUDIT_ARCHIVE_PATH
+AUDIT_FALLBACK_PATH
+AUDIT_RETENTION_RUN_HOUR_UTC
+```
+
+fallback path 对运维故障处理很重要。如果部署依赖归档或 fallback 审计输出，请确保对应存储持久化。

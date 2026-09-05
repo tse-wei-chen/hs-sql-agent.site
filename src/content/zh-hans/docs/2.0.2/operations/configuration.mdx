@@ -1,0 +1,248 @@
+---
+title: 配置参考
+description: hs-sql-agent 2.0.2 基于源码的环境变量与运行时配置参考。
+sidebar:
+  group: 运维
+  order: 90
+---
+
+import Callout from "@/components/docs/mdx/Callout.astro";
+import CardGrid from "@/components/docs/mdx/CardGrid.astro";
+import DocCard from "@/components/docs/mdx/DocCard.astro";
+
+<CardGrid columns={3}>
+  <DocCard title="单实例" icon="1" description="从 .env.example 开始，在确实需要共享状态之前保留进程内 provider。" />
+  <DocCard title="分布式" icon="N" description="使用 Postgres 控制平面，以及 Redis-backed cache、限流、策略同步、投递同步和 SQL 并发协调。" />
+  <DocCard title="嵌入式 .NET" icon=".NET" description="新集成配置 capability-specific options；HsSqlAgentServiceOptions 只作为旧聚合 API 的兼容入口保留。" />
+</CardGrid>
+
+仓库中的 **v2.0.2 `.env.example`** 是默认 Compose 部署面向运维的环境变量清单。本页的环境变量名称以该文件为准；如果示例注释与运行时代码校验不一致，则以 v2.0.2 可执行代码为准。
+
+<Callout type="warning" title="生产启动前生成真实 secret">
+`HMAC_KEY` 和 `JWT_KEY` 都必须至少 32 字节，并且应使用彼此独立的唯一值。仓库中的值只是 placeholder。启用 Webhook URL 后，对应 Webhook secret 也必须至少 32 字节。
+</Callout>
+
+## 应用与控制平面
+
+| 变量 | `.env.example` 示例/默认值 | 用途 |
+| --- | --- | --- |
+| `ASPNETCORE_URLS` | `http://+:8080` | 主 ASP.NET Core listener |
+| `ALLOWED_HOSTS` | `*` | ASP.NET Core host filtering |
+| `ADMIN_DATABASE_PROVIDER` | `Sqlite` | Admin/control-plane database provider |
+| `ADMIN_DATABASE_CONNECTION_STRING` | `Data Source=/app/data/hsqlagent.db` | 保存账号、角色、密钥、审计记录、策略及其他控制平面状态 |
+| `HMAC_KEY` | placeholder | 用于保护/验证已签发 MCP 密钥的 HMAC secret；≥32 字节 |
+| `MCP_PUBLIC_ENDPOINT` | `http://localhost:8080/mcp` | 写入生成 MCP 客户端配置的绝对 endpoint |
+
+`MCP_PUBLIC_ENDPOINT` 必须是绝对 HTTP 或 HTTPS URL。生产环境应填写**客户端真正能访问**的地址并包含 `/mcp`，而不是容器内部地址。
+
+### Admin database 拓扑
+
+单实例示例使用 SQLite，分布式示例使用 PostgreSQL：
+
+```text
+ADMIN_DATABASE_PROVIDER=Postgres
+ADMIN_DATABASE_CONNECTION_STRING=Host=postgres;Port=5432;Database=hsqlagent;Username=postgres;Password=...
+```
+
+当多个 hs-sql-agent 实例需要看到同一套身份、密钥、策略和审计/控制平面记录时，应使用共享 Admin database。
+
+## Cache
+
+| 变量 | 单实例示例 | 分布式示例 | 用途 |
+| --- | --- | --- | --- |
+| `CACHE_PROVIDER` | `Memory` | `Redis` | 运行时 cache provider |
+| `CACHE_CONNECTION_STRING` | 空 | `redis:6379` | 选择 Redis 时的连接 |
+| `CACHE_KEY_PREFIX` | `hsqlagent:cache:` | 同上 | cache key namespace |
+
+只有不需要在应用实例之间共享 cache state 时，进程内 `Memory` 才合适。
+
+## Bootstrap / 自动预配
+
+| 变量 | 示例 | 用途 |
+| --- | --- | --- |
+| `BOOTSTRAP_ENABLED` | `false` | 启用启动时 provisioning/synchronization |
+| `BOOTSTRAP_DB_ID` | `default-db` | 初始数据库的稳定 bootstrap identity |
+| `BOOTSTRAP_DB_NAME` | `Default DB` | 管理界面显示的数据库名称 |
+| `BOOTSTRAP_DB_PROVIDER` | 空 | 要预配的 provider |
+| `BOOTSTRAP_DB_HOST` | `localhost` | 数据库 host |
+| `BOOTSTRAP_DB_PORT` | `5432` | 数据库 port |
+| `BOOTSTRAP_DB_DATABASE` | `mydb` | database/catalog/file 值 |
+| `BOOTSTRAP_DB_USERNAME` | `myuser` | 数据库用户名 |
+| `BOOTSTRAP_DB_PASSWORD` | `mypassword` | 数据库密码 |
+| `BOOTSTRAP_DB_EXTRA_SETTINGS` | 空 | provider-specific connection settings |
+| `BOOTSTRAP_MCP_KEY_ID` | `default-key` | 初始 MCP 密钥的稳定 bootstrap identity |
+| `BOOTSTRAP_MCP_KEY_NAME` | `Default MCP Key` | 管理界面显示的密钥名称 |
+| `BOOTSTRAP_MCP_KEY` | placeholder | 初始 raw key value |
+| `BOOTSTRAP_MCP_ALLOWED_TOOLS` | 空 | bootstrap 密钥的工具限制 |
+
+Bootstrap 管理的 MCP 密钥刻意不能通过普通密钥生命周期编辑、轮换或撤销。需要变更时，应修改其源配置。
+
+## Admin 身份验证
+
+| 变量 | 示例 | 用途 |
+| --- | --- | --- |
+| `JWT_KEY` | placeholder | JWT signing secret；≥32 字节 |
+| `JWT_ISS` | `HS-Agent` | JWT issuer |
+| `JWT_AUD` | `HS-Agent-Users` | JWT audience |
+| `JWT_ACCESS_TOKEN_EXPIRATION_MINUTES` | `10` | access-token 生命周期 |
+| `JWT_REFRESH_TOKEN_EXPIRATION_DAYS` | `1` | refresh-token 生命周期 |
+| `AUTH_LOCKOUT_THRESHOLD` | `5` | 临时锁定前允许的失败登录次数；小于 1 的值按 1 处理 |
+| `AUTH_LOCKOUT_MINUTES` | `15` | 临时锁定时长 |
+
+这些设置控制 Admin 身份验证，不控制 MCP 密钥身份验证。
+
+## 密码重置与 SMTP
+
+SMTP host 或 sender 为空时，密码重置邮件实际上处于禁用状态。
+
+| 变量 | 示例 | 用途 |
+| --- | --- | --- |
+| `PASSWORD_RESET_BASE_URL` | `http://localhost:3000/reset-password` | 外部可访问的 reset page；server 会追加 `?token=...` |
+| `PASSWORD_RESET_EXPIRATION_MINUTES` | `30` | 一次性 reset token 生命周期 |
+| `SMTP_HOST` | `smtp.example.com` | SMTP host |
+| `SMTP_PORT` | `587` | SMTP port |
+| `SMTP_ENABLE_SSL` | `true` | 邮件发送器使用的 SSL/STARTTLS 行为 |
+| `SMTP_USERNAME` | example | SMTP 凭据 |
+| `SMTP_PASSWORD` | example | SMTP 凭据 |
+| `SMTP_FROM` | `no-reply@example.com` | SMTP provider 接受的发件地址 |
+
+## OIDC / SSO 与 MFA
+
+| 变量 | 示例 | 用途 |
+| --- | --- | --- |
+| `OIDC_ENABLED` | `false` | 启用 OIDC 身份验证 |
+| `OIDC_AUTHORITY` | 空 | identity-provider authority |
+| `OIDC_CLIENT_ID` | 空 | OIDC client ID |
+| `OIDC_CLIENT_SECRET` | 空 | OIDC client secret |
+| `OIDC_REQUIRE_HTTPS_METADATA` | `true` | 要求 HTTPS discovery metadata |
+| `OIDC_EMAIL_CLAIM` | `email` | email claim 名 |
+| `OIDC_NAME_CLAIM` | `name` | display-name claim |
+| `OIDC_ROLE_CLAIM` | `roles` | role claim |
+| `OIDC_EMAIL_VERIFIED_CLAIM` | `email_verified` | verified-email claim |
+| `OIDC_REQUIRE_VERIFIED_EMAIL` | `true` | 根据配置 claim 拒绝邮箱未验证的身份 |
+| `OIDC_SCOPE_0..2` | `openid`, `profile`, `email` | 默认 scope |
+| `OIDC_ROLE_MAPPING_SQL_ADMINS` | `SuperUser` | 外部角色 → 本地角色映射示例 |
+| `OIDC_AUTO_PROVISION` | `true` | 外部身份解析成功后自动预配用户 |
+| `OIDC_FRONTEND_CALLBACK_URL` | `/sso-callback` | frontend completion route |
+| `OIDC_LOGIN_CODE_EXPIRATION_MINUTES` | `2` | 短期 login code 生命周期 |
+| `OIDC_TOTP_ISSUER` | `HS SQL Agent` | TOTP issuer label |
+| `DATA_PROTECTION_KEY_PATH` | `/app/data/data-protection-keys` | 持久化 ASP.NET Core data-protection key 的目录 |
+
+<Callout type="danger" title="使用受保护身份状态时必须持久化 data-protection key">
+如果重启后 data-protection key ring 丢失，受保护 MFA secret 和外部登录状态可能无法读取。生产环境应把 `DATA_PROTECTION_KEY_PATH` 挂载到持久化存储。
+</Callout>
+
+详见 [OIDC SSO 与 TOTP MFA](/zh-hans/docs/security/oidc-mfa)。
+
+## 健康、慢查询、投递与审计保留
+
+| 变量 | 示例 | 用途 |
+| --- | --- | --- |
+| `HEALTH_PROBE_ENABLED` | `false` | 启用后台 DB 健康探测 |
+| `HEALTH_PROBE_INTERVAL_SECONDS` | `60` | 探测频率 |
+| `HEALTH_PROBE_TIMEOUT_SECONDS` | `10` | 单次探测超时 |
+| `HEALTH_PROBE_MAX_CONCURRENCY` | `4` | 并发探测任务上限 |
+| `SLOW_QUERY_THRESHOLD_MS` | `1000` | 达到/超过该耗时的 Query 记为慢查询 |
+| `ALERT_WEBHOOK_URL` | 空 | 可选签名告警目标 |
+| `ALERT_WEBHOOK_SECRET` | 空 | HMAC/signing secret；启用 URL 时 ≥32 字节 |
+| `SIEM_WEBHOOK_URL` | 空 | 可选签名 SIEM 目标 |
+| `SIEM_WEBHOOK_SECRET` | 空 | HMAC/signing secret；启用 URL 时 ≥32 字节 |
+| `DELIVERY_MAX_ATTEMPTS` | `6` | 出站投递重试次数上限 |
+| `DELIVERY_MAX_CONCURRENCY` | `4` | 并发出站投递上限 |
+| `AUDIT_RETENTION_DAYS` | `90` | 保留天数；`0` 禁用自动保留 |
+| `AUDIT_RETENTION_MODE` | `Archive` | **运行时有效值：`Archive` 或 `Purge`** |
+| `AUDIT_ARCHIVE_PATH` | `/app/data/audit-archive` | Archive 模式归档目标 |
+| `AUDIT_FALLBACK_PATH` | `/app/data/audit-fallback.jsonl` | 审计 fallback 路径；启动校验要求存在 |
+| `AUDIT_RETENTION_RUN_HOUR_UTC` | `2` | 计划执行的 UTC 小时；运行时限制在 0–23 |
+
+<Callout type="warning" title="v2.0.2 示例注释写 Delete，但运行时代码要求 Purge">
+`AuditRetentionService` 只接受 `Archive` 和 `Purge`；其他非 Archive 值（包括 `Delete`）都会抛出 `AuditRetentionMode must be Purge or Archive.`。本参考以可执行 v2.0.2 代码为准，而不是过时示例注释。
+</Callout>
+
+`Archive` 会先把过期审计行写入 JSONL 归档，再从 Admin 数据库删除。`Purge` 则不创建归档，直接删除匹配的过期记录。
+
+## 全局与每密钥限流
+
+| 变量 | 单实例 | 分布式 | 用途 |
+| --- | --- | --- | --- |
+| `RATE_LIMITING_PERMIT_LIMIT` | `0` | `0` | 全局 IP permit limit；limit 和 window 都为 0 时表示无限制 |
+| `RATE_LIMITING_WINDOW_SECONDS` | `0` | `0` | 全局 IP window |
+| `RATE_LIMITER_PROVIDER` | `Memory` | `Redis` | shared limiter implementation |
+| `RATE_LIMITER_CONNECTION_STRING` | 空 | `redis:6379` | Redis connection |
+| `RATE_LIMITER_FAILURE_MODE` | `FailClosed` | `FailClosed` | distributed limiter 不可用时的行为 |
+| `RATE_LIMITER_KEY_PREFIX` | `hsqlagent:ratelimit:` | 同上 | Redis key namespace |
+
+MCP 密钥还可以继承、覆盖或禁用自己的每密钥限制。详见 [MCP 密钥](/zh-hans/docs/administration/mcp-keys)。
+
+## 运行时策略同步
+
+| 变量 | 单实例 | 分布式 | 用途 |
+| --- | --- | --- | --- |
+| `SECURITY_POLICY_SYNC_PROVIDER` | `Memory` | `Redis` | runtime policy synchronization provider |
+| `SECURITY_POLICY_SYNC_CONNECTION_STRING` | 空 | `redis:6379` | Redis connection |
+| `SECURITY_POLICY_SYNC_KEY_PREFIX` | `hsqlagent:security-policy:` | 同上 | key namespace |
+| `SECURITY_POLICY_SYNC_REFRESH_INTERVAL_SECONDS` | `30` | `30` | refresh interval |
+
+需要让策略变更传播到多个 hs-sql-agent 实例时，请选择 Redis。
+
+## 出站投递同步
+
+| 变量 | 单实例 | 分布式 | 用途 |
+| --- | --- | --- | --- |
+| `OUTBOUND_DELIVERY_SYNC_PROVIDER` | `Memory` | `Redis` | delivery signal coordination |
+| `OUTBOUND_DELIVERY_SYNC_CONNECTION_STRING` | 空 | `redis:6379` | Redis connection |
+| `OUTBOUND_DELIVERY_SYNC_KEY_PREFIX` | `hsqlagent:outbound-delivery:` | 同上 | key namespace |
+
+## SQL 并发协调
+
+| 变量 | 单实例 | 分布式 | 用途 |
+| --- | --- | --- | --- |
+| `SQL_CONCURRENCY_PROVIDER` | `Memory` | `Redis` | SQL concurrency limiter provider |
+| `SQL_CONCURRENCY_CONNECTION_STRING` | 空 | `redis:6379` | Redis connection |
+| `SQL_CONCURRENCY_FAILURE_MODE` | `FailClosed` | `FailClosed` | distributed coordination 失败时的行为 |
+| `SQL_CONCURRENCY_KEY` | `hsqlagent:sql-concurrency` | 同上 | shared coordination key |
+| `SQL_CONCURRENCY_LEASE_SECONDS` | `30` | `30` | lease 时长 |
+
+metadata discovery、Query、DML planning/execution 以及健康相关 SQL 工作都走受限运行时路径。如果并发上限必须在整个集群范围内生效，而不是每个进程各算一份，请使用分布式 SQL concurrency。
+
+## 可观测性
+
+| 变量 | 示例 | 用途 |
+| --- | --- | --- |
+| `PROMETHEUS_ENABLED` | `false` | 启用 Prometheus HTTP listener |
+| `PROMETHEUS_HOST` | `0.0.0.0` | metrics listener 绑定 host |
+| `PROMETHEUS_PORT` | `9000` | 独立 metrics listener 端口；启用时校验 1–65535 |
+| `OTLP_ENDPOINT` | 空 | 绝对 HTTP(S) OTLP collector endpoint |
+| `OTEL_SERVICE_NAME` | `hs-sql-agent` | OpenTelemetry service name；不能为空 |
+
+Prometheus 刻意运行在与 Admin/MCP 应用端口**独立的 listener**上。配置 `OTLP_ENDPOINT` 后，v2.0.2 会导出包括 SQL compile-evidence tracing/log integration 在内的遥测。
+
+详见 [可观测性与审计运维](/zh-hans/docs/operations/observability)。
+
+## Logging
+
+| 变量 | 示例 |
+| --- | --- |
+| `LOGGING_EFCORE_COMMAND_LOGLEVEL` | `Warning` |
+| `LOGGING_DEFAULT_LOGLEVEL` | `Information` |
+| `LOGGING_ASPNETCORE_LOGLEVEL` | `Warning` |
+
+把常规 EF Core command logging 保持在 `Warning`，可以降低生产运行中的大量 SQL command trace 噪音。
+
+## Docker 环境与嵌入式 .NET capability options
+
+Docker/ToolBox 环境变量是一套完整独立服务器配置面。新 NuGet 集成不同：`AddHsSqlAgentCore()` 本身不接收 options，每个被选中的 capability 只负责自己的配置。
+
+例如：
+
+- `HsSqlAgentAdminStoreOptions`：Admin database provider 和 connection string；
+- `HsSqlAgentRuntimeOptions`：cache、rate limiting、synchronization、SQL concurrency、DML approval storage、bootstrap、operability；
+- `HsSqlAgentBuiltInAuthOptions`：JWT、password reset/SMTP、enterprise identity/OIDC；
+- `McpOptions`：public MCP endpoint 和 HMAC secret；
+- `TelemetryOptions`：Prometheus 和 OTLP settings。
+
+`HsSqlAgentServiceOptions` 仅作为旧 aggregate compatibility DTO 保留。未选择的 capability 不会分配或验证其 options，因此使用 `AddHsSqlAgentHostAuthorization(...)` 的嵌入宿主无需配置 HsSqlAgent JWT、SMTP、密码重置或 OIDC。
+
+模块化 API 保留现有代码默认值。`.env.example` 是 standalone ToolBox 路径的部署示例，并不意味着每个嵌入式宿主都必须配置所有 capability。
+
+详见 [ASP.NET Core 集成](/zh-hans/docs/integration/aspnet-core)。
