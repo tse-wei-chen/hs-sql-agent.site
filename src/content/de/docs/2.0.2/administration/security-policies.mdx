@@ -1,0 +1,85 @@
+---
+title: Sicherheitsrichtlinien
+description: SQL-, DML-, Rate-Limit- und Parallelitätsregeln der hs-sql-agent-2.0.1-Laufzeit über die Admin-Steuerung konfigurieren.
+sidebar:
+  group: Administration
+  order: 82
+---
+
+import Callout from "@/components/docs/mdx/Callout.astro";
+import CardGrid from "@/components/docs/mdx/CardGrid.astro";
+import DocCard from "@/components/docs/mdx/DocCard.astro";
+
+<CardGrid columns={3}>
+  <DocCard title="Query-Regeln" icon="Q" description="Ergebnisgröße und Ausführungs-Timeout kontrollierter Abfragen begrenzen." />
+  <DocCard title="DML-Regeln" icon="DML" description="Prädikate verlangen, Änderungen an ganzen Tabellen einschränken und betroffene Zeilen begrenzen." />
+  <DocCard title="Laufzeitlimits" icon="LIM" description="Standard-Rate-Limits pro MCP-Schlüssel und die maximale Zahl paralleler SQL-Operationen festlegen." />
+</CardGrid>
+
+Die Security Policy ist eine **serverseitig durchgesetzte Laufzeitrichtlinie**, keine Empfehlung dafür, was ein Agent freiwillig tun sollte. Die aktuelle Richtlinie wird von Query-/DML-Ausführung und Laufzeit-Limitern verwendet.
+
+## Felder in 2.0.1
+
+| Feld | Standard | Gültiger Bereich / Bedeutung |
+| --- | ---: | --- |
+| `QueryMaxRows` | `1000` | 1–100.000 |
+| `QueryTimeoutSeconds` | `30` | 1–600 Sekunden |
+| `RequireWhereForUpdate` | `true` | Prädikat für UPDATE verlangen |
+| `RequireWhereForDelete` | `true` | Prädikat für DELETE verlangen |
+| `AllowFullTableUpdate` | `false` | explizite Freigabe für UPDATE der gesamten Tabelle |
+| `AllowFullTableDelete` | `false` | explizite Freigabe für DELETE der gesamten Tabelle |
+| `DmlMaxAffectedRows` | `100` | 1–1.000.000 |
+| `KeyPermitLimit` | `120` | 1–1.000.000 Anfragen pro konfiguriertem Schlüssel-Zeitfenster |
+| `KeyWindowSeconds` | `60` | 1–86.400 Sekunden |
+| `MaxConcurrentSql` | `16` | 1–10.000 parallele SQL-Operationen |
+
+Werte außerhalb dieser Grenzen werden abgelehnt und nicht stillschweigend in eine andere Richtlinie umgerechnet.
+
+## Admin-Autorisierung
+
+| Operation | Berechtigung |
+| --- | --- |
+| aktuelle Richtlinie lesen | `/runtime/security` → `view` |
+| Richtlinie aktualisieren | `/runtime/security` → `edit` |
+
+Ein Update schreibt ein Audit-Ereignis und ersetzt den Laufzeitzustand der Richtlinie sofort. Die Änderung wird außerdem über den konfigurierten Provider für Security-Policy-Synchronisierung veröffentlicht, damit sie in verteilten Deployments zwischen Instanzen propagiert werden kann.
+
+<Callout type="warning" title="Richtlinienänderungen beeinflussen laufende Entscheidungen">
+Änderungen an Query-Zeilen, DML-Grenzen, Key-Limits oder SQL-Parallelität sind keine kosmetischen Admin-Einstellungen. Behandeln Sie sie wie Änderungen an Produktions-Autorisierung beziehungsweise Verfügbarkeit und beobachten Sie danach Audit und Operability.
+</Callout>
+
+## Query-Limits
+
+`QueryMaxRows` begrenzt die Ausgabe über Compiler- und Laufzeitregeln. `QueryTimeoutSeconds` definiert den Timeout-Vertrag der Query-Ausführung. Beides wird serverseitig durchgesetzt und hängt nicht davon ab, dass der Client selbst `LIMIT` oder Cancellation korrekt verwendet.
+
+## Prädikate für UPDATE und DELETE
+
+Standardmäßig verlangt die Richtlinie Prädikate für UPDATE und DELETE und verbietet Änderungen an der gesamten Tabelle.
+
+Die Freigabe einer Full-Table-Änderung ist explizit: `RequireWhereForUpdate=false` allein drückt nicht dieselbe Absicht aus wie `AllowFullTableUpdate=true`. Behalten Sie die konservativen Standardwerte bei, solange ein realer Betriebsablauf keine breite Mutation erfordert.
+
+## Begrenzung betroffener DML-Zeilen
+
+`DmlMaxAffectedRows` begrenzt die Auswirkung einer Mutation. Diese Grenze ergänzt das Safe-DML-Freigabeprotokoll, ersetzt es aber nicht. Eine Mutation muss weiterhin erfolgreich geparst, validiert und kompiliert werden und über MCP zusätzlich Freigabe und Revalidierung vor dem Commit durchlaufen.
+
+Siehe [Safe DML](/de/docs/sql-compiler/safe-dml).
+
+## Rate Limits für MCP-Schlüssel
+
+Die Security Policy liefert Standardwerte für Permit Limit und Zeitfenster pro Schlüssel. Einzelne MCP-Schlüssel können:
+
+- die Richtlinie erben,
+- einen eigenen Override verwenden oder
+- explizit unbegrenzt sein.
+
+Siehe [MCP-Schlüssel](/de/docs/administration/mcp-keys).
+
+## SQL-Parallelität
+
+`MaxConcurrentSql` begrenzt parallele SQL-Operationen der Laufzeit. Ob dieses Limit pro Prozess oder über mehrere Instanzen hinweg gilt, hängt vom konfigurierten SQL-Concurrency-Provider ab.
+
+In einem Cluster sollte der verteilte Provider verwendet werden, wenn das Limit für das gesamte Deployment statt für jeden Knoten einzeln gelten muss.
+
+<Callout type="tip" title="Sicherheitsrichtlinie und Datenbankprivilegien getrennt halten">
+Laufzeitrichtlinie, MCP-Key-Scope und Compilerprüfungen sollten zusätzlich auf einem Datenbankkonto mit minimal nötigen Rechten aufsetzen. Keine einzelne Schicht sollte der einzige Schutz vor unerwünschtem SQL sein.
+</Callout>

@@ -1,0 +1,123 @@
+---
+title: Datenbankverwaltung
+description: Datenbankverbindungen konfigurieren und betreiben, die über hs-sql-agent 2.0.1 bereitgestellt werden.
+sidebar:
+  group: Administration
+  order: 72
+---
+
+Database Management ist der Bereich der Admin-Steuerungsebene für Datenbankverbindungen, die später an MCP-Schlüssel gebunden werden können. Ein Datenbankeintrag speichert Provider- und Verbindungsmetadaten; MCP-Clients liefern nicht bei jeder Anfrage beliebige Connection Strings.
+
+## Unterstützte Provider
+
+2.0.1 unterstützt über die gemeinsame SQL-Provider-Runtime folgende Providerkennungen:
+
+- PostgreSQL
+- MySQL
+- SQL Server
+- Oracle
+- SQLite
+- Firebird
+
+Der konfigurierte Provider bestimmt außerdem SQL-Dialekt und Capability-Profil für Query- und DML-Ausführung.
+
+## Verbindungsfelder
+
+Das Datenbank-Anfragemodell 2.0.1 enthält folgende Felder:
+
+| Feld | Zweck |
+| --- | --- |
+| `Name` | Für Betreiber sichtbarer Verbindungsname |
+| `SqlProvider` | Datenbankprovider/-dialekt |
+| `Host` | Datenbankhost oder providerspezifischer Ort |
+| `Port` | Provider-Port als Text |
+| `Username` | Datenbank-Benutzername |
+| `Password` | Datenbankpasswort; nur SQLite benötigt keines |
+| `Database` | Wert für Datenbank/Katalog/Datei, den die Connection-String-Factory verwendet |
+| `ExtraSettings` | Optionale providerspezifische Verbindungseinstellungen |
+
+`CreatedBy` und `UpdatedBy` existieren im Service-Request-Modell ebenfalls, sind jedoch Metadaten der Steuerungsebene und keine Felder, die ein MCP-Client steuert.
+
+## Verbindung anlegen
+
+Unter **Runtime → Database Management**:
+
+1. Legen Sie einen Datenbankeintrag mit einem klaren Betreibernamen an.
+2. Wählen Sie den Provider.
+3. Geben Sie die providerspezifischen Verbindungsfelder ein.
+4. Verwenden Sie ein eigenes Datenbankkonto mit nur den Berechtigungen, die hs-sql-agent tatsächlich benötigt.
+5. Speichern Sie den Eintrag und prüfen Sie die Verbindung, bevor Produktions-MCP-Schlüssel daran gebunden werden.
+
+Die API lehnt einen leeren Namen ab. Bei allen Providern außer SQLite lehnt das Backend außerdem ein fehlendes Passwort ab.
+
+## Verbindung prüfen
+
+Die Admin-Runtime stellt eine Connection-Test-Operation bereit. Beim Test eines vorhandenen Database-Management-Eintrags lädt der Server die gespeicherten Verbindungsdaten, entschlüsselt das Passwort, rekonstruiert den Provider-Connection-String und führt den Verbindungstest des Providers aus.
+
+Ein fehlgeschlagener Test sollte als Verbindungs-/Konfigurationsproblem behandelt werden, bevor MCP-SQL-Verhalten untersucht wird.
+
+Typische Ursachen sind:
+
+- Host oder Port vom hs-sql-agent-Prozess nicht erreichbar;
+- falscher Datenbank-/Katalogname;
+- ungültige Zugangsdaten;
+- fehlende TLS-/Verschlüsselungseinstellungen in `ExtraSettings`;
+- Datenbank-Firewall oder Netzwerkrichtlinie;
+- providerspezifische Anforderungen an die Authentifizierung.
+
+## Metadaten durchsuchen
+
+Mit `view` auf `/runtime/db-management` kann die Admin API Provider-Metadaten einer gespeicherten Verbindung lesen:
+
+- Schemas;
+- Tabellen eines Schemas;
+- Spalten einer Tabelle.
+
+Diese Operationen bauen die Providerverbindung aus dem gespeicherten Datenbankeintrag auf. Sie sind von der MCP-Schemaerkennung getrennt, die zusätzlich Tabellen-Whitelist und semantische Anreicherung des authentifizierten MCP-Schlüssels anwendet.
+
+## MCP-Schlüssel binden
+
+Ein Produktions-MCP-Schlüssel muss einen Database-Management-Eintrag referenzieren. Diese Verbindung wird damit zur Datenbankgrenze des Schlüssels.
+
+Zusätzliche Einschränkungen auf Schlüsselseite können die Oberfläche weiter begrenzen:
+
+- Tool-Allowlist;
+- Tabellen-Whitelist;
+- CORS-Origins;
+- Ablaufzeit;
+- Rate-Limit-Modus/-Overrides.
+
+Siehe [MCP-Schlüssel](/de/docs/administration/mcp-keys).
+
+## Die Tabellen-Whitelist wird nicht auf der Datenbank gespeichert
+
+Database Management definiert die Verbindung. Tabellenautorisierung wird am MCP-Schlüssel angewendet.
+
+Dadurch können mehrere MCP-Schlüssel dieselbe physische Datenbankverbindung teilen und dennoch unterschiedliche Tabellen-/Tool-Grenzen erhalten. Beispielsweise kann ein Schlüssel nur Lesezugriff auf Reporting-Tabellen freigeben, während ein anderer Betreiber-Workflow andere Tabellen und DML verwenden darf.
+
+## Semantische Metadaten gehören zum Datenbankmodell
+
+Anzeigenamen, Beschreibungen, Synonyme, Beziehungen und Metriken für Tabellen/Spalten werden dem Database-Management-Eintrag zugeordnet. Die Schemaerkennung kann dadurch MCP-sichtbare Metadaten anreichern, ohne das physische Datenbankschema zu ändern.
+
+Siehe [Semantische Metadaten](/de/docs/administration/semantic-metadata).
+
+## Berechtigungen
+
+Die Admin API 2.0.1 verwendet explizite Berechtigungen:
+
+| Operation | Berechtigung |
+| --- | --- |
+| Verbindungen und Metadaten auflisten/lesen | `/runtime/db-management` → `view` |
+| anlegen | `/runtime/db-management` → `create` |
+| bearbeiten | `/runtime/db-management` → `edit` |
+| löschen | `/runtime/db-management` → `delete` |
+| semantische Metadaten anzeigen | `/runtime/db-management/semantic` → `view` |
+| semantische Metadaten bearbeiten | `/runtime/db-management/semantic` → `edit` |
+
+Eine authentifizierte Admin-Sitzung allein reicht damit nicht aus; die Autorisierung wird pro Operation geprüft.
+
+## Betriebshinweise
+
+Verwenden Sie stabile Namen für Database-Management-Einträge und ändern Sie nicht stillschweigend die Bedeutung einer Verbindung, unter der aktive MCP-Schlüssel laufen. Muss ein Schlüssel an eine andere Datenbankgrenze verschoben werden, verwenden Sie einen expliziten Lebenszyklusvorgang und prüfen Sie Tabellen-/Tool-Umfang erneut.
+
+Behandeln Sie Datenbankzugangsdaten und providerspezifische Secrets als Secrets. Legen Sie sie weder in Custom-Tool-Templates noch in Client-Konfigurationen ab; Clients sollten nur MCP-Endpunkt und MCP-Schlüssel erhalten.

@@ -1,0 +1,91 @@
+---
+title: Betriebszustand
+description: Laufzeitmetriken, Datenbankzustand, MCP-Schlüsselnutzung und ausgehende Zustellungen in hs-sql-agent 2.0.1 untersuchen.
+sidebar:
+  group: Administration
+  order: 84
+---
+
+import Callout from "@/components/docs/mdx/Callout.astro";
+import CardGrid from "@/components/docs/mdx/CardGrid.astro";
+import DocCard from "@/components/docs/mdx/DocCard.astro";
+
+<CardGrid columns={2}>
+  <DocCard title="Ausführungsmetriken" icon="P95" description="Query-/DML-Zahlen, Erfolgsrate, gemessene Latenz, langsame Abfragen und Rate-Limit-Ablehnungen." />
+  <DocCard title="Datenbankzustand" icon="DB" description="Letzter Probe-Status, Latenz, Fehlerfolge, Beginn eines Ausfalls und letzter Provider-Fehler." />
+  <DocCard title="MCP-Schlüsselnutzung" icon="KEY" description="Anfragen, Erfolge/Fehler, letzte Nutzung und Ablehnungsrate durch Rate Limits pro Schlüssel." />
+  <DocCard title="Ausgehende Zustellung" icon="OUT" description="Webhook-/SIEM-Zustellungen prüfen und fehlgeschlagene oder ausstehende Einträge bei entsprechender Berechtigung erneut senden." />
+</CardGrid>
+
+Die Betriebsansicht zeigt, **wie sich die kontrollierte Laufzeit aktuell verhält**. Sie ergänzt Audit, das einzelne Sicherheits- und Ausführungsereignisse beschreibt, sowie OpenTelemetry/Prometheus für externe Telemetrie.
+
+## Ausführungsmetriken
+
+Der Metrics-Endpunkt kann unter anderem liefern:
+
+- Anzahl von Query- und DML-Aufrufen;
+- Erfolgs- und Fehlerzahlen sowie Erfolgsquote;
+- p50- und p95-Latenz;
+- Stichprobengröße und Kennzeichnung, ob Latenzen gesampelt sind;
+- Anzahl langsamer Queries;
+- Anzahl von IP-Rate-Limit-Ablehnungen;
+- Anzahl von MCP-Key-Rate-Limit-Ablehnungen.
+
+Filter können nach Zeitraum, Datenbank, Zugriffsschlüssel und Tool-Namen einschränken.
+
+<Callout type="info" title="Gesampelte Latenz auch als gesampelte Latenz lesen">
+Die Antwort nennt explizit Stichprobengröße und Sampling-Status. Interpretieren Sie p50/p95 nicht als vollständige Verteilung, wenn die Laufzeit Sampling meldet.
+</Callout>
+
+## Datenbankzustand
+
+Für jede verwaltete Verbindung werden Betriebsdaten bereitgestellt:
+
+| Feld | Bedeutung |
+| --- | --- |
+| `Status` | aktueller Zustand |
+| `LastCheckedAt` | Zeitpunkt der letzten Prüfung |
+| `LastSuccessAt` | letzte erfolgreiche Prüfung |
+| `LatencyMs` | Prüflatenz, sofern verfügbar |
+| `ConsecutiveFailures` | aktuelle Folge fehlgeschlagener Prüfungen |
+| `OutageStartedAt` | Beginn des aktuellen Ausfallfensters, sofern bekannt |
+| `LastError` | letzter Provider-/Probe-Fehler |
+
+Die Hintergrundprüfung wird über `HEALTH_PROBE_*` gesteuert. Ist sie deaktiviert, darf diese Ansicht nicht als kontinuierlich aktualisiertes externes Monitoring verstanden werden.
+
+## MCP-Schlüsselnutzung
+
+Die Nutzungsdaten enthalten Schlüsselidentität/-name, letzte Verwendung, Anzahl der Anfragen, Erfolge/Fehler, Rate-Limit-Zähler und Ablehnungsquote.
+
+Damit lassen sich veraltete Zugangsdaten, ungewöhnlich laute Agents und Schlüssel erkennen, die ihre Limits regelmäßig erreichen. Prüfen Sie vor Änderungen an Umfang oder Limits die Seite [MCP-Schlüssel](/de/docs/administration/mcp-keys).
+
+## Ausgehende Zustellungen
+
+Die Laufzeit speichert Zustellversuche für konfigurierte Alert-/SIEM-Webhooks. Einträge enthalten:
+
+- Kategorie und Status;
+- Anzahl der Versuche;
+- Erstellungs-, Zustell- und letzte Versuchszeit;
+- letzten Fehler.
+
+Der Listenendpunkt akzeptiert `limit`, Standardwert `100`.
+
+## Zustellung erneut ausführen
+
+| Operation | Berechtigung |
+| --- | --- |
+| Metriken / DB-Zustand / Schlüsselnutzung / Zustellungsliste | `/runtime/operability` → `view` |
+| Zustellung erneut versuchen | `/runtime/operability` → `edit` |
+
+Ein erneuter Versuch ist eine ausdrückliche Admin-Aktion. Er ist nach Behebung eines vorübergehenden Ziel- oder Netzwerkproblems sinnvoll, ersetzt aber nicht die Korrektur einer ungültigen URL, eines falschen Secrets oder eines fehlerhaften Zielsystems.
+
+<Callout type="warning" title="Ein Retry kann ein Ereignis erneut senden">
+Prüfen Sie vor dem Retry, ob das Ziel doppelte oder verspätete Zustellungen verträgt und ob der ursprüngliche Versuch möglicherweise erfolgreich war, obwohl der lokale Zustand nicht entsprechend aktualisiert wurde.
+</Callout>
+
+## Weitere Untersuchung
+
+- [Audit](/de/docs/administration/audit) — Akteure, Aktionen, Ergebnisse und SQL-Ausführungskontext.
+- [Sicherheitsrichtlinien](/de/docs/administration/security-policies) — Laufzeitlimits, die Ablehnungen erklären können.
+- [Observability](/de/docs/operations/observability) — Prometheus, OTLP, Traces und externe Telemetrie.
+- [Verteilte Bereitstellung](/de/docs/operations/distributed-deployment) — gemeinsame Koordination über mehrere Knoten.
