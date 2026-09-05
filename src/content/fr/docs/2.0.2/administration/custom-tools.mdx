@@ -1,0 +1,36 @@
+---
+title: Outils personnalisés
+description: Construire et publier des outils MCP Query ou DML spécialisés sans créer de contournement de politique autour de hs-sql-agent.
+sidebar:
+  group: Administration
+  order: 75
+---
+
+Les Custom Tools permettent aux opérateurs d’exposer une opération MCP nommée et spécialisée, soutenue par SQL, plutôt que d’obliger chaque client à générer l’instruction complète à partir de zéro.
+
+Un outil publié est résolu dans la base liée à la clé MCP authentifiée. Le serveur charge la définition publiée, rend le modèle SQL configuré à partir des arguments déclarés, puis transmet l’exécution soit au runtime de requête typé, soit au runtime DML typé selon le type de l’outil.
+
+## Types d’outils
+
+Un Custom Tool actuel possède l’un des deux types d’exécution suivants :
+
+- **Query** — exécute via le parcours compiler/runtime de requête et retourne les lignes sérialisées.
+- **DML** — analyse la mutation rendue via le runtime DML typé et entre dans le même flux d’approbation DML que l’exécution de mutation intégrée.
+
+Les types inconnus sont refusés.
+
+## La publication fait partie de la disponibilité
+
+Le runtime ne résout qu’un outil **publié** pour la base liée à la clé MCP courante. Un outil présent dans le panneau d’administration mais non publié n’est pas disponible sous son nom MCP.
+
+La modification et la revue peuvent ainsi rester distinctes de la surface MCP active.
+
+## Personnalisé ne signifie pas non gouverné
+
+Avant l’exécution, le proxy vérifie l’accès à l’outil et la liaison à la base. Les outils Query utilisent la politique de sécurité courante, la liste blanche de tables et le limiteur de concurrence SQL. Les outils DML utilisent le parser DML typé et `TypedDmlApprovalFlow`, notamment la résolution de la liste blanche de tables et l’approbation humaine.
+
+L’exécution écrit également des événements d’audit. Un Custom Tool est donc une interface réutilisable **à l’intérieur** de la même frontière de sécurité, et non une échappatoire permettant de la contourner.
+
+## Exposition par les clés MCP
+
+Les noms de Custom Tools peuvent figurer dans la liste d’outils autorisés d’une clé MCP aux côtés des noms intégrés. Préférez exposer uniquement les outils nommés dont un client a besoin plutôt que de laisser la surface d’outils sans restriction.

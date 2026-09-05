@@ -1,0 +1,85 @@
+---
+title: Politiques de sécurité
+description: Configurer depuis le plan de contrôle Admin les politiques runtime SQL, DML, limitation de débit et concurrence de hs-sql-agent 2.0.1.
+sidebar:
+  group: Administration
+  order: 82
+---
+
+import Callout from "@/components/docs/mdx/Callout.astro";
+import CardGrid from "@/components/docs/mdx/CardGrid.astro";
+import DocCard from "@/components/docs/mdx/DocCard.astro";
+
+<CardGrid columns={3}>
+  <DocCard title="Politique de requête" icon="Q" description="Limiter la taille des résultats et le délai d’exécution des requêtes gouvernées." />
+  <DocCard title="Politique DML" icon="DML" description="Exiger des prédicats, limiter les mutations de table entière et plafonner les lignes affectées." />
+  <DocCard title="Limites runtime" icon="LIM" description="Définir les limites par défaut des clés MCP et le nombre maximal d’opérations SQL concurrentes." />
+</CardGrid>
+
+Security Policy est une **politique d’application au runtime**, pas une documentation de ce qu’un agent devrait respecter volontairement. La politique courante est consommée directement par l’exécution Query/DML et les limiteurs runtime.
+
+## Champs de politique 2.0.1
+
+| Champ | Défaut | Plage / signification |
+| --- | ---: | --- |
+| `QueryMaxRows` | `1000` | 1–100 000 |
+| `QueryTimeoutSeconds` | `30` | 1–600 secondes |
+| `RequireWhereForUpdate` | `true` | exiger un prédicat UPDATE |
+| `RequireWhereForDelete` | `true` | exiger un prédicat DELETE |
+| `AllowFullTableUpdate` | `false` | autorisation explicite d’UPDATE de table entière |
+| `AllowFullTableDelete` | `false` | autorisation explicite de DELETE de table entière |
+| `DmlMaxAffectedRows` | `100` | 1–1 000 000 |
+| `KeyPermitLimit` | `120` | 1–1 000 000 requêtes par fenêtre configurée |
+| `KeyWindowSeconds` | `60` | 1–86 400 secondes |
+| `MaxConcurrentSql` | `16` | 1–10 000 opérations SQL concurrentes |
+
+Le service refuse les valeurs hors bornes au lieu de les normaliser silencieusement vers une autre politique.
+
+## Autorisation Admin
+
+| Opération | Permission |
+| --- | --- |
+| lire la politique courante | `/runtime/security` → `view` |
+| mettre à jour la politique | `/runtime/security` → `edit` |
+
+La mise à jour écrit un événement d’audit et remplace immédiatement l’état runtime de la politique. Le changement est aussi publié via le provider de synchronisation configuré afin qu’un déploiement distribué puisse le propager entre instances.
+
+<Callout type="warning" title="Modifier la politique change les décisions runtime actives">
+Changer le nombre de lignes, les bornes DML, les limites de clés ou la concurrence SQL n’est pas un réglage cosmétique. Traitez cela comme une modification de sécurité/disponibilité en production et surveillez audit et opérabilité après déploiement.
+</Callout>
+
+## Limites Query
+
+`QueryMaxRows` limite la sortie via la politique compiler/runtime. `QueryTimeoutSeconds` contrôle le contrat de timeout runtime. Ces contraintes sont côté serveur et ne dépendent pas du fait qu’un client ajoute lui-même `LIMIT` ou gère l’annulation.
+
+## Prédicats UPDATE et DELETE
+
+La politique par défaut exige des prédicats pour UPDATE et DELETE et interdit les mutations de table entière.
+
+L’autorisation full-table est explicite : désactiver `RequireWhereForUpdate` ne porte pas la même intention qu’activer `AllowFullTableUpdate`. Conservez les valeurs conservatrices sauf si le flux opérateur nécessite réellement une mutation large.
+
+## Plafond de lignes affectées DML
+
+`DmlMaxAffectedRows` limite l’impact d’une mutation. Il complète, sans le remplacer, le protocole d’approbation Safe DML. Une mutation doit toujours être analysée, validée et compilée ; via MCP, elle doit aussi terminer l’approbation et la revérification au moment du commit.
+
+Consultez [Safe DML](/fr/docs/sql-compiler/safe-dml).
+
+## Limites par clé MCP
+
+La politique de sécurité fournit les valeurs par défaut permit limit/window. Une clé peut :
+
+- hériter de la politique ;
+- utiliser un override personnalisé ;
+- être explicitement illimitée.
+
+Consultez [Clés MCP](/fr/docs/administration/mcp-keys) pour le mode au niveau de la clé.
+
+## Concurrence SQL
+
+`MaxConcurrentSql` est la limite de concurrence SQL du runtime. Son caractère local au processus ou coordonné entre instances dépend du provider de concurrence SQL configuré.
+
+Dans un cluster, utilisez le provider distribué lorsque la limite doit représenter l’ensemble du déploiement et non chaque nœud séparément.
+
+<Callout type="tip" title="Séparez politique de sécurité et privilèges de base">
+La politique runtime, le périmètre des clés MCP et les contrôles du compilateur doivent s’ajouter à un compte de base à moindre privilège. Ne comptez pas sur une seule couche comme unique protection contre du SQL indésirable.
+</Callout>

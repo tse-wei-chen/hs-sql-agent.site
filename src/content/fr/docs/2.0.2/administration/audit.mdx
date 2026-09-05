@@ -1,0 +1,95 @@
+---
+title: Audit
+description: Interroger, synthétiser, exporter et conserver les enregistrements d’audit hs-sql-agent depuis le plan de contrôle Admin.
+sidebar:
+  group: Administration
+  order: 80
+---
+
+import Callout from "@/components/docs/mdx/Callout.astro";
+import CardGrid from "@/components/docs/mdx/CardGrid.astro";
+import DocCard from "@/components/docs/mdx/DocCard.astro";
+
+<CardGrid columns={3}>
+  <DocCard title="Recherche" icon="Q" description="Filtrer les événements par action, résultat, acteur, période, base, clé MCP, outil et mot-clé." />
+  <DocCard title="Export" icon="EXP" description="Exporter l’ensemble filtré en CSV ou JSON avec une permission d’export dédiée." />
+  <DocCard title="Rétention" icon="RET" description="Inspecter la politique, simuler la date limite, puis exécuter explicitement Archive ou Purge." />
+</CardGrid>
+
+La surface d’audit constitue l’enregistrement du plan de contrôle pour l’activité de sécurité et d’exécution. Elle sert à l’investigation et à la revue opérationnelle ; elle ne remplace pas le flux principal de logs applicatifs.
+
+## Structure d’un enregistrement d’audit
+
+Un élément d’audit peut contenir :
+
+| Zone | Champs |
+| --- | --- |
+| identité | `ActorType`, `ActorId`, `IpAddress`, `UserAgent` |
+| événement | `EventId`, `Action`, `Target`, `Detail`, `Result`, `CreatedAt` |
+| requête/session | `RequestId`, `SessionId` |
+| périmètre SQL | `AccessKeyId`, `DbManagementId`, `DatabaseName`, `ToolName`, `Operation` |
+| exécution | `DurationMs`, `ReturnedRows`, `AffectedRows` |
+| DML/erreur | `ApprovalStatus`, `ErrorCategory`, `Definition` |
+
+Tous les événements ne renseignent pas tous les champs. Les changements de compte administratif, l’exécution SQL via MCP, les événements d’approbation DML et les livraisons sortantes portent naturellement des contextes différents.
+
+## Filtrer les événements
+
+`GET /api/runtime/audit` prend en charge la pagination et les filtres suivants :
+
+- `action`
+- `keyword`
+- `from` / `to`
+- `result`
+- `actor`
+- `dbManagementId`
+- `accessKeyId`
+- `toolName`
+
+La page par défaut est `1`, avec `20` enregistrements par page.
+
+## Synthèse quotidienne
+
+`GET /api/runtime/audit/daily-summary` retourne une agrégation quotidienne de l’activité. La requête couvre 7 jours par défaut, ce qui permet de repérer les variations générales avant d’inspecter des événements individuels.
+
+## Export
+
+L’export d’audit est une capacité d’autorisation distincte :
+
+| Opération | Permission |
+| --- | --- |
+| requête / synthèse / état de rétention | `/runtime/audit` → `view` |
+| export CSV ou JSON | `/runtime/audit` → `export` |
+| simulation / exécution de rétention | `/runtime/audit` → `edit` |
+
+L’endpoint d’export accepte `format=csv` ou `format=json`. La version 2.0.1 refuse les ensembles dépassant 100 000 lignes au lieu de tenter un téléchargement sans borne.
+
+<Callout type="info" title="L’export CSV protège les cellules de tableur">
+Les valeurs CSV commençant par des caractères interprétables comme une formule de tableur, tels que `=`, `+`, `-` ou `@`, reçoivent un préfixe afin de réduire le risque d’injection de formule lors de l’ouverture du fichier.
+</Callout>
+
+## Parcours de rétention
+
+La politique de rétention expose son activation, le nombre de jours, le mode et l’heure UTC planifiée.
+
+Parcours opérateur recommandé :
+
+1. Inspectez la politique active.
+2. Lancez le dry-run pour vérifier la date limite et le nombre de lignes concernées.
+3. Confirmez le mode et le volume attendu.
+4. N’exécutez la rétention qu’après revue.
+
+Les modes runtime valides sont :
+
+- `Archive` — écrire les enregistrements expirés dans le chemin d’archive configuré avant de les supprimer de la base Admin ;
+- `Purge` — supprimer les enregistrements expirés sans créer cette archive.
+
+Si `AUDIT_RETENTION_DAYS=0`, la rétention automatique est désactivée et l’exécution explicite est refusée.
+
+<Callout type="warning" title="Simulez avant une rétention destructive">
+Même en mode Archive, considérez l’exécution de la rétention comme une action opérateur destructive. Vérifiez la date limite, le nombre d’éléments, le stockage d’archive et les attentes de sauvegarde avant de l’exécuter manuellement.
+</Callout>
+
+## Audit et télémétrie sont complémentaires
+
+Les enregistrements d’audit répondent à **qui a fait quoi, sur quelle ressource gouvernée, avec quel résultat**. Les métriques et traces répondent aux questions de santé et de performance du runtime. Consultez [Opérabilité](/fr/docs/administration/operability) et [Observabilité](/fr/docs/operations/observability) pour ces surfaces.

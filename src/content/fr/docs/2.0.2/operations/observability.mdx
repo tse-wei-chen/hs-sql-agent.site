@@ -1,0 +1,73 @@
+---
+title: Observabilité et opérations d’audit
+description: Configurer les sondes de santé, seuils de requêtes lentes, Prometheus, OTLP, la rétention d’audit et les livraisons sortantes signées.
+sidebar:
+  group: Exploitation
+  order: 95
+---
+
+hs-sql-agent sépare l’observabilité du runtime du plan de contrôle SQL. En production, les opérateurs peuvent combiner contrôles de santé, métriques, export de télémétrie, rétention d’audit et livraisons sortantes d’alertes/SIEM sans faire de la table d’audit de la base l’unique signal opérationnel.
+
+## Santé et suivi des requêtes lentes
+
+L’environnement d’exemple expose :
+
+```text
+HEALTH_PROBE_ENABLED
+HEALTH_PROBE_INTERVAL_SECONDS
+HEALTH_PROBE_TIMEOUT_SECONDS
+HEALTH_PROBE_MAX_CONCURRENCY
+SLOW_QUERY_THRESHOLD_MS
+```
+
+Les sondes de santé sont facultatives. Le seuil de requête lente détermine à partir de quelle durée l’activité SQL est classée comme lente pour la visibilité opérationnelle.
+
+## Prometheus et OTLP
+
+Prometheus est servi sur un **listener distinct** de l’API applicative :
+
+```text
+PROMETHEUS_ENABLED=false
+PROMETHEUS_HOST=0.0.0.0
+PROMETHEUS_PORT=9000
+```
+
+L’export OpenTelemetry facultatif se configure avec :
+
+```text
+OTLP_ENDPOINT=
+OTEL_SERVICE_NAME=hs-sql-agent
+```
+
+Utilisez le listener Prometheus pour les métriques collectées par scraping et OTLP lorsqu’un collector fait partie de la topologie de déploiement.
+
+## Livraison d’alertes et SIEM
+
+Le serveur prend en charge des destinations sortantes signées facultatives :
+
+```text
+ALERT_WEBHOOK_URL=
+ALERT_WEBHOOK_SECRET=
+SIEM_WEBHOOK_URL=
+SIEM_WEBHOOK_SECRET=
+DELIVERY_MAX_ATTEMPTS=6
+DELIVERY_MAX_CONCURRENCY=4
+```
+
+Laisser l’URL d’une destination vide désactive l’intégration correspondante. Persistez et protégez les secrets de signature comme tout autre identifiant de déploiement.
+
+## Rétention de l’audit
+
+La rétention est gérée séparément du traitement des requêtes actives. `AUDIT_RETENTION_DAYS=0` désactive le traitement automatique de rétention. L’implémentation actuelle accepte les modes `Archive` et `Purge` ; Archive conserve les enregistrements expirés dans le chemin configuré avant leur suppression.
+
+Les paramètres concernés comprennent :
+
+```text
+AUDIT_RETENTION_DAYS
+AUDIT_RETENTION_MODE
+AUDIT_ARCHIVE_PATH
+AUDIT_FALLBACK_PATH
+AUDIT_RETENTION_RUN_HOUR_UTC
+```
+
+Le chemin de repli est important pour la gestion des échecs opérationnels. Si le déploiement dépend des sorties d’audit archivées ou de repli, conservez le stockage configuré de manière persistante.

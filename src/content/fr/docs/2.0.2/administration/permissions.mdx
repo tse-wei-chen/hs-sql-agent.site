@@ -1,0 +1,82 @@
+---
+title: Permissions
+description: Comprendre le modèle d’autorisation chemin + action utilisé par les opérations Admin de hs-sql-agent 2.0.1.
+sidebar:
+  group: Administration
+  order: 79
+---
+
+import Callout from "@/components/docs/mdx/Callout.astro";
+import CardGrid from "@/components/docs/mdx/CardGrid.astro";
+import DocCard from "@/components/docs/mdx/DocCard.astro";
+
+<CardGrid columns={3}>
+  <DocCard title="Chemin de permission" icon="PATH" description="Identifie la ressource Admin protégée, par exemple /runtime/db-management ou /auth/user." />
+  <DocCard title="Action" icon="ACT" description="Identifie l’opération autorisée, par exemple view, create, edit, delete ou export." />
+  <DocCard title="Sélection de rôle" icon="RBAC" description="Les rôles ne stockent que des paires permission/action présentes dans l’inventaire de modèles du serveur." />
+</CardGrid>
+
+L’autorisation Admin en 2.0.1 est appliquée comme une paire **chemin de permission + code d’action**. Les contrôleurs déclarent la paire requise et les membres authentifiés reçoivent l’accès via leurs rôles.
+
+## Exemples du runtime
+
+| Opération protégée | Paire requise |
+| --- | --- |
+| voir Database Management | `/runtime/db-management` → `view` |
+| créer une entrée Database Management | `/runtime/db-management` → `create` |
+| modifier les métadonnées sémantiques | `/runtime/db-management/semantic` → `edit` |
+| émettre/gérer les clés MCP | `/runtime/mcp-keys` avec l’action correspondante |
+| voir les utilisateurs | `/auth/user` → `view` |
+| modifier les rôles | `/auth/role` → `edit` |
+| voir l’audit | `/runtime/audit` → `view` |
+| exporter l’audit | `/runtime/audit` → `export` |
+| modifier la politique de sécurité | `/runtime/security` → `edit` |
+| relancer une livraison sortante | `/runtime/operability` → `edit` |
+
+L’authentification seule n’est donc pas suffisante : la paire chemin/action requise doit aussi être résolue via les rôles du membre.
+
+## Les modèles permission-action font autorité
+
+L’API Role expose un inventaire `permission-action-templates`. Chaque modèle contient :
+
+- un identifiant, un nom et un chemin de permission ;
+- un identifiant, un code et un nom d’action.
+
+Un payload de rôle soumet les sélections sous forme de paires `{ PermissionId, ActionId }`. Le service de rôles normalise les doublons et ne stocke que les paires existantes dans l’inventaire.
+
+<Callout type="warning" title="Les permissions ne sont pas des chaînes arbitraires">
+Ne modélisez pas l’autorisation en inventant de nouveaux chemins/codes d’action côté client. Un rôle ne peut persister que des combinaisons soutenues par les données de modèles permission-action du serveur.
+</Callout>
+
+## Le rôle est l’unité d’attribution
+
+Les membres reçoivent des rôles, et les rôles contiennent des sélections permission/action. Cela sépare le cycle de vie des utilisateurs de la politique d’accès réutilisable :
+
+```text
+Member
+  └─ Role(s)
+       └─ Permission path + Action
+```
+
+Un membre peut avoir plusieurs rôles. Son accès Admin effectif correspond à la surface cumulée de ces rôles.
+
+## Les changements d’autorisation invalident l’état obsolète
+
+La modification d’un rôle est sensible pour la sécurité. Lorsque ses permissions changent, le service trouve les membres concernés, incrémente leur version de sécurité et effectue la mutation via la barrière de cache d’état runtime d’authentification.
+
+Le but est d’empêcher une session déjà authentifiée de conserver une autorisation périmée après modification du rôle.
+
+## Rôle SuperUser protégé
+
+`SuperUser` est un rôle intégré protégé en 2.0.1. Il ne peut pas être modifié ni supprimé par la gestion normale des rôles. Le rôle bootstrap/de contrôle complet ne peut donc pas être redéfini silencieusement avec un autre ensemble de permissions.
+
+<Callout type="tip" title="Privilégiez le moindre privilège par responsabilité">
+Créez les rôles autour des responsabilités opérateur plutôt que de copier SuperUser pour chaque compte. Par exemple, un observateur runtime peut avoir besoin de `view` sur audit/operability, sans avoir besoin de `edit` sur les bases, `create` sur les clés ou `edit` sur la politique de sécurité.
+</Callout>
+
+## Guides associés
+
+- [Membres et rôles](/fr/docs/administration/members-roles) — cycle de vie des membres et garde-fous des rôles.
+- [Gestion des bases de données](/fr/docs/administration/database-management) — exemples de permissions DB et sémantiques.
+- [Clés MCP](/fr/docs/administration/mcp-keys) — les identifiants MCP forment une frontière d’autorisation distincte des rôles Admin.
+- [Politiques de sécurité](/fr/docs/administration/security-policies) — politiques runtime SQL/débit/concurrence gérées par leur propre permission Admin.

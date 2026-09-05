@@ -1,0 +1,110 @@
+---
+title: Métadonnées sémantiques
+description: Enrichir la découverte de base avec la sémantique des tables et colonnes, les relations et les métriques dans hs-sql-agent 2.0.1.
+sidebar:
+  group: Administration
+  order: 76
+---
+
+import Callout from "@/components/docs/mdx/Callout.astro";
+import CardGrid from "@/components/docs/mdx/CardGrid.astro";
+import DocCard from "@/components/docs/mdx/DocCard.astro";
+
+<CardGrid columns={3}>
+  <DocCard title="Entités" icon="Aa" description="Noms d’affichage, descriptions et synonymes pour les tables et colonnes." />
+  <DocCard title="Relations" icon="↔" description="Relations nommées entre colonnes source et cible avec cardinalité et direction." />
+  <DocCard title="Métriques" icon="∑" description="Métadonnées de métrique par table avec formule, agrégation, grain, filtres et synonymes." />
+</CardGrid>
+
+Les métadonnées sémantiques appartiennent à une entrée Database Management. Elles enrichissent la façon dont la découverte de schéma décrit la base physique sans modifier le schéma lui-même.
+
+## Métadonnées d’entité
+
+Un enregistrement d’entité peut cibler une table entière ou une colonne précise.
+
+| Champ | Signification |
+| --- | --- |
+| `DbManagementId` | Entrée Database Management propriétaire |
+| `SchemaName` | Schéma facultatif |
+| `TableName` | Nom physique de table obligatoire |
+| `ColumnName` | Facultatif ; absent pour les métadonnées de niveau table |
+| `DisplayName` | Nom lisible par un humain |
+| `Description` | Description métier ou opérationnelle |
+| `Synonyms` | Termes alternatifs décrivant la table/colonne |
+
+Les synonymes sont normalisés en supprimant les valeurs vides, en dédupliquant sans tenir compte de la casse et en conservant au maximum 100 valeurs par enregistrement.
+
+## Relations
+
+Les métadonnées de relation décrivent le lien entre deux colonnes physiques.
+
+| Champ | Signification |
+| --- | --- |
+| `Name` | Nom de relation stable |
+| `SourceSchema` / `SourceTable` / `SourceColumn` | Côté source |
+| `TargetSchema` / `TargetTable` / `TargetColumn` | Côté cible |
+| `Cardinality` | `many-to-one` par défaut |
+| `Direction` | `source-to-target` par défaut |
+| `Description` | Explication facultative opérateur/métier |
+
+La découverte de schéma n’expose une description de relation que si les deux tables participantes sont autorisées par la liste blanche de la clé MCP authentifiée.
+
+## Métriques
+
+Les métadonnées de métrique sont limitées à une table et peuvent décrire une mesure métier :
+
+| Champ | Signification |
+| --- | --- |
+| `Name` | Identifiant stable de métrique |
+| `DisplayName` | Nom lisible |
+| `Description` | Explication métier |
+| `Formula` | Métadonnées de formule |
+| `Aggregation` | `custom` par défaut ; peut décrire l’agrégation prévue |
+| `Grain` | Grain facultatif |
+| `Filter` | Filtre facultatif |
+| `Synonyms` | Termes alternatifs |
+| `Executable` | `false` dans le modèle 2.0.1 |
+
+<Callout type="warning" title="Les métriques sont des métadonnées, pas une échappatoire d’exécution">
+Le modèle sémantique 2.0.1 fixe `Executable` à false. Une description de métrique peut aider un agent à comprendre le schéma, mais ne devient pas une macro SQL exécutable et ne contourne ni le compilateur SQL ni le pipeline d’autorisation.
+</Callout>
+
+## Consommation par la découverte de schéma MCP
+
+Les outils formels de schéma restent `get_schemas`, `get_tables` et `get_columns`.
+
+Lorsque des métadonnées sémantiques existent pour l’entrée liée à la clé :
+
+- `get_tables` peut ajouter nom d’affichage, description, synonymes et descriptions de métriques de la table ;
+- `get_columns` peut ajouter nom d’affichage, description, synonymes et descriptions de relations ;
+- la liste blanche de tables continue de filtrer la visibilité physique et le contexte des relations.
+
+Les métadonnées sémantiques enrichissent donc la découverte sans élargir l’accès de la clé.
+
+## Surface Admin API
+
+L’API 2.0.1 expose la gestion sémantique sous `api/DbSemantic` :
+
+| Opération | Permission |
+| --- | --- |
+| lire les entités d’une base | `/runtime/db-management/semantic` → `view` |
+| lire le modèle combiné entités/relations/métriques | `/runtime/db-management/semantic` → `view` |
+| upsert des métadonnées d’entité | `/runtime/db-management/semantic` → `edit` |
+| supprimer les métadonnées d’entité | `/runtime/db-management/semantic` → `edit` |
+| upsert/suppression d’une relation | `/runtime/db-management/semantic` → `edit` |
+| upsert/suppression d’une métrique | `/runtime/db-management/semantic` → `edit` |
+
+<Callout type="info" title="Ce n’est pas un sixième outil MCP intégré documenté">
+Pour la documentation 2.0.1, la surface formelle d’une clé MCP est constituée des cinq outils intégrés décrits dans la référence MCP, plus les Custom Tools publiés. Les métadonnées sémantiques sont administrées dans le plan de contrôle et consommées par la découverte de schéma.
+</Callout>
+
+## Conseils de modélisation
+
+Utilisez les métadonnées sémantiques pour les termes suffisamment stables pour aider plusieurs agents et opérateurs :
+
+- noms métier différents des noms physiques ;
+- abréviations et synonymes du domaine ;
+- relations importantes pour la génération de requêtes ;
+- définitions de métriques précisant formule et grain.
+
+N’y placez pas d’identifiants secrets, d’instructions runtime ou de décisions d’autorisation. Le contrôle d’accès reste une couche appliquée séparément.

@@ -1,0 +1,45 @@
+---
+title: Architecture et parcours de contribution
+description: Cartographie du dépôt pour les contributeurs et règles de modification du compilateur, du serveur, du frontend et de la documentation.
+sidebar:
+  group: Développement
+  order: 130
+---
+
+hs-sql-agent est divisé entre un backend, un frontend Admin et un site statique de documentation/produit séparé.
+
+## Responsabilités des dépôts
+
+À haut niveau :
+
+- `backend/` contient le serveur, les modules du compilateur/runtime SQL, la persistance et les tests.
+- `frontend/` contient le panneau Admin Nuxt intégré.
+- `hs-sql-agent.site` est le site Astro indépendant pour le produit et la documentation.
+
+Le compilateur SQL comprend des modules F# avec des étapes explicites de réécriture/validation et des concepts de preuve de capacité. L’hébergement serveur est exposé par `HsSqlAgent.Server` sous forme de bibliothèque ASP.NET Core composable : les nouvelles intégrations commencent par `AddHsSqlAgentCore()` puis sélectionnent explicitement Runtime, AdminStore, HostAuthorization ou BuiltInAuth, AdminApi, MCP et Telemetry selon leurs besoins. `AddHsSqlAgent()` / `UseHsSqlAgent()` restent des surfaces de compatibilité pour les consommateurs existants et non le modèle d’intégration de référence.
+
+## Parcours de contribution
+
+Le guide principal demande aux contributeurs de :
+
+1. Forker le dépôt.
+2. Implémenter une modification ciblée avec les tests ou la documentation nécessaires.
+3. Exécuter le projet localement et vérifier les tests.
+4. Ouvrir une Pull Request avec la motivation, la description du changement et les preuves de test.
+
+Garder une PR centrée sur une tâche facilite la revue et l’intégration.
+
+## Modifications de documentation
+
+La documentation doit décrire le comportement du code actuel, pas un comportement anticipé.
+
+Lorsqu’une modification concerne les capacités SQL, la sécurité DML, la compatibilité MCP, la configuration d’hébergement, le comportement Admin ou les exigences de déploiement, mettez à jour la page correspondante dans le même flux de travail chaque fois que possible.
+
+Le site organise le contenu par locale et version :
+
+```text
+src/content/en/docs/<version>/<section>/<slug>.mdx
+src/content/fr/docs/<version>/<section>/<slug>.mdx
+```
+
+Les traductions partagent intentionnellement le même version/section/slug et sont séparées par des routes préfixées par la locale. La base documentaire complète actuelle est 2.0.2.

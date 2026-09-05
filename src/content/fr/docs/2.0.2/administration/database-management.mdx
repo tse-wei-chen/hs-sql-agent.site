@@ -1,0 +1,123 @@
+---
+title: Gestion des bases de données
+description: Configurer et exploiter les connexions de base de données exposées par hs-sql-agent 2.0.1.
+sidebar:
+  group: Administration
+  order: 72
+---
+
+Database Management est la zone du plan de contrôle Admin consacrée aux connexions de base de données qui pourront ensuite être liées aux clés MCP. Une entrée conserve le moteur et les métadonnées de connexion ; les clients MCP ne fournissent pas de chaînes de connexion arbitraires à chaque requête.
+
+## Moteurs pris en charge
+
+La version 2.0.1 prend en charge les identifiants de moteur suivants via le runtime SQL partagé :
+
+- PostgreSQL
+- MySQL
+- SQL Server
+- Oracle
+- SQLite
+- Firebird
+
+Le moteur configuré détermine également le dialecte SQL et le profil de capacités utilisés pour les requêtes et DML.
+
+## Champs de connexion
+
+Le modèle de requête de base 2.0.1 contient :
+
+| Champ | Usage |
+| --- | --- |
+| `Name` | Nom lisible par l’opérateur |
+| `SqlProvider` | Moteur/dialecte de base de données |
+| `Host` | Hôte ou emplacement propre au moteur |
+| `Port` | Port du moteur sous forme de texte |
+| `Username` | Utilisateur de connexion |
+| `Password` | Mot de passe ; SQLite est le seul moteur qui n’en exige pas |
+| `Database` | Valeur base/catalogue/fichier consommée par la fabrique de chaîne de connexion |
+| `ExtraSettings` | Paramètres de connexion supplémentaires propres au moteur |
+
+`CreatedBy` et `UpdatedBy` existent dans le modèle de service, mais sont des métadonnées du plan de contrôle, pas des champs contrôlés par un client MCP.
+
+## Créer une connexion
+
+Dans **Runtime → Database Management** :
+
+1. Créez une entrée et donnez-lui un nom clair pour les opérateurs.
+2. Sélectionnez le moteur.
+3. Saisissez les champs de connexion propres au moteur.
+4. Utilisez un compte de base dédié avec uniquement les privilèges réellement nécessaires à hs-sql-agent.
+5. Enregistrez l’entrée puis vérifiez la connectivité avant de lier des clés MCP de production.
+
+L’API refuse un nom vide. Pour tous les moteurs sauf SQLite, le backend refuse également l’absence de mot de passe.
+
+## Tester la connectivité
+
+Le runtime Admin expose une opération de test de connexion. Lors du test d’une entrée Database Management existante, le serveur charge les données enregistrées, déchiffre le mot de passe, reconstruit la chaîne de connexion puis exécute le test du moteur.
+
+Un échec doit être traité comme un problème de connexion/configuration avant de diagnostiquer le comportement SQL via MCP.
+
+Causes typiques :
+
+- hôte ou port inaccessible depuis le processus hs-sql-agent ;
+- nom de base/catalogue incorrect ;
+- identifiants invalides ;
+- paramètres TLS/chiffrement absents de `ExtraSettings` ;
+- pare-feu ou politique réseau de la base ;
+- exigences d’authentification propres au moteur.
+
+## Parcourir les métadonnées
+
+Avec la permission `view` sur `/runtime/db-management`, l’API Admin peut lire les métadonnées du moteur pour une connexion enregistrée :
+
+- schémas ;
+- tables d’un schéma ;
+- colonnes d’une table.
+
+Ces opérations reconstruisent la connexion à partir de l’entrée enregistrée. Elles sont distinctes de la découverte de schéma MCP, qui applique également la liste blanche de tables de la clé authentifiée et l’enrichissement sémantique.
+
+## Lier une clé MCP
+
+Une clé MCP de production doit référencer une entrée Database Management. Cette connexion devient alors sa frontière de base de données.
+
+Des restrictions supplémentaires peuvent réduire encore la surface :
+
+- liste autorisée d’outils ;
+- liste blanche de tables ;
+- origines CORS ;
+- expiration ;
+- mode/overrides de limitation de débit.
+
+Consultez [Clés MCP](/fr/docs/administration/mcp-keys).
+
+## La liste blanche de tables n’est pas stockée sur la base
+
+Database Management définit la connexion. L’autorisation des tables est appliquée sur la clé MCP.
+
+Plusieurs clés peuvent ainsi partager une même connexion physique tout en recevant des périmètres de tables/outils différents. Par exemple, une clé peut exposer uniquement la lecture des tables de reporting tandis qu’une autre, destinée à un flux opérateur, expose un autre ensemble de tables et DML.
+
+## Les métadonnées sémantiques appartiennent au modèle de base
+
+Les noms d’affichage, descriptions, synonymes, relations et métriques de tables/colonnes sont associés à l’entrée Database Management. La découverte de schéma peut ainsi enrichir les métadonnées visibles via MCP sans modifier le schéma physique.
+
+Consultez [Métadonnées sémantiques](/fr/docs/administration/semantic-metadata).
+
+## Permissions
+
+L’API Admin 2.0.1 applique des permissions explicites :
+
+| Opération | Permission |
+| --- | --- |
+| lister/lire les connexions et métadonnées | `/runtime/db-management` → `view` |
+| créer | `/runtime/db-management` → `create` |
+| modifier | `/runtime/db-management` → `edit` |
+| supprimer | `/runtime/db-management` → `delete` |
+| lire les métadonnées sémantiques | `/runtime/db-management/semantic` → `view` |
+| modifier les métadonnées sémantiques | `/runtime/db-management/semantic` → `edit` |
+
+Être authentifié en tant qu’utilisateur Admin n’est donc pas suffisant ; l’autorisation est contrôlée pour chaque opération.
+
+## Conseils d’exploitation
+
+Utilisez des noms stables pour les entrées Database Management et évitez de changer le sens d’une connexion sous des clés MCP actives. Si une clé doit passer vers une autre frontière de base, préférez une opération explicite de cycle de vie puis revérifiez ses périmètres tables/outils.
+
+Traitez les identifiants de base et secrets propres au moteur comme des secrets. Ne les placez pas dans les modèles de Custom Tool ni dans la configuration cliente ; les clients ne doivent recevoir que l’endpoint MCP et la clé MCP.

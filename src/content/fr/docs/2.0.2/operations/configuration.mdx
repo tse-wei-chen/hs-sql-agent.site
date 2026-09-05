@@ -1,0 +1,248 @@
+---
+title: Référence de configuration
+description: Référence issue du code source pour les variables d’environnement et la configuration runtime de hs-sql-agent 2.0.2.
+sidebar:
+  group: Exploitation
+  order: 90
+---
+
+import Callout from "@/components/docs/mdx/Callout.astro";
+import CardGrid from "@/components/docs/mdx/CardGrid.astro";
+import DocCard from "@/components/docs/mdx/DocCard.astro";
+
+<CardGrid columns={3}>
+  <DocCard title="Instance unique" icon="1" description="Commencez avec .env.example et conservez les providers locaux au processus tant qu’aucun état ne doit être partagé." />
+  <DocCard title="Distribué" icon="N" description="Utilisez PostgreSQL pour le plan de contrôle et Redis pour cache, limites, synchronisation des politiques/livraisons et concurrence SQL." />
+  <DocCard title=".NET intégré" icon=".NET" description="Les nouvelles intégrations configurent des options par capacité ; HsSqlAgentServiceOptions reste réservé à la compatibilité de l’API agrégée historique." />
+</CardGrid>
+
+Le fichier **v2.0.2 `.env.example`** versionné dans le dépôt constitue l’inventaire de déploiement pour le parcours Compose par défaut. Cette page suit ce fichier pour les noms d’environnement et le code runtime v2.0.2 lorsqu’un commentaire et la validation divergent.
+
+<Callout type="warning" title="Générez de vrais secrets avant de démarrer en production">
+`HMAC_KEY` et `JWT_KEY` doivent chacun contenir au moins 32 octets et utiliser des valeurs uniques et indépendantes. Les chaînes du dépôt sont des placeholders. Les secrets webhook doivent également contenir au moins 32 octets lorsque leur URL est activée.
+</Callout>
+
+## Application et plan de contrôle
+
+| Variable | Exemple/défaut dans `.env.example` | Usage |
+| --- | --- | --- |
+| `ASPNETCORE_URLS` | `http://+:8080` | Listener ASP.NET Core principal |
+| `ALLOWED_HOSTS` | `*` | Filtrage des hosts ASP.NET Core |
+| `ADMIN_DATABASE_PROVIDER` | `Sqlite` | Provider de la base Admin/plan de contrôle |
+| `ADMIN_DATABASE_CONNECTION_STRING` | `Data Source=/app/data/hsqlagent.db` | Stocke comptes, rôles, clés, audit, politiques et autres états du plan de contrôle |
+| `HMAC_KEY` | placeholder | Secret HMAC protégeant/vérifiant les clés MCP émises ; ≥32 octets |
+| `MCP_PUBLIC_ENDPOINT` | `http://localhost:8080/mcp` | Endpoint absolu inséré dans la configuration cliente MCP générée |
+
+`MCP_PUBLIC_ENDPOINT` doit être une URL HTTP ou HTTPS absolue. En production, utilisez l’URL que le **client** peut réellement atteindre, `/mcp` inclus, et non une adresse interne au conteneur.
+
+### Topologie de la base Admin
+
+L’exemple à une instance utilise SQLite. L’exemple distribué utilise PostgreSQL :
+
+```text
+ADMIN_DATABASE_PROVIDER=Postgres
+ADMIN_DATABASE_CONNECTION_STRING=Host=postgres;Port=5432;Database=hsqlagent;Username=postgres;Password=...
+```
+
+Utilisez une base Admin partagée lorsque plusieurs instances hs-sql-agent doivent voir les mêmes identités, clés, politiques et enregistrements d’audit/plan de contrôle.
+
+## Cache
+
+| Variable | Instance unique | Distribué | Usage |
+| --- | --- | --- | --- |
+| `CACHE_PROVIDER` | `Memory` | `Redis` | Provider du cache runtime |
+| `CACHE_CONNECTION_STRING` | vide | `redis:6379` | Connexion Redis lorsqu’il est sélectionné |
+| `CACHE_KEY_PREFIX` | `hsqlagent:cache:` | identique | Espace de noms des clés de cache |
+
+`Memory`, local au processus, ne convient que lorsque l’état de cache n’a pas besoin d’être partagé entre instances applicatives.
+
+## Bootstrap / provisionnement automatique
+
+| Variable | Exemple | Usage |
+| --- | --- | --- |
+| `BOOTSTRAP_ENABLED` | `false` | Activer le provisionnement/la synchronisation au démarrage |
+| `BOOTSTRAP_DB_ID` | `default-db` | Identité bootstrap stable de la base initiale |
+| `BOOTSTRAP_DB_NAME` | `Default DB` | Nom de la base visible dans Admin |
+| `BOOTSTRAP_DB_PROVIDER` | vide | Provider à provisionner |
+| `BOOTSTRAP_DB_HOST` | `localhost` | Host de la base |
+| `BOOTSTRAP_DB_PORT` | `5432` | Port de la base |
+| `BOOTSTRAP_DB_DATABASE` | `mydb` | Valeur base/catalogue/fichier |
+| `BOOTSTRAP_DB_USERNAME` | `myuser` | Nom d’utilisateur de la base |
+| `BOOTSTRAP_DB_PASSWORD` | `mypassword` | Mot de passe de la base |
+| `BOOTSTRAP_DB_EXTRA_SETTINGS` | vide | Paramètres de connexion propres au provider |
+| `BOOTSTRAP_MCP_KEY_ID` | `default-key` | Identité bootstrap stable de la clé MCP initiale |
+| `BOOTSTRAP_MCP_KEY_NAME` | `Default MCP Key` | Nom de clé visible dans Admin |
+| `BOOTSTRAP_MCP_KEY` | placeholder | Valeur brute initiale de la clé |
+| `BOOTSTRAP_MCP_ALLOWED_TOOLS` | vide | Restriction d’outils de la clé bootstrap |
+
+Les clés MCP gérées par bootstrap ne peuvent volontairement pas être modifiées, renouvelées ou révoquées via le cycle de vie normal. Modifiez leur configuration source.
+
+## Authentification Admin
+
+| Variable | Exemple | Usage |
+| --- | --- | --- |
+| `JWT_KEY` | placeholder | Secret de signature JWT ; ≥32 octets |
+| `JWT_ISS` | `HS-Agent` | Émetteur JWT |
+| `JWT_AUD` | `HS-Agent-Users` | Audience JWT |
+| `JWT_ACCESS_TOKEN_EXPIRATION_MINUTES` | `10` | Durée de vie de l’access token |
+| `JWT_REFRESH_TOKEN_EXPIRATION_DAYS` | `1` | Durée de vie du refresh token |
+| `AUTH_LOCKOUT_THRESHOLD` | `5` | Échecs de connexion avant verrouillage temporaire ; les valeurs inférieures à 1 sont traitées comme 1 |
+| `AUTH_LOCKOUT_MINUTES` | `15` | Durée du verrouillage temporaire |
+
+Ces paramètres gouvernent l’authentification Admin, pas l’authentification par clé MCP.
+
+## Réinitialisation de mot de passe et SMTP
+
+L’envoi de réinitialisation est effectivement désactivé lorsque le host SMTP ou l’expéditeur est vide.
+
+| Variable | Exemple | Usage |
+| --- | --- | --- |
+| `PASSWORD_RESET_BASE_URL` | `http://localhost:3000/reset-password` | Page externe de réinitialisation ; le serveur ajoute `?token=...` |
+| `PASSWORD_RESET_EXPIRATION_MINUTES` | `30` | Durée de vie du token à usage unique |
+| `SMTP_HOST` | `smtp.example.com` | Host SMTP |
+| `SMTP_PORT` | `587` | Port SMTP |
+| `SMTP_ENABLE_SSL` | `true` | Comportement SSL/STARTTLS de l’expéditeur |
+| `SMTP_USERNAME` | example | Identifiant SMTP |
+| `SMTP_PASSWORD` | example | Identifiant SMTP |
+| `SMTP_FROM` | `no-reply@example.com` | Adresse d’expéditeur acceptée par le provider SMTP |
+
+## OIDC / SSO et MFA
+
+| Variable | Exemple | Usage |
+| --- | --- | --- |
+| `OIDC_ENABLED` | `false` | Activer l’authentification OIDC |
+| `OIDC_AUTHORITY` | vide | Authority du fournisseur d’identité |
+| `OIDC_CLIENT_ID` | vide | Client ID OIDC |
+| `OIDC_CLIENT_SECRET` | vide | Client secret OIDC |
+| `OIDC_REQUIRE_HTTPS_METADATA` | `true` | Exiger les métadonnées de découverte HTTPS |
+| `OIDC_EMAIL_CLAIM` | `email` | Nom de la revendication e-mail |
+| `OIDC_NAME_CLAIM` | `name` | Revendication de nom d’affichage |
+| `OIDC_ROLE_CLAIM` | `roles` | Revendication de rôle |
+| `OIDC_EMAIL_VERIFIED_CLAIM` | `email_verified` | Revendication d’e-mail vérifié |
+| `OIDC_REQUIRE_VERIFIED_EMAIL` | `true` | Refuser les identités sans e-mail vérifié selon la revendication configurée |
+| `OIDC_SCOPE_0..2` | `openid`, `profile`, `email` | Étendues par défaut |
+| `OIDC_ROLE_MAPPING_SQL_ADMINS` | `SuperUser` | Exemple de correspondance rôle externe → rôle local |
+| `OIDC_AUTO_PROVISION` | `true` | Provisionner les utilisateurs après résolution réussie de l’identité externe |
+| `OIDC_FRONTEND_CALLBACK_URL` | `/sso-callback` | Route frontend de fin de connexion |
+| `OIDC_LOGIN_CODE_EXPIRATION_MINUTES` | `2` | Durée de vie du code de connexion court |
+| `OIDC_TOTP_ISSUER` | `HS SQL Agent` | Libellé de l’émetteur TOTP |
+| `DATA_PROTECTION_KEY_PATH` | `/app/data/data-protection-keys` | Répertoire persistant des clés ASP.NET Core data protection |
+
+<Callout type="danger" title="Persistez les clés de protection des données lorsque l’état d’identité est protégé">
+Si le trousseau data protection disparaît entre les redémarrages, les secrets MFA et l’état de connexion externe protégés peuvent devenir illisibles. Montez `DATA_PROTECTION_KEY_PATH` sur un stockage durable en production.
+</Callout>
+
+Consultez [SSO OIDC et MFA TOTP](/fr/docs/security/oidc-mfa).
+
+## Santé, requêtes lentes, livraison et rétention de l’audit
+
+| Variable | Exemple | Usage |
+| --- | --- | --- |
+| `HEALTH_PROBE_ENABLED` | `false` | Activer les sondes DB en arrière-plan |
+| `HEALTH_PROBE_INTERVAL_SECONDS` | `60` | Fréquence des sondes |
+| `HEALTH_PROBE_TIMEOUT_SECONDS` | `10` | Timeout par sonde |
+| `HEALTH_PROBE_MAX_CONCURRENCY` | `4` | Nombre maximal de sondes concurrentes |
+| `SLOW_QUERY_THRESHOLD_MS` | `1000` | Durée à partir de laquelle une Query est enregistrée comme lente |
+| `ALERT_WEBHOOK_URL` | vide | Destination signée facultative pour les alertes |
+| `ALERT_WEBHOOK_SECRET` | vide | Secret HMAC/signature ; ≥32 octets si l’URL est activée |
+| `SIEM_WEBHOOK_URL` | vide | Destination SIEM signée facultative |
+| `SIEM_WEBHOOK_SECRET` | vide | Secret HMAC/signature ; ≥32 octets si l’URL est activée |
+| `DELIVERY_MAX_ATTEMPTS` | `6` | Nombre maximal de tentatives sortantes |
+| `DELIVERY_MAX_CONCURRENCY` | `4` | Nombre maximal de livraisons concurrentes |
+| `AUDIT_RETENTION_DAYS` | `90` | Durée de rétention ; `0` désactive l’automatique |
+| `AUDIT_RETENTION_MODE` | `Archive` | **Valeurs runtime valides : `Archive` ou `Purge`** |
+| `AUDIT_ARCHIVE_PATH` | `/app/data/audit-archive` | Destination en mode Archive |
+| `AUDIT_FALLBACK_PATH` | `/app/data/audit-fallback.jsonl` | Chemin de repli de l’audit ; requis par la validation au démarrage |
+| `AUDIT_RETENTION_RUN_HOUR_UTC` | `2` | Heure UTC planifiée, limitée à 0–23 au runtime |
+
+<Callout type="warning" title="Le commentaire d’exemple v2.0.2 dit Delete, mais le runtime exige Purge">
+`AuditRetentionService` n’accepte que `Archive` et `Purge` ; toute autre valeur non-Archive, dont `Delete`, déclenche `AuditRetentionMode must be Purge or Archive.`. Cette référence suit le code exécutable v2.0.2 plutôt que le commentaire d’exemple obsolète.
+</Callout>
+
+`Archive` écrit les lignes expirées dans une archive JSONL avant de les supprimer de la base Admin. `Purge` les supprime sans créer cette archive.
+
+## Limitation de débit globale et par clé
+
+| Variable | Instance unique | Distribué | Usage |
+| --- | --- | --- | --- |
+| `RATE_LIMITING_PERMIT_LIMIT` | `0` | `0` | Limite globale par IP ; 0 avec fenêtre 0 signifie illimité |
+| `RATE_LIMITING_WINDOW_SECONDS` | `0` | `0` | Fenêtre globale par IP |
+| `RATE_LIMITER_PROVIDER` | `Memory` | `Redis` | Implémentation du limiteur partagé |
+| `RATE_LIMITER_CONNECTION_STRING` | vide | `redis:6379` | Connexion Redis |
+| `RATE_LIMITER_FAILURE_MODE` | `FailClosed` | `FailClosed` | Comportement lorsque le limiteur distribué est indisponible |
+| `RATE_LIMITER_KEY_PREFIX` | `hsqlagent:ratelimit:` | identique | Espace de noms Redis |
+
+Les clés MCP peuvent en plus hériter de leur limite, la remplacer ou la désactiver. Consultez [Clés MCP](/fr/docs/administration/mcp-keys).
+
+## Synchronisation de la politique runtime
+
+| Variable | Instance unique | Distribué | Usage |
+| --- | --- | --- | --- |
+| `SECURITY_POLICY_SYNC_PROVIDER` | `Memory` | `Redis` | Provider de synchronisation de politique |
+| `SECURITY_POLICY_SYNC_CONNECTION_STRING` | vide | `redis:6379` | Connexion Redis |
+| `SECURITY_POLICY_SYNC_KEY_PREFIX` | `hsqlagent:security-policy:` | identique | Espace de noms des clés |
+| `SECURITY_POLICY_SYNC_REFRESH_INTERVAL_SECONDS` | `30` | `30` | Intervalle de rafraîchissement |
+
+Choisissez Redis lorsque les changements de politique doivent se propager entre plusieurs instances.
+
+## Synchronisation des livraisons sortantes
+
+| Variable | Instance unique | Distribué | Usage |
+| --- | --- | --- | --- |
+| `OUTBOUND_DELIVERY_SYNC_PROVIDER` | `Memory` | `Redis` | Coordination des signaux de livraison |
+| `OUTBOUND_DELIVERY_SYNC_CONNECTION_STRING` | vide | `redis:6379` | Connexion Redis |
+| `OUTBOUND_DELIVERY_SYNC_KEY_PREFIX` | `hsqlagent:outbound-delivery:` | identique | Espace de noms des clés |
+
+## Coordination de la concurrence SQL
+
+| Variable | Instance unique | Distribué | Usage |
+| --- | --- | --- | --- |
+| `SQL_CONCURRENCY_PROVIDER` | `Memory` | `Redis` | Provider du limiteur de concurrence SQL |
+| `SQL_CONCURRENCY_CONNECTION_STRING` | vide | `redis:6379` | Connexion Redis |
+| `SQL_CONCURRENCY_FAILURE_MODE` | `FailClosed` | `FailClosed` | Comportement si la coordination distribuée échoue |
+| `SQL_CONCURRENCY_KEY` | `hsqlagent:sql-concurrency` | identique | Clé de coordination partagée |
+| `SQL_CONCURRENCY_LEASE_SECONDS` | `30` | `30` | Durée du lease |
+
+La découverte de métadonnées, les requêtes, la planification/exécution DML et les travaux SQL liés à la santé utilisent des parcours bornés. Utilisez la concurrence SQL distribuée lorsque la limite doit s’appliquer au cluster entier plutôt qu’à chaque processus.
+
+## Observabilité
+
+| Variable | Exemple | Usage |
+| --- | --- | --- |
+| `PROMETHEUS_ENABLED` | `false` | Activer le listener HTTP Prometheus |
+| `PROMETHEUS_HOST` | `0.0.0.0` | Host de bind du listener métriques |
+| `PROMETHEUS_PORT` | `9000` | Port du listener séparé ; validation 1–65535 si activé |
+| `OTLP_ENDPOINT` | vide | Endpoint collector OTLP HTTP(S) absolu |
+| `OTEL_SERVICE_NAME` | `hs-sql-agent` | Nom de service OpenTelemetry ; ne peut pas être vide |
+
+Prometheus est volontairement servi sur un **listener séparé** du port Admin/MCP. Lorsque `OTLP_ENDPOINT` est configuré, v2.0.2 exporte la télémétrie, y compris l’intégration tracing/log des preuves de compilation SQL.
+
+Consultez [Observabilité et opérations d’audit](/fr/docs/operations/observability).
+
+## Logging
+
+| Variable | Exemple |
+| --- | --- |
+| `LOGGING_EFCORE_COMMAND_LOGLEVEL` | `Warning` |
+| `LOGGING_DEFAULT_LOGLEVEL` | `Information` |
+| `LOGGING_ASPNETCORE_LOGLEVEL` | `Warning` |
+
+Conserver les commandes EF Core courantes au niveau `Warning` réduit le bruit des traces SQL en production.
+
+## Environnement Docker et options des capacités .NET intégrées
+
+L’environnement Docker/ToolBox constitue une surface complète de configuration du serveur autonome. Les nouvelles intégrations NuGet sont différentes : `AddHsSqlAgentCore()` est sans option et chaque capacité sélectionnée possède ses propres options.
+
+Par exemple :
+
+- `HsSqlAgentAdminStoreOptions` possède le provider et la chaîne de connexion de la base Admin ;
+- `HsSqlAgentRuntimeOptions` possède cache, limitation de débit, synchronisation, concurrence SQL, stockage d’approbation DML, bootstrap et operability ;
+- `HsSqlAgentBuiltInAuthOptions` possède JWT, réinitialisation/SMTP et identité d’entreprise/OIDC ;
+- `McpOptions` possède l’endpoint MCP public et le secret HMAC ;
+- `TelemetryOptions` possède Prometheus et OTLP.
+
+`HsSqlAgentServiceOptions` reste uniquement comme DTO de compatibilité de l’API agrégée historique. Les capacités non sélectionnées n’allouent ni ne valident leurs options ; un host intégré utilisant `AddHsSqlAgentHostAuthorization(...)` n’a donc pas besoin des paramètres JWT, SMTP, reset ou OIDC de HsSqlAgent.
+
+L’API modulaire conserve les valeurs par défaut du code existant. `.env.example` reste un exemple de déploiement pour le parcours ToolBox autonome et ne signifie pas que chaque host intégré doit configurer toutes les capacités.
+
+Consultez [Intégration ASP.NET Core](/fr/docs/integration/aspnet-core).
