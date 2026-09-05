@@ -254,8 +254,7 @@ const pages: Record<AspNetCoreMarketingLocale, AspNetCoreMarketingPage> = {
     order: 30,
     visual: "integration",
     title: "ASP.NET Core に hs-sql-agent を組み込む",
-    headline:
-      "製品一式を組み込むなら Hosting、構成を選びたいなら Server。",
+    headline: "製品一式を組み込むなら Hosting、構成を選びたいなら Server。",
     description:
       "HsSqlAgent.Hosting は公式 Docker イメージと同じ標準構成を .NET ホストへ組み込みます。既存の ASP.NET Core アプリが認証、ミドルウェア、管理 UI、テレメトリ、承認フローを自ら管理する場合は HsSqlAgent.Server を使います。",
     eyebrow: "ASP.NET Core · NuGet",
@@ -433,7 +432,10 @@ const pages: Record<AspNetCoreMarketingLocale, AspNetCoreMarketingPage> = {
       },
     ],
     relatedDocs: [
-      { label: "Intégration ASP.NET Core", path: "docs/integration/aspnet-core" },
+      {
+        label: "Intégration ASP.NET Core",
+        path: "docs/integration/aspnet-core",
+      },
       { label: "Déploiement", path: "docs/operations/deployment" },
     ],
     body: [
@@ -465,7 +467,8 @@ const pages: Record<AspNetCoreMarketingLocale, AspNetCoreMarketingPage> = {
         },
       },
       {
-        title: "Le système d'approbation n'obtient pas le droit d'exécuter le SQL",
+        title:
+          "Le système d'approbation n'obtient pas le droit d'exécuter le SQL",
         paragraphs: [
           "MCP Elicitation reste le mécanisme d'approbation officiel par défaut. Le Hosting standard peut sélectionner l'adaptateur Webhook officiel par configuration ; un hôte modulaire peut enregistrer HsSqlAgent.Approvals.Webhook ou son propre IDmlApprovalProvider. HsSqlAgent conserve la validation SQL, la liaison des preuves d'approbation, la revalidation avant commit et l'exécution atomique.",
         ],
