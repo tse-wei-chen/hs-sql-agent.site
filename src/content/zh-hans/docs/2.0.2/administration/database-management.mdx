@@ -1,0 +1,123 @@
+---
+title: 数据库管理
+description: 配置和运维通过 hs-sql-agent 2.0.1 暴露的数据库连接。
+sidebar:
+  group: 管理
+  order: 72
+---
+
+Database Management 是管理控制平面中维护数据库连接的区域，这些连接之后可以绑定到 MCP 密钥。数据库条目保存 provider 和连接元数据；MCP 客户端不能在每次请求中自行提交任意连接字符串。
+
+## 支持的 provider
+
+2.0.1 通过统一 SQL provider runtime 支持以下 provider 标识：
+
+- PostgreSQL
+- MySQL
+- SQL Server
+- Oracle
+- SQLite
+- Firebird
+
+配置的 provider 同时决定 Query 和 DML 执行使用的 SQL 方言与 capability profile。
+
+## 连接字段
+
+2.0.1 数据库请求模型包含：
+
+| 字段 | 用途 |
+| --- | --- |
+| `Name` | 管理员可读的连接名称 |
+| `SqlProvider` | 数据库 provider / 方言 |
+| `Host` | 数据库主机或 provider 特定位置 |
+| `Port` | 文本形式的 provider 端口 |
+| `Username` | 数据库登录用户 |
+| `Password` | 数据库密码；只有 SQLite 不要求密码 |
+| `Database` | provider 连接字符串工厂使用的数据库/catalog/file 值 |
+| `ExtraSettings` | 可选的 provider 特定连接设置 |
+
+`CreatedBy` 和 `UpdatedBy` 也存在于 service request model 中，但它们属于控制平面元数据，不是 MCP 客户端可以控制的字段。
+
+## 创建连接
+
+在 **Runtime → Database Management** 中：
+
+1. 创建数据库条目，并使用清晰、便于运维识别的名称。
+2. 选择 provider。
+3. 填写 provider 连接字段。
+4. 使用只拥有 hs-sql-agent 实际所需权限的专用数据库账号。
+5. 保存后先测试连通性，再绑定生产 MCP 密钥。
+
+API 会拒绝空名称。除 SQLite 外，后端还会拒绝缺少密码的配置。
+
+## 测试连通性
+
+管理运行时提供连接测试操作。测试已有 Database Management 条目时，服务端会读取已保存的连接数据、解密密码、重新构建 provider connection string，然后执行对应 provider 的连接测试。
+
+测试失败时，应优先按连接/配置问题处理，再排查 MCP SQL 行为。
+
+常见原因：
+
+- hs-sql-agent 进程无法访问 host 或 port
+- database/catalog 名称错误
+- 凭据无效
+- `ExtraSettings` 中缺少 TLS/加密设置
+- 数据库防火墙或网络策略
+- provider 特定的身份验证要求
+
+## 浏览元数据
+
+拥有 `/runtime/db-management` 的 `view` 权限时，Admin API 可以读取已保存连接的 provider 元数据：
+
+- schema
+- 指定 schema 下的表
+- 指定表的列
+
+这些操作会使用保存的数据库条目构建 provider 连接。它们与 MCP schema discovery 不同；MCP 发现还会继续应用当前 MCP 密钥的表白名单和语义增强。
+
+## 绑定 MCP 密钥
+
+生产 MCP 密钥必须引用一个 Database Management 条目，该连接就成为密钥的数据库边界。
+
+MCP 密钥还可以进一步收紧：
+
+- 工具允许列表
+- 表白名单
+- CORS origin
+- 过期时间
+- 限流模式/覆盖值
+
+详见 [MCP 密钥](/zh-hans/docs/administration/mcp-keys)。
+
+## 表白名单不存储在数据库条目上
+
+Database Management 定义的是连接，表级授权应用在 MCP 密钥上。
+
+因此多个 MCP 密钥可以共用一个物理数据库连接，同时拥有不同的表/工具范围。例如，一个密钥只开放报表表的读取权限，另一个用于运维流程的密钥则可以暴露另一组表和 DML。
+
+## 语义元数据属于数据库模型
+
+表/列的显示名称、说明、同义词、关系和指标都与 Database Management 条目关联。schema discovery 可以在不修改物理数据库 schema 的情况下丰富 MCP 可见的元数据。
+
+详见 [语义元数据](/zh-hans/docs/administration/semantic-metadata)。
+
+## 权限
+
+2.0.1 Admin API 对 Database Management 操作执行明确权限检查：
+
+| 操作 | 权限 |
+| --- | --- |
+| 列出/查看连接和元数据 | `/runtime/db-management` → `view` |
+| 创建 | `/runtime/db-management` → `create` |
+| 编辑 | `/runtime/db-management` → `edit` |
+| 删除 | `/runtime/db-management` → `delete` |
+| 查看语义元数据 | `/runtime/db-management/semantic` → `view` |
+| 编辑语义元数据 | `/runtime/db-management/semantic` → `edit` |
+
+因此，管理用户已经登录并不代表可以执行所有操作，授权仍按操作分别检查。
+
+## 运维建议
+
+为 Database Management 条目使用稳定名称，不要在活跃 MCP 密钥背后悄悄改变连接所代表的数据库。如果密钥需要切换数据库边界，应把它作为明确的密钥生命周期变更，并重新核对表/工具范围。
+
+数据库凭据和 provider 特定 secret 都应按敏感信息处理。不要把它们写进 Custom Tool 模板或客户端配置；客户端只需要 MCP endpoint 和 MCP 密钥。

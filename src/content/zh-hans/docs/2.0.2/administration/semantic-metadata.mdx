@@ -1,0 +1,110 @@
+---
+title: 语义元数据
+description: 在 hs-sql-agent 2.0.1 中使用表/列语义、关系和指标元数据增强数据库发现。
+sidebar:
+  group: 管理
+  order: 76
+---
+
+import Callout from "@/components/docs/mdx/Callout.astro";
+import CardGrid from "@/components/docs/mdx/CardGrid.astro";
+import DocCard from "@/components/docs/mdx/DocCard.astro";
+
+<CardGrid columns={3}>
+  <DocCard title="实体" icon="Aa" description="为表和列设置显示名称、说明和同义词。" />
+  <DocCard title="关系" icon="↔" description="定义带基数和方向的具名 source-to-target 列关系。" />
+  <DocCard title="指标" icon="∑" description="定义包含公式、聚合、粒度、过滤条件和同义词的作用域指标元数据。" />
+</CardGrid>
+
+语义元数据归属于 Database Management 条目。它不会修改物理 schema，而是增强 schema discovery 对物理数据库的描述方式。
+
+## 实体元数据
+
+实体记录可以指向整张表，也可以指向表内某一列。
+
+| 字段 | 含义 |
+| --- | --- |
+| `DbManagementId` | 拥有该语义记录的 Database Management 条目 |
+| `SchemaName` | 可选 schema |
+| `TableName` | 必填的物理表名 |
+| `ColumnName` | 可选；表级元数据时省略 |
+| `DisplayName` | 便于人理解的名称 |
+| `Description` | 业务或运维说明 |
+| `Synonyms` | 描述该表/列的其他称呼 |
+
+同义词会去掉空值、按不区分大小写方式去重，并且每条记录最多保留 100 个。
+
+## 关系
+
+关系元数据描述两个物理列之间如何关联。
+
+| 字段 | 含义 |
+| --- | --- |
+| `Name` | 稳定的关系名称 |
+| `SourceSchema` / `SourceTable` / `SourceColumn` | source 端 |
+| `TargetSchema` / `TargetTable` / `TargetColumn` | target 端 |
+| `Cardinality` | 默认 `many-to-one` |
+| `Direction` | 默认 `source-to-target` |
+| `Description` | 可选的运维/业务说明 |
+
+只有当关系两端的表都被当前 MCP 密钥表白名单允许时，schema discovery 才会暴露该关系说明。
+
+## 指标
+
+指标元数据以表为作用域，可以描述业务度量：
+
+| 字段 | 含义 |
+| --- | --- |
+| `Name` | 稳定的指标标识 |
+| `DisplayName` | 便于人理解的名称 |
+| `Description` | 业务说明 |
+| `Formula` | 公式元数据 |
+| `Aggregation` | 默认 `custom`；可描述预期聚合方式 |
+| `Grain` | 可选粒度元数据 |
+| `Filter` | 可选过滤条件元数据 |
+| `Synonyms` | 指标的其他称呼 |
+| `Executable` | 2.0.1 模型中固定为 `false` |
+
+<Callout type="warning" title="指标是元数据，不是执行绕过机制">
+2.0.1 语义指标模型把 `Executable` 设为 false。指标说明可以帮助 Agent 理解 schema 含义，但不会变成可执行 SQL 宏，也不会绕过 SQL 编译器或授权流水线。
+</Callout>
+
+## MCP schema discovery 如何使用语义信息
+
+正式 MCP schema 工具仍然是 `get_schemas`、`get_tables` 和 `get_columns`。
+
+当密钥绑定的 Database Management 条目存在语义元数据时：
+
+- `get_tables` 可以追加表显示名称、说明、同义词以及该表范围内的指标说明；
+- `get_columns` 可以追加列显示名称、说明、同义词和相关关系说明；
+- 表白名单继续约束物理表可见性和关系上下文。
+
+因此，语义元数据只增强发现结果，不会扩大密钥可访问的数据范围。
+
+## Admin API 接口
+
+2.0.1 Admin API 在 `api/DbSemantic` 下提供语义管理：
+
+| 操作 | 权限 |
+| --- | --- |
+| 获取数据库实体记录 | `/runtime/db-management/semantic` → `view` |
+| 获取实体/关系/指标组合模型 | `/runtime/db-management/semantic` → `view` |
+| upsert 实体元数据 | `/runtime/db-management/semantic` → `edit` |
+| 删除实体元数据 | `/runtime/db-management/semantic` → `edit` |
+| upsert/删除关系 | `/runtime/db-management/semantic` → `edit` |
+| upsert/删除指标 | `/runtime/db-management/semantic` → `edit` |
+
+<Callout type="info" title="这是管理功能，不是第六个内置 MCP 工具">
+2.0.1 正式 MCP 密钥工具面是 MCP Tools Reference 中列出的 5 个内置工具，加上已发布 Custom Tools。语义元数据通过管理控制平面维护，由 schema discovery 消费，不作为额外的正式内置 MCP 契约。
+</Callout>
+
+## 建模建议
+
+适合放进语义元数据的是足够稳定、能够帮助多个 Agent 和管理员理解数据库的术语：
+
+- 与物理表/列名不同的业务名称
+- 缩写和领域同义词
+- 对查询生成重要的关系
+- 用于明确公式和粒度的指标定义
+
+不要把凭据、运行时指令或授权决策塞进 schema 说明。访问控制始终由独立的强制执行层负责。

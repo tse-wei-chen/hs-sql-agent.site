@@ -1,0 +1,82 @@
+---
+title: 权限
+description: 了解 hs-sql-agent 2.0.1 管理操作使用的 permission path + action 授权模型。
+sidebar:
+  group: 管理
+  order: 79
+---
+
+import Callout from "@/components/docs/mdx/Callout.astro";
+import CardGrid from "@/components/docs/mdx/CardGrid.astro";
+import DocCard from "@/components/docs/mdx/DocCard.astro";
+
+<CardGrid columns={3}>
+  <DocCard title="Permission path" icon="PATH" description="标识受保护的管理资源，例如 /runtime/db-management 或 /auth/user。" />
+  <DocCard title="Action" icon="ACT" description="标识允许的操作，例如 view、create、edit、delete 或 export。" />
+  <DocCard title="角色选择" icon="RBAC" description="角色只能保存服务器模板清单中实际存在的 permission/action 组合。" />
+</CardGrid>
+
+2.0.1 的管理授权以 **permission path + action code** 组合执行。控制器声明所需组合，已登录成员则通过分配到的角色获得访问权限。
+
+## 运行时示例
+
+| 受保护操作 | 所需组合 |
+| --- | --- |
+| 查看 Database Management | `/runtime/db-management` → `view` |
+| 创建 Database Management 条目 | `/runtime/db-management` → `create` |
+| 编辑语义元数据 | `/runtime/db-management/semantic` → `edit` |
+| 签发/管理 MCP 密钥 | `/runtime/mcp-keys` + 对应 action |
+| 查看用户 | `/auth/user` → `view` |
+| 编辑角色 | `/auth/role` → `edit` |
+| 查看审计 | `/runtime/audit` → `view` |
+| 导出审计 | `/runtime/audit` → `export` |
+| 编辑安全策略 | `/runtime/security` → `edit` |
+| 重试出站投递 | `/runtime/operability` → `edit` |
+
+因此，仅完成身份验证并不足以执行这些操作；所需 path/action 组合还必须能通过成员角色解析出来。
+
+## Permission-action 模板是权威来源
+
+Role API 提供 `permission-action-templates` 清单。每个模板包含：
+
+- permission ID、名称和 path
+- action ID、code 和名称
+
+角色请求以 `{ PermissionId, ActionId }` 组合提交选择。角色服务会去除重复项，并只保存模板清单中存在的组合。
+
+<Callout type="warning" title="权限不是任意字符串">
+不要在客户端自行发明新的 path/action 字符串来建模授权。角色只能持久化服务器 permission-action template data 中已经定义的组合。
+</Callout>
+
+## 角色是权限分配单位
+
+成员被分配角色，角色持有 permission/action 选择。这样可以把用户生命周期与可复用访问策略分开：
+
+```text
+Member
+  └─ Role(s)
+       └─ Permission path + Action
+```
+
+一个成员可以拥有多个角色。最终管理权限是这些已分配角色所覆盖权限面的并集。
+
+## 授权变化会让旧状态失效
+
+修改角色权限属于安全敏感操作。角色权限变化时，角色服务会找到受影响成员，递增其 security version，并通过 auth runtime-state cache barrier 执行变更。
+
+目的是避免之前已登录的会话在角色定义变化后继续持有旧授权。
+
+## 受保护的 SuperUser 角色
+
+`SuperUser` 是 2.0.1 内置受保护角色，无法通过普通角色管理编辑或删除，避免 bootstrap/全权限角色被悄悄改造成另一套权限。
+
+<Callout type="tip" title="按职责设计最小权限角色">
+不要给每个账号复制 SuperUser。应围绕管理员职责设计角色。例如监控人员可能需要 audit/operability 的 `view`，但不需要 database `edit`、key `create` 或 security-policy `edit`。
+</Callout>
+
+## 相关文档
+
+- [成员与角色](/zh-hans/docs/administration/members-roles) — 成员生命周期和角色保护规则。
+- [数据库管理](/zh-hans/docs/administration/database-management) — 数据库与语义权限示例。
+- [MCP 密钥](/zh-hans/docs/administration/mcp-keys) — MCP 凭据与管理角色属于不同授权边界。
+- [安全策略](/zh-hans/docs/administration/security-policies) — 使用独立管理权限维护的运行时 SQL、限流和并发策略。
