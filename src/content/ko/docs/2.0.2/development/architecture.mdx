@@ -1,0 +1,45 @@
+---
+title: 아키텍처와 기여 흐름
+description: contributor 관점에서 저장소 구조와 compiler, server, frontend, documentation 변경 규칙을 설명합니다.
+sidebar:
+  group: 개발
+  order: 130
+---
+
+hs-sql-agent는 backend, Admin frontend, 별도의 정적 documentation/product site로 나뉩니다.
+
+## 저장소별 책임
+
+큰 구조는 다음과 같습니다.
+
+- `backend/`에는 server, SQL compiler/runtime module, persistence, test가 있습니다.
+- `frontend/`에는 내장 Nuxt Admin 패널이 있습니다.
+- `hs-sql-agent.site`는 독립적인 Astro product/documentation site입니다.
+
+SQL compiler에는 명시적인 rewrite/validation stage와 capability-proof 개념을 가진 F# module이 포함됩니다. Server hosting은 `HsSqlAgent.Server`를 통해 조합 가능한 ASP.NET Core class library로 제공됩니다. 새 통합은 `AddHsSqlAgentCore()`에서 시작해 Runtime, AdminStore, HostAuthorization 또는 BuiltInAuth, AdminApi, MCP, Telemetry 같은 capability를 명시적으로 선택합니다. `AddHsSqlAgent()` / `UseHsSqlAgent()`는 기존 사용자를 위한 compatibility surface로 유지되며 새 통합의 기본 모델은 아닙니다.
+
+## 기여 흐름
+
+메인 저장소의 contribution guide는 다음 흐름을 권장합니다.
+
+1. 저장소를 fork합니다.
+2. 하나의 목적에 집중한 변경을 구현하고 필요한 test 또는 documentation을 추가합니다.
+3. 로컬에서 프로젝트를 실행하고 test를 검증합니다.
+4. 변경 동기, 내용, test evidence를 포함해 Pull Request를 엽니다.
+
+하나의 PR을 하나의 작업에 집중시키면 review와 merge가 쉬워집니다.
+
+## Documentation 변경
+
+문서는 예상되는 미래 동작이 아니라 현재 코드가 실제로 제공하는 동작을 설명해야 합니다.
+
+SQL capability, DML safety, MCP compatibility, hosting configuration, Admin behavior, deployment requirement가 바뀐다면 가능하면 같은 workstream에서 관련 site page도 함께 갱신하십시오.
+
+사이트는 locale과 documentation version을 경로로 분리합니다.
+
+```text
+src/content/en/docs/<version>/<section>/<slug>.mdx
+src/content/ko/docs/<version>/<section>/<slug>.mdx
+```
+
+각 번역은 같은 version/section/slug를 사용하고 locale prefix route로 구분됩니다. 현재 완전한 documentation baseline은 2.0.2입니다.

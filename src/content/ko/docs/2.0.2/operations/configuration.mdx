@@ -1,0 +1,248 @@
+---
+title: 설정 레퍼런스
+description: hs-sql-agent 2.0.2의 source-backed 환경 변수 및 런타임 설정 레퍼런스입니다.
+sidebar:
+  group: 운영
+  order: 90
+---
+
+import Callout from "@/components/docs/mdx/Callout.astro";
+import CardGrid from "@/components/docs/mdx/CardGrid.astro";
+import DocCard from "@/components/docs/mdx/DocCard.astro";
+
+<CardGrid columns={3}>
+  <DocCard title="단일 인스턴스" icon="1" description=".env.example에서 시작하고 상태 공유가 필요하기 전에는 process-local provider를 유지합니다." />
+  <DocCard title="분산 환경" icon="N" description="Postgres 제어 평면과 Redis 기반 cache, limit, policy sync, delivery sync, SQL concurrency를 사용합니다." />
+  <DocCard title="임베디드 .NET" icon=".NET" description="새 통합은 capability별 option을 구성하며 HsSqlAgentServiceOptions는 legacy aggregate compatibility용으로만 유지됩니다." />
+</CardGrid>
+
+저장소에 포함된 **v2.0.2 `.env.example`**은 기본 Compose 경로에서 사용하는 배포용 환경 변수 목록입니다. 이 페이지는 환경 변수 이름은 해당 파일을 따르고, 주석과 validation이 충돌하면 v2.0.2 런타임 코드를 기준으로 합니다.
+
+<Callout type="warning" title="운영 환경 시작 전에 실제 secret을 생성하십시오">
+`HMAC_KEY`와 `JWT_KEY`는 각각 최소 32바이트여야 하며 서로 다른 고유 값을 사용해야 합니다. 저장소의 문자열은 placeholder입니다. Webhook URL을 활성화했다면 해당 webhook secret도 최소 32바이트가 필요합니다.
+</Callout>
+
+## 애플리케이션과 제어 평면
+
+| 변수 | `.env.example` 예시/기본값 | 용도 |
+| --- | --- | --- |
+| `ASPNETCORE_URLS` | `http://+:8080` | Main ASP.NET Core listener |
+| `ALLOWED_HOSTS` | `*` | ASP.NET Core host filtering |
+| `ADMIN_DATABASE_PROVIDER` | `Sqlite` | Admin/control-plane database provider |
+| `ADMIN_DATABASE_CONNECTION_STRING` | `Data Source=/app/data/hsqlagent.db` | 계정, 역할, 키, 감사 레코드, 정책 등 제어 평면 상태 저장 |
+| `HMAC_KEY` | placeholder | 발급된 MCP 키 보호/검증용 HMAC secret; ≥32바이트 |
+| `MCP_PUBLIC_ENDPOINT` | `http://localhost:8080/mcp` | 생성되는 MCP 클라이언트 설정에 들어가는 절대 endpoint |
+
+`MCP_PUBLIC_ENDPOINT`는 절대 HTTP 또는 HTTPS URL이어야 합니다. 운영 환경에서는 container 내부 주소가 아니라 **클라이언트가 실제로 접근할 수 있는** `/mcp` 포함 URL을 사용해야 합니다.
+
+### Admin database topology
+
+단일 인스턴스 예제는 SQLite를, 분산 예제는 PostgreSQL을 사용합니다.
+
+```text
+ADMIN_DATABASE_PROVIDER=Postgres
+ADMIN_DATABASE_CONNECTION_STRING=Host=postgres;Port=5432;Database=hsqlagent;Username=postgres;Password=...
+```
+
+여러 hs-sql-agent 인스턴스가 동일한 identity, key, policy, audit/control-plane record를 공유해야 한다면 shared Admin database를 사용하십시오.
+
+## Cache
+
+| 변수 | 단일 인스턴스 | 분산 예제 | 용도 |
+| --- | --- | --- | --- |
+| `CACHE_PROVIDER` | `Memory` | `Redis` | Runtime cache provider |
+| `CACHE_CONNECTION_STRING` | 비어 있음 | `redis:6379` | Redis 선택 시 connection |
+| `CACHE_KEY_PREFIX` | `hsqlagent:cache:` | 동일 | Cache key namespace |
+
+Application instance 사이에서 cache state를 공유할 필요가 없을 때만 process-local `Memory`가 적합합니다.
+
+## Bootstrap / 자동 provisioning
+
+| 변수 | 예시 | 용도 |
+| --- | --- | --- |
+| `BOOTSTRAP_ENABLED` | `false` | 시작 시 provisioning/synchronization 활성화 |
+| `BOOTSTRAP_DB_ID` | `default-db` | 초기 데이터베이스의 stable bootstrap identity |
+| `BOOTSTRAP_DB_NAME` | `Default DB` | Admin에 표시되는 데이터베이스 이름 |
+| `BOOTSTRAP_DB_PROVIDER` | 비어 있음 | provision할 provider |
+| `BOOTSTRAP_DB_HOST` | `localhost` | 데이터베이스 host |
+| `BOOTSTRAP_DB_PORT` | `5432` | 데이터베이스 port |
+| `BOOTSTRAP_DB_DATABASE` | `mydb` | database/catalog/file 값 |
+| `BOOTSTRAP_DB_USERNAME` | `myuser` | 데이터베이스 username |
+| `BOOTSTRAP_DB_PASSWORD` | `mypassword` | 데이터베이스 password |
+| `BOOTSTRAP_DB_EXTRA_SETTINGS` | 비어 있음 | provider-specific connection settings |
+| `BOOTSTRAP_MCP_KEY_ID` | `default-key` | 초기 MCP 키의 stable bootstrap identity |
+| `BOOTSTRAP_MCP_KEY_NAME` | `Default MCP Key` | Admin에 표시되는 키 이름 |
+| `BOOTSTRAP_MCP_KEY` | placeholder | 초기 raw key 값 |
+| `BOOTSTRAP_MCP_ALLOWED_TOOLS` | 비어 있음 | bootstrap key tool 제한 |
+
+Bootstrap-managed MCP key는 일반적인 key lifecycle에서 편집·교체·폐기할 수 없습니다. 해당 source configuration을 변경해야 합니다.
+
+## Admin authentication
+
+| 변수 | 예시 | 용도 |
+| --- | --- | --- |
+| `JWT_KEY` | placeholder | JWT signing secret; ≥32바이트 |
+| `JWT_ISS` | `HS-Agent` | JWT issuer |
+| `JWT_AUD` | `HS-Agent-Users` | JWT audience |
+| `JWT_ACCESS_TOKEN_EXPIRATION_MINUTES` | `10` | Access-token lifetime |
+| `JWT_REFRESH_TOKEN_EXPIRATION_DAYS` | `1` | Refresh-token lifetime |
+| `AUTH_LOCKOUT_THRESHOLD` | `5` | 임시 lockout 전 실패 로그인 횟수; 1 미만은 1로 처리 |
+| `AUTH_LOCKOUT_MINUTES` | `15` | 임시 lockout 시간 |
+
+이 설정은 Admin authentication을 제어하며 MCP-key authentication과는 별개입니다.
+
+## 비밀번호 재설정과 SMTP
+
+SMTP host 또는 sender가 비어 있으면 password-reset mail은 사실상 비활성화됩니다.
+
+| 변수 | 예시 | 용도 |
+| --- | --- | --- |
+| `PASSWORD_RESET_BASE_URL` | `http://localhost:3000/reset-password` | 외부에서 접근 가능한 reset page; server가 `?token=...` 추가 |
+| `PASSWORD_RESET_EXPIRATION_MINUTES` | `30` | One-time reset-token lifetime |
+| `SMTP_HOST` | `smtp.example.com` | SMTP host |
+| `SMTP_PORT` | `587` | SMTP port |
+| `SMTP_ENABLE_SSL` | `true` | Mail sender의 SSL/STARTTLS 동작 |
+| `SMTP_USERNAME` | example | SMTP credential |
+| `SMTP_PASSWORD` | example | SMTP credential |
+| `SMTP_FROM` | `no-reply@example.com` | SMTP provider가 허용하는 sender address |
+
+## OIDC / SSO 및 MFA
+
+| 변수 | 예시 | 용도 |
+| --- | --- | --- |
+| `OIDC_ENABLED` | `false` | OIDC authentication 활성화 |
+| `OIDC_AUTHORITY` | 비어 있음 | Identity-provider authority |
+| `OIDC_CLIENT_ID` | 비어 있음 | OIDC client ID |
+| `OIDC_CLIENT_SECRET` | 비어 있음 | OIDC client secret |
+| `OIDC_REQUIRE_HTTPS_METADATA` | `true` | HTTPS discovery metadata 요구 |
+| `OIDC_EMAIL_CLAIM` | `email` | Email claim 이름 |
+| `OIDC_NAME_CLAIM` | `name` | Display-name claim |
+| `OIDC_ROLE_CLAIM` | `roles` | Role claim |
+| `OIDC_EMAIL_VERIFIED_CLAIM` | `email_verified` | Verified-email claim |
+| `OIDC_REQUIRE_VERIFIED_EMAIL` | `true` | 설정 claim 기준으로 email 미검증 identity 거부 |
+| `OIDC_SCOPE_0..2` | `openid`, `profile`, `email` | Default scopes |
+| `OIDC_ROLE_MAPPING_SQL_ADMINS` | `SuperUser` | 외부 role → local role mapping 예시 |
+| `OIDC_AUTO_PROVISION` | `true` | 외부 identity 해석 성공 시 사용자 자동 provisioning |
+| `OIDC_FRONTEND_CALLBACK_URL` | `/sso-callback` | Frontend completion route |
+| `OIDC_LOGIN_CODE_EXPIRATION_MINUTES` | `2` | Short-lived login-code lifetime |
+| `OIDC_TOTP_ISSUER` | `HS SQL Agent` | TOTP issuer label |
+| `DATA_PROTECTION_KEY_PATH` | `/app/data/data-protection-keys` | 영속 ASP.NET Core data-protection key directory |
+
+<Callout type="danger" title="보호된 identity state를 사용한다면 data-protection key를 영속화하십시오">
+재시작 사이에 data-protection key ring이 사라지면 보호된 MFA secret과 external-login state를 읽지 못할 수 있습니다. 운영 환경에서는 `DATA_PROTECTION_KEY_PATH`를 durable storage에 mount하십시오.
+</Callout>
+
+자세한 내용은 [OIDC SSO와 TOTP MFA](/ko/docs/security/oidc-mfa)를 참고하십시오.
+
+## Health, slow query, delivery, audit retention
+
+| 변수 | 예시 | 용도 |
+| --- | --- | --- |
+| `HEALTH_PROBE_ENABLED` | `false` | Background DB health probing 활성화 |
+| `HEALTH_PROBE_INTERVAL_SECONDS` | `60` | Probe 주기 |
+| `HEALTH_PROBE_TIMEOUT_SECONDS` | `10` | Probe별 timeout |
+| `HEALTH_PROBE_MAX_CONCURRENCY` | `4` | Concurrent probe 작업 제한 |
+| `SLOW_QUERY_THRESHOLD_MS` | `1000` | 해당 시간 이상 Query를 slow query로 기록 |
+| `ALERT_WEBHOOK_URL` | 비어 있음 | 선택적 signed alert destination |
+| `ALERT_WEBHOOK_SECRET` | 비어 있음 | HMAC/signing secret; URL 활성화 시 ≥32바이트 |
+| `SIEM_WEBHOOK_URL` | 비어 있음 | 선택적 signed SIEM destination |
+| `SIEM_WEBHOOK_SECRET` | 비어 있음 | HMAC/signing secret; URL 활성화 시 ≥32바이트 |
+| `DELIVERY_MAX_ATTEMPTS` | `6` | Outbound delivery retry 상한 |
+| `DELIVERY_MAX_CONCURRENCY` | `4` | Concurrent outbound delivery 상한 |
+| `AUDIT_RETENTION_DAYS` | `90` | 보존 기간; `0`이면 자동 retention 비활성화 |
+| `AUDIT_RETENTION_MODE` | `Archive` | **유효한 런타임 값: `Archive` 또는 `Purge`** |
+| `AUDIT_ARCHIVE_PATH` | `/app/data/audit-archive` | Archive mode destination |
+| `AUDIT_FALLBACK_PATH` | `/app/data/audit-fallback.jsonl` | Audit fallback path; startup validation에서 요구 |
+| `AUDIT_RETENTION_RUN_HOUR_UTC` | `2` | 예정 UTC hour; 런타임에서 0–23 범위로 clamp |
+
+<Callout type="warning" title="v2.0.2 샘플 주석은 Delete라고 쓰지만 런타임 코드는 Purge를 요구합니다">
+`AuditRetentionService`는 `Archive`와 `Purge`만 허용합니다. `Delete`를 포함한 다른 non-Archive 값은 `AuditRetentionMode must be Purge or Archive.` 오류를 발생시킵니다. 이 레퍼런스는 오래된 샘플 주석이 아니라 실행 가능한 v2.0.2 코드를 따릅니다.
+</Callout>
+
+`Archive`는 만료된 감사 행을 JSONL archive에 기록한 뒤 Admin database에서 삭제합니다. `Purge`는 archive를 만들지 않고 대상 만료 행을 삭제합니다.
+
+## 전역 및 키별 rate limiting
+
+| 변수 | 단일 인스턴스 | 분산 | 용도 |
+| --- | --- | --- | --- |
+| `RATE_LIMITING_PERMIT_LIMIT` | `0` | `0` | Global IP permit limit; limit/window가 모두 0이면 unlimited |
+| `RATE_LIMITING_WINDOW_SECONDS` | `0` | `0` | Global IP window |
+| `RATE_LIMITER_PROVIDER` | `Memory` | `Redis` | Shared limiter implementation |
+| `RATE_LIMITER_CONNECTION_STRING` | 비어 있음 | `redis:6379` | Redis connection |
+| `RATE_LIMITER_FAILURE_MODE` | `FailClosed` | `FailClosed` | Distributed limiter 장애 시 동작 |
+| `RATE_LIMITER_KEY_PREFIX` | `hsqlagent:ratelimit:` | 동일 | Redis key namespace |
+
+MCP 키는 자체 per-key limit을 상속하거나 override하거나 비활성화할 수 있습니다. [MCP 키](/ko/docs/administration/mcp-keys)를 참고하십시오.
+
+## Runtime policy synchronization
+
+| 변수 | 단일 인스턴스 | 분산 | 용도 |
+| --- | --- | --- | --- |
+| `SECURITY_POLICY_SYNC_PROVIDER` | `Memory` | `Redis` | Runtime policy synchronization provider |
+| `SECURITY_POLICY_SYNC_CONNECTION_STRING` | 비어 있음 | `redis:6379` | Redis connection |
+| `SECURITY_POLICY_SYNC_KEY_PREFIX` | `hsqlagent:security-policy:` | 동일 | Key namespace |
+| `SECURITY_POLICY_SYNC_REFRESH_INTERVAL_SECONDS` | `30` | `30` | Refresh interval |
+
+여러 hs-sql-agent 인스턴스에 정책 변경을 전파해야 한다면 Redis를 선택하십시오.
+
+## Outbound-delivery synchronization
+
+| 변수 | 단일 인스턴스 | 분산 | 용도 |
+| --- | --- | --- | --- |
+| `OUTBOUND_DELIVERY_SYNC_PROVIDER` | `Memory` | `Redis` | Delivery signal coordination |
+| `OUTBOUND_DELIVERY_SYNC_CONNECTION_STRING` | 비어 있음 | `redis:6379` | Redis connection |
+| `OUTBOUND_DELIVERY_SYNC_KEY_PREFIX` | `hsqlagent:outbound-delivery:` | 동일 | Key namespace |
+
+## SQL concurrency coordination
+
+| 변수 | 단일 인스턴스 | 분산 | 용도 |
+| --- | --- | --- | --- |
+| `SQL_CONCURRENCY_PROVIDER` | `Memory` | `Redis` | SQL concurrency limiter provider |
+| `SQL_CONCURRENCY_CONNECTION_STRING` | 비어 있음 | `redis:6379` | Redis connection |
+| `SQL_CONCURRENCY_FAILURE_MODE` | `FailClosed` | `FailClosed` | Distributed coordination 장애 시 동작 |
+| `SQL_CONCURRENCY_KEY` | `hsqlagent:sql-concurrency` | 동일 | Shared coordination key |
+| `SQL_CONCURRENCY_LEASE_SECONDS` | `30` | `30` | Lease duration |
+
+Metadata discovery, Query, DML planning/execution, health 관련 SQL 작업은 bounded runtime path를 사용합니다. 동시 실행 제한을 프로세스별이 아니라 cluster 전체에 적용하려면 distributed SQL concurrency를 사용하십시오.
+
+## 관측성
+
+| 변수 | 예시 | 용도 |
+| --- | --- | --- |
+| `PROMETHEUS_ENABLED` | `false` | Prometheus HTTP listener 활성화 |
+| `PROMETHEUS_HOST` | `0.0.0.0` | Metrics listener bind host |
+| `PROMETHEUS_PORT` | `9000` | 별도 metrics listener port; 활성화 시 1–65535 검증 |
+| `OTLP_ENDPOINT` | 비어 있음 | 절대 HTTP(S) OTLP collector endpoint |
+| `OTEL_SERVICE_NAME` | `hs-sql-agent` | OpenTelemetry service name; blank 불가 |
+
+Prometheus는 Admin/MCP application port와 **별도의 listener**에서 서비스됩니다. `OTLP_ENDPOINT`가 구성되면 v2.0.2는 SQL compile-evidence tracing/log integration을 포함한 telemetry를 export합니다.
+
+[관측성과 감사 운영](/ko/docs/operations/observability)을 참고하십시오.
+
+## Logging
+
+| 변수 | 예시 |
+| --- | --- |
+| `LOGGING_EFCORE_COMMAND_LOGLEVEL` | `Warning` |
+| `LOGGING_DEFAULT_LOGLEVEL` | `Information` |
+| `LOGGING_ASPNETCORE_LOGLEVEL` | `Warning` |
+
+일반 EF Core command logging을 `Warning`으로 유지하면 운영 환경에서 불필요한 SQL command trace를 줄일 수 있습니다.
+
+## Docker 환경과 임베디드 .NET capability option
+
+Docker/ToolBox 환경 변수는 standalone server 전체 구성 표면입니다. 새 NuGet 통합은 다릅니다. `AddHsSqlAgentCore()`는 optionless이며 선택한 각 capability가 자기 option을 소유합니다.
+
+예를 들어:
+
+- `HsSqlAgentAdminStoreOptions` — Admin database provider 및 connection string
+- `HsSqlAgentRuntimeOptions` — cache, rate limiting, synchronization, SQL concurrency, DML approval storage, bootstrap, operability
+- `HsSqlAgentBuiltInAuthOptions` — JWT, password reset/SMTP, enterprise identity/OIDC
+- `McpOptions` — public MCP endpoint 및 HMAC secret
+- `TelemetryOptions` — Prometheus 및 OTLP 설정
+
+`HsSqlAgentServiceOptions`는 legacy aggregate compatibility DTO로만 유지됩니다. 선택하지 않은 capability는 자기 option을 할당하거나 검증하지 않으므로 `AddHsSqlAgentHostAuthorization(...)`을 사용하는 임베디드 호스트는 HsSqlAgent JWT, SMTP, password-reset, OIDC 설정이 필요하지 않습니다.
+
+Modular API는 기존 코드 default를 유지합니다. `.env.example`은 standalone ToolBox 경로의 배포 예제이며 모든 임베디드 호스트가 모든 capability를 구성해야 한다는 의미가 아닙니다.
+
+자세한 내용은 [ASP.NET Core 통합](/ko/docs/integration/aspnet-core)을 참고하십시오.

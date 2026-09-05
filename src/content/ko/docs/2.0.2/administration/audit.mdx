@@ -1,0 +1,95 @@
+---
+title: 감사
+description: Admin 제어 평면에서 hs-sql-agent 감사 레코드를 조회·요약·내보내고 보존 정책을 적용합니다.
+sidebar:
+  group: 관리
+  order: 80
+---
+
+import Callout from "@/components/docs/mdx/Callout.astro";
+import CardGrid from "@/components/docs/mdx/CardGrid.astro";
+import DocCard from "@/components/docs/mdx/DocCard.astro";
+
+<CardGrid columns={3}>
+  <DocCard title="검색" icon="Q" description="action, result, actor, 시간 범위, 데이터베이스, MCP 키, 도구, 키워드로 이벤트를 필터링합니다." />
+  <DocCard title="내보내기" icon="EXP" description="별도 export 권한으로 필터링된 감사 집합을 CSV 또는 JSON으로 내보냅니다." />
+  <DocCard title="보존" icon="RET" description="정책을 확인하고 cutoff를 dry-run한 뒤 Archive 또는 Purge를 명시적으로 실행합니다." />
+</CardGrid>
+
+감사 기능은 보안 및 런타임 활동을 기록하는 제어 평면 기록입니다. 일반 애플리케이션 로그의 대체물이 아니라 조사와 운영 검토를 위한 데이터입니다.
+
+## 감사 레코드 형태
+
+감사 항목에는 다음 필드가 포함될 수 있습니다.
+
+| 영역 | 필드 |
+| --- | --- |
+| identity | `ActorType`, `ActorId`, `IpAddress`, `UserAgent` |
+| event | `EventId`, `Action`, `Target`, `Detail`, `Result`, `CreatedAt` |
+| request/session | `RequestId`, `SessionId` |
+| SQL scope | `AccessKeyId`, `DbManagementId`, `DatabaseName`, `ToolName`, `Operation` |
+| execution | `DurationMs`, `ReturnedRows`, `AffectedRows` |
+| DML/error | `ApprovalStatus`, `ErrorCategory`, `Definition` |
+
+모든 이벤트가 모든 필드를 채우는 것은 아닙니다. Admin 계정 변경, MCP SQL 실행, DML 승인 이벤트, 외부 전송 활동은 서로 다른 컨텍스트를 가집니다.
+
+## 감사 이벤트 필터링
+
+`GET /api/runtime/audit`는 페이지네이션과 다음 필터를 지원합니다.
+
+- `action`
+- `keyword`
+- `from` / `to`
+- `result`
+- `actor`
+- `dbManagementId`
+- `accessKeyId`
+- `toolName`
+
+기본 페이지는 `1`, 페이지당 기본 레코드 수는 `20`입니다.
+
+## 일별 요약
+
+`GET /api/runtime/audit/daily-summary`는 일별 활동 집계를 반환합니다. 기본 요청은 7일을 대상으로 하므로 개별 레코드를 자세히 보기 전에 큰 변화를 확인하기 좋습니다.
+
+## 내보내기
+
+감사 내보내기는 별도 권한입니다.
+
+| 작업 | 권한 |
+| --- | --- |
+| 조회 / 요약 / 보존 상태 | `/runtime/audit` → `view` |
+| CSV 또는 JSON 내보내기 | `/runtime/audit` → `export` |
+| 보존 dry-run / 실행 | `/runtime/audit` → `edit` |
+
+내보내기 엔드포인트는 `format=csv` 또는 `format=json`을 받습니다. 2.0.1은 무제한 다운로드를 시도하지 않고 100,000행을 초과하는 export 집합을 거부합니다.
+
+<Callout type="info" title="CSV export는 스프레드시트 셀을 보호합니다">
+`=`, `+`, `-`, `@`처럼 스프레드시트 수식으로 해석될 수 있는 문자로 시작하는 CSV 값에는 접두어를 붙여, 운영자가 파일을 스프레드시트에서 열 때 formula injection 위험을 낮춥니다.
+</Callout>
+
+## 보존 워크플로
+
+런타임 보존 정책은 보존 기능 활성화 여부, 보존 일수, mode, 예정 UTC 시각을 제공합니다.
+
+권장 운영 흐름은 다음과 같습니다.
+
+1. 현재 보존 정책을 확인합니다.
+2. dry-run 엔드포인트로 cutoff와 대상 행 수를 확인합니다.
+3. mode와 예상 데이터량을 검토합니다.
+4. 검토가 끝난 뒤에만 보존 작업을 실행합니다.
+
+유효한 런타임 mode는 다음과 같습니다.
+
+- `Archive` — 만료 레코드를 설정된 archive 경로에 기록한 뒤 Admin 데이터베이스에서 삭제합니다.
+- `Purge` — archive를 만들지 않고 만료 레코드를 삭제합니다.
+
+`AUDIT_RETENTION_DAYS=0`이면 자동 보존이 비활성화되며 명시적 보존 실행도 거부됩니다.
+
+<Callout type="warning" title="파괴적 보존 작업 전에는 dry-run 하십시오">
+Archive mode라도 retention execute는 파괴적 운영 작업으로 취급하십시오. 수동 실행 전 cutoff, 대상 건수, archive 저장소, 백업 기대치를 확인해야 합니다.
+</Callout>
+
+## 감사와 텔레메트리는 서로 보완합니다
+
+감사 레코드는 **누가 무엇을 어떤 통제 리소스에 수행했고 결과가 무엇이었는지**에 답합니다. Metrics와 trace는 런타임 상태와 성능을 설명합니다. 자세한 내용은 [운영 상태](/ko/docs/administration/operability)와 [관측성](/ko/docs/operations/observability)을 참고하십시오.

@@ -1,0 +1,57 @@
+---
+title: 분산 배포
+description: 하나의 서비스 endpoint 뒤에서 여러 hs-sql-agent 인스턴스를 운영할 때 필요한 shared-state 요구 사항을 설명합니다.
+sidebar:
+  group: 운영
+  order: 110
+---
+
+저장소에는 multi-instance topology용 `.env.distributed.example`이 포함되어 있습니다. 중요한 차이는 단순히 "Redis를 추가한다"는 것이 아니라, 노드 간에 일관되어야 하는 각 상태가 shared provider를 사용해야 한다는 점입니다.
+
+## 공유 제어 평면
+
+분산 예제는 로컬 SQLite 대신 PostgreSQL을 Admin database로 사용합니다.
+
+```env
+ADMIN_DATABASE_PROVIDER=Postgres
+ADMIN_DATABASE_CONNECTION_STRING=Host=postgres;Port=5432;Database=hsqlagent;Username=postgres;Password=postgres;
+```
+
+여러 인스턴스가 같은 논리 hs-sql-agent deployment를 제공한다면 모든 인스턴스가 같은 제어 평면 데이터베이스를 바라봐야 합니다.
+
+## Redis 기반 조정
+
+분산 예제는 다음 subsystem을 Redis로 이동합니다.
+
+- cache
+- rate limiter
+- security-policy synchronization
+- outbound-delivery synchronization
+- SQL concurrency coordination
+
+예시:
+
+```env
+CACHE_PROVIDER=Redis
+CACHE_CONNECTION_STRING=redis:6379
+
+RATE_LIMITER_PROVIDER=Redis
+RATE_LIMITER_CONNECTION_STRING=redis:6379
+RATE_LIMITER_FAILURE_MODE=FailClosed
+
+SQL_CONCURRENCY_PROVIDER=Redis
+SQL_CONCURRENCY_CONNECTION_STRING=redis:6379
+SQL_CONCURRENCY_FAILURE_MODE=FailClosed
+```
+
+## Failure mode는 중요합니다
+
+실행 경계를 보호하는 coordination에서는 예제가 `FailClosed`를 사용합니다. Distributed coordinator를 사용할 수 없을 때 각 노드가 독립적으로 허용 결정을 내리게 두는 것보다 작업을 거부하는 편이 안전합니다.
+
+## Identity protection key도 영속화하십시오
+
+분산 배포에서도 보호된 authentication/MFA 상태에 사용되는 ASP.NET Core data-protection key material은 영속화해야 합니다. 이 key는 일회성 container file이 아니라 deployment state로 다뤄야 합니다.
+
+## Topology 검증
+
+인스턴스를 늘리기 전에 어떤 결정은 의도적으로 process-local인지, 어떤 상태는 반드시 공유되어야 하는지 확인하십시오. 관련 state provider를 이동하지 않은 채 replica만 늘리면 일관되지 않은 rate limit, stale security policy, 조정되지 않는 SQL concurrency 문제가 생길 수 있습니다.

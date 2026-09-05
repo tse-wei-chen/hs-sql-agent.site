@@ -1,0 +1,36 @@
+---
+title: Custom Tools
+description: hs-sql-agent의 정책 경계를 우회하지 않고 목적별 Query 또는 DML MCP 도구를 만들고 게시합니다.
+sidebar:
+  group: 관리
+  order: 75
+---
+
+Custom Tools를 사용하면 모든 클라이언트가 전체 SQL을 처음부터 생성하게 하는 대신, SQL로 구현된 이름 있는 목적별 MCP 작업을 노출할 수 있습니다.
+
+게시된 도구는 인증된 MCP 키에 바인딩된 데이터베이스 범위에서 해석됩니다. 서버는 게시된 정의를 불러오고 선언된 인수로 SQL 템플릿을 렌더링한 뒤, 도구 유형에 따라 typed query runtime 또는 typed DML runtime으로 실행을 전달합니다.
+
+## 도구 유형
+
+현재 Custom Tool은 두 실행 유형 중 하나입니다.
+
+- **Query** — query compiler/runtime 경로로 실행하고 직렬화된 결과 행을 반환합니다.
+- **DML** — 렌더링된 변경 SQL을 typed DML runtime으로 파싱하고 내장 mutation 실행과 동일한 DML 승인 흐름으로 들어갑니다.
+
+알 수 없는 도구 유형은 거부됩니다.
+
+## 게시 여부가 사용 가능 여부를 결정합니다
+
+런타임은 현재 MCP 키에 바인딩된 데이터베이스에서 **게시된** 도구만 해석합니다. Admin 패널에 존재하더라도 게시되지 않은 도구는 MCP 이름으로 호출할 수 없습니다.
+
+따라서 편집 및 검토 단계와 실제 MCP 노출 상태를 분리할 수 있습니다.
+
+## Custom이라고 해서 통제 밖에 있지는 않습니다
+
+실행 전에 proxy는 도구 접근 권한과 데이터베이스 바인딩을 검증합니다. Query 도구는 현재 보안 정책, 테이블 whitelist, SQL concurrency limiter를 사용합니다. DML 도구는 typed DML parser와 `TypedDmlApprovalFlow`를 사용하며, 테이블 whitelist 해석과 사람의 승인 절차도 동일하게 적용됩니다.
+
+실행 결과 역시 감사 이벤트에 기록됩니다. 즉 Custom Tool은 동일한 안전 경계 **안에서** 제공되는 재사용 가능한 인터페이스이지, 안전 경계를 우회하는 통로가 아닙니다.
+
+## MCP 키 노출 범위
+
+Custom Tool 이름은 내장 도구 이름과 함께 MCP 키의 allowed-tool 목록에 포함할 수 있습니다. 도구 표면을 제한하지 않은 채 두기보다는 클라이언트가 실제로 필요한 이름 있는 도구만 노출하는 방식을 권장합니다.
