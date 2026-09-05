@@ -1,0 +1,206 @@
+---
+title: ASP.NET Core 連携
+description: 既存の ASP.NET Core アプリケーション内で HsSqlAgent.Server の capability を組み合わせ、ホスト側の認証または任意の組み込み管理機能を利用します。
+sidebar:
+  group: 連携
+  order: 80
+---
+
+import Callout from "@/components/docs/mdx/Callout.astro";
+import CardGrid from "@/components/docs/mdx/CardGrid.astro";
+import DocCard from "@/components/docs/mdx/DocCard.astro";
+import Steps from "@/components/docs/mdx/Steps.astro";
+import Step from "@/components/docs/mdx/Step.astro";
+
+`HsSqlAgent.Server` は組み込み可能な ASP.NET Core クラスライブラリパッケージです。2.0.2 の新規統合では、オプションを持たない core から始め、ホストが必要とする capability を明示的に選択します。
+
+<CardGrid columns={3}>
+  <DocCard title="ホスト認証 + Admin API" icon="API" description="既存アプリケーションの Cookie/JWT/OIDC ログインと権限システムを維持します。hs-sql-agent のフロントエンドや ID スキーマは不要です。" />
+  <DocCard title="必要な場合だけ MCP" icon="MCP" description="/mcp のマシンアクセス用サーフェスを、人／管理者向け認可とは独立して追加します。" />
+  <DocCard title="組み込み管理機能" icon="UI" description="ホスト側で必要な場合にだけ、hs-sql-agent の JWT／member／role ID 管理と同梱 Admin UI を有効にします。" />
+</CardGrid>
+
+## インストール
+
+```bash
+dotnet add package HsSqlAgent.Server
+```
+
+## 既存のログイン／権限を持つアプリケーション
+
+ASP.NET Core アプリケーションがすでに認証・認可を持っている場合は、この組み込み方を推奨します。
+
+<Steps>
+  <Step title="ホスト側の認証・認可設定を維持する">
+
+```csharp
+builder.Services.AddAuthentication(/* your existing schemes */);
+
+builder.Services.AddAuthorization(options =>
+{
+    options.AddPolicy("SqlAgentAdmin", policy =>
+    {
+        policy.RequireAuthenticatedUser();
+        // Add your application's requirement/handler here when
+        // canonical hs-sql-agent permissions need to be evaluated.
+    });
+});
+```
+
+HsSqlAgent は、ホストの既定認証 scheme、authorization policy provider、既定 authorization policy を置き換えません。
+  </Step>
+
+  <Step title="必要な hs-sql-agent capability だけを組み合わせる">
+
+```csharp
+var hs = builder.Services.AddHsSqlAgentCore();
+
+hs.AddHsSqlAgentRuntime();
+
+hs.AddHsSqlAgentAdminStore(options =>
+{
+    options.Provider = "Postgres";
+    options.ConnectionString =
+        builder.Configuration.GetConnectionString("HsSqlAgent")!;
+});
+
+hs.AddHsSqlAgentHostAuthorization("SqlAgentAdmin");
+hs.AddHsSqlAgentAdminApi();
+```
+
+このモードでは **`AddHsSqlAgentBuiltInAuth()` を呼び出さないでください**。代わりにホストで認証済みの `HttpContext.User` を使用します。
+  </Step>
+
+  <Step title="ASP.NET Core パイプラインはホスト側で管理する">
+
+```csharp
+var app = builder.Build();
+
+app.UseAuthentication();
+app.UseAuthorization();
+
+app.UseHsSqlAgentAdminApi();
+app.MapControllers();
+
+app.Run();
+```
+
+`UseHsSqlAgentAdminApi()` は、ホストの代わりに `MapControllers()` を呼び出しません。ASP.NET Core の controller endpoint mapping は引き続きアプリケーション側の判断です。
+  </Step>
+</Steps>
+
+host-authorization モードでは、HsSqlAgent は組み込みの `AuthController`、`MemberController`、`RoleController` を公開せず、HsSqlAgent の ID スキーマも導入しません。そのため JWT、SMTP、password reset、OIDC の設定は不要です。
+
+HsSqlAgent の Admin permission filter は、要求された安定した canonical permission key を `HsSqlAgentPermissionResource.Permissions` 経由で設定済みホストポリシーへ渡します。ホストは Admin ロールのような大まかなポリシーを適用することも、その key を独自の細粒度権限モデルへ対応付けることもできます。
+
+<Callout type="info" title="Canonical permission はルートパスではありません">
+`/runtime/db-management.edit` や `/auth/role.view` のような識別子は、安定した認可リソースです。フロントエンドのナビゲーションや HTTP mount path とは意図的に独立しています。
+</Callout>
+
+## MCP を独立して追加する
+
+MCP は別のマシンアクセス用セキュリティ境界です。組み込み先アプリケーションから MCP サーバーを公開する場合にだけ追加します。
+
+```csharp
+hs.AddHsSqlAgentMcp(options =>
+{
+    options.PublicEndpoint = "https://example.com/mcp";
+    options.HmacSecretKey = builder.Configuration["HMAC_KEY"]!; // >= 32 bytes
+});
+```
+
+アプリケーション構築後にマッピングします。
+
+```csharp
+app.UseHsSqlAgentMcp();
+```
+
+MCP キー、ツールスコープ、テーブルスコープ、レート制限、HMAC 検証は、人／管理者向けの host-authorization policy とは独立して維持されます。
+
+## 必要な場合だけ組み込み Admin ID を使う
+
+アプリケーション側で HsSqlAgent 独自の JWT／member／role モデルを使いたい場合は、host authorization の代わりにその capability を明示的に選択します。
+
+```csharp
+var hs = builder.Services.AddHsSqlAgentCore();
+
+hs.AddHsSqlAgentRuntime();
+
+hs.AddHsSqlAgentAdminStore(options =>
+{
+    options.Provider = "Sqlite";
+    options.ConnectionString = "Data Source=hsagent.db";
+});
+
+hs.AddHsSqlAgentBuiltInAuth(options =>
+{
+    options.Jwt.SecretKey = builder.Configuration["JWT_KEY"]!; // >= 32 bytes
+});
+
+hs.AddHsSqlAgentAdminApi();
+```
+
+組み込み認証 scheme には `HsSqlAgent.Jwt`、`HsSqlAgent.ExternalCookie`、`HsSqlAgent.Oidc` という名前が付けられ、ホストアプリケーションの既定値にはなりません。組み込み ID と host-authorization モードは同時に使用できません。
+
+同梱の Admin UI も任意です。
+
+```csharp
+app.UseHsSqlAgentAdminApi();
+app.MapControllers();
+app.UseHsSqlAgentAdminUi();
+```
+
+UI を使用しない場合でも、Admin API はホストアプリケーション独自のフロントエンドから利用できます。
+
+## Capability ごとの設定
+
+新しいコードでは、その設定を所有する capability に対して構成を行います。
+
+| Capability | 所有する設定 |
+| --- | --- |
+| `AddHsSqlAgentRuntime()` | bootstrap、operability、cache、rate limiting、security-policy sync、outbound-delivery sync、SQL concurrency、DML approval store |
+| `AddHsSqlAgentAdminStore()` | Admin database provider と connection string |
+| `AddHsSqlAgentBuiltInAuth()` | JWT、password reset/SMTP、enterprise identity/OIDC |
+| `AddHsSqlAgentHostAuthorization()` | 既存 ASP.NET Core authorization policy への委譲 |
+| `AddHsSqlAgentMcp()` | 公開 MCP endpoint と MCP-key HMAC secret |
+| `AddHsSqlAgentAdminApi()` | HsSqlAgent 管理 controller と controller 単位の validation/exception mapping |
+| `AddHsSqlAgentTelemetry()` | Prometheus と OTLP の設定 |
+
+選択していない capability は、その options を割り当てたり検証したりしません。モジュール型 API でも既存の既定値は維持され、host authorization を選んだからといって組み込み JWT／OIDC／SMTP 設定を要求されることはありません。
+
+<Callout type="warning" title="シークレットは、それを所有する capability が検証します">
+組み込み認証には 32 バイト以上の JWT secret が必要です。MCP には 32 バイト以上の HMAC secret が必要です。該当 capability を選択していない場合、これらのシークレットは要求されません。
+</Callout>
+
+## 現在の HTTP サーフェス
+
+| サーフェス | 現在の mount |
+| --- | --- |
+| MCP endpoint | `/mcp` |
+| Admin API prefix | `/api` |
+| Admin UI | `/` |
+
+これらの mount は 2.0.2 では意図的に固定されています。routing、フロントエンドの base path／asset、callback、セキュリティ境界を一緒に移動できるようになるまでは、任意の場所への再配置をサポート対象として案内しません。
+
+## 後方互換性
+
+既存のパッケージ利用者は、引き続き aggregate API を使用できます。
+
+```csharp
+builder.Services.AddHsSqlAgent(options =>
+{
+    // Existing aggregate configuration.
+});
+
+var app = builder.Build();
+app.UseHsSqlAgent().ServeAdminUi();
+```
+
+`HsSqlAgentServiceOptions`、`AddHsSqlAgent()`、`UseHsSqlAgent()` は互換 API として残ります。新規統合では `AddHsSqlAgentCore()` と明示的な capability 登録を推奨します。
+
+## 関連ドキュメント
+
+<CardGrid columns={2}>
+  <DocCard title="設定リファレンス" icon="CFG" href="/ja/docs/operations/configuration" description="スタンドアロン環境変数と、組み込み .NET ホストで使用する capability 固有 options を確認します。" />
+  <DocCard title="デプロイ" icon="OPS" href="/ja/docs/operations/deployment" description="本番ホスティング、シークレット、永続化、リバースプロキシ、運用上の指針を確認します。" />
+</CardGrid>

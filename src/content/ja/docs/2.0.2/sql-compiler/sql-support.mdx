@@ -1,0 +1,115 @@
+---
+title: SQL サポートリファレンス
+description: hs-sql-agent 2.0.1 の SQL 文法と provider capability を人が確認できる形でまとめます。
+sidebar:
+  group: SQL コンパイラ
+  order: 62
+---
+
+hs-sql-agent 2.0.1 は、データベース provider が持つ完全な SQL 文法を自動的に信頼できる入力とはみなしません。F# parser が文を表現でき、source semantics の検証に成功し、必要な capability を証明でき、provider runtime が結果を immutable command として compile できる場合にだけ SQL を受け入れます。
+
+このページは 2.0.1 の契約を要約したものです。最終的な基準はコンパイラであり、未対応またはバージョン条件を満たさない構文は、暗黙に近似変換せず fail-closed で拒否されます。
+
+## Query の基準
+
+`execute_query_sql` は単一の `SELECT` 文を受け取ります。公開ツール契約には、次の一般的な Query 形式が明示されています。
+
+- `JOIN`
+- `WHERE`
+- `GROUP BY`
+- `HAVING`
+- `ORDER BY`
+- `LIMIT` / `OFFSET`
+- `DISTINCT`
+- common table expression（CTE）
+- サブクエリ
+- `UNION`、`INTERSECT`、`EXCEPT`
+
+ネストした式、関数、window expression、cast、operator、temporal value、JSON 操作などの高度な構文には、引き続き capability check が適用されます。この基本一覧だけを根拠に、任意の vendor extension が使えると判断しないでください。
+
+## DML の基準
+
+`execute_dml_sql` は対応済みの単一 mutation を受け取り、Safe DML の承認フローへ送ります。
+
+| 文 | 2.0.1 MCP DML の状態 | 承認モデル |
+| --- | --- | --- |
+| `UPDATE` | parse / provider capability が有効な場合に対応 | 影響行を preview し、承認を正確な primary-key row set に結び付け、commit transaction 内で再検証 |
+| `DELETE` | parse / provider capability が有効な場合に対応 | 影響行を preview し、承認を正確な primary-key row set に結び付け、commit transaction 内で再検証 |
+| `INSERT ... VALUES` | parse / provider capability が有効な場合に対応 | 承認を immutable literal payload と compiled command に結び付け、commit 時に承認済み payload の行数を検証 |
+| `INSERT ... SELECT` | 拒否 | 2.0.1 では source row set に対する承認 semantics が定義されていないため fail-closed |
+
+承認プロトコル全体は [Safe DML](/ja/docs/sql-compiler/safe-dml) を参照してください。
+
+## 6 provider モデル
+
+SQL Core は PostgreSQL、MySQL、SQL Server、Oracle、SQLite、Firebird に対する provider capability contract を持ちます。各 capability は次のいずれかです。
+
+- **supported** — target が必要な native semantics を持つ
+- **translated** — Core が semantics-preserving な provider lowering を明示的に持つ
+- **rejected** — 要求された provider / profile について証明済み契約がない
+
+一部の capability は target server version または SQL Server compatibility level にも依存します。安全な基準バージョンが定義されておらず、ランタイムバージョンが必要な capability では、profile を省略すると無効のままになります。
+
+## 主な provider 差分
+
+次の表は 2.0.1 で重要な差分を抜粋したものです。`CapabilityMatrix.fs` の capability ID をすべて列挙するものではありません。
+
+| Capability | PostgreSQL | MySQL | SQL Server | Oracle | SQLite | Firebird |
+| --- | --- | --- | --- | --- | --- | --- |
+| `RIGHT JOIN` | translated | translated | translated | translated | target profile 3.39+ | translated |
+| `FULL JOIN` | translated | rejected | translated | translated | target profile 3.39+ | translated |
+| aggregate `FILTER` | native; PostgreSQL 9.4+ | rejected | rejected | Oracle 26ai+ profile、追加の predicate 制限あり | 明示的な 3.30+ profile | 明示的な 4.0+ profile |
+| aggregate-local ordering | native | native | SQL Server 14.0+ かつ compatibility level 110+ | Oracle 11.2+ | 明示的な 3.44+ profile | rejected |
+| DML `RETURNING` | translated | rejected | rejected | rejected | 明示的な 3.35+ profile | 明示的な 5.0+ profile |
+| upsert contract | translated | rejected | rejected | rejected | 明示的な 3.24+ profile | rejected |
+| offset-preserving timestamp | translated | rejected | translated | translated | translated | 明示的な 4.0+ profile |
+| standalone `TIME` | translated | translated | translated | rejected | translated | translated |
+
+SQL Core で `RETURNING` や upsert に対応していても、MCP Safe DML のルールは変わりません。mutation は引き続き DML runtime の対応文種と承認契約を満たす必要があります。
+
+## JSON capability
+
+2.0.1 の capability matrix では、PostgreSQL、MySQL、SQLite に対して portable な JSON extraction lowering を定義しています。canonical JSON-set contract による JSON mutation は PostgreSQL、MySQL、SQLite、SQL Server に対して定義されています。
+
+PostgreSQL native の `->` / `->>` operator は、JSON と text で結果 semantics が異なる provider 固有機能のため別にモデル化されています。cross-provider lowering では fail-closed のままで、宣言済み version contract を満たす PostgreSQL target が必要です。
+
+## Aggregate `FILTER`
+
+Aggregate `FILTER` は意図的にバージョン依存です。
+
+- PostgreSQL は 9.4 以降で native contract に対応し、明示的に古い target を指定すると拒否します。
+- SQLite は 3.30 以降の明示的な server profile が必要です。
+- Firebird は 4.0 以降の明示的な server profile が必要です。
+- Oracle は 26ai / 26.0+ profile が必要で、さらに Oracle lowering 前に subquery、window function、outer reference を含む filter predicate を Core が拒否します。
+- MySQL と SQL Server には、この capability に対する 2.0.1 の portable target contract はありません。
+
+これは「vendor がその SQL を実行できる」ことだけでは hs-sql-agent が受け入れない理由の一例です。
+
+## JOIN のバージョン条件
+
+SQLite の `RIGHT JOIN` と `FULL JOIN` は target capability profile に SQLite 3.39 以降が必要です。MySQL の `FULL JOIN` は 2.0.1 の capability matrix では引き続き拒否されます。
+
+必要な target contract を証明できない場合、その capability に依存する Query は拒否されます。
+
+## DML returning と upsert
+
+2.0.1 の target contract には次が含まれます。
+
+- PostgreSQL の `RETURNING` と upsert lowering
+- 明示的な 3.35+ target profile を持つ SQLite の `RETURNING`
+- 明示的な 5.0+ target profile を持つ Firebird の `RETURNING`
+- PostgreSQL と SQLite 3.24+ の upsert contract
+
+その他の provider target では、2.0.1 matrix 上これらの canonical capability は拒否されたままです。
+
+## Fail-closed diagnostics
+
+capability failure は通常のデータベース実行エラーではありません。SQL Core は source validation / source capability / target capability などのステージを区別します。これにより、要求された provider / profile で semantics を安全に表現できない文を実行前に拒否できます。
+
+運用上は、これらのエラーを SQL の形を変更するか、設定済みデータベースで対応する capability を使う必要があるという通知として扱ってください。コンパイラを迂回して回避しないでください。
+
+## このリファレンスが保証しないもの
+
+このページは、すべての関数名、operator の表記、cast target、JSON path 形式、window frame、vendor extension を保証するものではありません。2.0.1 の capability matrix はこの 1 ページの表より大幅に詳細で、ランタイムバージョン条件も含みます。
+
+MCP クライアントについては [MCP ツールリファレンス](/ja/docs/mcp/tools-reference) で公開ツール契約を確認し、実際にコンパイラが受け入れる範囲を最終的な SQL 契約として扱ってください。
