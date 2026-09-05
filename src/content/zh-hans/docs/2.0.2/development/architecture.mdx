@@ -1,0 +1,45 @@
+---
+title: 架构与贡献流程
+description: 面向贡献者说明仓库结构，以及修改编译器、服务器、前端和文档行为时应遵循的规则。
+sidebar:
+  group: 开发
+  order: 130
+---
+
+hs-sql-agent 分为后端、管理前端，以及独立的静态产品/文档站点。
+
+## 仓库职责
+
+整体结构：
+
+- `backend/` 包含服务器、SQL 编译器/运行时模块、持久化和测试。
+- `frontend/` 包含内置 Nuxt 管理界面。
+- `hs-sql-agent.site` 是独立的 Astro 产品/文档站点。
+
+SQL 编译器包含 F# 模块，具有明确的 rewrite/validation 阶段和 capability proof 概念。服务器宿主能力通过 `HsSqlAgent.Server` 以可组合 ASP.NET Core 类库形式提供：新集成从 `AddHsSqlAgentCore()` 开始，再显式选择 Runtime、AdminStore、HostAuthorization 或 BuiltInAuth、AdminApi、MCP、Telemetry 等 capability。`AddHsSqlAgent()` / `UseHsSqlAgent()` 继续作为已有使用方的兼容接口，而不是新的首选集成模型。
+
+## 贡献流程
+
+主仓库贡献指南要求贡献者：
+
+1. Fork 仓库。
+2. 围绕单一目标实现改动，并补充需要的测试或文档。
+3. 在本地运行项目并验证测试。
+4. 创建 Pull Request，说明动机、改动内容和测试证据。
+
+一个 PR 聚焦一个任务，更容易审核和合并。
+
+## 文档变更
+
+文档应描述当前代码已经实现的行为，而不是预期未来会实现的功能。
+
+修改 SQL capability、DML 安全、MCP 兼容性、宿主配置、管理行为或部署要求时，应尽可能在同一工作流中同步更新对应站点页面。
+
+站点按 locale 和文档版本组织内容：
+
+```text
+src/content/en/docs/<version>/<section>/<slug>.mdx
+src/content/zh-hans/docs/<version>/<section>/<slug>.mdx
+```
+
+各语言版本使用相同的 version/section/slug，通过 locale 前缀路由区分。目前完整文档基线为 2.0.2。

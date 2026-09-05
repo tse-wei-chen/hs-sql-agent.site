@@ -1,0 +1,115 @@
+---
+title: SQL 支持参考
+description: hs-sql-agent 2.0.1 的 SQL 语法和 provider capability 人类可读摘要。
+sidebar:
+  group: SQL 编译器
+  order: 62
+---
+
+hs-sql-agent 2.0.1 不会把数据库 provider 的完整 SQL 语法自动视为可信输入。只有当 F# parser 能表示该语句、source semantics 验证通过、所需 capability 可以被证明，并且 provider runtime 能把结果编译成 immutable command 时，SQL 才会被接受。
+
+本页总结 2.0.1 契约。最终以编译器为准：不支持或受版本限制的结构会失败即拒绝，而不会被静默近似转换。
+
+## Query 基线
+
+`execute_query_sql` 接受一条 `SELECT` 语句。公共工具契约明确包含：
+
+- `JOIN`
+- `WHERE`
+- `GROUP BY`
+- `HAVING`
+- `ORDER BY`
+- `LIMIT` / `OFFSET`
+- `DISTINCT`
+- common table expression（CTE）
+- 子查询
+- `UNION`、`INTERSECT`、`EXCEPT`
+
+嵌套表达式、函数、window expression、cast、operator、temporal value、JSON 操作和其他高级语法仍需 capability check。不要根据这份基线列表推断任意 vendor extension 一定受支持。
+
+## DML 基线
+
+`execute_dml_sql` 接受一条受支持的数据修改语句，并进入 Safe DML 审批流程。
+
+| 语句 | 2.0.1 MCP DML 状态 | 审批模型 |
+| --- | --- | --- |
+| `UPDATE` | parse/provider capability 有效时支持 | 预览影响行，把审批绑定到精确 primary-key row set，并在提交事务中重新验证 |
+| `DELETE` | parse/provider capability 有效时支持 | 预览影响行，把审批绑定到精确 primary-key row set，并在提交事务中重新验证 |
+| `INSERT ... VALUES` | parse/provider capability 有效时支持 | 把审批绑定到 immutable literal payload 和 compiled command，提交时验证已审批 payload 行数 |
+| `INSERT ... SELECT` | 拒绝 | 2.0.1 未定义 source row set 的审批语义，因此失败即拒绝 |
+
+完整审批协议见 [Safe DML](/zh-hans/docs/sql-compiler/safe-dml)。
+
+## 六 provider 模型
+
+SQL Core 为 PostgreSQL、MySQL、SQL Server、Oracle、SQLite、Firebird 定义 provider capability contract。每项 capability 可以是：
+
+- **supported** — 目标具备所需原生语义；
+- **translated** — Core 定义了保持语义的 provider lowering；
+- **rejected** — 请求的 provider/profile 没有已证明契约。
+
+部分 capability 还依赖目标服务器版本或 SQL Server compatibility level。当某能力需要运行时版本、又没有安全基线时，不提供 profile 会让该能力保持禁用。
+
+## 主要 provider 差异
+
+下面只列 2.0.1 的重要差异，不是 `CapabilityMatrix.fs` 所有 capability ID 的完整清单。
+
+| Capability | PostgreSQL | MySQL | SQL Server | Oracle | SQLite | Firebird |
+| --- | --- | --- | --- | --- | --- | --- |
+| `RIGHT JOIN` | translated | translated | translated | translated | 3.39+ target profile | translated |
+| `FULL JOIN` | translated | rejected | translated | translated | 3.39+ target profile | translated |
+| aggregate `FILTER` | native；PostgreSQL 9.4+ | rejected | rejected | Oracle 26ai+ profile，并有额外 predicate 限制 | 显式 3.30+ profile | 显式 4.0+ profile |
+| aggregate-local ordering | native | native | SQL Server 14.0+ 且 compatibility level 110+ | Oracle 11.2+ | 显式 3.44+ profile | rejected |
+| DML `RETURNING` | translated | rejected | rejected | rejected | 显式 3.35+ profile | 显式 5.0+ profile |
+| upsert contract | translated | rejected | rejected | rejected | 显式 3.24+ profile | rejected |
+| offset-preserving timestamp | translated | rejected | translated | translated | translated | 显式 4.0+ profile |
+| standalone `TIME` | translated | translated | translated | rejected | translated | translated |
+
+SQL Core 支持 `RETURNING` 或 upsert 并不会改变 MCP Safe DML 规则；数据修改仍需满足 DML runtime 的支持语句和审批契约。
+
+## JSON capability
+
+2.0.1 capability matrix 为 PostgreSQL、MySQL、SQLite 定义了可移植 JSON extraction lowering。canonical JSON-set contract 的 JSON mutation 则为 PostgreSQL、MySQL、SQLite、SQL Server 定义。
+
+PostgreSQL 原生 `->` / `->>` operator 单独建模，因为它们的 JSON/text 返回语义具有 provider 特性。它们在跨 provider lowering 中仍失败即拒绝，并要求 PostgreSQL target 满足声明的版本契约。
+
+## Aggregate `FILTER`
+
+Aggregate `FILTER` 明确受版本约束：
+
+- PostgreSQL 从 9.4 起支持原生契约；显式声明更老版本会被拒绝。
+- SQLite 需要显式 3.30 或更高 server profile。
+- Firebird 需要显式 4.0 或更高 server profile。
+- Oracle 需要 26ai/26.0+ profile；Core 还会在 Oracle lowering 前拒绝包含子查询、window function 或 outer reference 的 filter predicate。
+- MySQL 和 SQL Server 在 2.0.1 中没有声明该 capability 的可移植 target contract。
+
+这就是为什么“数据库厂商自己能执行这条 SQL”并不足以让 hs-sql-agent 接受它。
+
+## JOIN 版本门槛
+
+SQLite 的 `RIGHT JOIN` 和 `FULL JOIN` 要求 target capability profile 为 SQLite 3.39 或更高。MySQL 的 `FULL JOIN` 在 2.0.1 capability matrix 中仍被拒绝。
+
+无法证明所需 target contract 时，依赖这些 capability 的 Query 会被拒绝。
+
+## DML returning 与 upsert
+
+2.0.1 target contract 包括：
+
+- PostgreSQL `RETURNING` 和 upsert lowering；
+- SQLite `RETURNING`，要求显式 3.35+ target profile；
+- Firebird `RETURNING`，要求显式 5.0+ target profile；
+- PostgreSQL 和 SQLite 3.24+ 的 upsert contract。
+
+其他 provider target 在 2.0.1 matrix 中仍拒绝这些 canonical capability。
+
+## 失败即拒绝诊断
+
+capability failure 不是普通数据库执行错误。SQL Core 会区分 source validation/source capability、target capability 等阶段，使运行时可以在执行前拒绝无法针对请求 provider/profile 安全表示语义的语句。
+
+运维上应把这些错误理解为：需要改变 SQL 结构，或使用当前数据库支持的 capability。不要通过绕过编译器来规避它们。
+
+## 本页不承诺的内容
+
+本页不会承诺每一个函数名、operator 写法、cast target、JSON path 形式、window frame 或 vendor extension。2.0.1 capability matrix 比单页表格详细得多，也包含运行时版本门槛。
+
+MCP 客户端应通过 [MCP 工具参考](/zh-hans/docs/mcp/tools-reference) 查看公共工具契约，并把编译器实际接受的范围视为最终 SQL 契约。

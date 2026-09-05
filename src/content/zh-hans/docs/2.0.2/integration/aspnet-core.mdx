@@ -1,0 +1,206 @@
+---
+title: ASP.NET Core 集成
+description: 在现有 ASP.NET Core 应用中组合 HsSqlAgent.Server capability，可沿用宿主身份验证，也可按需启用内置管理体验。
+sidebar:
+  group: 集成
+  order: 80
+---
+
+import Callout from "@/components/docs/mdx/Callout.astro";
+import CardGrid from "@/components/docs/mdx/CardGrid.astro";
+import DocCard from "@/components/docs/mdx/DocCard.astro";
+import Steps from "@/components/docs/mdx/Steps.astro";
+import Step from "@/components/docs/mdx/Step.astro";
+
+`HsSqlAgent.Server` 是可嵌入的 ASP.NET Core 类库包。2.0.2 的新集成从无 options 的 core 开始，再明确选择宿主真正需要的 capability。
+
+<CardGrid columns={3}>
+  <DocCard title="宿主认证 + Admin API" icon="API" description="保留现有 Cookie/JWT/OIDC 登录与权限体系，不要求 hs-sql-agent 前端或身份 schema。" />
+  <DocCard title="按需添加 MCP" icon="MCP" description="把 /mcp 机器访问面与人类/Admin 授权分开选择。" />
+  <DocCard title="内置管理体验" icon="UI" description="只有宿主需要时才启用 hs-sql-agent 的 JWT/member/role 身份和内置管理界面。" />
+</CardGrid>
+
+## 安装
+
+```bash
+dotnet add package HsSqlAgent.Server
+```
+
+## 已有自己的登录和权限系统
+
+如果现有 ASP.NET Core 应用已经完成身份验证和授权，推荐采用这种嵌入方式。
+
+<Steps>
+  <Step title="保留宿主原有认证和授权设置">
+
+```csharp
+builder.Services.AddAuthentication(/* your existing schemes */);
+
+builder.Services.AddAuthorization(options =>
+{
+    options.AddPolicy("SqlAgentAdmin", policy =>
+    {
+        policy.RequireAuthenticatedUser();
+        // Add your application's requirement/handler here when
+        // canonical hs-sql-agent permissions need to be evaluated.
+    });
+});
+```
+
+HsSqlAgent 不会替换宿主默认 authentication scheme、authorization policy provider 或默认 authorization policy。
+  </Step>
+
+  <Step title="只组合需要的 hs-sql-agent capability">
+
+```csharp
+var hs = builder.Services.AddHsSqlAgentCore();
+
+hs.AddHsSqlAgentRuntime();
+
+hs.AddHsSqlAgentAdminStore(options =>
+{
+    options.Provider = "Postgres";
+    options.ConnectionString =
+        builder.Configuration.GetConnectionString("HsSqlAgent")!;
+});
+
+hs.AddHsSqlAgentHostAuthorization("SqlAgentAdmin");
+hs.AddHsSqlAgentAdminApi();
+```
+
+这种模式下**不要**调用 `AddHsSqlAgentBuiltInAuth()`，而是直接使用宿主已经认证的 `HttpContext.User`。
+  </Step>
+
+  <Step title="ASP.NET Core pipeline 由宿主负责">
+
+```csharp
+var app = builder.Build();
+
+app.UseAuthentication();
+app.UseAuthorization();
+
+app.UseHsSqlAgentAdminApi();
+app.MapControllers();
+
+app.Run();
+```
+
+`UseHsSqlAgentAdminApi()` 不会替宿主调用 `MapControllers()`；ASP.NET Core 控制器 endpoint mapping 仍由应用自己决定。
+  </Step>
+</Steps>
+
+host-authorization 模式下，HsSqlAgent 不发布内置 `AuthController`、`MemberController`、`RoleController`，也不会安装 HsSqlAgent 身份 schema，因此无需配置 JWT、SMTP、密码重置和 OIDC options。
+
+HsSqlAgent Admin permission filter 会通过 `HsSqlAgentPermissionResource.Permissions` 把稳定的 canonical permission key 交给宿主策略。宿主可以只做粗粒度 Admin 角色判断，也可以把这些 key 映射到自己的细粒度权限模型。
+
+<Callout type="info" title="Canonical permission 不是路由路径">
+`/runtime/db-management.edit`、`/auth/role.view` 等标识是稳定的授权资源，刻意与前端导航路径和 HTTP mount path 解耦。
+</Callout>
+
+## 独立添加 MCP
+
+MCP 是单独的机器访问安全边界。只有嵌入应用确实需要暴露 MCP server 时才添加：
+
+```csharp
+hs.AddHsSqlAgentMcp(options =>
+{
+    options.PublicEndpoint = "https://example.com/mcp";
+    options.HmacSecretKey = builder.Configuration["HMAC_KEY"]!; // >= 32 bytes
+});
+```
+
+应用构建后再挂载：
+
+```csharp
+app.UseHsSqlAgentMcp();
+```
+
+MCP 密钥、工具范围、表范围、限流和 HMAC 校验与人类/Admin 的 host-authorization policy 相互独立。
+
+## 只有需要时才启用内置 Admin 身份
+
+如果应用需要 HsSqlAgent 自己的 JWT/member/role 模型，应显式选择该 capability，而不是 host authorization：
+
+```csharp
+var hs = builder.Services.AddHsSqlAgentCore();
+
+hs.AddHsSqlAgentRuntime();
+
+hs.AddHsSqlAgentAdminStore(options =>
+{
+    options.Provider = "Sqlite";
+    options.ConnectionString = "Data Source=hsagent.db";
+});
+
+hs.AddHsSqlAgentBuiltInAuth(options =>
+{
+    options.Jwt.SecretKey = builder.Configuration["JWT_KEY"]!; // >= 32 bytes
+});
+
+hs.AddHsSqlAgentAdminApi();
+```
+
+内置 authentication scheme 使用独立名称：`HsSqlAgent.Jwt`、`HsSqlAgent.ExternalCookie`、`HsSqlAgent.Oidc`，不会成为宿主应用的默认 scheme。内置身份与 host-authorization 模式互斥。
+
+内置 Admin UI 也是可选项：
+
+```csharp
+app.UseHsSqlAgentAdminApi();
+app.MapControllers();
+app.UseHsSqlAgentAdminUi();
+```
+
+不使用内置 UI 时，宿主自己的前端仍可以调用 Admin API。
+
+## 各 capability 负责的 options
+
+新代码应在拥有该设置的 capability 上进行配置：
+
+| Capability | 负责的配置 |
+| --- | --- |
+| `AddHsSqlAgentRuntime()` | bootstrap、operability、cache、rate limiting、security-policy sync、outbound-delivery sync、SQL concurrency、DML approval store |
+| `AddHsSqlAgentAdminStore()` | Admin database provider 和 connection string |
+| `AddHsSqlAgentBuiltInAuth()` | JWT、password reset/SMTP、enterprise identity/OIDC |
+| `AddHsSqlAgentHostAuthorization()` | 委托给已有 ASP.NET Core authorization policy |
+| `AddHsSqlAgentMcp()` | 公共 MCP endpoint 和 MCP-key HMAC secret |
+| `AddHsSqlAgentAdminApi()` | HsSqlAgent 管理控制器以及 controller scoped validation/exception mapping |
+| `AddHsSqlAgentTelemetry()` | Prometheus 和 OTLP 设置 |
+
+未选择的 capability 不会分配或校验自己的 options。模块化 API 保留现有默认值；选择 host authorization 不会强迫应用配置内置 JWT/OIDC/SMTP。
+
+<Callout type="warning" title="由实际拥有 secret 的 capability 负责校验">
+内置身份验证要求至少 32 字节的 JWT secret，MCP 要求至少 32 字节的 HMAC secret。如果没有选择对应 capability，就不要求这些 secret。
+</Callout>
+
+## 当前 HTTP 接口挂载位置
+
+| 接口 | 当前 mount |
+| --- | --- |
+| MCP endpoint | `/mcp` |
+| Admin API prefix | `/api` |
+| Admin UI | `/` |
+
+2.0.2 中这些 mount 是刻意固定的。在 routing、frontend base path/assets、callback 和安全边界能够一起迁移之前，不宣传支持任意重定位。
+
+## 旧版兼容
+
+已有包使用方仍可以继续使用聚合 API：
+
+```csharp
+builder.Services.AddHsSqlAgent(options =>
+{
+    // Existing aggregate configuration.
+});
+
+var app = builder.Build();
+app.UseHsSqlAgent().ServeAdminUi();
+```
+
+`HsSqlAgentServiceOptions`、`AddHsSqlAgent()`、`UseHsSqlAgent()` 继续作为兼容接口保留。新集成应优先使用 `AddHsSqlAgentCore()` 加显式 capability 注册。
+
+## 相关文档
+
+<CardGrid columns={2}>
+  <DocCard title="配置参考" icon="CFG" href="/zh-hans/docs/operations/configuration" description="查看独立部署环境变量和嵌入式 .NET 宿主使用的 capability-specific options。" />
+  <DocCard title="部署" icon="OPS" href="/zh-hans/docs/operations/deployment" description="查看生产宿主、secret、持久化、反向代理和运维建议。" />
+</CardGrid>
