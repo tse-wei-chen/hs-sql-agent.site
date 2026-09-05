@@ -1,0 +1,59 @@
+---
+title: Schnellstart
+description: Docker, HsSqlAgent.Hosting oder HsSqlAgent.Server wählen und den ersten MCP-Client verbinden.
+sidebar:
+  group: Einstieg
+  order: 20
+---
+
+Wählen Sie den Nutzungsweg danach, wer den Host kontrollieren soll.
+
+| Weg | Geeignet wenn |
+| --- | --- |
+| Docker | hs-sql-agent als eigenständiger Dienst laufen soll |
+| `HsSqlAgent.Hosting` | ein .NET-Host das vollständige First-Party-Produkt einbetten soll |
+| `HsSqlAgent.Server` | eine bestehende ASP.NET-Core-Anwendung eine eigene Komposition benötigt |
+
+## Eigenständig: Docker Compose
+
+```bash
+cp .env.example .env
+docker compose up -d
+```
+
+Ersetzen Sie `HMAC_KEY` und `JWT_KEY` durch zwei verschiedene Secrets mit mindestens 32 Bytes. Der Standardport ist `8080`, der MCP-Endpoint `/mcp`.
+
+Für einen entfernten MCP-Client muss `MCP_PUBLIC_ENDPOINT` eine vom Client tatsächlich erreichbare absolute URL einschließlich `/mcp` sein.
+
+## Vollständiges Produkt einbetten: HsSqlAgent.Hosting
+
+```bash
+dotnet add package HsSqlAgent.Hosting
+```
+
+```csharp
+using HsSqlAgent.Hosting;
+
+var builder = WebApplication.CreateBuilder(args);
+builder.AddHsSqlAgentStandardHost();
+
+var app = builder.Build();
+app.UseHsSqlAgentStandardHost();
+await app.RunAsync();
+```
+
+Dieser Weg verwendet dieselbe offizielle Standardkomposition und denselben Konfigurationsvertrag für DML-Freigabe-Provider wie Docker.
+
+## Eigene ASP.NET-Core-Integration: HsSqlAgent.Server
+
+Installieren Sie `HsSqlAgent.Server`, rufen Sie `AddHsSqlAgentCore()` auf und fügen Sie Runtime, Admin Store/API, MCP, Identität, Telemetrie und Freigabe-Capabilities nur nach Bedarf hinzu. Siehe [ASP.NET-Core-Integration](/de/docs/integration/aspnet-core).
+
+## MCP-Key ausstellen
+
+Erstellen Sie im Admin UI einen MCP-Key, binden Sie ihn an genau eine verwaltete Datenbank und geben Sie nur die benötigten Tools und Tabellen frei. Verwenden Sie die generierte Client-Konfiguration oder senden Sie `X-MCP-Server-Key` an den Streamable-HTTP-Endpoint.
+
+## DML-Freigabe
+
+MCP Elicitation bleibt der offizielle Standard. Standard Hosting kann per Konfiguration den offiziellen Webhook-Adapter wählen; ein eigener Server-Host kann `HsSqlAgent.Approvals.Webhook` oder einen eigenen `IDmlApprovalProvider` registrieren.
+
+Ein separates Batch-DML-Tool ist nicht nötig: `execute_dml_sql` akzeptiert selbst eine oder mehrere unterstützte, durch Semikolons getrennte DML-Anweisungen und commitet den freigegebenen Batch atomar in einer Transaction.

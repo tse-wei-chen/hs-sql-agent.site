@@ -1,0 +1,39 @@
+---
+title: Architecture
+description: Product composition, compiler boundaries, and DML approval architecture in hs-sql-agent 2.0.3.
+sidebar:
+  group: Development
+  order: 120
+---
+
+hs-sql-agent separates **product composition** from **execution authority**. Hosts can choose how much of the product to compose, but SQL validation, approval evidence, revalidation, and commit remain server-owned boundaries.
+
+## Product composition
+
+- **Docker / ToolBox**: complete standalone first-party composition.
+- **HsSqlAgent.Hosting**: the same standard composition embedded in a .NET host.
+- **HsSqlAgent.Server**: modular building blocks for hosts that need to replace or omit capabilities.
+- **HsSqlAgent.Approvals.Abstractions**: transport-neutral approval contracts such as `IDmlApprovalProvider` and `IDmlApprovalCompletionSink`.
+- **HsSqlAgent.Approvals.Webhook**: official generic asynchronous Webhook approval adapter.
+
+`HsSqlAgent.Hosting` intentionally owns the standard composition and provider selector. `HsSqlAgent.Server` remains the escape hatch for custom authentication, authorization, UI, telemetry, middleware, or approval integration.
+
+## SQL execution boundary
+
+Query and DML input does not pass directly to a provider driver. The typed SQL pipeline parses, binds, authorizes, validates policy and source semantics, proves target capabilities, and only then emits provider-specific commands.
+
+Unsupported semantics fail closed. Provider-specific rendering is a final stage, not a substitute for validation.
+
+## DML transaction approval
+
+`execute_dml_sql` accepts one or more supported mutations. A multi-statement request is parsed as a batch, presented for one approval, and committed in original order inside one server-owned transaction.
+
+For `UPDATE` and `DELETE`, approval binds to exact primary-key row sets and each statement is revalidated immediately before its mutation. `INSERT ... VALUES` binds immutable literal payloads and compiled commands. `INSERT ... SELECT` remains unavailable until source-rowset approval semantics are defined.
+
+If an earlier statement changes the row set that a later statement was approved against, the whole transaction fails closed and rolls back.
+
+## Durable approval lifecycle
+
+An approval provider may return `Pending`. When the Admin Store is available, hs-sql-agent persists protected resume intent and approval fingerprints. A later completion does not reuse an old database session: authorization and database configuration are reloaded, DML is reparsed and previewed, evidence is compared, and a fresh short-lived execution challenge is created.
+
+Approval adapters never receive direct SQL execution primitives. This keeps human or external workflow integration outside the commit boundary.

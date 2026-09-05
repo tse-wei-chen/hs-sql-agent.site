@@ -1,0 +1,39 @@
+---
+title: アーキテクチャ
+description: hs-sql-agent 2.0.3 の製品構成、SQL Compiler 境界、DML 承認アーキテクチャ。
+sidebar:
+  group: 開発
+  order: 120
+---
+
+hs-sql-agent は、**製品をどう構成するか**と**実行権限を誰が持つか**を分離します。Host は利用する Capability を選べますが、SQL 検証、承認 Evidence、再検証、commit はサーバー所有の境界です。
+
+## 製品構成
+
+- **Docker / ToolBox**: 完全な単独第一方構成。
+- **HsSqlAgent.Hosting**: 同じ標準構成を .NET Host に組み込む Package。
+- **HsSqlAgent.Server**: Capability を差し替えたり省略したりするためのモジュール構成。
+- **HsSqlAgent.Approvals.Abstractions**: `IDmlApprovalProvider`、`IDmlApprovalCompletionSink` など transport-neutral な承認契約。
+- **HsSqlAgent.Approvals.Webhook**: 公式の汎用非同期 Webhook 承認 adapter。
+
+標準構成と Provider selector は `HsSqlAgent.Hosting` が所有します。認証、認可、UI、Telemetry、Middleware、承認を独自に組みたい場合は `HsSqlAgent.Server` を使います。
+
+## SQL 実行境界
+
+Query と DML は Database Driver に直接渡りません。Typed SQL Pipeline が Parse、Bind、認可、Policy と source semantics の検証、target Capability の証明を行い、その後に Provider-specific Command を生成します。
+
+未対応の意味論は fail closed です。Provider-specific rendering は最終段階であり、検証の代わりではありません。
+
+## DML Transaction 承認
+
+`execute_dml_sql` は 1 つ以上の対応 DML を受け取れます。複数 Statement は Batch として解析され、1 回の承認後、元の順序で 1 つのサーバー所有 Transaction に commit されます。
+
+`UPDATE` / `DELETE` は正確な Primary Key Row Set に承認を結び付け、各 Statement の実行直前に再検証します。`INSERT ... VALUES` は不変な Literal Payload と Compile 済み Command に結び付けます。`INSERT ... SELECT` は source Row Set の承認意味論が定義されるまで未対応です。
+
+前の Statement が後続 Statement の承認済み Row Set を変えた場合、Transaction 全体が fail closed で rollback します。
+
+## Durable Approval Lifecycle
+
+承認 Provider は `Pending` を返せます。Admin Store がある場合、hs-sql-agent は保護した Resume Intent と承認 Fingerprint を保存します。後から完了 Decision を受け取ると、古い Session を使い回さず、認可と DB 設定を再読み込みし、DML を再 Parse / Preview して Evidence を比較し、新しい短命 Challenge を作ります。
+
+承認 adapter に直接 SQL を実行する primitive は渡りません。外部 Workflow は commit 境界の外側に保たれます。

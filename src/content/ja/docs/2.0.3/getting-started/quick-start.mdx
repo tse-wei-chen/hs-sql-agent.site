@@ -1,0 +1,59 @@
+---
+title: クイックスタート
+description: Docker、HsSqlAgent.Hosting、HsSqlAgent.Server から利用形態を選び、最初の MCP Client を接続します。
+sidebar:
+  group: はじめに
+  order: 20
+---
+
+Host を誰が所有するかに合わせて利用形態を選びます。
+
+| 方式 | 適している場合 |
+| --- | --- |
+| Docker | hs-sql-agent を独立サービスとして動かす |
+| `HsSqlAgent.Hosting` | .NET Host に完全な第一方製品を組み込む |
+| `HsSqlAgent.Server` | 既存 ASP.NET Core アプリで構成をカスタマイズする |
+
+## 単独デプロイ: Docker Compose
+
+```bash
+cp .env.example .env
+docker compose up -d
+```
+
+`HMAC_KEY` と `JWT_KEY` は、それぞれ異なる 32 bytes 以上の secrets に置き換えてください。既定のアプリケーション Port は `8080`、MCP endpoint は `/mcp` です。
+
+外部 MCP Client から使う場合、`MCP_PUBLIC_ENDPOINT` は Client から到達できる絶対 URL にし、`/mcp` まで含めます。
+
+## 完全な製品を組み込む: HsSqlAgent.Hosting
+
+```bash
+dotnet add package HsSqlAgent.Hosting
+```
+
+```csharp
+using HsSqlAgent.Hosting;
+
+var builder = WebApplication.CreateBuilder(args);
+builder.AddHsSqlAgentStandardHost();
+
+var app = builder.Build();
+app.UseHsSqlAgentStandardHost();
+await app.RunAsync();
+```
+
+Docker と同じ標準の第一方 Capability 構成と DML 承認 Provider の設定契約を利用します。
+
+## カスタム ASP.NET Core 統合: HsSqlAgent.Server
+
+`HsSqlAgent.Server` を導入し、`AddHsSqlAgentCore()` の後に Runtime、Admin Store/API、MCP、Identity、Telemetry、承認 Capability を必要な分だけ追加します。[ASP.NET Core 統合](/ja/docs/integration/aspnet-core)を参照してください。
+
+## MCP Key を発行する
+
+Admin UI で MCP Key を作成し、1 つの管理対象 Database に紐付け、Client に必要な Tools と Tables だけ公開します。生成された Client 設定を使うか、Streamable HTTP endpoint に `X-MCP-Server-Key` を送ります。
+
+## DML 承認
+
+第一方の既定は MCP Elicitation です。標準 Hosting は設定で公式 Webhook adapter を選択でき、カスタム Server Host は `HsSqlAgent.Approvals.Webhook` または独自の `IDmlApprovalProvider` を登録できます。
+
+batch 専用 DML Tool は追加しません。既存の `execute_dml_sql` が、セミコロンで区切った複数の対応 DML を受け取り、承認後に単一 Transaction で原子的に commit します。

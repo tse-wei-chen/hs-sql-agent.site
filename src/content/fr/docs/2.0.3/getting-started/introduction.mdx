@@ -1,0 +1,40 @@
+---
+title: Introduction
+description: Comprendre la frontière de sécurité de hs-sql-agent et choisir le mode d'utilisation adapté à la version 2.0.3.
+sidebar:
+  group: Bien démarrer
+  order: 10
+---
+
+hs-sql-agent est un serveur HTTP MCP pour un **accès SQL gouverné**. Il relie les clients MCP à PostgreSQL, MySQL, SQL Server, Oracle, SQLite et Firebird tout en conservant côté serveur l'identité, les politiques d'accès, la validation SQL, l'approbation DML et l'exécution en base.
+
+Le SQL généré par un modèle est une entrée non fiable. Le modèle peut proposer du SQL ; le serveur décide si la requête est autorisée, sémantiquement prise en charge et sûre à exécuter.
+
+## Trois modes d'utilisation
+
+### Déployer un service autonome
+
+Utilisez l'image Docker officielle ou la configuration Compose du dépôt lorsque hs-sql-agent doit fonctionner comme service indépendant. C'est le chemin le plus court vers le produit officiel complet.
+
+### Intégrer le produit complet
+
+Utilisez `HsSqlAgent.Hosting` lorsqu'une application .NET doit embarquer la même composition officielle standard et le même contrat de configuration que l'image Docker.
+
+### Construire une intégration sur mesure
+
+Utilisez `HsSqlAgent.Server` lorsqu'une application ASP.NET Core existante doit conserver la maîtrise de l'authentification, de l'autorisation, de l'ordre des middlewares, du frontend, de la télémétrie ou de la composition des fournisseurs d'approbation. Commencez par `AddHsSqlAgentCore()` et ajoutez seulement les capacités nécessaires.
+
+## Frontière de sécurité
+
+Les Query passent par l'analyse, la liaison, l'autorisation, la validation des politiques, la preuve des capacités, la compilation propre au Provider puis l'exécution. Les syntaxes ou sémantiques non prises en charge sont rejetées en mode fail closed au lieu d'être envoyées directement au Provider.
+
+Le DML suit un chemin à risque plus élevé. `execute_dml_sql` peut recevoir une ou plusieurs mutations prises en charge séparées par des points-virgules, mais l'ensemble reste soumis aux preuves d'approbation, à la revalidation et à une Transaction atomique contrôlées par le serveur.
+
+Un adapter d'approbation ne reçoit ni connexion de base, ni Transaction, ni Plan d'exécution validé, ni primitive de commit. L'autorité d'exécution reste dans hs-sql-agent.
+
+## Pour continuer
+
+- [Démarrage rapide](/fr/docs/getting-started/quick-start)
+- [Intégration ASP.NET Core](/fr/docs/integration/aspnet-core)
+- [Safe DML](/fr/docs/sql-compiler/safe-dml)
+- [Référence des outils MCP](/fr/docs/mcp/tools-reference)

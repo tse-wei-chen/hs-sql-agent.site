@@ -1,0 +1,39 @@
+---
+title: Architecture
+description: Composition du produit, frontière du compilateur SQL et architecture d'approbation DML dans hs-sql-agent 2.0.3.
+sidebar:
+  group: Développement
+  order: 120
+---
+
+hs-sql-agent sépare **la composition du produit** de **l'autorité d'exécution**. Un Host choisit les capacités à assembler, mais la validation SQL, les preuves d'approbation, la revalidation et le commit restent des frontières contrôlées par le serveur.
+
+## Composition du produit
+
+- **Docker / ToolBox** : composition officielle complète en service autonome.
+- **HsSqlAgent.Hosting** : même composition standard intégrée dans un Host .NET.
+- **HsSqlAgent.Server** : briques modulaires pour remplacer ou omettre certaines capacités.
+- **HsSqlAgent.Approvals.Abstractions** : contrats d'approbation indépendants du transport, dont `IDmlApprovalProvider` et `IDmlApprovalCompletionSink`.
+- **HsSqlAgent.Approvals.Webhook** : adapter officiel générique d'approbation Webhook asynchrone.
+
+`HsSqlAgent.Hosting` possède volontairement la composition standard et le Provider selector. Pour une authentification, une autorisation, une UI, une télémétrie, des middlewares ou des approbations personnalisés, utilisez `HsSqlAgent.Server`.
+
+## Frontière d'exécution SQL
+
+Les Query et DML ne sont pas transmis directement au Driver de base. Le Typed SQL Pipeline analyse, lie, autorise, valide la Policy et les source semantics, prouve les target Capabilities puis génère les Commands propres au Provider.
+
+Les sémantiques non prises en charge échouent en mode fail closed. Le rendu propre au Provider est une étape finale, pas un substitut à la validation.
+
+## Approbation d'une Transaction DML
+
+`execute_dml_sql` accepte une ou plusieurs mutations prises en charge. Plusieurs Statements forment un Batch, reçoivent une seule approbation puis sont commit dans l'ordre d'origine au sein d'une Transaction contrôlée par le serveur.
+
+Pour `UPDATE` et `DELETE`, l'approbation est liée aux Primary Key Row Sets exacts et chaque Statement est revalidé juste avant sa mutation. `INSERT ... VALUES` lie les Literal Payloads immuables et les Commands compilées. `INSERT ... SELECT` reste indisponible tant que la sémantique d'approbation du source Row Set n'est pas définie.
+
+Si un Statement antérieur modifie le Row Set approuvé d'un Statement suivant, toute la Transaction échoue en mode fail closed et rollback.
+
+## Cycle d'approbation durable
+
+Un Provider d'approbation peut retourner `Pending`. Avec l'Admin Store, hs-sql-agent conserve un Resume Intent protégé et les Fingerprints d'approbation. Lors d'une décision ultérieure, l'ancienne Session n'est pas réutilisée : l'autorisation et la configuration DB sont rechargées, le DML est réanalysé et Preview, les Evidence sont comparées et un nouveau Challenge de courte durée est créé.
+
+Les adapters d'approbation ne reçoivent jamais de primitive d'exécution SQL directe ; le workflow externe reste hors de la frontière de commit.

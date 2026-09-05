@@ -1,0 +1,39 @@
+---
+title: Architektur
+description: Produktkomposition, SQL-Compiler-Grenze und DML-Freigabearchitektur in hs-sql-agent 2.0.3.
+sidebar:
+  group: Entwicklung
+  order: 120
+---
+
+hs-sql-agent trennt **Produktkomposition** von **Ausführungsautorität**. Ein Host kann Capabilities auswählen, aber SQL-Validierung, Freigabenachweise, erneute Validierung und Commit bleiben serverseitige Grenzen.
+
+## Produktkomposition
+
+- **Docker / ToolBox**: vollständige eigenständige First-Party-Komposition.
+- **HsSqlAgent.Hosting**: dieselbe Standardkomposition eingebettet in einen .NET-Host.
+- **HsSqlAgent.Server**: modulare Bausteine zum Ersetzen oder Weglassen einzelner Capabilities.
+- **HsSqlAgent.Approvals.Abstractions**: transportneutrale Freigabeverträge wie `IDmlApprovalProvider` und `IDmlApprovalCompletionSink`.
+- **HsSqlAgent.Approvals.Webhook**: offizieller generischer asynchroner Webhook-Freigabe-Adapter.
+
+`HsSqlAgent.Hosting` besitzt bewusst die Standardkomposition und den Provider-Selector. Für eigene Authentifizierung, Autorisierung, UI, Telemetrie, Middleware oder Freigabeintegration dient `HsSqlAgent.Server`.
+
+## SQL-Ausführungsgrenze
+
+Query- und DML-Eingaben gehen nicht direkt an einen Datenbank-Driver. Die Typed SQL Pipeline parst, bindet, autorisiert, validiert Policy und Source Semantics, beweist Target Capabilities und erzeugt erst danach providerspezifische Commands.
+
+Nicht unterstützte Semantik wird fail closed abgelehnt. Providerspezifisches Rendering ist der letzte Schritt und kein Ersatz für Validierung.
+
+## DML-Transaction-Freigabe
+
+`execute_dml_sql` akzeptiert eine oder mehrere unterstützte Mutationen. Mehrere Statements werden als Batch geparst, einmal freigegeben und anschließend in Originalreihenfolge innerhalb einer serverseitig kontrollierten Transaction committet.
+
+Bei `UPDATE` und `DELETE` bindet die Freigabe an exakte Primary-Key-Row-Sets und jedes Statement wird unmittelbar vor seiner Mutation erneut geprüft. `INSERT ... VALUES` bindet unveränderliche Literal Payloads und kompilierte Commands. `INSERT ... SELECT` bleibt gesperrt, bis die Freigabesemantik des Source Row Sets definiert ist.
+
+Verändert ein früheres Statement das freigegebene Row Set eines späteren Statements, schlägt die gesamte Transaction fail closed fehl und wird zurückgerollt.
+
+## Durable Approval Lifecycle
+
+Ein Freigabe-Provider kann `Pending` zurückgeben. Mit Admin Store speichert hs-sql-agent einen geschützten Resume Intent und Freigabe-Fingerprints. Bei einer späteren Entscheidung wird keine alte Session wiederverwendet: Autorisierung und DB-Konfiguration werden neu geladen, das DML erneut geparst und als Preview bewertet, Evidence verglichen und ein neuer kurzlebiger Challenge erzeugt.
+
+Freigabe-Adapter erhalten keine direkten SQL-Ausführungs-Primitives. Externe Workflows bleiben damit außerhalb der Commit-Grenze.
