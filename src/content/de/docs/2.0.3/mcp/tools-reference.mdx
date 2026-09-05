@@ -1,0 +1,62 @@
+---
+title: MCP Tools Reference
+description: Built-in-MCP-Tool-Verträge für hs-sql-agent 2.0.3 einschließlich atomarem Multi-Statement-DML.
+sidebar:
+  group: MCP
+  order: 35
+---
+
+Die Built-in-MCP-Oberfläche bleibt bewusst klein. Version 2.0.3 enthält weiterhin genau fünf Tool-Namen, die über den MCP-Key-Scope verwaltet werden.
+
+| Tool | Öffentliche Eingabe | Zweck |
+| --- | --- | --- |
+| `get_schemas` | keine | Schemas entdecken |
+| `get_tables` | `schemaName: string` | sichtbare Tables entdecken |
+| `get_columns` | `schemaName: string`, `tableName: string` | Columns und Key Metadata entdecken |
+| `execute_query_sql` | `sql: string` | eine kontrollierte SELECT-Query ausführen |
+| `execute_dml_sql` | `sql: string` | eine oder mehrere freigegebene DML-Anweisungen atomar ausführen |
+
+Published Custom Tools können die Tool Collection einer Database erweitern, sind aber keine weiteren Built-in Tools.
+
+## Autorisierung gilt vor Discovery
+
+Die MCP Session wird nach MCP-Key-Authentifizierung aufgebaut. Eine explizite `AllowedTools`-Liste beschränkt sichtbare Built-in- und Published-Custom-Tool-Namen. Database Binding, Table Allowlist, Rate Limit, SQL Concurrency, Policy und Audit bleiben serverseitige Kontrollen.
+
+Metadata Tools akzeptieren keine vom Modell gelieferte Connection String.
+
+## `execute_query_sql`
+
+```text
+execute_query_sql(sql: string)
+```
+
+Akzeptiert genau ein unterstütztes `SELECT` und führt es durch die Typed Query Pipeline: Parse, Bind, Table Authorization, Policy- und Source-Semantics-Validierung, Target-Capability-Nachweis, Compile einer immutable Provider Command und anschließend Ausführung.
+
+Nicht unterstütztes SQL wird fail closed abgelehnt; es gibt keinen Fallback auf Raw-SQL-Ausführung.
+
+## `execute_dml_sql`
+
+```text
+execute_dml_sql(sql: string)
+```
+
+Dasselbe Tool akzeptiert jetzt **eine oder mehrere** unterstützte, durch Semikolons getrennte DML-Anweisungen. Das vorhandene Tool wird erweitert; `execute_dml_sql_batch` wird nicht hinzugefügt.
+
+| Statement | Status |
+| --- | --- |
+| `UPDATE` | unterstützt, wenn Capability, Policy, Freigabe und Revalidierung erfolgreich sind |
+| `DELETE` | unterstützt, wenn Capability, Policy, Freigabe und Revalidierung erfolgreich sind |
+| `INSERT ... VALUES` | unterstützt mit immutable-payload approval semantics |
+| `INSERT ... SELECT` | fail closed, bis source-rowset approval semantics definiert sind |
+
+Ein Multi-Statement Request validiert den gesamten Batch, erstellt Evidence pro Statement und fordert eine einzige Freigabe für die Atomic Transaction an. Der Server öffnet eine Transaction, revalidiert jedes Statement unmittelbar vor der Mutation und führt die Statements in Originalreihenfolge aus. Schlägt ein Statement fehl oder wird stale, wird die gesamte Transaction zurückgerollt.
+
+Client-supplied Transaction-control SQL wird abgelehnt.
+
+## Freigabe-Transport
+
+MCP Elicitation bleibt der offizielle Standard, die DML-Architektur ist jedoch nicht mehr daran gebunden. Standard Hosting kann den offiziellen Webhook-Adapter wählen; Modular Hosts können `HsSqlAgent.Approvals.Webhook` oder einen eigenen `IDmlApprovalProvider` registrieren.
+
+Ein asynchroner Provider kann `Pending` zurückgeben. Durable Completion bleibt serverseitig und revalidiert vor einem späteren Commit aktuelle Autorisierung, Konfiguration, Policy, Plan, Row Set und affected-row Evidence.
+
+Siehe [Safe DML](/de/docs/sql-compiler/safe-dml).

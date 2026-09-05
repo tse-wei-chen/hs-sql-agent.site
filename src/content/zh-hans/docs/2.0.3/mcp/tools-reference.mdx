@@ -1,0 +1,62 @@
+---
+title: MCP Tools 参考
+description: hs-sql-agent 2.0.3 的 built-in MCP Tool 契约，包括原子 multi-statement DML。
+sidebar:
+  group: MCP
+  order: 35
+---
+
+Built-in MCP Surface 刻意保持精简。2.0.3 仍只有五个由 MCP Key Scope 管理的 built-in Tool 名称。
+
+| Tool | 公开输入 | 用途 |
+| --- | --- | --- |
+| `get_schemas` | 无 | 发现 Schemas |
+| `get_tables` | `schemaName: string` | 发现可见 Tables |
+| `get_columns` | `schemaName: string`, `tableName: string` | 发现 Columns 和 Key Metadata |
+| `execute_query_sql` | `sql: string` | 执行一个受治理的 SELECT Query |
+| `execute_dml_sql` | `sql: string` | 原子执行一个或多个已审批 DML |
+
+Published Custom Tools 可以扩展特定数据库的 Tool Collection，但不属于新的 built-in Tools。
+
+## 授权先于 Discovery
+
+MCP Session 在 MCP Key 验证后建立。明确配置的 `AllowedTools` 会限制可见的 built-in 与 Published Custom Tool 名称。Database Binding、Table Allowlist、Rate Limit、SQL Concurrency、Policy 和 Audit 仍全部由服务器控制。
+
+Metadata Tools 不接受模型传入 Connection String。
+
+## `execute_query_sql`
+
+```text
+execute_query_sql(sql: string)
+```
+
+只接受一个受支持的 `SELECT`，并经过 Typed Query Pipeline：Parse、Bind、Table Authorization、Policy 与来源语义验证、Target Capability 证明、Compile immutable Provider Command，最后执行。
+
+不支持的 SQL 会 fail closed，不会退回 Raw SQL 直接执行。
+
+## `execute_dml_sql`
+
+```text
+execute_dml_sql(sql: string)
+```
+
+同一个 Tool 现在可以接受**一个或多个**用分号分隔的受支持 DML。这是扩展现有 Tool，而不是新增 `execute_dml_sql_batch`。
+
+| Statement | 状态 |
+| --- | --- |
+| `UPDATE` | Capability、Policy、审批与重新验证全部通过时支持 |
+| `DELETE` | Capability、Policy、审批与重新验证全部通过时支持 |
+| `INSERT ... VALUES` | 使用 immutable-payload approval semantics |
+| `INSERT ... SELECT` | 在 source-rowset approval semantics 完成前 fail closed |
+
+Multi-statement Request 会验证整个 Batch、建立每个 Statement 的 Evidence、只请求一次 Atomic Transaction 审批，再由服务器开启一个 Transaction。每个 Statement 在修改前重新验证并按原始顺序执行；任意 Statement 失败或 stale，整个 Transaction 都 rollback。
+
+Client-supplied Transaction-control SQL 会被拒绝。
+
+## 审批 Transport
+
+MCP Elicitation 是第一方默认方式，但 DML 架构不再绑定 Elicitation。Standard Hosting 可选择官方 Webhook adapter；Modular Host 可注册 `HsSqlAgent.Approvals.Webhook` 或自己的 `IDmlApprovalProvider`。
+
+异步 Provider 可以返回 `Pending`。Durable Completion 仍由服务器掌握，任何后续 commit 前都会重新验证当前授权、配置、Policy、Plan、Row Set 和 affected-row Evidence。
+
+另见 [Safe DML](/zh-hans/docs/sql-compiler/safe-dml)。

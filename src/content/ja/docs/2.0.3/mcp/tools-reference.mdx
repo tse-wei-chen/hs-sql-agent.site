@@ -1,0 +1,62 @@
+---
+title: MCP Tools Reference
+description: hs-sql-agent 2.0.3 の built-in MCP Tool 契約。原子的な multi-statement DML を含みます。
+sidebar:
+  group: MCP
+  order: 35
+---
+
+Built-in MCP Surface は意図的に小さく保たれています。2.0.3 でも MCP Key Scope で管理される built-in Tool 名は 5 つだけです。
+
+| Tool | 公開入力 | 用途 |
+| --- | --- | --- |
+| `get_schemas` | なし | Schema の Discovery |
+| `get_tables` | `schemaName: string` | 可視 Table の Discovery |
+| `get_columns` | `schemaName: string`, `tableName: string` | Column と Key Metadata の Discovery |
+| `execute_query_sql` | `sql: string` | 1 つの統制された SELECT Query を実行 |
+| `execute_dml_sql` | `sql: string` | 1 つ以上の承認済み DML を原子的に実行 |
+
+Published Custom Tools は Database の Tool Collection を拡張できますが、新しい built-in Tool ではありません。
+
+## Discovery より先に認可される
+
+MCP Session は MCP Key 認証後に構築されます。明示的な `AllowedTools` は公開する built-in と Published Custom Tool 名を制限します。Database Binding、Table Allowlist、Rate Limit、SQL Concurrency、Policy、Audit はサーバー側の制御です。
+
+Metadata Tools はモデルから Connection String を受け取りません。
+
+## `execute_query_sql`
+
+```text
+execute_query_sql(sql: string)
+```
+
+1 つの対応 `SELECT` を受け取り、Typed Query Pipeline で Parse、Bind、Table Authorization、Policy と source semantics の検証、target Capability の証明、immutable Provider Command の Compile を行ってから実行します。
+
+未対応 SQL は fail closed であり、Raw SQL 実行へフォールバックしません。
+
+## `execute_dml_sql`
+
+```text
+execute_dml_sql(sql: string)
+```
+
+同じ Tool が、セミコロンで区切った**1 つ以上**の対応 DML を受け取ります。既存 Tool の拡張であり、`execute_dml_sql_batch` は追加しません。
+
+| Statement | 状態 |
+| --- | --- |
+| `UPDATE` | Capability、Policy、承認、再検証を通過すれば対応 |
+| `DELETE` | Capability、Policy、承認、再検証を通過すれば対応 |
+| `INSERT ... VALUES` | immutable-payload approval semantics で対応 |
+| `INSERT ... SELECT` | source-rowset approval semantics が定義されるまで fail closed |
+
+Multi-statement Request は Batch 全体を検証し、Statement ごとの Evidence を作成して、Atomic Transaction として 1 回だけ承認を求めます。サーバーが 1 つの Transaction を開始し、各 Statement を変更直前に再検証して元の順序で実行します。どれか 1 つが失敗または stale なら Transaction 全体を rollback します。
+
+Client-supplied Transaction-control SQL は拒否されます。
+
+## 承認 Transport
+
+第一方の既定は MCP Elicitation ですが、DML Architecture は Elicitation 固定ではありません。Standard Hosting は公式 Webhook adapter を選択でき、Modular Host は `HsSqlAgent.Approvals.Webhook` または独自 `IDmlApprovalProvider` を登録できます。
+
+非同期 Provider は `Pending` を返せます。Durable Completion はサーバー所有で、後の commit 前に現在の認可、設定、Policy、Plan、Row Set、affected-row Evidence を再検証します。
+
+[Safe DML](/ja/docs/sql-compiler/safe-dml)も参照してください。
