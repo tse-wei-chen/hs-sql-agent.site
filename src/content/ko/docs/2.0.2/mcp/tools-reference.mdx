@@ -1,0 +1,186 @@
+---
+title: MCP 도구 레퍼런스
+description: hs-sql-agent 2.0.1 내장 MCP 도구의 공식 계약, 파라미터, 응답, 권한, 위험 경계를 설명합니다.
+sidebar:
+  group: MCP
+  order: 35
+---
+
+import Callout from "@/components/docs/mdx/Callout.astro";
+import CardGrid from "@/components/docs/mdx/CardGrid.astro";
+import DocCard from "@/components/docs/mdx/DocCard.astro";
+import Flow from "@/components/docs/mdx/Flow.astro";
+
+<CardGrid columns={3}>
+  <DocCard title="Schema discovery" icon="▦" badge="낮은 위험" description="get_schemas, get_tables, get_columns로 SQL 생성 전에 키에 바인딩된 데이터베이스 구조를 탐색합니다." />
+  <DocCard title="Query SQL" icon="SELECT" badge="읽기" description="execute_query_sql은 통제된 SELECT 한 문장을 받아 결과 행을 직렬화해 반환합니다." />
+  <DocCard title="Safe DML" icon="DML" badge="승인" description="execute_dml_sql은 preview, Elicitation, commit-time revalidation을 모두 거친 지원 mutation만 실행합니다." />
+</CardGrid>
+
+**MCP 키가 관리하는 공식 2.0.1 내장 도구 표면**에는 정확히 다섯 개 도구 이름이 있습니다.
+
+| Tool | Public input | 결과 형태 | 위험 |
+| --- | --- | --- | --- |
+| `get_schemas` | 없음 | 쉼표로 구분된 schema 이름 | metadata read |
+| `get_tables` | `schemaName: string` | 쉼표로 구분된 table 설명 | metadata read |
+| `get_columns` | `schemaName: string`, `tableName: string` | column object JSON 배열 | metadata read |
+| `execute_query_sql` | `sql: string` | 결과 행 JSON 배열 또는 execution error 문자열 | data read |
+| `execute_dml_sql` | `sql: string` | 승인/실행 결과 문자열 | data mutation |
+
+게시된 Custom Tool은 바인딩된 데이터베이스의 도구 collection을 확장할 수 있지만 추가 내장 도구는 아닙니다.
+
+<Callout type="warning" title="Tool discovery도 authorization scope 안에서 동작합니다">
+MCP session은 MCP-key 인증이 끝난 뒤 tool collection을 구성합니다. `AllowedTools`가 명시되면 일치하는 내장 또는 게시된 Custom Tool 이름만 노출됩니다. 빈 tool allowlist는 tool-name 제한이 없다는 뜻이므로 운영 키는 일반적으로 최소 도구 집합을 명시해야 합니다.
+</Callout>
+
+## 권장 discovery 흐름
+
+<Flow items={["get_schemas", "get_tables", "get_columns", "execute_query_sql"]} caption="모델에 SQL 생성을 요청하기 전에 물리 구조를 탐색합니다. DML은 기본 읽기 흐름에 의도적으로 포함하지 않습니다." />
+
+클라이언트가 신뢰할 수 있는 데이터베이스 구조를 이미 알고 있지 않다면 metadata discovery를 사용하십시오. Schema tool은 클라이언트가 connection string을 전달하는 방식이 아니라 인증된 키의 데이터베이스 컨텍스트 안에서 실행됩니다.
+
+## `get_schemas`
+
+MCP 키에 바인딩된 데이터베이스에서 provider metadata runtime이 보고하는 schema 목록을 반환합니다.
+
+**Parameters:** 없음.
+
+**Success result:** schema 이름을 쉼표로 이어 붙인 문자열입니다.
+
+**Authorization 및 제한:**
+
+- 명시적 tool allowlist가 있으면 키가 `get_schemas` 사용 권한을 가져야 합니다.
+- 데이터베이스 provider/connection은 인증된 키에서 해석되어야 합니다.
+- shared SQL-concurrency limiter lease를 획득합니다.
+- 성공/실패는 `mcp.get_schemas` action으로 audit path에 기록됩니다.
+
+이 도구는 모델로부터 database ID 또는 connection string을 받지 않습니다.
+
+## `get_tables`
+
+```text
+get_tables(schemaName: string)
+```
+
+요청된 schema의 provider-reported table을 반환하며 MCP 키에 table whitelist가 있으면 그 범위로 필터링합니다.
+
+바인딩된 Database Management 항목에 semantic metadata가 있다면 각 visible table에 다음 정보가 추가될 수 있습니다.
+
+- display name
+- description
+- synonym
+- 해당 테이블 범위의 metric description
+
+**Success result:** 쉼표로 구분된 문자열입니다. 따라서 항목은 단순한 물리 table name보다 풍부한 설명을 포함할 수 있습니다.
+
+**Audit action:** `mcp.get_tables`.
+
+<Callout type="info" title="Table whitelist는 discovery에도 적용됩니다">
+제한된 키는 `get_tables`를 통해 자기 table boundary 밖의 테이블을 알아낼 수 없어야 합니다. Semantic enrichment도 그 경계를 넓히지 않습니다.
+</Callout>
+
+## `get_columns`
+
+```text
+get_columns(schemaName: string, tableName: string)
+```
+
+서버는 먼저 요청한 qualified table이 MCP 키에서 허용되는지 검사합니다. 그 뒤 provider column metadata를 읽어 JSON 배열로 직렬화합니다.
+
+각 2.0.1 `ColumnInfo` object에는 다음 property가 있습니다.
+
+| Property | 의미 |
+| --- | --- |
+| `Name` | 물리 column 이름 |
+| `Column` | 동일 column-name 값의 alias |
+| `Type` | provider가 보고한 column type |
+| `Description` | 사용 가능한 경우 semantic enrichment |
+| `IsPrimaryKey` | provider metadata에서 primary key 일부로 표시되는지 여부 |
+| `PrimaryKeyOrdinal` | composite primary key 내 nullable 위치 |
+
+Semantic enrichment는 `Description`에 display name, description, synonym, relationship description을 추가할 수 있습니다. Relationship context는 관계에 참여하는 두 테이블 모두 키의 table whitelist에서 허용될 때만 포함됩니다.
+
+**Audit action:** `mcp.get_columns`.
+
+## `execute_query_sql`
+
+```text
+execute_query_sql(sql: string)
+```
+
+**하나의 `SELECT` SQL statement**를 받습니다. 공개 2.0.1 도구 계약은 JOIN, WHERE, GROUP BY, HAVING, ORDER BY, LIMIT/OFFSET, DISTINCT, CTE, subquery, UNION/INTERSECT/EXCEPT 같은 일반 Query 형태를 명시적으로 포함합니다.
+
+<Flow items={["Parse", "Bind", "테이블 권한 확인", "정책 검증", "immutable command compile", "실행"]} caption="Raw SQL이 provider로 바로 전달되지 않습니다." />
+
+요청은 F# typed-query runtime을 거쳐 실행됩니다. 런타임 capability에 따라 referenced table, CTE 존재 여부, subquery 존재 여부 같은 Query fact를 동일한 통제 경로에서 수집해 audit evidence로 사용할 수 있습니다.
+
+**Success result:** 반환된 row collection의 JSON serialization입니다.
+
+**Failure result:** 도구는 `Execution failed:`로 시작하는 문자열과 실패 메시지를 반환합니다. 호출자가 요청한 cancellation은 일반 결과 문자열로 바꾸지 않고 그대로 전파됩니다.
+
+**Runtime boundary:**
+
+- MCP tool allowlist
+- MCP-key database binding
+- table whitelist
+- 현재 security/query policy
+- SQL concurrency limiter
+- source/target SQL capability check
+- operation, duration, returned row, compiler-derived definition fact를 기록하는 audit event `mcp.query.executed`
+
+사람이 읽을 수 있는 capability 요약은 [SQL 지원 레퍼런스](/ko/docs/sql-compiler/sql-support)를 참고하십시오.
+
+## `execute_dml_sql`
+
+```text
+execute_dml_sql(sql: string)
+```
+
+MCP에 노출되는 입력은 SQL입니다. .NET method의 `McpServer`와 cancellation token은 런타임이 주입하는 infrastructure이지 에이전트가 제공하는 field가 아닙니다.
+
+2.0.1 MCP DML 경로에서 지원되는 statement class는 다음과 같습니다.
+
+| Statement | 상태 |
+| --- | --- |
+| `UPDATE` | parse, capability, policy, approval 요구 사항을 통과하면 지원 |
+| `DELETE` | parse, capability, policy, approval 요구 사항을 통과하면 지원 |
+| `INSERT ... VALUES` | immutable-payload approval semantics로 지원 |
+| `INSERT ... SELECT` | 2.0.1에서 fail-closed로 거부 |
+
+<Flow items={["Parse + profile 확인", "mutation compile", "정확한 영향 preview", "사람 Elicitation", "transaction revalidation", "Commit"]} caption="승인은 단순한 원본 SQL text가 아니라 검증된 mutation context에 바인딩됩니다." />
+
+UPDATE와 DELETE에서는 승인이 정확한 primary-key row set에 바인딩되고 commit-time 코드가 transaction 안에서 row identity를 다시 검증합니다. INSERT VALUES에서는 승인 대상이 immutable literal payload와 정확한 compiled command이며 commit 시 승인된 payload row count를 확인합니다.
+
+사용자가 거부하거나 validation을 완료할 수 없으면 mutation은 commit되지 않습니다. Audit event는 `mcp.dml.executed`를 사용하고 operation, processing duration, affected row, approval status, 적용 가능한 error category를 기록합니다.
+
+<Callout type="danger" title="호환되는 MCP form Elicitation이 없는 클라이언트에 DML을 허용하지 마십시오">
+Tool call 지원만으로는 충분하지 않습니다. 클라이언트는 Safe DML 흐름에서 사용하는 interactive approval form을 표시하고 응답할 수 있어야 합니다.
+</Callout>
+
+전체 protocol은 [Safe DML](/ko/docs/sql-compiler/safe-dml)을 참고하십시오.
+
+## 내장 도구 공통 오류
+
+일반적인 실패 원인은 다음과 같습니다.
+
+- MCP authorization context 누락
+- 키의 명시적 tool allowlist에 해당 tool이 없음
+- database provider 또는 connection 설정 오류
+- SQL-concurrency limit에서 lease를 얻지 못함 (`Server busy`)
+- 요청한 table이 key whitelist 밖에 있음
+- SQL이 비어 있거나 미지원이거나 policy/capability boundary에서 거부됨
+- provider execution 실패
+
+도구는 unrestricted provider execution으로 fallback하지 않고 제한된 오류 정보만 반환합니다.
+
+## Custom Tools
+
+게시된 Custom Tool은 MCP 키에 바인딩된 Database Management 항목에서 로드되며 같은 `AllowedTools` 집합에 이름으로 포함할 수 있습니다. 호출은 계속 runtime database binding, table whitelist, security policy, concurrency control, audit path를 지나고 DML Custom Tool은 approval pipeline도 거칩니다.
+
+자세한 내용은 [Custom Tools](/ko/docs/administration/custom-tools)를 참고하십시오.
+
+## Semantic metadata를 여섯 번째 내장 도구로 문서화하지 않습니다
+
+2.0.1 저장소에는 semantic-management 구현이 있지만 공식 MCP key built-in registry와 Admin key-management surface는 이 페이지에 나열된 다섯 도구를 인식합니다. 따라서 공식 2.0.1 문서에서 semantic metadata는 **Admin/control-plane capability이며 schema discovery가 소비하는 정보**로 다룹니다.
+
+자세한 내용은 [Semantic Metadata](/ko/docs/administration/semantic-metadata)를 참고하십시오.

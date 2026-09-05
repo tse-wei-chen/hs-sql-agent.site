@@ -1,0 +1,206 @@
+---
+title: ASP.NET Core 통합
+description: 기존 ASP.NET Core 애플리케이션 안에서 HsSqlAgent.Server capability를 조합하고, 호스트의 기존 인증 또는 선택적 내장 Admin 환경을 사용합니다.
+sidebar:
+  group: 통합
+  order: 80
+---
+
+import Callout from "@/components/docs/mdx/Callout.astro";
+import CardGrid from "@/components/docs/mdx/CardGrid.astro";
+import DocCard from "@/components/docs/mdx/DocCard.astro";
+import Steps from "@/components/docs/mdx/Steps.astro";
+import Step from "@/components/docs/mdx/Step.astro";
+
+`HsSqlAgent.Server`는 임베드 가능한 ASP.NET Core class-library package입니다. 2.0.2의 새 통합은 options 없는 core에서 시작해 호스트가 실제로 필요한 capability를 명시적으로 선택합니다.
+
+<CardGrid columns={3}>
+  <DocCard title="Host auth + Admin API" icon="API" description="애플리케이션의 기존 Cookie/JWT/OIDC 로그인과 권한 체계를 유지합니다. hs-sql-agent frontend 또는 identity schema가 필수는 아닙니다." />
+  <DocCard title="필요할 때만 MCP" icon="MCP" description="/mcp machine-access surface를 사람/Admin authorization과 독립적으로 추가합니다." />
+  <DocCard title="내장 Admin 환경" icon="UI" description="호스트가 원할 때만 hs-sql-agent JWT/member/role identity와 패키지된 Admin UI를 활성화합니다." />
+</CardGrid>
+
+## 설치
+
+```bash
+dotnet add package HsSqlAgent.Server
+```
+
+## 자체 로그인과 권한 체계가 있는 기존 애플리케이션
+
+기존 ASP.NET Core 애플리케이션이 이미 authentication과 authorization을 갖고 있다면 이 임베딩 형태를 권장합니다.
+
+<Steps>
+  <Step title="호스트의 기존 authentication / authorization 설정 유지">
+
+```csharp
+builder.Services.AddAuthentication(/* your existing schemes */);
+
+builder.Services.AddAuthorization(options =>
+{
+    options.AddPolicy("SqlAgentAdmin", policy =>
+    {
+        policy.RequireAuthenticatedUser();
+        // Add your application's requirement/handler here when
+        // canonical hs-sql-agent permissions need to be evaluated.
+    });
+});
+```
+
+HsSqlAgent는 호스트의 default authentication scheme, authorization policy provider, default authorization policy를 교체하지 않습니다.
+  </Step>
+
+  <Step title="필요한 hs-sql-agent capability만 조합">
+
+```csharp
+var hs = builder.Services.AddHsSqlAgentCore();
+
+hs.AddHsSqlAgentRuntime();
+
+hs.AddHsSqlAgentAdminStore(options =>
+{
+    options.Provider = "Postgres";
+    options.ConnectionString =
+        builder.Configuration.GetConnectionString("HsSqlAgent")!;
+});
+
+hs.AddHsSqlAgentHostAuthorization("SqlAgentAdmin");
+hs.AddHsSqlAgentAdminApi();
+```
+
+이 mode에서는 `AddHsSqlAgentBuiltInAuth()`를 호출하지 마십시오. 대신 호스트에서 인증된 `HttpContext.User`를 사용합니다.
+  </Step>
+
+  <Step title="ASP.NET Core pipeline은 호스트가 소유">
+
+```csharp
+var app = builder.Build();
+
+app.UseAuthentication();
+app.UseAuthorization();
+
+app.UseHsSqlAgentAdminApi();
+app.MapControllers();
+
+app.Run();
+```
+
+`UseHsSqlAgentAdminApi()`는 호스트 대신 `MapControllers()`를 호출하지 않습니다. ASP.NET Core controller endpoint mapping은 계속 애플리케이션이 결정합니다.
+  </Step>
+</Steps>
+
+Host-authorization mode에서는 HsSqlAgent가 내장 `AuthController`, `MemberController`, `RoleController`를 게시하지 않으며 HsSqlAgent identity schema도 설치하지 않습니다. 따라서 JWT, SMTP, password-reset, OIDC option이 필요하지 않습니다.
+
+HsSqlAgent Admin permission filter는 `HsSqlAgentPermissionResource.Permissions`를 통해 요청된 stable canonical permission key를 설정된 host policy에 전달합니다. 호스트는 Admin 역할 같은 coarse policy만 검사할 수도 있고, 해당 key를 자체 fine-grained permission model에 매핑할 수도 있습니다.
+
+<Callout type="info" title="Canonical permission은 route path가 아닙니다">
+`/runtime/db-management.edit`, `/auth/role.view` 같은 identifier는 안정적인 authorization resource입니다. Frontend navigation 및 HTTP mount path와 의도적으로 독립되어 있습니다.
+</Callout>
+
+## MCP를 독립적으로 추가
+
+MCP는 별도의 machine-access security boundary입니다. 임베디드 애플리케이션에서 MCP server를 노출해야 할 때만 추가합니다.
+
+```csharp
+hs.AddHsSqlAgentMcp(options =>
+{
+    options.PublicEndpoint = "https://example.com/mcp";
+    options.HmacSecretKey = builder.Configuration["HMAC_KEY"]!; // >= 32 bytes
+});
+```
+
+애플리케이션을 build한 뒤 다음과 같이 매핑합니다.
+
+```csharp
+app.UseHsSqlAgentMcp();
+```
+
+MCP key, tool scope, table scope, rate limit, HMAC validation은 사람/Admin host-authorization policy와 독립적으로 동작합니다.
+
+## 원할 때만 내장 Admin identity 사용
+
+애플리케이션이 HsSqlAgent 자체 JWT/member/role model을 사용하려면 host authorization 대신 해당 capability를 명시적으로 선택합니다.
+
+```csharp
+var hs = builder.Services.AddHsSqlAgentCore();
+
+hs.AddHsSqlAgentRuntime();
+
+hs.AddHsSqlAgentAdminStore(options =>
+{
+    options.Provider = "Sqlite";
+    options.ConnectionString = "Data Source=hsagent.db";
+});
+
+hs.AddHsSqlAgentBuiltInAuth(options =>
+{
+    options.Jwt.SecretKey = builder.Configuration["JWT_KEY"]!; // >= 32 bytes
+});
+
+hs.AddHsSqlAgentAdminApi();
+```
+
+내장 authentication scheme은 `HsSqlAgent.Jwt`, `HsSqlAgent.ExternalCookie`, `HsSqlAgent.Oidc`라는 독립 이름을 사용하며 호스트 애플리케이션의 default가 되지 않습니다. Built-in identity와 host-authorization mode는 상호 배타적입니다.
+
+패키지된 Admin UI 역시 선택 사항입니다.
+
+```csharp
+app.UseHsSqlAgentAdminApi();
+app.MapControllers();
+app.UseHsSqlAgentAdminUi();
+```
+
+UI를 생략해도 호스트 애플리케이션의 자체 frontend에서 Admin API를 사용할 수 있습니다.
+
+## Capability별 option 소유권
+
+새 코드는 설정을 소유하는 capability에 option을 지정합니다.
+
+| Capability | 소유하는 설정 |
+| --- | --- |
+| `AddHsSqlAgentRuntime()` | bootstrap, operability, cache, rate limiting, security-policy sync, outbound-delivery sync, SQL concurrency, DML approval store |
+| `AddHsSqlAgentAdminStore()` | Admin database provider와 connection string |
+| `AddHsSqlAgentBuiltInAuth()` | JWT, password reset/SMTP, enterprise identity/OIDC |
+| `AddHsSqlAgentHostAuthorization()` | 기존 ASP.NET Core authorization policy로 delegation |
+| `AddHsSqlAgentMcp()` | public MCP endpoint와 MCP-key HMAC secret |
+| `AddHsSqlAgentAdminApi()` | HsSqlAgent administration controller 및 controller-scoped validation/exception mapping |
+| `AddHsSqlAgentTelemetry()` | Prometheus 및 OTLP 설정 |
+
+선택하지 않은 capability는 자기 option을 할당하거나 검증하지 않습니다. Modular API는 기존 default를 유지하며 host authorization을 선택했다고 해서 built-in JWT/OIDC/SMTP 구성을 요구하지 않습니다.
+
+<Callout type="warning" title="Secret은 실제 소유 capability가 검증합니다">
+Built-in authentication은 최소 32바이트 JWT secret을 요구하고 MCP는 최소 32바이트 HMAC secret을 요구합니다. 해당 capability를 선택하지 않았다면 그 secret도 필요하지 않습니다.
+</Callout>
+
+## 현재 HTTP surface
+
+| Surface | 현재 mount |
+| --- | --- |
+| MCP endpoint | `/mcp` |
+| Admin API prefix | `/api` |
+| Admin UI | `/` |
+
+2.0.2에서는 이 mount를 의도적으로 고정합니다. Routing, frontend base path/assets, callback, security boundary를 함께 이동할 수 있기 전에는 임의 relocation을 지원한다고 문서화하지 않습니다.
+
+## Legacy compatibility
+
+기존 package 사용자는 aggregate API를 계속 사용할 수 있습니다.
+
+```csharp
+builder.Services.AddHsSqlAgent(options =>
+{
+    // Existing aggregate configuration.
+});
+
+var app = builder.Build();
+app.UseHsSqlAgent().ServeAdminUi();
+```
+
+`HsSqlAgentServiceOptions`, `AddHsSqlAgent()`, `UseHsSqlAgent()`는 compatibility surface로 유지됩니다. 새 통합은 `AddHsSqlAgentCore()`와 명시적 capability registration을 우선하십시오.
+
+## 관련 문서
+
+<CardGrid columns={2}>
+  <DocCard title="설정 레퍼런스" icon="CFG" href="/ko/docs/operations/configuration" description="standalone 환경 변수와 임베디드 .NET 호스트의 capability별 option을 확인합니다." />
+  <DocCard title="배포" icon="OPS" href="/ko/docs/operations/deployment" description="운영 환경 hosting, secret, persistence, reverse proxy, 운영 지침을 확인합니다." />
+</CardGrid>
