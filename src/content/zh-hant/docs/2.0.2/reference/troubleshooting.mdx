@@ -10,15 +10,15 @@ sidebar:
 
 ## 本機可以連線，但產生的設定 URL 錯誤
 
-檢查 `MCP_PUBLIC_ENDPOINT`。它必須是外部用戶端實際可到達、包含 `/mcp` 的 HTTP / HTTPS 絕對 URL。如果反向代理讓 Admin UI 與 MCP 使用不同位置，不要直接拿 UI URL 猜 MCP endpoint。
+檢查 `MCP_PUBLIC_ENDPOINT`。它必須是外部用戶端實際可到達、包含 `/mcp` 的 HTTP / HTTPS 絕對 URL。如果反向代理讓管理介面與 MCP 使用不同位置，不要直接拿管理介面的 URL 猜 MCP 端點。
 
-## Query 可用，但 DML 被拒絕
+## 查詢可用，但 DML 被拒絕
 
-MCP 已連線成功不代表 Elicitation 一定可用。`execute_dml_sql` 與已發布的 DML Custom Tools 都需要 form Elicitation。請用實際使用的用戶端版本，同時驗證 Decline 與 Accept 兩條流程。
+MCP 已連線成功不代表 Elicitation 一定可用。`execute_dml_sql` 與已發布的 DML Custom Tools 都需要 form Elicitation。請用實際使用的用戶端版本，同時驗證拒絕（Decline）與接受（Accept）兩條流程。
 
 ## 重新啟動後，登入或 MFA 狀態失效
 
-檢查 `DATA_PROTECTION_KEY_PATH` 是否已持久化。如果每次替換 container 都換掉 ASP.NET Core data-protection keys，既有受保護的登入與 MFA 狀態可能無法解密。
+檢查 `DATA_PROTECTION_KEY_PATH` 是否已持久化。如果每次替換容器都換掉 ASP.NET Core data-protection keys，既有受保護的登入與 MFA 狀態可能無法解密。
 
 ## 多執行個體行為不一致
 
@@ -26,8 +26,8 @@ MCP 已連線成功不代表 Elicitation 一定可用。`execute_dml_sql` 與已
 
 ## Prometheus 不在應用程式連接埠
 
-啟用 Prometheus 後會使用獨立 listener；範例連接埠是 `9000`。不要預期 metrics 會自動出現在主要 API listener。
+啟用 Prometheus 後會使用獨立監聽端點；範例連接埠是 `9000`。不要預期指標會自動出現在主要 API 監聽端點。
 
 ## 資料庫 CLI 能執行的 SQL，卻被 hs-sql-agent 拒絕
 
-這可能是正常行為。Provider 支援範圍受編譯器契約約束；尚未能表示、或無法證明語意安全的 syntax / capability 會被拒絕，而不是直接把任意 vendor SQL 傳給資料庫執行。
+這可能是正常行為。Provider 支援範圍受編譯器契約約束；尚未能表示、或無法證明語意安全的語法或 capability 會被拒絕，而不是直接把任意供應商專屬 SQL 傳給資料庫執行。

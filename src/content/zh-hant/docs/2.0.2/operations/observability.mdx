@@ -20,7 +20,7 @@ HEALTH_PROBE_MAX_CONCURRENCY
 SLOW_QUERY_THRESHOLD_MS
 ```
 
-Health probe 為選配；`SLOW_QUERY_THRESHOLD_MS` 則用來定義查詢超過多久後要視為慢查詢並納入監控。
+健康探測為選配；`SLOW_QUERY_THRESHOLD_MS` 則用來定義查詢超過多久後要視為慢查詢並納入監控。
 
 ## Prometheus 與 OTLP
 
@@ -39,7 +39,7 @@ OTLP_ENDPOINT=
 OTEL_SERVICE_NAME=hs-sql-agent
 ```
 
-Prometheus 適合由監控系統主動 scrape 指標；如果部署架構中已有 collector，則可透過 OTLP 匯出遙測資料。
+Prometheus 適合由監控系統定期抓取（scrape）指標；如果部署架構中已有 OpenTelemetry Collector，則可透過 OTLP 匯出遙測資料。
 
 ## 告警與 SIEM 外送
 

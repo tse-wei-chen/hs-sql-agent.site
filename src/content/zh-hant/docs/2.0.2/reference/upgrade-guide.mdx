@@ -18,27 +18,27 @@ import Step from "@/components/docs/mdx/Step.astro";
   <DocCard title="行為契約" icon="MCP" description="升級後重新驗證用戶端傳輸、SQL capability、金鑰範圍與 DML Elicitation。" />
 </CardGrid>
 
-文件版本化從 **2.0.1** 開始，本站刻意不提供更早版本的升級矩陣。本頁定義的是「離開 2.0.1 基準」時應做的維運檢查；目標版本特有的 breaking changes，應以該版本自己的文件為準。
+文件版本化從 **2.0.1** 開始，本站刻意不提供更早版本的升級矩陣。本頁定義的是「離開 2.0.1 基準」時應做的維運檢查；目標版本特有的不相容變更，應以該版本自己的文件為準。
 
-<Callout type="warning" title="不要從本頁推測未來版本的 migration requirements">
-升級前一定要閱讀目標版本的 release notes 與文件。如果後續版本改了儲存結構、設定、SQL capability 或 API 契約，以該版本說明為準。
+<Callout type="warning" title="不要從本頁推測未來版本的遷移需求">
+升級前一定要閱讀目標版本的版本說明與文件。如果後續版本改了儲存結構、設定、SQL capability 或 API 契約，以該版本說明為準。
 </Callout>
 
 ## 切換執行版本前
 
 <Steps>
-  <Step title="記錄目前部署" description="保存精確的 hs-sql-agent / container / package 版本、拓樸、管理資料庫 provider 與共用狀態 provider。" />
-  <Step title="備份控制平面狀態" description="在新 binary 有機會修改持久狀態之前，先建立可還原的管理資料庫備份。" />
-  <Step title="保存受保護的 key material" description="確認 HMAC_KEY、JWT_KEY、webhook secrets 與 DATA_PROTECTION_KEY_PATH 內容都能讓新部署繼續使用。" />
-  <Step title="比對設定差異" description="把目標版本的範例與 options 跟目前 2.0.1 正式環境設定逐項比對，不要直接用新 sample 覆蓋正式設定值。" />
+  <Step title="記錄目前部署" description="保存精確的 hs-sql-agent、容器或套件版本、拓樸、管理資料庫 provider 與共用狀態 provider。" />
+  <Step title="備份控制平面狀態" description="在新版程式有機會修改持久狀態之前，先建立可還原的管理資料庫備份。" />
+  <Step title="保存受保護的金鑰資料" description="確認 HMAC_KEY、JWT_KEY、webhook 密鑰與 DATA_PROTECTION_KEY_PATH 內容都能讓新部署繼續使用。" />
+  <Step title="比對設定差異" description="把目標版本的範例與 options 跟目前 2.0.1 正式環境設定逐項比對，不要直接用新範例覆蓋正式設定值。" />
   <Step title="盤點整合項目" description="列出 MCP 用戶端、Custom Tools、OIDC、SMTP、webhooks / SIEM、Prometheus / OTLP、Redis / 共用狀態、反向代理，以及外部 Admin API 使用者。" />
 </Steps>
 
 ## 不應在升級時隨意重新產生的狀態
 
-### HMAC / JWT secrets
+### HMAC / JWT 密鑰
 
-`HMAC_KEY` 參與 MCP 金鑰驗證，`JWT_KEY` 用於管理端身分驗證 token。Secret rotation 應該是明確的安全性遷移，不應只是部署新 image 時順便發生的副作用。
+`HMAC_KEY` 參與 MCP 金鑰驗證，`JWT_KEY` 用於管理端身分驗證 token。密鑰輪替應該是明確的安全性遷移，不應只是部署新映像檔時順便發生的副作用。
 
 ### Data-protection key ring
 
@@ -68,10 +68,10 @@ import Step from "@/components/docs/mdx/Step.astro";
 
 <Steps>
   <Step title="管理端身分驗證" description="登入並確認預期角色與權限；若有啟用，也要驗證 OIDC / MFA。" />
-  <Step title="資料庫連線" description="對實際使用的 providers 驗證受管理連線與 schema 中繼資料瀏覽。" />
+  <Step title="資料庫連線" description="對實際使用的 provider 驗證受管理連線與 schema 中繼資料瀏覽。" />
   <Step title="MCP 金鑰範圍" description="確認代表性金鑰仍對應正確資料庫、工具、資料表白名單與實際生效限制。" />
   <Step title="唯讀 SQL" description="執行代表性的已支援查詢形式，確認編譯器與輸出行為。" />
-  <Step title="Safe DML" description="使用非正式環境目標，同時測試 Decline / Accept Elicitation，確認提交前後行為。" />
+  <Step title="Safe DML" description="使用非正式環境目標，同時測試拒絕（Decline）與接受（Accept）Elicitation，確認提交前後行為。" />
   <Step title="維運" description="檢查稽核、健康狀態、金鑰使用、遙測匯出與外送狀態。" />
 </Steps>
 
@@ -81,14 +81,14 @@ import Step from "@/components/docs/mdx/Step.astro";
 
 ## API 使用者
 
-2.0.1 Admin controllers 沒有放在版本化的 `/v1` 契約下。如果外部自動化直接呼叫 Admin HTTP routes，路由、request 與 response 相容性都必須列入升級測試。
+2.0.1 Admin controllers 沒有放在版本化的 `/v1` 契約下。如果外部自動化直接呼叫 Admin HTTP routes，路由、請求與回應相容性都必須列入升級測試。
 
 請見 [Admin HTTP API 參考](/zh-hant/docs/reference/api-reference)。
 
 ## 回復規劃
 
-<Callout type="danger" title="Binary rollback 不等於資料 rollback">
-如果新版本改了持久化的控制平面 schema 或狀態，直接把舊 binary 接回已修改的資料庫不一定安全。請保留升級前的資料庫備份，並遵循目標版本提供的 rollback guidance。
+<Callout type="danger" title="回復舊版程式不等於資料回復">
+如果新版本改了持久化的控制平面 schema 或狀態，直接把舊版程式接回已修改的資料庫不一定安全。請保留升級前的資料庫備份，並遵循目標版本提供的回復指引。
 </Callout>
 
-實際上線時，應保留舊部署 artifacts / configuration、升級前的管理資料庫備份，以及受保護的 key material，直到新版本完成必要的功能與維運 smoke test。
+實際上線時，應保留舊版部署成品與設定、升級前的管理資料庫備份，以及受保護的金鑰資料，直到新版本完成必要的功能與維運基本驗證（smoke test）。

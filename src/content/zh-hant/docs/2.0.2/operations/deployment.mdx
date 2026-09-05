@@ -18,20 +18,20 @@ sidebar:
 MCP_PUBLIC_ENDPOINT=https://sql-agent.example.com/mcp
 ```
 
-不要假設它一定和 Admin UI 使用相同 origin；反向代理可能把兩者配置在不同 host、port 或 path。
+不要假設它一定和管理介面使用相同來源（origin）；反向代理可能把兩者配置在不同主機、連接埠或路徑。
 
 ## 密鑰與憑證
 
-把範例中的 HMAC / JWT key 換成彼此獨立、至少 32 bytes 的唯一密鑰。資料庫憑證、SMTP 憑證、OIDC client secret、webhook signing secret 與 Redis connection string 都不應提交到版本控制。
+把範例中的 HMAC / JWT 密鑰換成彼此獨立、至少 32 bytes 的唯一值。資料庫憑證、SMTP 憑證、OIDC 用戶端密鑰、webhook 簽章密鑰與 Redis 連線字串都不應提交到版本控制。
 
 ## 持久保存控制平面狀態
 
-預設 SQLite 管理資料庫位於 `/app/data`。如果使用內嵌的本機控制平面，container 被替換後仍必須保留這些資料。
+預設 SQLite 管理資料庫位於 `/app/data`。如果使用內嵌的本機控制平面，容器被替換後仍必須保留這些資料。
 
-如果 OIDC / TOTP 或其他受保護狀態使用 ASP.NET Core data protection，也要持久保存 `DATA_PROTECTION_KEY_PATH`；遺失 key material 可能讓既有 MFA 或登入狀態無法讀取。
+如果 OIDC / TOTP 或其他受保護狀態使用 ASP.NET Core data protection，也要持久保存 `DATA_PROTECTION_KEY_PATH`；遺失金鑰資料可能讓既有 MFA 或登入狀態無法讀取。
 
 ## 可觀測性
 
-Prometheus 可以在獨立 listener 啟用；範例使用 `9000`，和主要 API 連接埠分開。也可以透過 `OTLP_ENDPOINT` 設定 collector，並使用 `OTEL_SERVICE_NAME` 指定 service name。
+Prometheus 可以在獨立監聽端點啟用；範例使用 `9000`，和主要 API 連接埠分開。也可以透過 `OTLP_ENDPOINT` 設定 OpenTelemetry Collector，並使用 `OTEL_SERVICE_NAME` 指定服務名稱。
 
 若要部署多個執行個體，請改看 [分散式部署](/zh-hant/docs/operations/distributed-deployment)。
