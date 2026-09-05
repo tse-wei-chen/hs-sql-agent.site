@@ -1,0 +1,104 @@
+---
+title: MCP キー
+description: hs-sql-agent 2.0.1 の MCP 認証情報を発行し、スコープ設定、ローテーション、複製、失効を管理します。
+sidebar:
+  group: 管理
+  order: 74
+---
+
+import Callout from "@/components/docs/mdx/Callout.astro";
+import CardGrid from "@/components/docs/mdx/CardGrid.astro";
+import DocCard from "@/components/docs/mdx/DocCard.astro";
+import Steps from "@/components/docs/mdx/Steps.astro";
+import Step from "@/components/docs/mdx/Step.astro";
+
+<CardGrid columns={3}>
+  <DocCard title="データベース境界" icon="DB" description="本番用キーはすべて Database Management のエントリに紐付けます。" />
+  <DocCard title="ツール境界" icon="T" description="クライアントに必要な組み込みツールと公開済み Custom Tool だけを許可します。" />
+  <DocCard title="テーブル境界" icon="▦" description="必要に応じて、完全修飾テーブル名の明示的なホワイトリストに制限します。" />
+</CardGrid>
+
+MCP キーは `/mcp` リクエストの認証に使われ、hs-sql-agent がランタイム認可に利用するスコープを持ちます。管理ユーザーのセッションや OIDC ID とは別の認証境界です。
+
+## 2.0.1 の正式な組み込みツールサーフェス
+
+キー管理サービスが認識する組み込みツールは 5 つです。
+
+| ツール | スコープ |
+| --- | --- |
+| `get_schemas` | スキーマ探索 |
+| `get_tables` | テーブル探索 |
+| `get_columns` | カラム探索 |
+| `execute_query_sql` | 統制された `SELECT` 実行 |
+| `execute_dml_sql` | 統制された Safe DML |
+
+同じデータベース向けに公開済みの Custom Tool も名前で選択できます。詳しくは [カスタムツール](/ja/docs/administration/custom-tools) を参照してください。
+
+<Callout type="info" title="ツールスコープが空の場合は『ツールなし』ではなく『無制限』です">
+ランタイムでは、`AllowedTools` が空の場合をツール名による制限なしとして扱います。本番エージェントでは、無制限の状態に頼らず、クライアントに必要な最小限のツールを明示的に選択してください。
+</Callout>
+
+## キーを発行する
+
+<Steps>
+  <Step title="名前を決める" description="名前は必須で、最大 100 文字です。" />
+  <Step title="データベースを紐付ける" description="2.0.1 の発行バリデーターでは DbManagementId が必須です。" />
+  <Step title="ツールを選択する" description="組み込みツールと、そのデータベース向けに公開済みの Custom Tool を選びます。" />
+  <Step title="データアクセスを制限する" description="クライアントが紐付け先データベースの一部だけを参照すべき場合は、テーブルホワイトリストを有効にします。" />
+  <Step title="ライフサイクル制御を設定する" description="必要に応じて有効期限、CORS オリジン、レート制限モード／上書き値を設定します。" />
+  <Step title="平文シークレットをコピーする" description="ライフサイクルダイアログを閉じる前に、新しく発行されたキーをクライアントのシークレットストアへ保存します。" />
+</Steps>
+
+## 発行時のフィールド
+
+| フィールド | 意味 |
+| --- | --- |
+| `Name` | 運用者向けのキー名 |
+| `ExpiresAt` | 任意の有効期限。指定する場合は未来の日時である必要があります |
+| `AllowedTools` | カンマ区切りのツール名。空の場合は無制限 |
+| `CorsAllowedOrigins` | ブラウザー起点の MCP リクエストに対する任意のオリジン制限 |
+| `DbManagementId` | 紐付け先データベース。発行時は必須 |
+| `TableWhitelist` | 任意の完全修飾テーブル名ホワイトリスト（カンマ区切り） |
+| `RateLimitMode` | `Inherit`、`Custom`、`Unlimited` |
+| `PermitLimitOverride` | キー単位のカスタムレート制限に使用 |
+| `WindowSecondsOverride` | キー単位のカスタムレート制限に使用 |
+
+保存されたキーのレコードに表示されるのは識別用の短い prefix だけです。生のシークレットはサーバーの HMAC シークレットを使って検証され、後から再表示する用途では保存されません。
+
+## キーをローテーションする
+
+ローテーションでは、古いキーのデータベース／ツール／テーブル／CORS／レート制限スコープを引き継いだ置換用キーを作成します。
+
+運用者は `0`～`1440` 分の猶予期間を指定できます。
+
+- `0` の場合、古いキーは直ちに失効します。
+- 正の値を指定すると、必要に応じて古いキーの有効期限を猶予期間の終了時刻まで短縮します。
+- 置換用キーには、新しく生成された別の平文シークレットが割り当てられます。
+
+<Callout type="tip" title="ローテーションはシークレット交換に使い、スコープ変更を紛れ込ませないでください">
+新しいクライアントに大きく異なるデータベース境界やテーブル境界を与える場合は、通常のシークレットローテーションとして扱わず、その変更を明示的にレビューしてください。
+</Callout>
+
+## キーを複製する
+
+複製では、ランタイムスコープをコピーしつつ、新しい名前とシークレットを持つキーを作成します。同等の権限が必要でも、2 つのクライアントで同じ認証情報を共有したくない場合に有効です。
+
+複製したキーは独立したライフサイクルを持つため、元のキーを無効化せずに失効・ローテーションできます。
+
+## キーを失効する
+
+失効するとキーを非アクティブにし、変更をコミットする前に検証キャッシュ経路へ失効 tombstone を書き込みます。これは、直前に失効した認証情報が古いキャッシュ状態によって引き続き検証されることを防ぐための仕組みです。
+
+Bootstrap 管理のキーは通常のライフサイクルメソッドでは編集、ローテーション、失効できません。ライフサイクルは bootstrap 設定側で管理します。
+
+## レート制限の動作
+
+キーは、ランタイムのキー用レート制限ポリシーを継承する、独自の上書き値を設定する、または明示的に無制限にすることができます。管理画面の一覧には、キーのモードと現在のセキュリティポリシーを組み合わせた実効レート制限も表示されます。
+
+複数インスタンスで運用する場合、ノード間で制限を共有する必要があれば分散レートリミッター設定を使用してください。
+
+## DML と Elicitation
+
+`execute_dml_sql` を許可すると、クライアント側の互換性要件が変わります。MCP クライアントは、対話的な更新承認で使用する form Elicitation フローをサポートしている必要があります。
+
+新しいクライアントに DML を許可する前に、[MCP クライアントの接続](/ja/docs/mcp/client-onboarding) を確認してください。

@@ -1,0 +1,95 @@
+---
+title: 監査
+description: 管理コントロールプレーンから hs-sql-agent 2.0.1 の監査レコードを検索、集計、エクスポートし、保持ポリシーを適用します。
+sidebar:
+  group: 管理
+  order: 80
+---
+
+import Callout from "@/components/docs/mdx/Callout.astro";
+import CardGrid from "@/components/docs/mdx/CardGrid.astro";
+import DocCard from "@/components/docs/mdx/DocCard.astro";
+
+<CardGrid columns={3}>
+  <DocCard title="検索" icon="Q" description="action、result、actor、時間範囲、データベース、MCP キー、ツール、キーワードでイベントを絞り込みます。" />
+  <DocCard title="エクスポート" icon="EXP" description="専用の export 権限を使い、絞り込んだ監査データを CSV または JSON で出力します。" />
+  <DocCard title="保持" icon="RET" description="ポリシーを確認し、dry-run で対象期間を検証してから、Archive または Purge を明示的に実行します。" />
+</CardGrid>
+
+監査画面は、セキュリティ活動とランタイム活動を記録するコントロールプレーン上の履歴です。主用途は調査と運用レビューであり、アプリケーションログの主ストリームとして設計されたものではありません。
+
+## 監査レコードの構造
+
+2.0.1 の監査項目には、次のフィールドが含まれる場合があります。
+
+| 領域 | フィールド |
+| --- | --- |
+| ID | `ActorType`, `ActorId`, `IpAddress`, `UserAgent` |
+| イベント | `EventId`, `Action`, `Target`, `Detail`, `Result`, `CreatedAt` |
+| リクエスト／セッション | `RequestId`, `SessionId` |
+| SQL スコープ | `AccessKeyId`, `DbManagementId`, `DatabaseName`, `ToolName`, `Operation` |
+| 実行 | `DurationMs`, `ReturnedRows`, `AffectedRows` |
+| DML／エラー | `ApprovalStatus`, `ErrorCategory`, `Definition` |
+
+すべてのイベントが全フィールドを持つわけではありません。管理アカウントの変更、MCP SQL 実行、DML 承認イベント、ランタイム配信では、それぞれ自然に記録されるコンテキストが異なります。
+
+## 監査イベントを絞り込む
+
+`GET /api/runtime/audit` はページングに対応し、次のフィルターを利用できます。
+
+- `action`
+- `keyword`
+- `from` / `to`
+- `result`
+- `actor`
+- `dbManagementId`
+- `accessKeyId`
+- `toolName`
+
+既定ではページ `1`、1 ページあたり `20` 件です。
+
+## 日次サマリー
+
+`GET /api/runtime/audit/daily-summary` は日単位の活動集計を返します。既定の対象期間は 7 日間で、個別レコードを詳しく調べる前に大きな変化を把握する用途に適しています。
+
+## エクスポート
+
+監査データのエクスポートは、独立した認可 capability です。
+
+| 操作 | 権限 |
+| --- | --- |
+| 検索／サマリー／保持状態の確認 | `/runtime/audit` → `view` |
+| CSV または JSON のエクスポート | `/runtime/audit` → `export` |
+| 保持の dry-run／実行 | `/runtime/audit` → `edit` |
+
+エクスポートエンドポイントは `format=csv` または `format=json` を受け付けます。2.0.1 では、100,000 行を超えるエクスポートを無制限にダウンロードしようとせず、要求を拒否します。
+
+<Callout type="info" title="CSV エクスポートでは表計算ソフト向けのセルを保護します">
+`=`、`+`、`-`、`@` など、表計算ソフトで数式として解釈される文字から始まる CSV 値にはエクスポート時に prefix を追加し、ファイルを表計算ソフトで開いた際の formula injection リスクを低減します。
+</Callout>
+
+## 保持ワークフロー
+
+ランタイムの保持ポリシーでは、保持機能の有効／無効、日数、モード、UTC での実行時刻を確認できます。
+
+運用時は次の順序で進めてください。
+
+1. 現在の保持ポリシーを確認します。
+2. dry-run エンドポイントで cutoff と対象件数を確認します。
+3. 想定したモードと件数であることを確かめます。
+4. レビュー後にだけ保持処理を実行します。
+
+2.0.1 のランタイムで有効なモードは次のとおりです。
+
+- `Archive` — 期限切れレコードを設定済み archive path へ書き出してから、Admin データベースから削除します。
+- `Purge` — archive を作成せず、期限切れレコードを削除します。
+
+`AUDIT_RETENTION_DAYS=0` の場合、自動保持は無効になり、明示的な保持処理の実行も拒否されます。
+
+<Callout type="warning" title="破壊的な保持処理の前に dry-run を実行してください">
+Archive モードでも、保持処理の実行は破壊的な運用操作として扱ってください。手動実行する前に cutoff、対象件数、archive の保存先、バックアップ方針を確認してください。
+</Callout>
+
+## 監査とテレメトリは補完関係です
+
+監査レコードは、**誰が、どの統制対象リソースに対して、何を行い、どの結果になったか**を確認するためのものです。メトリクスとトレースは、ランタイムの健全性や性能を把握するためのものです。これらについては [運用状態](/ja/docs/administration/operability) と [オブザーバビリティ](/ja/docs/operations/observability) を参照してください。

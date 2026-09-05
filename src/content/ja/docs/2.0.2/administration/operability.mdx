@@ -1,0 +1,91 @@
+---
+title: 運用状態
+description: hs-sql-agent 2.0.1 のランタイム実行メトリクス、データベースヘルス、MCP キー利用状況、外向き配信を確認します。
+sidebar:
+  group: 管理
+  order: 84
+---
+
+import Callout from "@/components/docs/mdx/Callout.astro";
+import CardGrid from "@/components/docs/mdx/CardGrid.astro";
+import DocCard from "@/components/docs/mdx/DocCard.astro";
+
+<CardGrid columns={2}>
+  <DocCard title="実行メトリクス" icon="P95" description="Query/DML 件数、成功率、サンプリングされたレイテンシ、スロークエリ数、レート制限による拒否を確認します。" />
+  <DocCard title="データベースヘルス" icon="DB" description="直近プローブの状態、レイテンシ、連続失敗回数、障害開始時刻、最新のプロバイダーエラーを確認します。" />
+  <DocCard title="MCP キー利用状況" icon="KEY" description="リクエスト数、成功／失敗、最終利用時刻、キー単位のレート制限拒否率を確認します。" />
+  <DocCard title="外向き配信" icon="OUT" description="Webhook／SIEM 配信状態を確認し、権限があれば失敗中・保留中のレコードを再試行します。" />
+</CardGrid>
+
+運用状態は、**統制されたランタイムが今どのように動いているか**を把握するための管理画面です。個々のセキュリティ／実行イベントを追う Audit や、外部システムへテレメトリを送る OpenTelemetry／Prometheus を補完します。
+
+## 実行メトリクス
+
+メトリクスエンドポイントでは次の情報を取得できます。
+
+- Query / DML 件数
+- 成功／失敗件数と成功率
+- p50 / p95 レイテンシ
+- レイテンシのサンプル数とサンプリング有無
+- スロークエリ件数
+- IP レート制限件数
+- MCP キーのレート制限件数
+
+時間範囲、データベース、アクセスキー、ツール名で絞り込みできます。
+
+<Callout type="info" title="サンプリングされたレイテンシは、その前提で読み取ってください">
+レスポンスにはサンプル数とサンプリング有無が明示されます。ランタイムがサンプリングを使用している場合、p50/p95 を全実行の完全なレイテンシ分布として解釈しないでください。
+</Callout>
+
+## データベースヘルス
+
+各管理対象接続のヘルス項目には、次の運用状態が含まれます。
+
+| フィールド | 意味 |
+| --- | --- |
+| `Status` | 現在のヘルス状態 |
+| `LastCheckedAt` | 最新のプローブ時刻 |
+| `LastSuccessAt` | 最新の成功プローブ |
+| `LatencyMs` | 取得できた場合のプローブレイテンシ |
+| `ConsecutiveFailures` | 現在の連続失敗回数 |
+| `OutageStartedAt` | 判明している場合の現在の障害開始時刻 |
+| `LastError` | 最新のプロバイダー／プローブエラー |
+
+ヘルスプローブは `HEALTH_PROBE_*` 設定で制御されます。バックグラウンドプローブを無効にしている場合、この画面を継続更新される外部監視システムと同じものとして扱わないでください。
+
+## MCP キー利用状況
+
+キー利用状況には、キーの ID／名前、最終利用時刻、リクエスト数、成功／失敗、レート制限件数、レート制限拒否率が含まれます。
+
+古くなった認証情報、想定以上に大量リクエストを出すエージェント、設定した上限へ頻繁に到達するキーの特定に利用できます。スコープや上限を変更する前に [MCP キー](/ja/docs/administration/mcp-keys) を確認してください。
+
+## 外向き配信
+
+ランタイムは、設定済みのアラート／SIEM Webhook などの外向き配信試行を記録します。配信項目には次が含まれます。
+
+- カテゴリと状態
+- 試行回数
+- 作成／配信／最終試行時刻
+- 最新エラー
+
+一覧エンドポイントの `limit` の既定値は `100` です。
+
+## 配信を再試行する
+
+| 操作 | 権限 |
+| --- | --- |
+| メトリクス／DB ヘルス／キー利用状況／配信一覧 | `/runtime/operability` → `view` |
+| 配信の再試行 | `/runtime/operability` → `edit` |
+
+再試行は明示的な運用操作です。一時的な宛先／ネットワーク障害を修正した後には有効ですが、無効なエンドポイント、シークレット、下流サービスを直さずに繰り返し再試行する代替手段ではありません。
+
+<Callout type="warning" title="配信を再試行すると、イベントが再送される可能性があります">
+再試行前に、宛先が重複配信や遅延配信を許容できること、また元の配信が成功していたにもかかわらずローカル状態だけ更新されなかった可能性がないことを確認してください。
+</Callout>
+
+## 次に確認する場所
+
+- [監査](/ja/docs/administration/audit) — 実際の actor/action/result と SQL 実行コンテキスト
+- [セキュリティポリシー](/ja/docs/administration/security-policies) — 拒否の原因になりうるランタイム制限
+- [オブザーバビリティ](/ja/docs/operations/observability) — Prometheus、OTLP、トレース、外部テレメトリ連携
+- [分散デプロイ](/ja/docs/operations/distributed-deployment) — 複数ノードで制限／状態を共有する場合の調整

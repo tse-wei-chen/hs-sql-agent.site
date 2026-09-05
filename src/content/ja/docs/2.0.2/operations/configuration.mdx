@@ -1,0 +1,248 @@
+---
+title: 設定リファレンス
+description: hs-sql-agent 2.0.2 のソースに基づく環境変数とランタイム設定のリファレンスです。
+sidebar:
+  group: 運用
+  order: 90
+---
+
+import Callout from "@/components/docs/mdx/Callout.astro";
+import CardGrid from "@/components/docs/mdx/CardGrid.astro";
+import DocCard from "@/components/docs/mdx/DocCard.astro";
+
+<CardGrid columns={3}>
+  <DocCard title="単一インスタンス" icon="1" description=".env.example から始め、状態共有が必要になるまではプロセスローカル provider を使います。" />
+  <DocCard title="分散構成" icon="N" description="Postgres のコントロールプレーンと Redis-backed cache、limit、policy sync、delivery sync、SQL concurrency を使用します。" />
+  <DocCard title="組み込み .NET" icon=".NET" description="新規統合では capability ごとの options を設定します。HsSqlAgentServiceOptions は従来の aggregate API 互換用にのみ残されています。" />
+</CardGrid>
+
+リポジトリに含まれる **v2.0.2 `.env.example`** が、既定の Compose deployment で使用する環境変数一覧です。このページでは環境変数名についてそのファイルに従い、コメントと validation が食い違う場合は v2.0.2 の実行コードを基準にします。
+
+<Callout type="warning" title="本番起動前に実際のシークレットを生成してください">
+`HMAC_KEY` と `JWT_KEY` はそれぞれ 32 バイト以上で、一意な値にしてください。リポジトリ内の値は placeholder です。Webhook URL を有効にする場合、その Webhook secret も 32 バイト以上必要です。
+</Callout>
+
+## アプリケーションとコントロールプレーン
+
+| 変数 | `.env.example` の例／既定値 | 用途 |
+| --- | --- | --- |
+| `ASPNETCORE_URLS` | `http://+:8080` | メイン ASP.NET Core listener |
+| `ALLOWED_HOSTS` | `*` | ASP.NET Core host filtering |
+| `ADMIN_DATABASE_PROVIDER` | `Sqlite` | Admin / control-plane database provider |
+| `ADMIN_DATABASE_CONNECTION_STRING` | `Data Source=/app/data/hsqlagent.db` | account、role、key、audit record、policy などの control-plane state を保存 |
+| `HMAC_KEY` | placeholder | 発行済み MCP key を保護・検証する HMAC secret。32 バイト以上 |
+| `MCP_PUBLIC_ENDPOINT` | `http://localhost:8080/mcp` | 生成される MCP client config に埋め込む絶対 URL |
+
+`MCP_PUBLIC_ENDPOINT` は絶対 HTTP / HTTPS URL である必要があります。本番では内部 container address ではなく、**クライアントが実際に到達できる** `/mcp` を含む URL を設定してください。
+
+### Admin database topology
+
+単一インスタンスの例では SQLite、分散構成では PostgreSQL を使用します。
+
+```text
+ADMIN_DATABASE_PROVIDER=Postgres
+ADMIN_DATABASE_CONNECTION_STRING=Host=postgres;Port=5432;Database=hsqlagent;Username=postgres;Password=...
+```
+
+複数の hs-sql-agent インスタンスで同じ ID、key、policy、audit / control-plane record を参照する必要がある場合は、共有 Admin database を使用してください。
+
+## Cache
+
+| 変数 | 単一インスタンス例 | 分散構成例 | 用途 |
+| --- | --- | --- | --- |
+| `CACHE_PROVIDER` | `Memory` | `Redis` | runtime cache provider |
+| `CACHE_CONNECTION_STRING` | 空 | `redis:6379` | Redis 選択時の connection |
+| `CACHE_KEY_PREFIX` | `hsqlagent:cache:` | 同じ | cache key の namespace |
+
+プロセスローカル `Memory` が適切なのは、application instance 間で cache state を共有する必要がない場合だけです。
+
+## Bootstrap / 自動プロビジョニング
+
+| 変数 | 例 | 用途 |
+| --- | --- | --- |
+| `BOOTSTRAP_ENABLED` | `false` | 起動時 provisioning / synchronization を有効化 |
+| `BOOTSTRAP_DB_ID` | `default-db` | 初期 database の安定した bootstrap ID |
+| `BOOTSTRAP_DB_NAME` | `Default DB` | 管理画面向け database 名 |
+| `BOOTSTRAP_DB_PROVIDER` | 空 | provision する provider |
+| `BOOTSTRAP_DB_HOST` | `localhost` | database host |
+| `BOOTSTRAP_DB_PORT` | `5432` | database port |
+| `BOOTSTRAP_DB_DATABASE` | `mydb` | database / catalog / file 値 |
+| `BOOTSTRAP_DB_USERNAME` | `myuser` | database username |
+| `BOOTSTRAP_DB_PASSWORD` | `mypassword` | database password |
+| `BOOTSTRAP_DB_EXTRA_SETTINGS` | 空 | provider 固有 connection setting |
+| `BOOTSTRAP_MCP_KEY_ID` | `default-key` | 初期 MCP key の安定した bootstrap ID |
+| `BOOTSTRAP_MCP_KEY_NAME` | `Default MCP Key` | 管理画面向け key 名 |
+| `BOOTSTRAP_MCP_KEY` | placeholder | 初期 raw key value |
+| `BOOTSTRAP_MCP_ALLOWED_TOOLS` | 空 | bootstrap key の tool restriction |
+
+Bootstrap 管理の MCP key は、通常の key lifecycle から編集、ローテーション、失効できないよう意図的に制限されています。変更する場合は元の bootstrap 設定を修正してください。
+
+## Admin 認証
+
+| 変数 | 例 | 用途 |
+| --- | --- | --- |
+| `JWT_KEY` | placeholder | JWT signing secret。32 バイト以上 |
+| `JWT_ISS` | `HS-Agent` | JWT issuer |
+| `JWT_AUD` | `HS-Agent-Users` | JWT audience |
+| `JWT_ACCESS_TOKEN_EXPIRATION_MINUTES` | `10` | access token lifetime |
+| `JWT_REFRESH_TOKEN_EXPIRATION_DAYS` | `1` | refresh token lifetime |
+| `AUTH_LOCKOUT_THRESHOLD` | `5` | 一時 lockout までの sign-in 失敗回数。1 未満は 1 として扱う |
+| `AUTH_LOCKOUT_MINUTES` | `15` | 一時 lockout の時間 |
+
+これらは Admin 認証を制御する設定であり、MCP key 認証の設定ではありません。
+
+## Password reset と SMTP
+
+SMTP host または sender が空の場合、password-reset mail は実質的に無効です。
+
+| 変数 | 例 | 用途 |
+| --- | --- | --- |
+| `PASSWORD_RESET_BASE_URL` | `http://localhost:3000/reset-password` | 外部から到達可能な reset page。server が `?token=...` を追加 |
+| `PASSWORD_RESET_EXPIRATION_MINUTES` | `30` | one-time reset token lifetime |
+| `SMTP_HOST` | `smtp.example.com` | SMTP host |
+| `SMTP_PORT` | `587` | SMTP port |
+| `SMTP_ENABLE_SSL` | `true` | mail sender が使う SSL/STARTTLS behavior |
+| `SMTP_USERNAME` | example | SMTP credential |
+| `SMTP_PASSWORD` | example | SMTP credential |
+| `SMTP_FROM` | `no-reply@example.com` | SMTP provider が受け付ける sender address |
+
+## OIDC / SSO と MFA
+
+| 変数 | 例 | 用途 |
+| --- | --- | --- |
+| `OIDC_ENABLED` | `false` | OIDC authentication を有効化 |
+| `OIDC_AUTHORITY` | 空 | identity-provider authority |
+| `OIDC_CLIENT_ID` | 空 | OIDC client ID |
+| `OIDC_CLIENT_SECRET` | 空 | OIDC client secret |
+| `OIDC_REQUIRE_HTTPS_METADATA` | `true` | HTTPS discovery metadata を必須化 |
+| `OIDC_EMAIL_CLAIM` | `email` | email claim 名 |
+| `OIDC_NAME_CLAIM` | `name` | display-name claim |
+| `OIDC_ROLE_CLAIM` | `roles` | role claim |
+| `OIDC_EMAIL_VERIFIED_CLAIM` | `email_verified` | verified-email claim |
+| `OIDC_REQUIRE_VERIFIED_EMAIL` | `true` | 設定済み claim に基づき未検証 email の ID を拒否 |
+| `OIDC_SCOPE_0..2` | `openid`, `profile`, `email` | 既定 scope |
+| `OIDC_ROLE_MAPPING_SQL_ADMINS` | `SuperUser` | 外部 role → ローカル role の mapping 例 |
+| `OIDC_AUTO_PROVISION` | `true` | 外部 ID 解決成功時に user を provision |
+| `OIDC_FRONTEND_CALLBACK_URL` | `/sso-callback` | frontend completion route |
+| `OIDC_LOGIN_CODE_EXPIRATION_MINUTES` | `2` | short-lived login code lifetime |
+| `OIDC_TOTP_ISSUER` | `HS SQL Agent` | TOTP issuer label |
+| `DATA_PROTECTION_KEY_PATH` | `/app/data/data-protection-keys` | 永続化する ASP.NET Core data-protection key directory |
+
+<Callout type="danger" title="保護された ID 状態を使う場合は data-protection key を永続化してください">
+再起動のたびに data-protection key ring が消えると、保護された MFA secret や external-login state を読み取れなくなる場合があります。本番では `DATA_PROTECTION_KEY_PATH` を durable storage に mount してください。
+</Callout>
+
+詳しくは [OIDC SSO と TOTP MFA](/ja/docs/security/oidc-mfa) を参照してください。
+
+## Health、slow query、delivery、audit retention
+
+| 変数 | 例 | 用途 |
+| --- | --- | --- |
+| `HEALTH_PROBE_ENABLED` | `false` | background DB health probing を有効化 |
+| `HEALTH_PROBE_INTERVAL_SECONDS` | `60` | probe cadence |
+| `HEALTH_PROBE_TIMEOUT_SECONDS` | `10` | probe ごとの timeout |
+| `HEALTH_PROBE_MAX_CONCURRENCY` | `4` | 同時 probe work の上限 |
+| `SLOW_QUERY_THRESHOLD_MS` | `1000` | この duration 以上の Query を slow と記録 |
+| `ALERT_WEBHOOK_URL` | 空 | 任意の署名付き alert destination |
+| `ALERT_WEBHOOK_SECRET` | 空 | HMAC/signing secret。URL 有効時は 32 バイト以上 |
+| `SIEM_WEBHOOK_URL` | 空 | 任意の署名付き SIEM destination |
+| `SIEM_WEBHOOK_SECRET` | 空 | HMAC/signing secret。URL 有効時は 32 バイト以上 |
+| `DELIVERY_MAX_ATTEMPTS` | `6` | outbound delivery の retry 上限 |
+| `DELIVERY_MAX_CONCURRENCY` | `4` | outbound delivery の同時実行上限 |
+| `AUDIT_RETENTION_DAYS` | `90` | retention period。`0` で自動 retention を無効化 |
+| `AUDIT_RETENTION_MODE` | `Archive` | **runtime で有効な値は `Archive` または `Purge`** |
+| `AUDIT_ARCHIVE_PATH` | `/app/data/audit-archive` | Archive mode の保存先 |
+| `AUDIT_FALLBACK_PATH` | `/app/data/audit-fallback.jsonl` | audit fallback path。起動 validation で必須 |
+| `AUDIT_RETENTION_RUN_HOUR_UTC` | `2` | scheduled UTC hour。runtime が 0–23 に clamp |
+
+<Callout type="warning" title="v2.0.2 の sample comment は Delete ですが、runtime code は Purge です">
+`AuditRetentionService` が受け付けるのは `Archive` と `Purge` だけです。`Delete` を含む Archive 以外の無効値では `AuditRetentionMode must be Purge or Archive.` が発生します。このリファレンスでは古い sample comment ではなく、実行される v2.0.2 code を基準にしています。
+</Callout>
+
+`Archive` は期限切れ audit row を JSONL archive へ書き出してから Admin database から削除します。`Purge` は archive を作らず、該当する期限切れ row を削除します。
+
+## Global / key 単位の rate limiting
+
+| 変数 | 単一インスタンス | 分散構成 | 用途 |
+| --- | --- | --- | --- |
+| `RATE_LIMITING_PERMIT_LIMIT` | `0` | `0` | global IP permit limit。window も 0 の場合は unlimited |
+| `RATE_LIMITING_WINDOW_SECONDS` | `0` | `0` | global IP window |
+| `RATE_LIMITER_PROVIDER` | `Memory` | `Redis` | shared limiter implementation |
+| `RATE_LIMITER_CONNECTION_STRING` | 空 | `redis:6379` | Redis connection |
+| `RATE_LIMITER_FAILURE_MODE` | `FailClosed` | `FailClosed` | distributed limiter が利用不能な場合の behavior |
+| `RATE_LIMITER_KEY_PREFIX` | `hsqlagent:ratelimit:` | 同じ | Redis key namespace |
+
+MCP key はさらに、key 単位の limit を継承、上書き、または無効化できます。詳しくは [MCP キー](/ja/docs/administration/mcp-keys) を参照してください。
+
+## Runtime policy synchronization
+
+| 変数 | 単一インスタンス | 分散構成 | 用途 |
+| --- | --- | --- | --- |
+| `SECURITY_POLICY_SYNC_PROVIDER` | `Memory` | `Redis` | runtime policy synchronization provider |
+| `SECURITY_POLICY_SYNC_CONNECTION_STRING` | 空 | `redis:6379` | Redis connection |
+| `SECURITY_POLICY_SYNC_KEY_PREFIX` | `hsqlagent:security-policy:` | 同じ | key namespace |
+| `SECURITY_POLICY_SYNC_REFRESH_INTERVAL_SECONDS` | `30` | `30` | refresh interval |
+
+複数の hs-sql-agent instance へ policy change を伝播させる必要がある場合は Redis を選択してください。
+
+## Outbound-delivery synchronization
+
+| 変数 | 単一インスタンス | 分散構成 | 用途 |
+| --- | --- | --- | --- |
+| `OUTBOUND_DELIVERY_SYNC_PROVIDER` | `Memory` | `Redis` | delivery signal coordination |
+| `OUTBOUND_DELIVERY_SYNC_CONNECTION_STRING` | 空 | `redis:6379` | Redis connection |
+| `OUTBOUND_DELIVERY_SYNC_KEY_PREFIX` | `hsqlagent:outbound-delivery:` | 同じ | key namespace |
+
+## SQL concurrency coordination
+
+| 変数 | 単一インスタンス | 分散構成 | 用途 |
+| --- | --- | --- | --- |
+| `SQL_CONCURRENCY_PROVIDER` | `Memory` | `Redis` | SQL concurrency limiter provider |
+| `SQL_CONCURRENCY_CONNECTION_STRING` | 空 | `redis:6379` | Redis connection |
+| `SQL_CONCURRENCY_FAILURE_MODE` | `FailClosed` | `FailClosed` | distributed coordination 失敗時の behavior |
+| `SQL_CONCURRENCY_KEY` | `hsqlagent:sql-concurrency` | 同じ | shared coordination key |
+| `SQL_CONCURRENCY_LEASE_SECONDS` | `30` | `30` | lease duration |
+
+metadata discovery、Query、DML planning/execution、health 関連の SQL work は、制限付き runtime path を通ります。SQL 同時実行上限を process 単位ではなく cluster 全体へ適用する必要がある場合は、distributed SQL concurrency を使用してください。
+
+## オブザーバビリティ
+
+| 変数 | 例 | 用途 |
+| --- | --- | --- |
+| `PROMETHEUS_ENABLED` | `false` | Prometheus HTTP listener を有効化 |
+| `PROMETHEUS_HOST` | `0.0.0.0` | metrics listener bind host |
+| `PROMETHEUS_PORT` | `9000` | 別 listener の metrics port。有効時は 1–65535 を検証 |
+| `OTLP_ENDPOINT` | 空 | 絶対 HTTP(S) OTLP collector endpoint |
+| `OTEL_SERVICE_NAME` | `hs-sql-agent` | OpenTelemetry service name。空白不可 |
+
+Prometheus は意図的に Admin/MCP application port とは**別の listener**で提供されます。`OTLP_ENDPOINT` を設定すると、v2.0.2 は SQL compile-evidence の tracing / log integration を含む telemetry を export します。
+
+詳しくは [オブザーバビリティと監査運用](/ja/docs/operations/observability) を参照してください。
+
+## Logging
+
+| 変数 | 例 |
+| --- | --- |
+| `LOGGING_EFCORE_COMMAND_LOGLEVEL` | `Warning` |
+| `LOGGING_DEFAULT_LOGLEVEL` | `Information` |
+| `LOGGING_ASPNETCORE_LOGLEVEL` | `Warning` |
+
+通常の EF Core command logging を `Warning` に保つことで、本番時の不要に大量な SQL command trace を抑えられます。
+
+## Docker 環境と組み込み .NET の capability options
+
+Docker / ToolBox environment は、完全な standalone server 向け設定サーフェスです。一方、新しい NuGet 統合では `AddHsSqlAgentCore()` に options はなく、選択した各 capability が自分の options を所有します。
+
+例:
+
+- `HsSqlAgentAdminStoreOptions` — Admin database provider と connection string
+- `HsSqlAgentRuntimeOptions` — cache、rate limiting、synchronization、SQL concurrency、DML approval storage、bootstrap、operability
+- `HsSqlAgentBuiltInAuthOptions` — JWT、password reset/SMTP、enterprise identity/OIDC
+- `McpOptions` — public MCP endpoint と HMAC secret
+- `TelemetryOptions` — Prometheus と OTLP settings
+
+`HsSqlAgentServiceOptions` は従来の aggregate compatibility DTO としてのみ残ります。未選択の capability は options を割り当てたり検証したりしないため、`AddHsSqlAgentHostAuthorization(...)` を使う embedded host に HsSqlAgent の JWT、SMTP、password-reset、OIDC 設定は不要です。
+
+モジュール型 API は既存コードの default を維持します。`.env.example` は standalone ToolBox path の deployment example であり、すべての embedded host が全 capability を設定しなければならないという意味ではありません。
+
+詳しくは [ASP.NET Core 連携](/ja/docs/integration/aspnet-core) を参照してください。

@@ -1,0 +1,39 @@
+---
+title: トラブルシューティング
+description: hs-sql-agent のランタイム上の不変条件から診断できる、一般的な設定・互換性の問題をまとめます。
+sidebar:
+  group: リファレンス
+  order: 140
+---
+
+トラブルシューティングは、リクエストを拒否した境界から始めてください。hs-sql-agent は複数の箇所で意図的に fail-closed になるため、拒否は一時的な SQL エラーではなく、設定または capability の不一致を示している場合があります。
+
+## ローカルでは接続できるが、生成された設定が間違っている
+
+`MCP_PUBLIC_ENDPOINT` を確認してください。
+
+`/mcp` を含む、外部から到達可能な絶対 HTTP / HTTPS MCP URL である必要があります。リバースプロキシで Admin UI と MCP endpoint の公開方法が異なる場合は、Admin UI の URL から推測しないでください。
+
+## Query は動くが DML が拒否される
+
+MCP 接続が成功しても、Elicitation 対応を証明したことにはなりません。
+
+`execute_dml_sql` と公開済み DML Custom Tool には form Elicitation が必要です。実際に使用するクライアントバージョンで Decline と Accept の両方をテストしてください。その capability に対応していないクライアントでは、Query 専用ツールを使用してください。
+
+## 再起動後に認証または MFA の状態が壊れる
+
+`DATA_PROTECTION_KEY_PATH` が永続化されているか確認してください。コンテナごとに ASP.NET Core data-protection key material が置き換わると、保護されたログイン／MFA 状態を読み取れなくなる場合があります。
+
+## 複数インスタンスで動作が一致しない
+
+協調が必要な provider が `Memory` のままになっていないか確認してください。
+
+分散デプロイでは、cache、rate limiting、security-policy synchronization、outbound-delivery synchronization、SQL concurrency など、ノード間で合意が必要なサブシステムに共有 provider を設定します。
+
+## Prometheus がアプリケーションポートに見つからない
+
+Prometheus を有効にすると専用 listener を使用します。サンプル設定では `9000` 番ポートです。メインの application API listener に自動的に metrics が公開されるわけではありません。
+
+## データベース自体では通る SQL が拒否される
+
+これは想定される場合があります。データベース provider の対応範囲はコンパイラ契約によって制限されます。表現・証明されていない構文や semantics は、任意の vendor SQL としてそのまま通さず拒否します。

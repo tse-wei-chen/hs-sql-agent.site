@@ -1,0 +1,51 @@
+---
+title: OIDC SSO と TOTP MFA
+description: 企業向け OIDC ID、claim mapping、ロールプロビジョニング、MFA ポリシー、永続化する data-protection key を設定します。
+sidebar:
+  group: セキュリティ
+  order: 115
+---
+
+hs-sql-agent は管理画面の ID に外部 OpenID Connect provider を利用しつつ、ローカルのランタイム認可と MCP アクセスポリシーをサーバー側で管理できます。
+
+## OIDC 接続
+
+サーバー options には次が含まれます。
+
+```text
+OidcEnabled
+Authority
+ClientId
+ClientSecret
+RequireHttpsMetadata
+```
+
+意図的に信頼したローカル ID provider を HTTP で使用する場合を除き、本番環境では HTTPS metadata validation を有効のままにしてください。
+
+既定の OIDC scope は `openid`、`profile`、`email` です。
+
+## Claim mapping とプロビジョニング
+
+ID options では、受信した email、display-name、role、email-verification claim をどの claim から取得するか設定できます。サービスは、検証済み email を必須にする、外部 role をローカル role 名へ対応付ける、有効時にユーザーを自動プロビジョニングする、といった動作に対応します。
+
+主な設定概念は次のとおりです。
+
+- email / name claim の選択
+- role claim の選択と role mapping
+- verified-email の強制
+- 既定のローカル role / auto provisioning
+- ログインフローで使用する frontend callback path
+
+role mapping は見た目の ID メタデータではなく、認可設定として扱ってください。
+
+## MFA ポリシー
+
+第 2 要素には TOTP を利用できます。サーバー options には TOTP の issuer 名と、MFA を必須にする role の一覧があります。これにより、一次ログインは ID provider に任せつつ、権限の強い管理 role にだけ追加認証を要求できます。
+
+## Data-protection key を永続化する
+
+保護された MFA secret とログイン状態は ASP.NET Core の data-protection key に依存します。デプロイ設定には data-protection key の保存先があります。このディレクトリは再起動後も保持してください。置き換えると、以前に保護された状態を読み取れなくなる場合があります。
+
+## MCP キーは別のセキュリティ境界です
+
+管理 SSO / MFA は管理プレーンを保護します。MCP クライアントは MCP server key で認証し、独自のデータベース、テーブル、ツール、ランタイムポリシーのスコープに引き続き従います。管理 SSO を MCP キーのガバナンス代わりに使用しないでください。

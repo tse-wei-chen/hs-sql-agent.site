@@ -1,0 +1,45 @@
+---
+title: アーキテクチャとコントリビューションフロー
+description: コントリビューター向けにリポジトリ構成と、コンパイラ、サーバー、フロントエンド、ドキュメントを変更する際のルールを説明します。
+sidebar:
+  group: 開発
+  order: 130
+---
+
+hs-sql-agent は、バックエンド、管理フロントエンド、独立した静的ドキュメント／製品サイトに分かれています。
+
+## リポジトリごとの責務
+
+大きく分けると次の構成です。
+
+- `backend/` — サーバー、SQL コンパイラ／ランタイムモジュール、永続化、テスト
+- `frontend/` — 組み込みの Nuxt 管理画面
+- `hs-sql-agent.site` — 独立した Astro 製品／ドキュメントサイト
+
+SQL コンパイラには、明示的な rewrite / validation ステージと capability proof の概念を持つ F# モジュールがあります。サーバーホスティングは `HsSqlAgent.Server` という組み合わせ可能な ASP.NET Core クラスライブラリとして公開されています。新規統合では `AddHsSqlAgentCore()` から始め、Runtime、AdminStore、HostAuthorization または BuiltInAuth、AdminApi、MCP、Telemetry など必要な capability だけを選択します。`AddHsSqlAgent()` / `UseHsSqlAgent()` は既存利用者向けの互換 API として残されていますが、第一選択の統合モデルではありません。
+
+## コントリビューションフロー
+
+メインリポジトリのコントリビューションガイドでは、次の流れを推奨しています。
+
+1. リポジトリを fork します。
+2. 必要なテストまたはドキュメントを含め、1 つの目的に絞って変更します。
+3. ローカルでプロジェクトを実行し、テスト結果を確認します。
+4. 変更理由、変更内容、テスト結果を記載して Pull Request を作成します。
+
+1 つの PR を 1 つの目的に絞ることで、レビューとマージが容易になります。
+
+## ドキュメント変更
+
+ドキュメントには、将来予定している挙動ではなく、現在のコードが実際に持つ挙動を記載してください。
+
+SQL capability、DML 安全性、MCP 互換性、ホスティング設定、管理機能、デプロイ要件を変更する場合は、可能な限り同じ作業単位で該当するサイトページも更新します。
+
+サイトは locale とドキュメントバージョンをパスで分けています。
+
+```text
+src/content/en/docs/<version>/<section>/<slug>.mdx
+src/content/ja/docs/<version>/<section>/<slug>.mdx
+```
+
+各翻訳は同じ version / section / slug を共有し、locale prefix 付きルートで分離されます。現在の完全なドキュメント基準は 2.0.2 です。

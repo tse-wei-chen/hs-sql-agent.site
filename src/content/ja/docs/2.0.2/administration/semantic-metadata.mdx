@@ -1,0 +1,110 @@
+---
+title: セマンティックメタデータ
+description: hs-sql-agent 2.0.1 で、テーブル／カラムの意味、リレーション、メトリクスメタデータを使ってデータベース探索を補強します。
+sidebar:
+  group: 管理
+  order: 76
+---
+
+import Callout from "@/components/docs/mdx/Callout.astro";
+import CardGrid from "@/components/docs/mdx/CardGrid.astro";
+import DocCard from "@/components/docs/mdx/DocCard.astro";
+
+<CardGrid columns={3}>
+  <DocCard title="エンティティ" icon="Aa" description="テーブルとカラムに表示名、説明、同義語を設定します。" />
+  <DocCard title="リレーション" icon="↔" description="カーディナリティと方向を持つ、名前付きの source-to-target カラム関係を定義します。" />
+  <DocCard title="メトリクス" icon="∑" description="formula、aggregation、grain、filter、synonym を持つ、スコープ付きメトリクスメタデータを定義します。" />
+</CardGrid>
+
+セマンティックメタデータは Database Management エントリに属します。物理スキーマ自体を変更せずに、スキーマ探索で物理データベースをどのように説明するかを補強します。
+
+## エンティティメタデータ
+
+エンティティレコードは、テーブル全体またはテーブル内の 1 カラムを対象にできます。
+
+| フィールド | 意味 |
+| --- | --- |
+| `DbManagementId` | セマンティックレコードを所有する Database Management エントリ |
+| `SchemaName` | 任意のスキーマ |
+| `TableName` | 必須の物理テーブル名 |
+| `ColumnName` | 任意。テーブル単位のメタデータでは省略 |
+| `DisplayName` | 人が理解しやすい名前 |
+| `Description` | 業務／運用上の説明 |
+| `Synonyms` | テーブル／カラムを表す別名 |
+
+同義語は、空の値を除去し、大文字小文字を区別せずに重複を排除したうえで、1 レコードにつき最大 100 件まで保持します。
+
+## リレーション
+
+リレーションメタデータは、2 つの物理カラムがどのように関連するかを表します。
+
+| フィールド | 意味 |
+| --- | --- |
+| `Name` | 安定したリレーション名 |
+| `SourceSchema` / `SourceTable` / `SourceColumn` | source 側 |
+| `TargetSchema` / `TargetTable` / `TargetColumn` | target 側 |
+| `Cardinality` | 既定値は `many-to-one` |
+| `Direction` | 既定値は `source-to-target` |
+| `Description` | 任意の運用／業務上の説明 |
+
+スキーマ探索でリレーションの説明が表示されるのは、関係する両方のテーブルが認証済み MCP キーのテーブルホワイトリストで許可されている場合だけです。
+
+## メトリクス
+
+メトリクスメタデータはテーブル単位でスコープされ、業務指標を記述できます。
+
+| フィールド | 意味 |
+| --- | --- |
+| `Name` | 安定したメトリクス識別子 |
+| `DisplayName` | 人が理解しやすい名前 |
+| `Description` | 業務上の説明 |
+| `Formula` | 数式に関するメタデータ |
+| `Aggregation` | 既定値は `custom`。意図する集計方法を記述可能 |
+| `Grain` | 任意の grain メタデータ |
+| `Filter` | 任意の filter メタデータ |
+| `Synonyms` | メトリクスの別名 |
+| `Executable` | 2.0.1 モデルでは `false` |
+
+<Callout type="warning" title="メトリクスはメタデータであり、実行経路を迂回するものではありません">
+2.0.1 のセマンティックメトリクスモデルでは `Executable` は false です。メトリクスの説明はエージェントがスキーマの意味を理解する助けになりますが、実行可能な SQL マクロになるわけではなく、SQL コンパイラや認可パイプラインも迂回しません。
+</Callout>
+
+## MCP のスキーマ探索での利用方法
+
+正式な MCP スキーマツールは引き続き `get_schemas`、`get_tables`、`get_columns` です。
+
+キーに紐付いた Database Management エントリへセマンティックメタデータが登録されている場合、次の情報を補足できます。
+
+- `get_tables` — テーブルの表示名、説明、同義語、スコープ内メトリクスの説明
+- `get_columns` — カラムの表示名、説明、同義語、関連するリレーションの説明
+- テーブルホワイトリスト — 物理テーブルの可視性とリレーションのコンテキストを引き続き制限
+
+つまりセマンティックメタデータは探索情報を豊かにしますが、キーがアクセスできる範囲を広げるものではありません。
+
+## Admin API サーフェス
+
+2.0.1 の Admin API は `api/DbSemantic` 配下でセマンティック管理機能を公開します。
+
+| 操作 | 権限 |
+| --- | --- |
+| データベースのエンティティレコードを取得 | `/runtime/db-management/semantic` → `view` |
+| エンティティ／リレーション／メトリクスを統合したモデルを取得 | `/runtime/db-management/semantic` → `view` |
+| エンティティメタデータを upsert | `/runtime/db-management/semantic` → `edit` |
+| エンティティメタデータを削除 | `/runtime/db-management/semantic` → `edit` |
+| リレーションを upsert／削除 | `/runtime/db-management/semantic` → `edit` |
+| メトリクスを upsert／削除 | `/runtime/db-management/semantic` → `edit` |
+
+<Callout type="info" title="これは管理機能であり、6 個目の組み込み MCP ツールではありません">
+2.0.1 の正式な MCP キーツールサーフェスは、MCP Tools Reference に記載された 5 つの組み込みツールと、公開済み Custom Tool です。セマンティックメタデータは管理コントロールプレーンから設定され、スキーマ探索で利用されます。
+</Callout>
+
+## モデリングの指針
+
+複数のエージェントや運用者が継続的に利用できる、十分に安定した用語をセマンティックメタデータとして登録してください。
+
+- 物理テーブル／カラム名とは異なる業務上の名称
+- 略称やドメイン固有の同義語
+- Query 生成で重要となるリレーション
+- 想定する数式や grain を明確にするメトリクス定義
+
+認証情報、ランタイムへの指示、認可判断をスキーマ説明へ埋め込む用途には使わないでください。アクセス制御は別の強制レイヤーとして維持されます。

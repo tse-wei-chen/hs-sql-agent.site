@@ -1,0 +1,57 @@
+---
+title: 分散デプロイ
+description: 1 つのサービスエンドポイントの背後で複数の hs-sql-agent インスタンスを動かすために必要な共有状態を説明します。
+sidebar:
+  group: 運用
+  order: 110
+---
+
+リポジトリには複数インスタンス構成向けの `.env.distributed.example` が含まれています。重要なのは単に「Redis を追加する」ことではありません。ノード間で一貫している必要がある状態ごとに共有 provider が必要です。
+
+## 共有コントロールプレーン
+
+分散構成のサンプルでは、ローカル SQLite の代わりに PostgreSQL を Admin database として使用します。
+
+```env
+ADMIN_DATABASE_PROVIDER=Postgres
+ADMIN_DATABASE_CONNECTION_STRING=Host=postgres;Port=5432;Database=hsqlagent;Username=postgres;Password=postgres;
+```
+
+同じ論理的な hs-sql-agent deployment を提供するすべてのインスタンスは、同じ control-plane database を参照してください。
+
+## Redis による協調
+
+分散構成のサンプルでは、次のサブシステムを Redis へ移します。
+
+- cache
+- rate limiter
+- security-policy synchronization
+- outbound-delivery synchronization
+- SQL concurrency coordination
+
+例:
+
+```env
+CACHE_PROVIDER=Redis
+CACHE_CONNECTION_STRING=redis:6379
+
+RATE_LIMITER_PROVIDER=Redis
+RATE_LIMITER_CONNECTION_STRING=redis:6379
+RATE_LIMITER_FAILURE_MODE=FailClosed
+
+SQL_CONCURRENCY_PROVIDER=Redis
+SQL_CONCURRENCY_CONNECTION_STRING=redis:6379
+SQL_CONCURRENCY_FAILURE_MODE=FailClosed
+```
+
+## Failure mode は重要です
+
+実行境界を守るための協調処理では、サンプルは `FailClosed` を使用します。分散 coordinator が利用できない場合、各ノードが独立した判断を暗黙に許可するより、操作を拒否する方が安全です。
+
+## ID 保護用 key を永続化する
+
+分散デプロイでも、保護された認証／MFA 状態に使用する ASP.NET Core data-protection key material を永続化してください。これらの key は使い捨てのコンテナファイルではなく、deployment state として扱います。
+
+## トポロジーを検証する
+
+インスタンスを増やす前に、どの判断を意図的にプロセスローカルにするのか、どの状態を共有する必要があるのか確認してください。対応する state provider を移行せずに replica だけを増やすと、レート制限の不整合、古いセキュリティポリシー、SQL 同時実行数の非協調が発生する可能性があります。

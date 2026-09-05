@@ -1,0 +1,186 @@
+---
+title: MCP ツールリファレンス
+description: hs-sql-agent 2.0.1 の組み込み MCP ツールについて、正式な契約、引数、レスポンス、認可、リスク境界を説明します。
+sidebar:
+  group: MCP
+  order: 35
+---
+
+import Callout from "@/components/docs/mdx/Callout.astro";
+import CardGrid from "@/components/docs/mdx/CardGrid.astro";
+import DocCard from "@/components/docs/mdx/DocCard.astro";
+import Flow from "@/components/docs/mdx/Flow.astro";
+
+<CardGrid columns={3}>
+  <DocCard title="スキーマ探索" icon="▦" badge="低リスク" description="get_schemas、get_tables、get_columns で、SQL 生成前にキーへ紐付いたデータベース構造を確認します。" />
+  <DocCard title="Query SQL" icon="SELECT" badge="読み取り" description="execute_query_sql は統制された単一の SELECT を受け取り、結果行をシリアライズして返します。" />
+  <DocCard title="Safe DML" icon="DML" badge="承認" description="execute_dml_sql は preview、Elicitation、コミット時再検証を通過した対応済み更新だけを実行します。" />
+</CardGrid>
+
+**MCP キーで管理される 2.0.1 の正式な組み込みツールサーフェス**には、次の 5 つのツール名だけが含まれます。
+
+| ツール | 公開入力 | 結果形式 | リスク |
+| --- | --- | --- | --- |
+| `get_schemas` | なし | カンマ区切りのスキーマ名 | メタデータ読み取り |
+| `get_tables` | `schemaName: string` | カンマ区切りのテーブル説明 | メタデータ読み取り |
+| `get_columns` | `schemaName: string`, `tableName: string` | カラムオブジェクトの JSON 配列 | メタデータ読み取り |
+| `execute_query_sql` | `sql: string` | 結果行の JSON 配列、または実行エラー文字列 | データ読み取り |
+| `execute_dml_sql` | `sql: string` | 承認／実行結果のテキスト | データ変更 |
+
+公開済み Custom Tool は、紐付け先データベースのツール一覧を拡張できますが、組み込みツールが増えるわけではありません。
+
+<Callout type="warning" title="ツール探索にも認可スコープが適用されます">
+MCP セッションのツール一覧は MCP キー認証後に構築されます。`AllowedTools` が明示的に設定されている場合、一致する組み込みツールまたは公開済み Custom Tool だけが公開されます。空の allowlist はツール名による制限なしを意味するため、本番キーでは通常、必要最小限のツールを明示的に選択してください。
+</Callout>
+
+## 推奨する探索フロー
+
+<Flow items={["get_schemas", "get_tables", "get_columns", "execute_query_sql"]} caption="モデルに SQL を生成させる前に、物理構造を探索します。DML は既定の読み取りフローには意図的に含めていません。" />
+
+クライアント側に信頼できるデータベース構造がない場合は、メタデータ探索を利用してください。スキーマツールは、クライアントから接続文字列を受け取るのではなく、認証済みキーのデータベースコンテキスト内で動作します。
+
+## `get_schemas`
+
+MCP キーに紐付いたデータベースについて、provider metadata runtime が報告するスキーマ一覧を返します。
+
+**引数:** なし。
+
+**成功時:** スキーマ名をカンマ区切りの文字列として返します。
+
+**認可と制限:**
+
+- 明示的な tool allowlist がある場合、キーに `get_schemas` の利用権限が必要です。
+- データベースの provider／connection は認証済みキーから解決されている必要があります。
+- 操作時には共有 SQL concurrency limiter の lease を取得します。
+- 成功／失敗は `mcp.get_schemas` として監査経路へ記録されます。
+
+モデルから database ID や connection string を受け取ることはありません。
+
+## `get_tables`
+
+```text
+get_tables(schemaName: string)
+```
+
+指定したスキーマについて provider が報告するテーブルを返し、MCP キーにテーブルホワイトリストが設定されている場合はその範囲に絞り込みます。
+
+紐付け先 Database Management エントリにセマンティックメタデータがある場合、表示可能な各テーブルには次の情報も含められます。
+
+- 表示名
+- 説明
+- 同義語
+- そのテーブルにスコープされたメトリクスの説明
+
+**成功時:** カンマ区切り文字列を返します。そのため、各項目は物理テーブル名だけより豊富な説明を含む場合があります。
+
+**監査 action:** `mcp.get_tables`。
+
+<Callout type="info" title="テーブルホワイトリストは探索にも適用されます">
+制限付きキーが `get_tables` を通じて自分のテーブル境界外を知ることがないようにします。セマンティック情報を補足しても、この境界は広がりません。
+</Callout>
+
+## `get_columns`
+
+```text
+get_columns(schemaName: string, tableName: string)
+```
+
+サーバーはまず、指定された完全修飾テーブルが MCP キーで許可されていることを確認します。その後 provider のカラムメタデータを読み取り、JSON 配列へシリアライズします。
+
+2.0.1 の各 `ColumnInfo` オブジェクトは次のプロパティを公開します。
+
+| プロパティ | 意味 |
+| --- | --- |
+| `Name` | 物理カラム名 |
+| `Column` | 同じカラム名を示す alias |
+| `Type` | provider が報告したカラム型 |
+| `Description` | 利用可能な場合のセマンティック補足 |
+| `IsPrimaryKey` | provider metadata 上で primary key の一部かどうか |
+| `PrimaryKeyOrdinal` | 複合 primary key 内での nullable な位置 |
+
+セマンティック補足により、表示名、説明、同義語、リレーション説明を `Description` に追加できます。リレーションのコンテキストが含まれるのは、関係する両テーブルがキーのテーブルホワイトリストで許可されている場合だけです。
+
+**監査 action:** `mcp.get_columns`。
+
+## `execute_query_sql`
+
+```text
+execute_query_sql(sql: string)
+```
+
+**単一の `SELECT` SQL 文**を受け取ります。2.0.1 の公開ツール契約では、JOIN、WHERE、GROUP BY、HAVING、ORDER BY、LIMIT/OFFSET、DISTINCT、CTE、サブクエリ、UNION/INTERSECT/EXCEPT など一般的な Query 形式が明示されています。
+
+<Flow items={["Parse", "Bind", "テーブルを認可", "ポリシー検証", "immutable command を compile", "実行"]} caption="Raw SQL がそのまま provider に渡ることはありません。" />
+
+リクエストは F# の typed-query runtime を通じて実行されます。ランタイム capability に応じて、参照テーブル、CTE の有無、サブクエリの有無などの Query facts も同じ統制経路で収集され、監査 evidence に利用されます。
+
+**成功時:** 返却行コレクションを JSON へシリアライズします。
+
+**失敗時:** `Execution failed:` で始まるテキストと失敗メッセージを返します。呼び出し元からの cancellation は通常の結果文字列へ変換せず、そのまま伝播します。
+
+**ランタイム境界:**
+
+- MCP tool allowlist
+- MCP キーのデータベース紐付け
+- テーブルホワイトリスト
+- 現在の security/query policy
+- SQL concurrency limiter
+- source / target SQL capability check
+- operation、duration、returned rows、compiler 由来の definition facts を含む監査イベント `mcp.query.executed`
+
+人が読める capability の概要は [SQL サポートリファレンス](/ja/docs/sql-compiler/sql-support) を参照してください。
+
+## `execute_dml_sql`
+
+```text
+execute_dml_sql(sql: string)
+```
+
+MCP から公開される入力は SQL です。.NET メソッドが利用する `McpServer` と cancellation token はランタイムが注入するインフラであり、エージェントが指定するフィールドではありません。
+
+2.0.1 の MCP DML 経路で扱う文種は次のとおりです。
+
+| 文 | 状態 |
+| --- | --- |
+| `UPDATE` | parse、capability、policy、approval の各要件を満たす場合に対応 |
+| `DELETE` | parse、capability、policy、approval の各要件を満たす場合に対応 |
+| `INSERT ... VALUES` | immutable payload を承認対象として対応 |
+| `INSERT ... SELECT` | 2.0.1 では fail-closed で拒否 |
+
+<Flow items={["Parse + profile 検証", "Mutation を compile", "正確な影響を preview", "人による Elicitation", "transaction 内で再検証", "Commit"]} caption="承認は元の SQL 文字列だけではなく、検証済み mutation context に結び付けられます。" />
+
+UPDATE と DELETE では、承認を正確な primary-key row set に結び付け、コミット時に transaction 内で行 identity を再検証します。INSERT VALUES では、承認を immutable literal payload と正確な compiled command に結び付け、コミット時に承認済み payload の行数を検証します。
+
+人が拒否した場合、または検証を完了できない場合、変更はコミットされません。監査イベントには `mcp.dml.executed` を使用し、operation、processing duration、affected rows、approval status、必要に応じて error category を記録します。
+
+<Callout type="danger" title="MCP form Elicitation に対応しないクライアントへ DML を許可しないでください">
+Tool call に対応しているだけでは不十分です。クライアントは Safe DML フローで使用する対話型承認フォームを表示し、その結果を返せる必要があります。
+</Callout>
+
+プロトコル全体は [Safe DML](/ja/docs/sql-compiler/safe-dml) を参照してください。
+
+## 組み込みツール共通のエラー
+
+代表的な失敗原因は次のとおりです。
+
+- MCP authorization context がない
+- キーの明示的な tool allowlist に対象ツールが含まれていない
+- database provider または connection 設定が無効
+- SQL concurrency limit から lease を取得できない（`Server busy`）
+- 指定テーブルがキーのホワイトリスト外
+- SQL が空、未対応、policy で拒否、または capability boundary で拒否
+- provider 実行に失敗
+
+ツールは無制限の provider 実行へ fallback せず、境界を設けたエラー情報を返します。
+
+## Custom Tools
+
+公開済み Custom Tool は、MCP キーに紐付いた Database Management エントリ向けに読み込まれ、名前で同じ `AllowedTools` セットへ追加できます。呼び出し時には引き続き runtime database binding、table whitelist、security policy、concurrency control、audit path が適用され、DML の Custom Tool であれば approval pipeline も通過します。
+
+詳しくは [カスタムツール](/ja/docs/administration/custom-tools) を参照してください。
+
+## セマンティックメタデータを 6 個目の組み込みツールとしては扱いません
+
+2.0.1 のリポジトリにはセマンティック管理の実装がありますが、正式な MCP key built-in registry と Admin key-management surface が認識する組み込みツールは、このページに記載した 5 つです。そのため 2.0.1 の正式ドキュメントでは、セマンティックメタデータを**管理／コントロールプレーンの capability であり、スキーマ探索から利用されるもの**として扱い、追加の正式な組み込み MCP 契約とはしません。
+
+詳しくは [セマンティックメタデータ](/ja/docs/administration/semantic-metadata) を参照してください。
