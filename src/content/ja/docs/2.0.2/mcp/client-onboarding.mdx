@@ -1,6 +1,6 @@
 ---
 title: MCP クライアントの接続
-description: Streamable HTTP 対応の MCP クライアントを接続し、公開エンドポイントを設定して、DML を有効にする前に Elicitation 対応を確認します。
+description: MCP キー発行後に生成済みのクライアント設定をコピーし、DML を有効にする前に Elicitation 対応を確認します。
 sidebar:
   group: MCP
   order: 30
@@ -12,38 +12,38 @@ import DocCard from "@/components/docs/mdx/DocCard.astro";
 import Steps from "@/components/docs/mdx/Steps.astro";
 import Step from "@/components/docs/mdx/Step.astro";
 
-hs-sql-agent は `/mcp` で **Streamable HTTP** の MCP エンドポイントを公開します。
+hs-sql-agent は `/mcp` で **Streamable HTTP** の MCP エンドポイントを公開します。内蔵の管理画面を使う場合、通常は endpoint や header を手作業で組み立てる必要はありません。キー発行後に hs-sql-agent が生成する設定を、そのまま MCP クライアントへ貼り付けます。
 
 <CardGrid columns={3}>
-  <DocCard title="エンドポイント" icon="HTTP" description="外部から到達できる MCP 公開 URL を使用します。通常は /mcp で終わります。" />
-  <DocCard title="認証" icon="KEY" description="発行した MCP キーを X-MCP-Server-Key 要求ヘッダーで送信します。" />
-  <DocCard title="DML を使うための条件" icon="FORM" description="データ変更ツールを使う場合は、実際に配布する MCP クライアントのバージョンが form Elicitation に対応している必要があります。" />
+  <DocCard title="キーを発行" icon="KEY" description="対象データベースに結び付けた MCP キーを作成し、必要に応じてツールとテーブルを絞ります。" />
+  <DocCard title="クライアント設定をコピー" icon="COPY" description="一度だけ表示される Save and connect ダイアログから Claude Desktop、Cursor、Visual Studio Code、Generic HTTP 用設定をコピーできます。" />
+  <DocCard title="DML 対応を確認" icon="FORM" description="DML を呼び出せるキーでは、実際に導入する MCP クライアントが form Elicitation に対応している必要があります。" />
 </CardGrid>
 
-## クライアントを接続
+## 推奨する接続手順
 
 <Steps>
   <Step title="MCP キーを発行">
-管理画面で、接続先データベースに結び付けたキーを作成します。無制限の権限が不要なら、利用できるツールとテーブルを必要最小限に絞ってください。
+**Runtime → MCP Keys** を開き、対象データベース用のキーを作成します。クライアントに必要なツールとテーブルだけを許可してください。
   </Step>
-  <Step title="公開 MCP エンドポイントを使用">
-クライアントから到達できる URL を指定します。管理画面と MCP エンドポイントが同じホストやポートにあるとは限りません。
+  <Step title="一度だけ表示される Save and connect を使う">
+**Issue Key** が成功すると、hs-sql-agent は平文キーと生成済みのクライアント設定をすぐに表示します。管理画面から平文値を取得できるのはこのタイミングだけです。
   </Step>
-  <Step title="すべての要求を認証">
-以下の MCP 要求ヘッダーでキーを送信します。平文のキーはシークレットとして扱ってください。発行・更新用ダイアログを閉じると、同じ値は再表示されません。
+  <Step title="クライアントを選んで設定をコピー">
+**Claude Desktop**、**Cursor**、**Visual Studio Code**、**Generic HTTP** のいずれかを選び、対応する **Copy ... config** を押します。コピーされる JSON には MCP endpoint と `X-MCP-Server-Key` がすでに含まれています。
   </Step>
-  <Step title="実際に使うクライアントを確認">
-まずスキーマ取得とクエリ実行を確認します。DML を有効にする場合は、本番導入前に form Elicitation の動作も別途テストしてください。
+  <Step title="貼り付けて接続し、必要なら DML を確認">
+コピーした JSON を MCP クライアントの設定へ貼り付けて接続します。DML を使う場合は、本番利用前に form Elicitation の拒否・承認の両方を確認してください。
   </Step>
 </Steps>
 
-```http
-X-MCP-Server-Key: <MCP key>
-```
+<Callout type="warning" title="ダイアログを閉じる前に設定を保存してください">
+サーバーは MCP キーの平文値を保存しません。**Save and connect** を閉じると、保存済みキーの情報だけから同じ平文キーや設定を再生成することはできません。**Rotate** と **Duplicate** は新しい平文キーを作成し、同じ onboarding ダイアログを再表示します。**Edit** では既存のシークレットは再表示されません。
+</Callout>
 
-## 公開エンドポイント
+## 生成設定に使われる公開エンドポイント
 
-運用者向け画面と自動生成されるクライアント設定に表示される URL は、次のサーバー設定から取得します。
+クライアント設定の URL は、次のサーバー設定から取得します。
 
 ```json
 {
@@ -53,17 +53,32 @@ X-MCP-Server-Key: <MCP key>
 }
 ```
 
-対応する環境変数は `Mcp__PublicEndpoint` です。付属の Compose 構成では `MCP_PUBLIC_ENDPOINT` からこの設定へ値を渡します。
+対応する環境変数は `Mcp__PublicEndpoint` です。付属の Compose 構成では `MCP_PUBLIC_ENDPOINT` をこの設定へ渡します。
+
+本番用キーを発行する**前に**、実際の MCP クライアントから到達でき、`/mcp` を含む URL を設定してください。管理画面は `GET /api/runtime/client-config` からこの値を読み取り、コピー用の設定へそのまま組み込みます。
 
 <Callout type="warning" title="管理画面の URL から MCP の接続先を推測しないでください">
-管理画面と MCP エンドポイントは、異なるホスト、ポート、リバースプロキシのパスを使う場合があります。Development 以外の環境では、サーバーは HTTP または HTTPS の絶対 URL を要求します。MCP クライアントが実際に到達できる URL を設定してください。
+管理画面と MCP エンドポイントは、異なる host、port、リバースプロキシのパスを使用する場合があります。Development 以外では HTTP または HTTPS の絶対 URL が必要です。
 </Callout>
 
-## 自動生成されるクライアント設定
+## ダイアログが生成する設定
 
-MCP キーを発行、ローテーション、複製すると、管理画面から Claude Desktop、Cursor、一般的な Streamable HTTP クライアント向けの直接接続設定を生成できます。
+Issue、Rotate、Duplicate の成功後、現在の管理画面には次の 4 つの設定タブがあります。
 
-平文のキーは一時的にしか表示されません。発行・更新用ダイアログを閉じた後、サーバーから同じシークレットを再表示することはできません。
+- **Claude Desktop** — 直接 HTTP 接続用の `mcpServers` エントリ
+- **Cursor** — HTTP `mcpServers` エントリ
+- **Visual Studio Code** — `servers` エントリ
+- **Generic HTTP** — Streamable HTTP 接続オブジェクト
+
+どの形式にも、サーバーで設定した endpoint と今回生成された MCP キーが含まれます。通常は JSON を手作業で組み立てる必要はありません。
+
+## Generic / 手動認証の参照
+
+クライアント側で別の外側の設定形式が必要な場合は、Generic HTTP の出力を参照してください。プロトコル上の認証は次の header です。
+
+```http
+X-MCP-Server-Key: <MCP key>
+```
 
 ## DML への対応は別に確認する
 
@@ -71,16 +86,16 @@ MCP キーを発行、ローテーション、複製すると、管理画面か�
 
 `execute_dml_sql` と公開済みの DML Custom Tools では form Elicitation が必要です。本番で DML を許可する前に、実際に導入するクライアントのバージョンで次の両方を確認してください。
 
-1. Elicitation 要求を拒否し、データ変更が確定されないことを確認する。
+1. Elicitation 要求を拒否し、データ変更がコミットされないことを確認する。
 2. Elicitation 要求を承認し、承認したデータ変更だけが完了することを確認する。
 
 <Callout type="danger" title="Elicitation に対応していないクライアントでは Safe DML を利用できません">
-クライアントが form Elicitation を宣言・実装していない場合、hs-sql-agent は DML を拒否します。読み取り専用のクライアントでは、キーを無制限にしたままクライアント側の自制に頼るのではなく、利用可能なツールからデータ変更ツールを外してください。
+クライアントが form Elicitation を宣言・実装していない場合、hs-sql-agent は DML を拒否します。読み取り専用クライアントでは、キーを unrestricted のままにせず、利用可能なツールからデータ変更ツールを外してください。
 </Callout>
 
 ## 次に読むドキュメント
 
 <CardGrid columns={2}>
-  <DocCard title="MCP ツールリファレンス" icon="REF" href="/en/docs/mcp/tools-reference" description="組み込みの検出、クエリ、DML ツールが公開する正式な契約を確認します。" />
+  <DocCard title="MCP ツールリファレンス" icon="REF" href="/ja/docs/mcp/tools-reference" description="組み込みの探索、クエリ、DML ツールが公開する契約を確認します。" />
   <DocCard title="Safe DML" icon="DML" href="/ja/docs/sql-compiler/safe-dml" description="事前確認、承認内容の固定、対象行の再検証、コミットまでの流れを理解します。" />
 </CardGrid>

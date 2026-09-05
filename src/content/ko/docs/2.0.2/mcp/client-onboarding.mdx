@@ -1,6 +1,6 @@
 ---
 title: MCP 클라이언트 연결
-description: Streamable HTTP MCP 클라이언트를 연결하고 공개 엔드포인트를 설정한 뒤, DML을 활성화하기 전에 Elicitation 지원 여부를 확인합니다.
+description: MCP 키 발급 후 생성된 클라이언트 설정을 바로 복사하고, DML을 활성화하기 전에 Elicitation 지원 여부를 확인합니다.
 sidebar:
   group: MCP
   order: 30
@@ -12,38 +12,38 @@ import DocCard from "@/components/docs/mdx/DocCard.astro";
 import Steps from "@/components/docs/mdx/Steps.astro";
 import Step from "@/components/docs/mdx/Step.astro";
 
-hs-sql-agent는 `/mcp`에 **Streamable HTTP** MCP 엔드포인트를 제공합니다.
+hs-sql-agent는 `/mcp`에 **Streamable HTTP** MCP 엔드포인트를 제공합니다. 내장 관리자 화면을 사용하는 경우 endpoint와 header를 직접 조합하는 방식이 기본 흐름이 아닙니다. 키를 발급한 뒤 hs-sql-agent가 생성한 설정을 그대로 MCP 클라이언트에 붙여 넣으면 됩니다.
 
 <CardGrid columns={3}>
-  <DocCard title="엔드포인트" icon="HTTP" description="외부에서 접근할 수 있는 MCP 공개 URL을 사용합니다. 일반적으로 /mcp로 끝납니다." />
-  <DocCard title="인증" icon="KEY" description="발급한 MCP 키를 X-MCP-Server-Key 요청 헤더에 넣어 전송합니다." />
-  <DocCard title="DML 사용 조건" icon="FORM" description="데이터 변경 도구를 사용하려면 실제 배포하는 MCP 클라이언트 버전이 form Elicitation을 지원해야 합니다." />
+  <DocCard title="키 발급" icon="KEY" description="대상 데이터베이스에 연결된 MCP 키를 만들고 필요한 도구와 테이블만 허용합니다." />
+  <DocCard title="클라이언트 설정 복사" icon="COPY" description="한 번만 표시되는 Save and connect 대화상자에서 Claude Desktop, Cursor, Visual Studio Code, Generic HTTP 설정을 복사할 수 있습니다." />
+  <DocCard title="DML 지원 확인" icon="FORM" description="DML을 호출할 수 있는 키는 실제 배포하는 MCP 클라이언트가 form Elicitation을 지원해야 합니다." />
 </CardGrid>
 
-## 클라이언트 연결
+## 권장 연결 절차
 
 <Steps>
   <Step title="MCP 키 발급">
-관리자 화면에서 접속할 데이터베이스에 연결된 키를 만듭니다. 클라이언트에 전체 권한이 필요하지 않다면 사용할 수 있는 도구와 테이블을 최소한으로 제한하세요.
+**Runtime → MCP Keys**에서 대상 데이터베이스용 키를 만들고 클라이언트에 필요한 도구와 테이블만 선택합니다.
   </Step>
-  <Step title="공개 MCP 엔드포인트 사용">
-클라이언트에서 실제로 접근할 수 있는 URL을 사용합니다. 관리자 UI와 MCP 엔드포인트가 같은 호스트나 포트를 사용한다고 가정하지 마세요.
+  <Step title="한 번만 표시되는 Save and connect 사용">
+**Issue Key**가 성공하면 hs-sql-agent가 평문 키와 생성된 클라이언트 설정을 즉시 보여 줍니다. 관리자 화면에서 이 평문 값을 확인할 수 있는 유일한 시점입니다.
   </Step>
-  <Step title="모든 요청 인증">
-아래 MCP 요청 헤더로 키를 전송합니다. 평문 키는 비밀값으로 다뤄야 합니다. 발급·갱신 대화상자를 닫으면 같은 값은 다시 표시되지 않습니다.
+  <Step title="클라이언트를 선택하고 설정 복사">
+**Claude Desktop**, **Cursor**, **Visual Studio Code**, **Generic HTTP** 중 하나를 선택한 뒤 해당 **Copy ... config** 버튼을 누릅니다. 복사되는 JSON에는 MCP endpoint와 `X-MCP-Server-Key`가 이미 포함되어 있습니다.
   </Step>
-  <Step title="실제로 사용할 클라이언트 확인">
-먼저 스키마 조회와 쿼리 실행을 확인합니다. DML을 활성화할 예정이라면 운영 환경에 배포하기 전에 form Elicitation 동작도 별도로 테스트하세요.
+  <Step title="붙여 넣고 연결한 뒤 필요하면 DML 검증">
+복사한 JSON을 MCP 클라이언트 설정에 붙여 넣고 연결합니다. DML을 사용할 경우 운영 배포 전에 form Elicitation의 거절과 승인 흐름을 모두 확인하세요.
   </Step>
 </Steps>
 
-```http
-X-MCP-Server-Key: <MCP key>
-```
+<Callout type="warning" title="대화상자를 닫기 전에 설정을 저장하세요">
+서버는 MCP 키의 평문 값을 저장하지 않습니다. **Save and connect**를 닫으면 저장된 키 레코드만으로 같은 평문 키와 설정을 다시 만들 수 없습니다. **Rotate**와 **Duplicate**는 새 평문 키를 만들고 같은 onboarding 대화상자를 다시 엽니다. **Edit**은 기존 비밀값을 다시 보여 주지 않습니다.
+</Callout>
 
-## 공개 엔드포인트
+## 생성 설정에 사용되는 공개 엔드포인트
 
-운영자 화면과 자동 생성되는 클라이언트 설정에 표시되는 URL은 다음 서버 설정에서 가져옵니다.
+클라이언트 설정의 URL은 다음 서버 설정에서 가져옵니다.
 
 ```json
 {
@@ -53,17 +53,32 @@ X-MCP-Server-Key: <MCP key>
 }
 ```
 
-같은 설정을 환경 변수로 지정할 때는 `Mcp__PublicEndpoint`를 사용합니다. 제공되는 Compose 구성은 `MCP_PUBLIC_ENDPOINT` 값을 이 설정으로 전달합니다.
+같은 값을 환경 변수로 지정할 때는 `Mcp__PublicEndpoint`를 사용합니다. 제공되는 Compose 구성은 `MCP_PUBLIC_ENDPOINT` 값을 이 설정으로 전달합니다.
 
-<Callout type="warning" title="관리자 UI 주소로 MCP 접속 주소를 추정하지 마세요">
-관리자 UI와 MCP 엔드포인트는 서로 다른 호스트, 포트 또는 리버스 프록시 경로를 사용할 수 있습니다. Development가 아닌 환경에서는 HTTP 또는 HTTPS 절대 URL을 설정해야 합니다. MCP 클라이언트가 실제로 접근할 수 있는 주소를 사용하세요.
+운영용 MCP 키를 발급하기 **전에**, 실제 클라이언트에서 접근할 수 있고 `/mcp`를 포함하는 URL로 설정하세요. 관리자 화면은 `GET /api/runtime/client-config`에서 이 값을 읽어 복사되는 설정에 그대로 넣습니다.
+
+<Callout type="warning" title="관리자 UI 주소로 MCP 엔드포인트를 추정하지 마세요">
+관리자 UI와 MCP 엔드포인트는 서로 다른 host, port 또는 리버스 프록시 경로를 사용할 수 있습니다. Development가 아닌 환경에서는 HTTP 또는 HTTPS 절대 URL이 필요합니다.
 </Callout>
 
-## 자동 생성되는 클라이언트 설정
+## 대화상자가 생성하는 설정
 
-MCP 키를 발급, 교체 또는 복제하면 관리자 화면에서 Claude Desktop, Cursor, 일반 Streamable HTTP 클라이언트용 직접 연결 설정을 생성할 수 있습니다.
+Issue, Rotate, Duplicate가 성공하면 현재 관리자 화면은 다음 네 가지 설정을 제공합니다.
 
-평문 키는 일시적으로만 표시됩니다. 발급·갱신 대화상자를 닫은 뒤에는 서버가 같은 비밀값을 다시 보여 줄 수 없습니다.
+- **Claude Desktop** — 직접 HTTP 연결용 `mcpServers` 항목
+- **Cursor** — HTTP `mcpServers` 항목
+- **Visual Studio Code** — `servers` 항목
+- **Generic HTTP** — Streamable HTTP 연결 객체
+
+모든 형식에 서버에 설정된 endpoint와 이번에 생성된 MCP 키가 들어갑니다. 일반적으로 JSON을 직접 조합할 필요가 없습니다.
+
+## Generic / 수동 인증 참고
+
+클라이언트에서 다른 외부 설정 형식이 필요하다면 Generic HTTP 출력을 기준으로 사용하세요. 프로토콜 수준 인증은 다음 header입니다.
+
+```http
+X-MCP-Server-Key: <MCP key>
+```
 
 ## DML 지원 여부는 별도로 확인해야 합니다
 
@@ -75,12 +90,12 @@ MCP 키를 발급, 교체 또는 복제하면 관리자 화면에서 Claude Desk
 2. Elicitation 요청을 승인하고 승인한 데이터 변경만 완료되는지 확인합니다.
 
 <Callout type="danger" title="Elicitation을 지원하지 않으면 Safe DML을 사용할 수 없습니다">
-클라이언트가 form Elicitation을 선언하고 구현하지 않았다면 hs-sql-agent는 DML 작업을 거부합니다. 읽기 전용 클라이언트는 클라이언트가 스스로 DML을 피할 것이라고 기대하지 말고, MCP 키에서 데이터 변경 도구를 허용 목록에서 제외하세요.
+클라이언트가 form Elicitation을 선언하고 구현하지 않았다면 hs-sql-agent는 DML 작업을 거부합니다. 읽기 전용 클라이언트는 키를 unrestricted로 두지 말고 허용 도구 목록에서 데이터 변경 도구를 제외하세요.
 </Callout>
 
 ## 다음 문서
 
 <CardGrid columns={2}>
-  <DocCard title="MCP 도구 참조" icon="REF" href="/en/docs/mcp/tools-reference" description="기본 제공되는 탐색, 쿼리, DML 도구의 공식 계약을 확인합니다." />
+  <DocCard title="MCP 도구 참조" icon="REF" href="/ko/docs/mcp/tools-reference" description="기본 제공되는 탐색, 쿼리, DML 도구의 계약을 확인합니다." />
   <DocCard title="Safe DML" icon="DML" href="/ko/docs/sql-compiler/safe-dml" description="영향 범위 확인, 승인 내용 고정, 대상 행 재검증, 커밋까지의 절차를 이해합니다." />
 </CardGrid>
