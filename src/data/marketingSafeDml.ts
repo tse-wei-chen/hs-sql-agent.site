@@ -23,7 +23,8 @@ const pages: Record<SafeDmlMarketingLocale, SafeDmlMarketingPage> = {
     order: 20,
     visual: "dml",
     title: "Safe DML with atomic transaction approval",
-    headline: "Approve the exact mutation evidence, then commit all or nothing.",
+    headline:
+      "Approve the exact mutation evidence, then commit all or nothing.",
     description:
       "execute_dml_sql handles one or more supported mutations through preview, approval, commit-time revalidation, and one server-owned atomic transaction. MCP Elicitation is the default approval path, with official Webhook and custom provider options.",
     eyebrow: "Safe DML",
@@ -190,11 +191,17 @@ const pages: Record<SafeDmlMarketingLocale, SafeDmlMarketingPage> = {
     order: 20,
     visual: "dml",
     title: "原子的な Transaction 承認を備えた Safe DML",
-    headline: "正確な Mutation Evidence を承認し、全件 commit か全件 rollback かを決めます。",
+    headline:
+      "正確な Mutation Evidence を承認し、全件 commit か全件 rollback かを決めます。",
     description:
       "execute_dml_sql は Preview、承認、commit 直前の再検証、1 つのサーバー所有 Transaction を通して 1 つ以上の対応 DML を実行します。第一方の既定は MCP Elicitation で、公式 Webhook や独自 Provider も利用できます。",
     eyebrow: "Safe DML",
-    keywords: ["Safe DML", "atomic SQL transaction", "MCP 承認", "DML Webhook 承認"],
+    keywords: [
+      "Safe DML",
+      "atomic SQL transaction",
+      "MCP 承認",
+      "DML Webhook 承認",
+    ],
     highlights: [
       {
         title: "1 Tool、1 Transaction",
@@ -244,11 +251,17 @@ const pages: Record<SafeDmlMarketingLocale, SafeDmlMarketingPage> = {
     order: 20,
     visual: "dml",
     title: "원자적 Transaction 승인을 갖춘 Safe DML",
-    headline: "정확한 Mutation Evidence를 승인한 뒤 전체 commit 또는 전체 rollback을 결정합니다.",
+    headline:
+      "정확한 Mutation Evidence를 승인한 뒤 전체 commit 또는 전체 rollback을 결정합니다.",
     description:
       "execute_dml_sql은 Preview, 승인, commit 직전 재검증, 하나의 서버 소유 Transaction을 통해 하나 이상의 지원 DML을 실행합니다. 기본 공식 방식은 MCP Elicitation이며 공식 Webhook 또는 자체 Provider도 사용할 수 있습니다.",
     eyebrow: "Safe DML",
-    keywords: ["Safe DML", "atomic SQL transaction", "MCP 승인", "DML Webhook 승인"],
+    keywords: [
+      "Safe DML",
+      "atomic SQL transaction",
+      "MCP 승인",
+      "DML Webhook 승인",
+    ],
     highlights: [
       {
         title: "하나의 Tool, 하나의 Transaction",
@@ -298,11 +311,17 @@ const pages: Record<SafeDmlMarketingLocale, SafeDmlMarketingPage> = {
     order: 20,
     visual: "dml",
     title: "Safe DML avec approbation de Transaction atomique",
-    headline: "Approuvez les Mutation Evidence exactes, puis commit tout ou rien.",
+    headline:
+      "Approuvez les Mutation Evidence exactes, puis commit tout ou rien.",
     description:
       "execute_dml_sql exécute une ou plusieurs mutations prises en charge après Preview, approbation, revalidation avant commit et dans une seule Transaction contrôlée par le serveur. MCP Elicitation reste la voie officielle par défaut, avec Webhook officiel ou Provider personnalisé en option.",
     eyebrow: "Safe DML",
-    keywords: ["Safe DML", "transaction SQL atomique", "approbation MCP", "approbation Webhook DML"],
+    keywords: [
+      "Safe DML",
+      "transaction SQL atomique",
+      "approbation MCP",
+      "approbation Webhook DML",
+    ],
     highlights: [
       {
         title: "Un Tool, une Transaction",
@@ -352,11 +371,17 @@ const pages: Record<SafeDmlMarketingLocale, SafeDmlMarketingPage> = {
     order: 20,
     visual: "dml",
     title: "Safe DML mit atomarer Transaction-Freigabe",
-    headline: "Exakte Mutation Evidence freigeben und danach alles oder nichts committen.",
+    headline:
+      "Exakte Mutation Evidence freigeben und danach alles oder nichts committen.",
     description:
       "execute_dml_sql verarbeitet eine oder mehrere unterstützte Mutationen über Preview, Freigabe, Revalidierung vor dem Commit und eine einzige serverseitige Transaction. MCP Elicitation bleibt der offizielle Standard; offizieller Webhook oder eigener Provider sind ebenfalls möglich.",
     eyebrow: "Safe DML",
-    keywords: ["Safe DML", "atomare SQL-Transaktion", "MCP Freigabe", "DML Webhook Freigabe"],
+    keywords: [
+      "Safe DML",
+      "atomare SQL-Transaktion",
+      "MCP Freigabe",
+      "DML Webhook Freigabe",
+    ],
     highlights: [
       {
         title: "Ein Tool, eine Transaction",
