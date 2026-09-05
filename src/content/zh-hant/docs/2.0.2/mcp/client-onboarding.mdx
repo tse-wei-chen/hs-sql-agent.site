@@ -1,6 +1,6 @@
 ---
 title: 連接 MCP 用戶端
-description: 連接 Streamable HTTP MCP 用戶端、設定公開端點，並在啟用 DML 前確認 Elicitation 支援情況。
+description: 簽發 MCP 金鑰後直接複製產生的用戶端設定，並在啟用 DML 前確認 Elicitation 支援情況。
 sidebar:
   group: MCP
   order: 30
@@ -12,38 +12,38 @@ import DocCard from "@/components/docs/mdx/DocCard.astro";
 import Steps from "@/components/docs/mdx/Steps.astro";
 import Step from "@/components/docs/mdx/Step.astro";
 
-hs-sql-agent 在 `/mcp` 提供 **Streamable HTTP** MCP 端點。
+hs-sql-agent 在 `/mcp` 提供 **Streamable HTTP** MCP 端點。使用內建管理介面時，正常的連線方式不是自己手動拼 endpoint 與 header，而是讓 hs-sql-agent 在簽發金鑰後直接產生可貼進 MCP 用戶端的設定。
 
 <CardGrid columns={3}>
-  <DocCard title="端點" icon="HTTP" description="使用外部可存取的 MCP 公開 URL，通常以 /mcp 結尾。" />
-  <DocCard title="身分驗證" icon="KEY" description="透過 X-MCP-Server-Key 要求標頭傳送已發行的 MCP 金鑰。" />
-  <DocCard title="DML 使用條件" icon="FORM" description="使用資料修改工具時，實際部署的 MCP 用戶端版本還必須支援 form Elicitation。" />
+  <DocCard title="簽發金鑰" icon="KEY" description="建立綁定目標資料庫的 MCP 金鑰，並依需求限制工具與資料表。" />
+  <DocCard title="複製用戶端設定" icon="COPY" description="一次性的 Save and connect 對話框會產生 Claude Desktop、Cursor、Visual Studio Code 與 Generic HTTP 設定。" />
+  <DocCard title="確認 DML 支援" icon="FORM" description="只要金鑰可呼叫 DML，實際部署的 MCP 用戶端版本還必須支援 form Elicitation。" />
 </CardGrid>
 
-## 連接用戶端
+## 建議的連線流程
 
 <Steps>
-  <Step title="發行 MCP 金鑰">
-在管理介面建立一把綁定目標資料庫的金鑰。如果用戶端不需要完整權限，請限制它可使用的工具與資料表。
+  <Step title="簽發 MCP 金鑰">
+進入 **Runtime → MCP Keys**，為目標資料庫建立金鑰，並只開放用戶端真正需要的工具與資料表。
   </Step>
-  <Step title="使用公開 MCP 端點">
-這個位址必須讓用戶端實際存取。不要假設管理介面與 MCP 端點一定使用相同的主機或連接埠。
+  <Step title="使用一次性的 Save and connect 對話框">
+按下 **Issue Key** 成功後，hs-sql-agent 會立即顯示明文金鑰與產生好的用戶端設定。這是管理介面唯一能取得該明文值的時機。
   </Step>
-  <Step title="驗證每一個要求">
-使用下方 MCP 要求標頭傳送金鑰。請把明文金鑰視為敏感憑證；發行或更新對話框關閉後，同一個金鑰不會再次顯示。
+  <Step title="選擇 MCP 用戶端並複製設定">
+切到 **Claude Desktop**、**Cursor**、**Visual Studio Code** 或 **Generic HTTP** 分頁，再按對應的 **Copy ... config**。複製出的 JSON 已經包含 MCP endpoint 與 `X-MCP-Server-Key`，不需要自己再組 header。
   </Step>
-  <Step title="驗證實際安裝的用戶端">
-先確認結構描述探索與查詢執行正常。如果準備啟用 DML，還應在正式使用前另外測試用戶端的 form Elicitation 行為。
+  <Step title="貼進用戶端並驗證">
+把複製的 JSON 貼進 MCP 用戶端設定後連線。如果這把金鑰可以執行 DML，正式使用前還要實測 form Elicitation 的拒絕與接受兩條流程。
   </Step>
 </Steps>
 
-```http
-X-MCP-Server-Key: <MCP key>
-```
+<Callout type="warning" title="關閉對話框前先把設定保存好">
+伺服器不保存 MCP 明文金鑰。關閉 **Save and connect** 後，管理介面就無法再用既有紀錄還原同一份明文金鑰與設定。**Rotate** 或 **Duplicate** 會建立新的明文金鑰，並再次開啟同一個 onboarding 對話框；**Edit** 不會重新顯示既有密鑰。
+</Callout>
 
-## 公開端點
+## 產生設定時使用的公開端點
 
-維運介面與自動產生的用戶端設定會使用下列伺服器設定中的 URL：
+用戶端設定中的 URL 來自伺服器的公開端點設定：
 
 ```json
 {
@@ -53,17 +53,32 @@ X-MCP-Server-Key: <MCP key>
 }
 ```
 
-對應的環境變數是 `Mcp__PublicEndpoint`。儲存庫提供的 Compose 設定會把 `MCP_PUBLIC_ENDPOINT` 對應到這個值。
+對應的環境變數是 `Mcp__PublicEndpoint`；專案提供的 Compose 設定會把 `MCP_PUBLIC_ENDPOINT` 對應到這個值。
 
-<Callout type="warning" title="不要從管理介面的 URL 推測 MCP 連線位址">
-管理介面與 MCP 端點可能使用不同的主機、連接埠或反向代理路徑。在非 Development 環境中，伺服器要求設定 HTTP 或 HTTPS 絕對 URL。請填入 MCP 用戶端真正可以存取的位址。
+正式環境請在簽發正式 MCP 金鑰**之前**先把它設成用戶端真正可連線、且包含 `/mcp` 的 URL。管理介面會從 `GET /api/runtime/client-config` 讀取此值，並直接放進複製出的設定。
+
+<Callout type="warning" title="不要從管理介面的 URL 推測 MCP 端點">
+管理介面與 MCP 端點可能使用不同的 host、port 或反向代理路徑。非 Development 環境要求設定 HTTP 或 HTTPS 絕對 URL。
 </Callout>
 
-## 自動產生的用戶端設定
+## 對話框目前會產生什麼
 
-發行、輪替或複製 MCP 金鑰後，管理介面可以立即為 Claude Desktop、Cursor 與一般 Streamable HTTP 用戶端產生直接連線設定。
+Issue、Rotate 或 Duplicate 成功後，目前管理介面提供四種設定：
 
-明文金鑰只會短暫顯示。關閉金鑰生命週期對話框後，伺服器無法再次顯示同一個密鑰值。
+- **Claude Desktop** — 直接 HTTP 的 `mcpServers` 項目；
+- **Cursor** — HTTP `mcpServers` 項目；
+- **Visual Studio Code** — `servers` 項目；
+- **Generic HTTP** — Streamable HTTP 連線物件。
+
+四種輸出都會帶入伺服器設定的 endpoint 與該次產生的 MCP 金鑰。一般情況不需要手動重建這些 JSON。
+
+## Generic / 手動驗證參考
+
+如果某個 MCP 用戶端需要不同的外層設定格式，可用 Generic HTTP 分頁作為參考。協定層的驗證方式是：
+
+```http
+X-MCP-Server-Key: <MCP key>
+```
 
 ## DML 相容性需要另外確認
 
@@ -71,16 +86,16 @@ X-MCP-Server-Key: <MCP key>
 
 `execute_dml_sql` 與已發布的 DML Custom Tools 需要 form Elicitation。正式環境允許 DML 前，請使用實際安裝的用戶端版本驗證以下兩種情況：
 
-1. 拒絕 Elicitation 要求，確認資料修改沒有被認可。
+1. 拒絕 Elicitation 要求，確認資料修改沒有提交。
 2. 接受 Elicitation 要求，確認只有已核准的資料修改會完成。
 
 <Callout type="danger" title="不支援 Elicitation，就不能使用 Safe DML">
-如果用戶端沒有宣告並實作 form Elicitation，hs-sql-agent 會拒絕 DML 操作。對於唯讀用戶端，應直接從 MCP 金鑰的允許工具清單中移除資料修改工具，而不是依賴用戶端自行避免呼叫 DML。
+如果用戶端沒有宣告並實作 form Elicitation，hs-sql-agent 會拒絕 DML 操作。唯讀用戶端應直接從 MCP 金鑰的允許工具清單移除資料修改工具，不要把金鑰留在 unrestricted 狀態。
 </Callout>
 
 ## 接下來閱讀
 
 <CardGrid columns={2}>
   <DocCard title="MCP 工具參考" icon="REF" href="/zh-hant/docs/mcp/tools-reference" description="查看內建探索、查詢與 DML 工具的正式介面約定。" />
-  <DocCard title="Safe DML" icon="DML" href="/zh-hant/docs/sql-compiler/safe-dml" description="了解影響預覽、核准內容綁定、目標資料列重新驗證與交易認可流程。" />
+  <DocCard title="Safe DML" icon="DML" href="/zh-hant/docs/sql-compiler/safe-dml" description="了解影響預覽、核准內容綁定、目標資料列重新驗證與提交流程。" />
 </CardGrid>

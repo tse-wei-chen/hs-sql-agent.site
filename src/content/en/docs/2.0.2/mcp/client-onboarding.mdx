@@ -1,6 +1,6 @@
 ---
 title: MCP Client Onboarding
-description: Connect Streamable HTTP MCP clients, configure the public endpoint, and verify Elicitation before enabling DML.
+description: Issue an MCP key, copy the generated client configuration, and verify Elicitation before enabling DML.
 sidebar:
   group: MCP
   order: 30
@@ -12,38 +12,38 @@ import DocCard from "@/components/docs/mdx/DocCard.astro";
 import Steps from "@/components/docs/mdx/Steps.astro";
 import Step from "@/components/docs/mdx/Step.astro";
 
-hs-sql-agent exposes a **Streamable HTTP** MCP endpoint at `/mcp`.
+hs-sql-agent exposes a **Streamable HTTP** MCP endpoint at `/mcp`. For the packaged Admin experience, the normal onboarding path is to let hs-sql-agent generate the client configuration for you.
 
 <CardGrid columns={3}>
-  <DocCard title="Endpoint" icon="HTTP" description="Use the externally reachable MCP public endpoint, normally ending in /mcp." />
-  <DocCard title="Authentication" icon="KEY" description="Send the issued MCP key in the X-MCP-Server-Key request header." />
-  <DocCard title="DML readiness" icon="FORM" description="Mutation tools additionally require form Elicitation support from the exact MCP client version you deploy." />
+  <DocCard title="Issue a key" icon="KEY" description="Create a key bound to the target database and restrict its tools and tables as needed." />
+  <DocCard title="Copy client config" icon="COPY" description="The one-time Save and connect dialog generates ready-to-paste config for Claude Desktop, Cursor, Visual Studio Code, and Generic HTTP." />
+  <DocCard title="Check DML support" icon="FORM" description="Keys that can invoke DML additionally require form Elicitation support from the exact MCP client version you deploy." />
 </CardGrid>
 
-## Connect a client
+## Recommended onboarding flow
 
 <Steps>
-  <Step title="Issue an MCP key">
-Use the Admin Panel to create a key bound to the intended database. Restrict its allowed tools and tables when the client does not need unrestricted access.
+  <Step title="Issue the MCP key">
+Open **Runtime → MCP Keys**, create a key for the target database, and select the minimum tools and tables the client needs.
   </Step>
-  <Step title="Use the public MCP endpoint">
-The endpoint must be reachable by the client. Do not assume the Admin UI origin and MCP origin are the same.
+  <Step title="Use the one-time Save and connect dialog">
+Immediately after **Issue Key**, hs-sql-agent shows the plaintext secret and generated client configurations. This is the only time that plaintext value is available from the Admin UI.
   </Step>
-  <Step title="Authenticate every request">
-Send the key with the MCP request header shown below. Treat the plaintext key as a secret; the lifecycle dialog will not display the same secret again after it is closed.
+  <Step title="Choose the client and copy its config">
+Select **Claude Desktop**, **Cursor**, **Visual Studio Code**, or **Generic HTTP**, then click the corresponding **Copy ... config** button. The copied JSON already contains the MCP endpoint and `X-MCP-Server-Key` header.
   </Step>
-  <Step title="Verify the installed client">
-Confirm schema discovery and query execution first. If DML will be enabled, test the client’s form Elicitation behavior separately before production use.
+  <Step title="Paste, connect, then verify DML if needed">
+Paste the copied JSON into the MCP client's configuration and connect. If the key can invoke DML, test both form Elicitation decline and accept paths before production use.
   </Step>
 </Steps>
 
-```http
-X-MCP-Server-Key: <MCP key>
-```
+<Callout type="warning" title="Save the generated configuration before closing the dialog">
+The server does not store the plaintext MCP key. Closing **Save and connect** removes that value from the Admin UI, so the same generated configuration cannot be reconstructed later from the stored key record. **Rotate** or **Duplicate** creates a new plaintext secret and opens the same onboarding dialog again; **Edit** does not reveal the existing secret.
+</Callout>
 
-## Public endpoint
+## Public endpoint used by generated configuration
 
-The URL shown to operators and generated client configurations comes from the server setting:
+The client configuration is generated from the server's public endpoint setting:
 
 ```json
 {
@@ -55,15 +55,30 @@ The URL shown to operators and generated client configurations comes from the se
 
 The equivalent environment variable is `Mcp__PublicEndpoint`; the provided Compose configuration maps `MCP_PUBLIC_ENDPOINT` to it.
 
-<Callout type="warning" title="Do not derive MCP connectivity from the Admin UI URL">
-The Admin UI and MCP endpoint may use different hosts, ports, or reverse-proxy paths. In non-Development environments the server requires an absolute HTTP or HTTPS public endpoint. Configure the URL the MCP client can actually reach.
+Set the production value to the URL the MCP client can actually reach, including `/mcp`, **before issuing production keys**. The Admin UI reads this value from `GET /api/runtime/client-config` and places it into the copied configuration.
+
+<Callout type="warning" title="Do not derive the MCP endpoint from the Admin UI URL">
+The Admin UI and MCP endpoint may use different hosts, ports, or reverse-proxy paths. In non-Development environments the server requires an absolute HTTP or HTTPS public endpoint.
 </Callout>
 
-## Generated client configuration
+## What the dialog generates
 
-The Admin Panel generates direct HTTP configuration for Claude Desktop, Cursor, and generic Streamable HTTP clients immediately after an MCP key is issued, rotated, or duplicated.
+The current Admin UI provides four configuration tabs after Issue, Rotate, or Duplicate:
 
-The plaintext key is intentionally transient. Once the lifecycle dialog is closed, the server cannot display that same secret again.
+- **Claude Desktop** — a direct HTTP `mcpServers` entry;
+- **Cursor** — an HTTP `mcpServers` entry;
+- **Visual Studio Code** — a `servers` entry;
+- **Generic HTTP** — a Streamable HTTP connection object.
+
+All generated variants include the configured endpoint and the one-time MCP key header. You normally do not need to manually assemble this JSON.
+
+## Manual / generic authentication reference
+
+For a client that needs a different surrounding configuration shape, use the Generic HTTP output as the reference. At the protocol level, authentication is:
+
+```http
+X-MCP-Server-Key: <MCP key>
+```
 
 ## DML compatibility is a separate check
 
@@ -71,16 +86,16 @@ A client successfully connecting to `/mcp` does **not** prove that it supports D
 
 `execute_dml_sql` and published DML Custom Tools require form Elicitation. Before allowing DML in production, test the exact installed client version and verify both paths:
 
-1. Decline an elicitation request and confirm the mutation is not committed.
-2. Accept an elicitation request and confirm the approved mutation completes.
+1. Decline an Elicitation request and confirm the mutation is not committed.
+2. Accept an Elicitation request and confirm the approved mutation completes.
 
 <Callout type="danger" title="No Elicitation means no governed DML">
-If a client does not declare and implement form Elicitation, hs-sql-agent refuses the DML operation. For query-only clients, prefer an MCP key whose allowed-tool list excludes mutation tools instead of leaving the key unrestricted.
+If a client does not declare and implement form Elicitation, hs-sql-agent refuses the DML operation. For query-only clients, use a key whose allowed-tool list excludes mutation tools instead of leaving the key unrestricted.
 </Callout>
 
 ## Next steps
 
 <CardGrid columns={2}>
-  <DocCard title="MCP Tools Reference" icon="REF" href="/en/docs/mcp/tools-reference" description="Review the official built-in discovery, query, and DML tool contracts." />
+  <DocCard title="MCP Tools Reference" icon="REF" href="/en/docs/mcp/tools-reference" description="Review the built-in discovery, query, and DML tool contracts." />
   <DocCard title="Safe DML" icon="DML" href="/en/docs/sql-compiler/safe-dml" description="Understand preview, approval binding, row-set revalidation, and commit." />
 </CardGrid>

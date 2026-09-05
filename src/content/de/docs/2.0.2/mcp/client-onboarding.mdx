@@ -1,6 +1,6 @@
 ---
 title: MCP-Client verbinden
-description: Streamable-HTTP-MCP-Clients anbinden, den öffentlichen Endpunkt konfigurieren und Elicitation prüfen, bevor DML aktiviert wird.
+description: MCP-Schlüssel erstellen, die generierte Clientkonfiguration kopieren und Elicitation prüfen, bevor DML aktiviert wird.
 sidebar:
   group: MCP
   order: 30
@@ -12,38 +12,38 @@ import DocCard from "@/components/docs/mdx/DocCard.astro";
 import Steps from "@/components/docs/mdx/Steps.astro";
 import Step from "@/components/docs/mdx/Step.astro";
 
-hs-sql-agent stellt unter `/mcp` einen **Streamable HTTP** MCP-Endpunkt bereit.
+hs-sql-agent stellt unter `/mcp` einen **Streamable HTTP** MCP-Endpunkt bereit. Mit der integrierten Administrationsoberfläche besteht der normale Onboarding-Weg nicht darin, Endpunkt und Header manuell zusammenzubauen. Direkt nach der Schlüsselerstellung erzeugt hs-sql-agent eine Clientkonfiguration zum Kopieren.
 
 <CardGrid columns={3}>
-  <DocCard title="Endpunkt" icon="HTTP" description="Verwenden Sie den von außen erreichbaren öffentlichen MCP-Endpunkt, der normalerweise auf /mcp endet." />
-  <DocCard title="Authentifizierung" icon="KEY" description="Senden Sie den ausgestellten MCP-Schlüssel im Anforderungsheader X-MCP-Server-Key." />
-  <DocCard title="DML-Voraussetzungen" icon="FORM" description="Werkzeuge für Datenänderungen erfordern zusätzlich Elicitation per Formular in genau der MCP-Clientversion, die Sie einsetzen." />
+  <DocCard title="Schlüssel erstellen" icon="KEY" description="Einen MCP-Schlüssel an die Zieldatenbank binden und Werkzeuge sowie Tabellen auf das nötige Minimum begrenzen." />
+  <DocCard title="Clientkonfiguration kopieren" icon="COPY" description="Der einmal angezeigte Dialog Save and connect erzeugt Konfigurationen für Claude Desktop, Cursor, Visual Studio Code und Generic HTTP." />
+  <DocCard title="DML-Unterstützung prüfen" icon="FORM" description="Kann der Schlüssel DML ausführen, muss die tatsächlich eingesetzte MCP-Clientversion Elicitation per Formular unterstützen." />
 </CardGrid>
 
-## Client verbinden
+## Empfohlener Onboarding-Ablauf
 
 <Steps>
   <Step title="MCP-Schlüssel erstellen">
-Erstellen Sie in der Administrationsoberfläche einen Schlüssel, der an die vorgesehene Datenbank gebunden ist. Wenn der Client keinen uneingeschränkten Zugriff benötigt, begrenzen Sie die zulässigen Werkzeuge und Tabellen.
+Öffnen Sie **Runtime → MCP Keys**, erstellen Sie einen Schlüssel für die Zieldatenbank und erlauben Sie nur die Werkzeuge und Tabellen, die der Client tatsächlich benötigt.
   </Step>
-  <Step title="Öffentlichen MCP-Endpunkt verwenden">
-Der Endpunkt muss vom Client aus erreichbar sein. Gehen Sie nicht davon aus, dass Administrationsoberfläche und MCP-Endpunkt dieselbe Web-Origin verwenden.
+  <Step title="Den einmaligen Dialog Save and connect verwenden">
+Nach erfolgreichem **Issue Key** zeigt hs-sql-agent sofort den Klartextschlüssel und die generierten Clientkonfigurationen an. Nur in diesem Moment kann die Administrationsoberfläche den Klartextwert bereitstellen.
   </Step>
-  <Step title="Jede Anfrage authentifizieren">
-Senden Sie den Schlüssel mit dem unten gezeigten MCP-Anforderungsheader. Behandeln Sie den Klartextschlüssel als Geheimnis; nach dem Schließen des Lebenszyklusdialogs wird derselbe Wert nicht erneut angezeigt.
+  <Step title="Client auswählen und Konfiguration kopieren">
+Wählen Sie **Claude Desktop**, **Cursor**, **Visual Studio Code** oder **Generic HTTP** und klicken Sie auf den passenden Button **Copy ... config**. Das kopierte JSON enthält bereits den MCP-Endpunkt und den Header `X-MCP-Server-Key`.
   </Step>
-  <Step title="Tatsächlich installierten Client prüfen">
-Prüfen Sie zuerst Schemaerkennung und Abfrageausführung. Wenn DML aktiviert werden soll, testen Sie vor dem Produktionseinsatz zusätzlich das Verhalten bei Elicitation per Formular.
+  <Step title="Einfügen, verbinden und bei Bedarf DML prüfen">
+Fügen Sie das JSON in die MCP-Clientkonfiguration ein und stellen Sie die Verbindung her. Wenn der Schlüssel DML ausführen darf, testen Sie vor dem Produktionseinsatz sowohl Ablehnung als auch Annahme der Elicitation per Formular.
   </Step>
 </Steps>
 
-```http
-X-MCP-Server-Key: <MCP key>
-```
+<Callout type="warning" title="Konfiguration vor dem Schließen des Dialogs speichern">
+Der Server speichert den MCP-Schlüssel nicht im Klartext. Nach dem Schließen von **Save and connect** lassen sich derselbe Klartextschlüssel und dieselbe Konfiguration nicht aus dem gespeicherten Schlüsselobjekt rekonstruieren. **Rotate** und **Duplicate** erzeugen einen neuen Klartextschlüssel und öffnen denselben Onboarding-Dialog erneut; **Edit** zeigt das bestehende Secret nicht wieder an.
+</Callout>
 
-## Öffentlicher Endpunkt
+## Öffentlicher Endpunkt für die generierte Konfiguration
 
-Die für Betreiber angezeigte URL und die generierten Clientkonfigurationen stammen aus dieser Servereinstellung:
+Die URL in der Clientkonfiguration stammt aus dieser Servereinstellung:
 
 ```json
 {
@@ -55,15 +55,30 @@ Die für Betreiber angezeigte URL und die generierten Clientkonfigurationen stam
 
 Die entsprechende Umgebungsvariable ist `Mcp__PublicEndpoint`; die mitgelieferte Compose-Konfiguration ordnet `MCP_PUBLIC_ENDPOINT` dieser Einstellung zu.
 
-<Callout type="warning" title="Leiten Sie die MCP-Adresse nicht aus der URL der Administrationsoberfläche ab">
-Administrationsoberfläche und MCP-Endpunkt können unterschiedliche Hosts, Ports oder Reverse-Proxy-Pfade verwenden. Außerhalb der `Development`-Umgebung verlangt der Server einen absoluten öffentlichen HTTP- oder HTTPS-Endpunkt. Konfigurieren Sie die URL, die der MCP-Client tatsächlich erreichen kann.
+Konfigurieren Sie **vor** dem Erstellen von Produktionsschlüsseln die URL, die der MCP-Client tatsächlich erreichen kann, einschließlich `/mcp`. Die Administrationsoberfläche liest den Wert über `GET /api/runtime/client-config` und übernimmt ihn direkt in die kopierte Konfiguration.
+
+<Callout type="warning" title="MCP-Endpunkt nicht aus der URL der Administrationsoberfläche ableiten">
+Administrationsoberfläche und MCP-Endpunkt können unterschiedliche hosts, ports oder Reverse-Proxy-Pfade verwenden. Außerhalb der Development-Umgebung ist eine absolute HTTP- oder HTTPS-URL erforderlich.
 </Callout>
 
-## Generierte Clientkonfiguration
+## Vom Dialog erzeugte Konfigurationen
 
-Unmittelbar nach dem Erstellen, Rotieren oder Duplizieren eines MCP-Schlüssels kann die Administrationsoberfläche eine direkte HTTP-Konfiguration für Claude Desktop, Cursor und allgemeine Streamable-HTTP-Clients erzeugen.
+Nach Issue, Rotate oder Duplicate bietet die aktuelle Administrationsoberfläche vier Formate:
 
-Der Klartextschlüssel wird absichtlich nur vorübergehend angezeigt. Nach dem Schließen des Lebenszyklusdialogs kann der Server denselben geheimen Wert nicht erneut anzeigen.
+- **Claude Desktop** — direkter HTTP-`mcpServers`-Eintrag;
+- **Cursor** — HTTP-`mcpServers`-Eintrag;
+- **Visual Studio Code** — `servers`-Eintrag;
+- **Generic HTTP** — Streamable-HTTP-Verbindungsobjekt.
+
+Alle Varianten enthalten den konfigurierten Endpunkt und den neu erzeugten MCP-Schlüssel. Im normalen Ablauf muss dieses JSON nicht manuell nachgebaut werden.
+
+## Generic / manuelle Authentifizierungsreferenz
+
+Wenn ein Client eine andere äußere Konfigurationsform benötigt, verwenden Sie die Ausgabe unter Generic HTTP als Referenz. Auf Protokollebene erfolgt die Authentifizierung über:
+
+```http
+X-MCP-Server-Key: <MCP key>
+```
 
 ## DML-Kompatibilität separat prüfen
 
@@ -75,12 +90,12 @@ Eine erfolgreiche Verbindung zu `/mcp` **beweist nicht, dass der Client DML-Frei
 2. Eine Elicitation-Anfrage annehmen und sicherstellen, dass nur die freigegebene Datenänderung abgeschlossen wird.
 
 <Callout type="danger" title="Ohne Elicitation kein kontrolliertes DML">
-Wenn ein Client Elicitation per Formular nicht deklariert und implementiert, lehnt hs-sql-agent die DML-Operation ab. Für reine Abfrage-Clients sollten Sie einen MCP-Schlüssel verwenden, dessen Liste zulässiger Werkzeuge keine Änderungswerkzeuge enthält, statt den Schlüssel uneingeschränkt zu lassen.
+Wenn ein Client Elicitation per Formular nicht deklariert und implementiert, lehnt hs-sql-agent die DML-Operation ab. Für reine Abfrage-Clients entfernen Sie Änderungswerkzeuge aus der Allowlist, statt den Schlüssel unrestricted zu lassen.
 </Callout>
 
 ## Nächste Schritte
 
 <CardGrid columns={2}>
-  <DocCard title="MCP-Werkzeugreferenz" icon="REF" href="/en/docs/mcp/tools-reference" description="Die offiziellen Verträge der integrierten Werkzeuge für Erkennung, Abfragen und DML nachlesen." />
+  <DocCard title="MCP-Werkzeugreferenz" icon="REF" href="/de/docs/mcp/tools-reference" description="Die Verträge der integrierten Werkzeuge für Erkennung, Abfragen und DML nachlesen." />
   <DocCard title="Safe DML" icon="DML" href="/de/docs/sql-compiler/safe-dml" description="Vorschau, Bindung der Freigabe, erneute Prüfung der Zeilenmenge und Commit verstehen." />
 </CardGrid>
