@@ -1,0 +1,73 @@
+---
+title: オブザーバビリティと監査運用
+description: ヘルスプローブ、スロークエリ閾値、Prometheus、OTLP、監査保持、署名付き外向き配信を設定します。
+sidebar:
+  group: 運用
+  order: 95
+---
+
+hs-sql-agent は、ランタイムのオブザーバビリティと SQL コントロールプレーンを分離しています。本番運用では、データベースの監査テーブルだけを唯一の運用シグナルにせず、ヘルスチェック、メトリクス、テレメトリエクスポート、監査保持、外向きの alert／SIEM 配信を組み合わせられます。
+
+## ヘルスとスロークエリの監視
+
+サンプル環境では次の設定を公開しています。
+
+```text
+HEALTH_PROBE_ENABLED
+HEALTH_PROBE_INTERVAL_SECONDS
+HEALTH_PROBE_TIMEOUT_SECONDS
+HEALTH_PROBE_MAX_CONCURRENCY
+SLOW_QUERY_THRESHOLD_MS
+```
+
+ヘルスプローブは任意です。スロークエリ閾値は、SQL 実行を運用上の slow query として分類する基準を決めます。
+
+## Prometheus と OTLP
+
+Prometheus はアプリケーション API とは**別の listener**で提供されます。
+
+```text
+PROMETHEUS_ENABLED=false
+PROMETHEUS_HOST=0.0.0.0
+PROMETHEUS_PORT=9000
+```
+
+任意の OpenTelemetry export は次で設定します。
+
+```text
+OTLP_ENDPOINT=
+OTEL_SERVICE_NAME=hs-sql-agent
+```
+
+scrape 型の metrics には Prometheus listener を使用し、deployment topology に collector が含まれる場合は OTLP を使用してください。
+
+## Alert と SIEM 配信
+
+サーバーは任意の署名付き外向き宛先に対応します。
+
+```text
+ALERT_WEBHOOK_URL=
+ALERT_WEBHOOK_SECRET=
+SIEM_WEBHOOK_URL=
+SIEM_WEBHOOK_SECRET=
+DELIVERY_MAX_ATTEMPTS=6
+DELIVERY_MAX_CONCURRENCY=4
+```
+
+宛先 URL を空にすると、その連携は無効になります。signing secret は他の deployment credential と同様に永続化し、安全に保護してください。
+
+## 監査保持
+
+保持処理は稼働中のリクエスト処理とは独立して制御されます。`AUDIT_RETENTION_DAYS=0` では自動保持処理を無効化します。現在のサービス実装が受け付ける保持モードは `Archive` と `Purge` です。Archive では期限切れレコードを削除前に設定済み archive path へ保存します。
+
+関連設定:
+
+```text
+AUDIT_RETENTION_DAYS
+AUDIT_RETENTION_MODE
+AUDIT_ARCHIVE_PATH
+AUDIT_FALLBACK_PATH
+AUDIT_RETENTION_RUN_HOUR_UTC
+```
+
+fallback path は運用障害時の処理で重要です。archive または fallback の監査出力へ依存する deployment では、設定した保存先を永続化してください。

@@ -1,0 +1,94 @@
+---
+title: アップグレードガイド
+description: hs-sql-agent 2.0.1 のドキュメント基準から後続リリースへ移行する際の、安全なアップグレードチェックリストです。
+sidebar:
+  group: リファレンス
+  order: 144
+---
+
+import Callout from "@/components/docs/mdx/Callout.astro";
+import CardGrid from "@/components/docs/mdx/CardGrid.astro";
+import DocCard from "@/components/docs/mdx/DocCard.astro";
+import Steps from "@/components/docs/mdx/Steps.astro";
+import Step from "@/components/docs/mdx/Step.astro";
+
+<CardGrid columns={3}>
+  <DocCard title="コントロールプレーン状態" icon="DB" description="ID、ロール、MCP キー、ポリシー、監査、その他ランタイム状態を保存する Admin database を保護します。" />
+  <DocCard title="シークレットと保護状態" icon="KEY" description="HMAC/JWT 設定と、永続化された ASP.NET Core data-protection key を維持します。" />
+  <DocCard title="動作契約" icon="MCP" description="バージョン変更後に client transport、SQL capability、キーのスコープ、DML Elicitation を再テストします。" />
+</CardGrid>
+
+ドキュメントのバージョン管理は **2.0.1** から始まります。サイト上には意図的に 2.0.1 より前のアップグレードマトリクスを置いていません。このページでは 2.0.1 基準から離れる際の運用チェックリストを定義します。移行先固有の破壊的変更は、その後続バージョンのドキュメントを正とします。
+
+<Callout type="warning" title="将来リリースの移行要件をこのページから推測しないでください">
+アップグレード前に、移行先リリースの release note とバージョン付きドキュメントを確認してください。後続リリースで storage schema、設定、SQL capability、API contract が変更されている場合は、そのリリースの情報が基準です。
+</Callout>
+
+## 稼働バージョンを変更する前に
+
+<Steps>
+  <Step title="現在の deployment を記録" description="正確な hs-sql-agent version、container/package version、topology、Admin database provider、shared-state provider を記録します。" />
+  <Step title="コントロールプレーン状態をバックアップ" description="新しい binary が永続状態を変更する前に、復元可能な Admin database backup を作成します。" />
+  <Step title="保護 key material を維持" description="HMAC_KEY、JWT_KEY、Webhook secret、永続化された DATA_PROTECTION_KEY_PATH の material をアップグレード後も利用できるようにします。" />
+  <Step title="設定差分を確認" description="新しい sample を本番値へ上書きせず、移行先 release の sample/options と現在の 2.0.1 設定を比較します。" />
+  <Step title="連携を棚卸し" description="MCP client、Custom Tool、OIDC、SMTP、Webhook/SIEM、Prometheus/OTLP、Redis/shared state、reverse proxy、外部 Admin API consumer を一覧化します。" />
+</Steps>
+
+## 安易に再生成してはいけない状態
+
+### HMAC / JWT secret
+
+`HMAC_KEY` は MCP キー検証を保護し、`JWT_KEY` は Admin 認証 token に署名します。secret rotation は、新しい image をデプロイした副作用ではなく、意図したセキュリティ移行として扱ってください。
+
+### Data-protection key ring
+
+保護された ID／MFA 状態で ASP.NET Core data protection を利用している場合は、`DATA_PROTECTION_KEY_PATH` を永続ストレージ上に維持します。key ring を置き換えると、以前に保護された値を読み取れなくなる場合があります。
+
+### Admin database
+
+Admin database はコントロールプレーンそのものを保持します。ID／ロール、データベース登録、MCP key record、policy、semantic metadata、Custom Tool の定義／revision、audit data、その他運用状態が含まれます。永続化方式を変更する可能性のあるアップグレード前には、SQLite または PostgreSQL に適した手順でバックアップしてください。
+
+## 設定差分チェックリスト
+
+空の新しい `.env` から始めないでください。次のカテゴリを明示的に比較します。
+
+- application host と public MCP endpoint
+- Admin database provider / connection
+- HMAC/JWT と ID 設定
+- bootstrap 設定
+- OIDC/MFA/data protection
+- audit retention と outbound delivery
+- rate limiting と security-policy sync
+- cache / SQL concurrency / その他 Redis-backed coordination
+- Prometheus と OTLP
+
+2.0.1 基準については [設定リファレンス](/ja/docs/operations/configuration) を参照してください。
+
+## アップグレード後の検証
+
+<Steps>
+  <Step title="Admin 認証" description="サインインし、想定した role/permission を確認します。有効な場合は OIDC/MFA も確認します。" />
+  <Step title="データベース接続" description="使用している各 provider について、管理接続と schema metadata browsing を確認します。" />
+  <Step title="MCP キーのスコープ" description="代表的なキーで、想定した database、tool、table whitelist、effective limit が解決されることを確認します。" />
+  <Step title="読み取り専用 SQL" description="代表的な対応 Query を実行し、compiler/output の挙動を確認します。" />
+  <Step title="Safe DML" description="本番以外の target で Decline / Accept の Elicitation を両方テストし、commit 時の挙動を確認します。" />
+  <Step title="運用" description="audit、health、key usage、telemetry export、outbound-delivery state を確認します。" />
+</Steps>
+
+## Custom Tools とセマンティックメタデータ
+
+公開済み Custom Tool ごとに、移行先 compiler/policy でも引き続き検証を通過し、意図した database/key exposure が維持されているか確認します。セマンティックメタデータでは、table/column description、relationship、metric がスキーマ探索に期待どおり表示されることを確認してください。
+
+## API 利用者
+
+2.0.1 の Admin controller は versioned `/v1` contract 配下にありません。外部自動化が Admin HTTP route を直接呼び出している場合、route/request/response compatibility を明示的なアップグレードテスト項目にしてください。
+
+[Admin HTTP API リファレンス](/ja/docs/reference/api-reference) も参照してください。
+
+## ロールバック計画
+
+<Callout type="danger" title="Binary のロールバックは、データのロールバックとは限りません">
+新しい release が永続 control-plane schema や state を変更した場合、変更済み database に古い binary をそのまま起動するのは安全とは限りません。アップグレード前の database backup を保持し、移行先 release の rollback guidance に従ってください。
+</Callout>
+
+安全な rollout では、新しいバージョンが機能面・運用面の smoke test を通過するまで、旧 deployment artifact/configuration、アップグレード前 Admin database backup、保護 key material を利用可能な状態で保持します。

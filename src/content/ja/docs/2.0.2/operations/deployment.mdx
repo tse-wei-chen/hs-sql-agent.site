@@ -1,0 +1,43 @@
+---
+title: デプロイ
+description: 単一 hs-sql-agent インスタンス、公開 MCP ルーティング、永続化、テレメトリを本番運用するための指針です。
+sidebar:
+  group: 運用
+  order: 100
+---
+
+リポジトリの既定設定は、シンプルな単一インスタンス構成に適しています。コントロールプレーンには SQLite、プロセスローカルな provider には Memory を使用できます。
+
+Development の外へサービスを公開する前に、外部公開部分と永続化が必要な部分を明示してください。
+
+## 公開 MCP URL
+
+`MCP_PUBLIC_ENDPOINT` には、MCP クライアントから実際に到達できる URL を `/mcp` まで含めて設定します。
+
+```env
+MCP_PUBLIC_ENDPOINT=https://sql-agent.example.com/mcp
+```
+
+Admin UI の origin と同一だと決めつけないでください。リバースプロキシによって、UI と MCP endpoint が異なるホスト、ポート、パスで公開される場合があります。
+
+## シークレット
+
+サンプルの HMAC key と JWT key は、それぞれ独立した 32 バイト以上の一意なシークレットへ置き換えてください。
+
+データベース認証情報、SMTP 認証情報、OIDC client secret、Webhook signing secret、Redis connection string はソース管理へ入れないでください。
+
+## コントロールプレーン状態を永続化する
+
+既定の SQLite Admin database は `/app/data` 配下にあります。ローカルの組み込みコントロールプレーンを使用する場合、コンテナを置き換えてもこのデータが残るよう永続化してください。
+
+OIDC/TOTP などの保護状態で ASP.NET Core data protection を使う場合は、`DATA_PROTECTION_KEY_PATH` も永続化します。この key を失うと、保護済み MFA／ログイン状態を読み取れなくなる場合があります。
+
+## オブザーバビリティ
+
+Prometheus metrics は専用 listener で有効にできます。サンプルではメイン API port とは別に `9000` を使用します。
+
+`OTLP_ENDPOINT` で OTLP collector endpoint を指定でき、`OTEL_SERVICE_NAME` で service name を設定できます。
+
+## 分散設定へ移行するタイミング
+
+アプリケーションインスタンスを複数動かす場合、プロセスローカル Memory は共有されません。ノード間で整合性が必要なサブシステムを分散 provider へ移し、共有 Admin database を使用してください。詳しくは [分散デプロイ](/ja/docs/operations/distributed-deployment) を参照してください。

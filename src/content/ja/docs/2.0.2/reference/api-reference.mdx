@@ -1,0 +1,171 @@
+---
+title: Admin HTTP API リファレンス
+description: 同梱 Admin UI が利用する、hs-sql-agent 2.0.1 ソースに基づく HTTP controller surface のリファレンスです。
+sidebar:
+  group: リファレンス
+  order: 142
+---
+
+import Callout from "@/components/docs/mdx/Callout.astro";
+import CardGrid from "@/components/docs/mdx/CardGrid.astro";
+import DocCard from "@/components/docs/mdx/DocCard.astro";
+
+<CardGrid columns={3}>
+  <DocCard title="認証と ID" icon="AUTH" description="サインイン、refresh、OIDC、MFA、password recovery、account、session、member、role。" />
+  <DocCard title="ランタイム管理" icon="OPS" description="database、MCP key、semantic metadata、Custom Tool、security policy、audit、operability。" />
+  <DocCard title="MCP は別サーフェス" icon="MCP" description="/mcp の Streamable HTTP transport は、この Admin REST リファレンスには含まれません。" />
+</CardGrid>
+
+このページは、**hs-sql-agent 2.0.1 のソースに実在する controller route** を記載しています。同梱 Admin UI はこのサーフェスを利用します。
+
+<Callout type="warning" title="これは 2.0.1 のソース契約であり、独立して versioning された REST standard ではありません">
+2.0.1 server はこれらの controller を `/v1` compatibility namespace 配下には公開していません。同梱 Admin UI 以外から連携する場合は hs-sql-agent version を固定し、アップグレード時にこのリファレンスを再確認してください。
+</Callout>
+
+## 認証と認可
+
+ほとんどの Admin route では、認証済み Admin identity が必要です。保護された runtime action では、さらに `/runtime/db-management` → `view` や `/auth/role` → `edit` のような path/action permission check が適用されます。
+
+Admin session が存在する前に開始する必要がある flow には匿名アクセスの例外があります。たとえば first-run / sign-in / sign-up、特定の OIDC endpoint、password recovery、MFA challenge completion です。
+
+詳しくは [権限](/ja/docs/administration/permissions) を参照してください。
+
+## Auth — `/api/Auth`
+
+| Method | Route | 用途 |
+| --- | --- | --- |
+| GET | `/api/Auth/first-run` | 初期 setup state を確認 |
+| POST | `/api/Auth/sign-in` | Admin credential を認証 |
+| POST | `/api/Auth/sign-up` | 許可された first-run flow で最初の Admin を作成 |
+| POST | `/api/Auth/refresh-token` | refresh credential を交換 |
+| POST | `/api/Auth/sign-out` | 現在の session を終了 |
+| GET | `/api/Auth/sessions` | 現在ユーザーの session 一覧 |
+| DELETE | `/api/Auth/sessions/{sessionId}` | 1 つの session を失効 |
+| DELETE | `/api/Auth/sessions` | その他の session を失効 |
+| GET | `/api/Auth/oidc/status` | OIDC の利用可否を確認 |
+| GET | `/api/Auth/oidc/login` | OIDC login を開始 |
+| GET | `/api/Auth/oidc/callback` | external-login callback |
+| POST | `/api/Auth/oidc/exchange` | short-lived OIDC login code を交換 |
+| GET | `/api/Auth/mfa/status` | MFA state を確認 |
+| POST | `/api/Auth/mfa/setup` | TOTP setup を開始 |
+| POST | `/api/Auth/mfa/confirm` | TOTP setup を確定 |
+| POST | `/api/Auth/mfa/disable` | validation 後に TOTP を無効化 |
+| POST | `/api/Auth/mfa/verify` | MFA sign-in challenge を完了 |
+| POST | `/api/Auth/forgot-password` | password reset を要求 |
+| POST | `/api/Auth/reset-password` | reset token を消費して新しい password を設定 |
+| GET | `/api/Auth/account` | 現在の account profile を取得 |
+| PUT | `/api/Auth/account` | username/email を更新 |
+| PUT | `/api/Auth/account/password` | 現在の password を変更 |
+
+## Members — `/api/Member`
+
+| Method | Route | 権限 |
+| --- | --- | --- |
+| POST | `/api/Member` | `/auth/user` → `create` |
+| GET | `/api/Member` | `/auth/user` → `view` |
+| PUT | `/api/Member/{id}/roles` | `/auth/user` → `edit` |
+| PUT | `/api/Member/{id}/status` | `/auth/user` → `edit` |
+| DELETE | `/api/Member/{id}/sessions` | `/auth/user` → `edit` |
+| PUT | `/api/Member/{id}/password-change-required` | `/auth/user` → `edit` |
+| DELETE | `/api/Member/{id}` | `/auth/user` → `delete` |
+
+self-lockout とライフサイクルのガードレールについては [メンバーとロール](/ja/docs/administration/members-roles) を参照してください。
+
+## Roles — `/api/Role`
+
+| Method | Route | 権限 |
+| --- | --- | --- |
+| GET | `/api/Role` | `/auth/role` → `view` |
+| POST | `/api/Role` | `/auth/role` → `create` |
+| PUT | `/api/Role/{id}` | `/auth/role` → `edit` |
+| DELETE | `/api/Role/{id}?force=false` | `/auth/role` → `delete` |
+| GET | `/api/Role/{id}/dependencies` | `/auth/role` → `view` |
+| GET | `/api/Role/permission-action-templates` | `/auth/role` → `view` |
+
+## Database Management — `/api/DbManagement`
+
+| Method | Route | 権限 |
+| --- | --- | --- |
+| GET | `/api/DbManagement` | `/runtime/db-management` → `view` |
+| GET | `/api/DbManagement/{id}` | `/runtime/db-management` → `view` |
+| POST | `/api/DbManagement` | `/runtime/db-management` → `create` |
+| PUT | `/api/DbManagement/{id}` | `/runtime/db-management` → `edit` |
+| DELETE | `/api/DbManagement/{id}` | `/runtime/db-management` → `delete` |
+| GET | `/api/DbManagement/{id}/schemas` | `/runtime/db-management` → `view` |
+| GET | `/api/DbManagement/{id}/tables?schema=...` | `/runtime/db-management` → `view` |
+| GET | `/api/DbManagement/{id}/columns?schema=...&table=...` | `/runtime/db-management` → `view` |
+
+## セマンティックメタデータ — `/api/DbSemantic`
+
+| Method | Route | 権限 |
+| --- | --- | --- |
+| GET | `/api/DbSemantic/{dbManagementId}` | semantic `view` |
+| GET | `/api/DbSemantic/{dbManagementId}/model` | semantic `view` |
+| POST | `/api/DbSemantic` | semantic `edit` |
+| DELETE | `/api/DbSemantic/{id}` | semantic `edit` |
+| POST | `/api/DbSemantic/relationship` | semantic `edit` |
+| DELETE | `/api/DbSemantic/relationship/{id}` | semantic `edit` |
+| POST | `/api/DbSemantic/metric` | semantic `edit` |
+| DELETE | `/api/DbSemantic/metric/{id}` | semantic `edit` |
+
+ここで `semantic` は `/runtime/db-management/semantic` を意味します。
+
+## MCP-key runtime — `/api/runtime`
+
+| Method | Route | 権限 |
+| --- | --- | --- |
+| GET | `/api/runtime/mcp-keys` | MCP keys `view` |
+| GET | `/api/runtime/mcp-keys/available-tools?dbManagementId=...` | MCP keys `view` |
+| POST | `/api/runtime/mcp-keys` | MCP keys `create` |
+| PUT | `/api/runtime/mcp-keys/{id}` | MCP keys `edit` |
+| POST | `/api/runtime/mcp-keys/{id}/rotate` | MCP keys `edit` |
+| POST | `/api/runtime/mcp-keys/{id}/clone` | MCP keys `create` |
+| POST | `/api/runtime/mcp-keys/{id}/revoke` | MCP keys `revoke` |
+| POST | `/api/runtime/mcp-keys/test-db-connection` | 設定済み MCP-key / DB create-edit permission のいずれか |
+| GET | `/api/runtime/client-config` | MCP keys `view` |
+
+client-config endpoint は、クライアント設定生成に使用する MCP public endpoint を返します。
+
+## Custom Tools — `/api/CustomSqlTool`
+
+| Method | Route | 用途 |
+| --- | --- | --- |
+| GET | `/api/CustomSqlTool` | tool 一覧 |
+| GET | `/api/CustomSqlTool/{id}` | 1 tool を取得 |
+| POST | `/api/CustomSqlTool` | draft を作成 |
+| PUT | `/api/CustomSqlTool/{id}` | draft を編集 |
+| DELETE | `/api/CustomSqlTool/{id}` | tool を削除 |
+| GET | `/api/CustomSqlTool/{id}/revisions` | revision 一覧 |
+| GET | `/api/CustomSqlTool/{id}/impact` | impact / dependency を確認 |
+| POST | `/api/CustomSqlTool/{id}/publish` | validate して publish |
+| POST | `/api/CustomSqlTool/{id}/disable` | published tool を無効化 |
+| POST | `/api/CustomSqlTool/{id}/rollback/{revisionId}` | validate して rollback |
+| POST | `/api/CustomSqlTool/test-execute` | test execution。DML test path は preview のみで commit しない |
+
+これらの route は、操作に応じて `/runtime/custom-tools` の `view`、`create`、`edit`、`delete` を使用します。
+
+## Audit / Operability — `/api/runtime`
+
+| 領域 | Route |
+| --- | --- |
+| Audit | `/audit`, `/audit/daily-summary`, `/audit/export`, `/audit/retention`, `/audit/retention/dry-run`, `/audit/retention/execute` |
+| Operability | `/operability/metrics`, `/operability/db-health`, `/operability/key-usage`, `/operability/deliveries`, `/operability/deliveries/{id}/retry` |
+
+filter、response field、permission については [監査](/ja/docs/administration/audit) と [運用状態](/ja/docs/administration/operability) を参照してください。
+
+## Security Policy — `/api/runtime/security`
+
+| Method | Route | 権限 |
+| --- | --- | --- |
+| GET | `/api/runtime/security` | `/runtime/security` → `view` |
+| PUT | `/api/runtime/security` | `/runtime/security` → `edit` |
+
+## Credential status
+
+`GET /api/Credential/status` は 2.0.1 に存在し、Credential API の簡単な稼働状態を返します。controller 自体には `[Authorize]` attribute がありません。認証済み credential-management API ではなく、限定的な status endpoint として扱ってください。
+
+## エラーと互換性
+
+controller は通常の HTTP status code を使用します。たとえば validation は 400、authentication / authorization は 401/403、存在しない resource は 404、tool / role state の競合は 409、大きすぎる audit export は 413、制限された SQL operation の混雑時は該当箇所で 429 です。
+
+クライアント自動化では 2.0.1 を固定し、利用する実際の response model を検証してください。このページでは route と重要な契約を記載しますが、すべての Admin view model が永続的に versioning された外部 SDK であるかのようには扱いません。
