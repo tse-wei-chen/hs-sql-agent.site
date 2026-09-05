@@ -1,0 +1,104 @@
+---
+title: Clés MCP
+description: Émettre, restreindre, renouveler, dupliquer et révoquer les identifiants MCP dans hs-sql-agent 2.0.1.
+sidebar:
+  group: Administration
+  order: 74
+---
+
+import Callout from "@/components/docs/mdx/Callout.astro";
+import CardGrid from "@/components/docs/mdx/CardGrid.astro";
+import DocCard from "@/components/docs/mdx/DocCard.astro";
+import Steps from "@/components/docs/mdx/Steps.astro";
+import Step from "@/components/docs/mdx/Step.astro";
+
+<CardGrid columns={3}>
+  <DocCard title="Périmètre de base" icon="DB" description="Chaque clé de production est liée à une entrée Database Management." />
+  <DocCard title="Périmètre d’outils" icon="T" description="N’exposez que les outils intégrés et Custom Tools publiés dont le client a besoin." />
+  <DocCard title="Périmètre de tables" icon="▦" description="Restreignez éventuellement la clé à une liste blanche explicite de tables qualifiées." />
+</CardGrid>
+
+Les clés MCP authentifient les requêtes `/mcp` et portent le périmètre d’autorisation runtime utilisé par hs-sql-agent. Elles sont distinctes des sessions utilisateur Admin et des identités OIDC.
+
+## Surface officielle des outils intégrés 2.0.1
+
+Le service de gestion des clés reconnaît cinq outils intégrés :
+
+| Tool | Périmètre |
+| --- | --- |
+| `get_schemas` | découverte des schémas |
+| `get_tables` | découverte des tables |
+| `get_columns` | découverte des colonnes |
+| `execute_query_sql` | exécution gouvernée de `SELECT` |
+| `execute_dml_sql` | Safe DML gouverné |
+
+Les Custom Tools publiés pour la même base peuvent aussi être sélectionnés par nom. Consultez [Outils personnalisés](/fr/docs/administration/custom-tools).
+
+<Callout type="info" title="Un périmètre d’outils vide signifie sans restriction, pas aucun outil">
+Le runtime interprète un `AllowedTools` vide comme l’absence de restriction par nom d’outil. En production, sélectionnez explicitement l’ensemble minimal dont le client a besoin plutôt que de compter sur cette forme non restreinte.
+</Callout>
+
+## Émettre une clé
+
+<Steps>
+  <Step title="Choisir un nom" description="La requête exige un nom non vide, limité à 100 caractères." />
+  <Step title="Lier une base" description="DbManagementId est requis par le validateur d’émission 2.0.1." />
+  <Step title="Sélectionner les outils" description="Choisissez les outils intégrés ainsi que les Custom Tools publiés pour cette base." />
+  <Step title="Restreindre l’accès aux données" description="Activez une liste blanche de tables si le client ne doit voir qu’une partie de la base liée." />
+  <Step title="Définir le cycle de vie" description="Configurez éventuellement expiration, origines CORS et mode/overrides de limitation de débit." />
+  <Step title="Copier le secret en clair" description="Stockez la nouvelle clé dans le magasin de secrets du client avant de fermer la boîte de dialogue." />
+</Steps>
+
+## Champs d’émission
+
+| Champ | Signification |
+| --- | --- |
+| `Name` | Nom de clé visible par l’opérateur |
+| `ExpiresAt` | Expiration facultative ; si présente, elle doit être dans le futur |
+| `AllowedTools` | Noms d’outils séparés par des virgules ; vide = sans restriction |
+| `CorsAllowedOrigins` | Restriction facultative des origines pour les requêtes MCP issues d’un navigateur |
+| `DbManagementId` | Entrée de base liée ; requise à l’émission |
+| `TableWhitelist` | Liste facultative de tables qualifiées autorisées |
+| `RateLimitMode` | `Inherit`, `Custom` ou `Unlimited` |
+| `PermitLimitOverride` | Utilisé pour une limitation par clé personnalisée |
+| `WindowSecondsOverride` | Utilisé pour une limitation par clé personnalisée |
+
+L’enregistrement stocké n’expose qu’un court préfixe d’identification. Le secret brut est vérifié avec le secret HMAC serveur et n’est pas destiné à être réaffiché plus tard.
+
+## Renouveler une clé
+
+La rotation crée une clé de remplacement avec le même périmètre base/outils/tables/CORS/limitation que l’ancienne.
+
+L’opérateur choisit une période de grâce de `0` à `1440` minutes :
+
+- `0` révoque immédiatement l’ancienne clé ;
+- une valeur positive avance si nécessaire son expiration vers la fin de la période de grâce ;
+- la clé de remplacement reçoit son propre secret en clair nouvellement généré.
+
+<Callout type="tip" title="Utilisez la rotation pour remplacer un secret, pas pour masquer un changement de périmètre">
+Si le nouveau client doit recevoir une frontière de base ou de tables sensiblement différente, revoyez ce changement explicitement au lieu de le traiter comme une rotation de secret routinière.
+</Callout>
+
+## Dupliquer une clé
+
+La duplication crée une nouvelle clé avec le même périmètre runtime mais un nouveau nom et un nouveau secret. Elle est utile lorsque deux clients ont besoin des mêmes permissions sans partager un identifiant.
+
+La clé dupliquée possède son propre cycle de vie et peut être révoquée ou renouvelée indépendamment de la source.
+
+## Révoquer une clé
+
+La révocation marque la clé inactive et écrit un tombstone de révocation dans le chemin de cache de validation avant le commit. L’objectif est d’empêcher un identifiant récemment révoqué de continuer à être validé à cause d’un état de cache obsolète.
+
+Les clés gérées par bootstrap ne peuvent pas être modifiées, renouvelées ou révoquées par les méthodes ordinaires ; leur cycle de vie est contrôlé par la configuration bootstrap.
+
+## Limitation de débit
+
+Une clé peut hériter de la politique runtime, définir un override personnalisé ou être explicitement illimitée. La liste Admin indique également la limite effective après combinaison du mode de la clé et de la politique de sécurité courante.
+
+Dans un déploiement multi-instance, utilisez le limiteur distribué lorsque les limites doivent être coordonnées entre les nœuds.
+
+## DML et Elicitation
+
+Sélectionner `execute_dml_sql` ajoute une exigence de compatibilité client. Le client MCP doit prendre en charge le flux form Elicitation utilisé pour l’approbation interactive des modifications.
+
+Lisez [Intégration des clients MCP](/fr/docs/mcp/client-onboarding) avant d’accorder DML à un nouveau client.

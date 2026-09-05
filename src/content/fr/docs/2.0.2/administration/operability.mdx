@@ -1,0 +1,91 @@
+---
+title: Opérabilité
+description: Inspecter les métriques d’exécution, la santé des bases, l’usage des clés MCP et les livraisons sortantes dans hs-sql-agent 2.0.1.
+sidebar:
+  group: Administration
+  order: 84
+---
+
+import Callout from "@/components/docs/mdx/Callout.astro";
+import CardGrid from "@/components/docs/mdx/CardGrid.astro";
+import DocCard from "@/components/docs/mdx/DocCard.astro";
+
+<CardGrid columns={2}>
+  <DocCard title="Métriques d’exécution" icon="P95" description="Nombre de Query/DML, taux de succès, latence échantillonnée, requêtes lentes et refus de limitation de débit." />
+  <DocCard title="Santé des bases" icon="DB" description="Dernier état de sonde, latence, série d’échecs, début d’incident et dernière erreur du moteur." />
+  <DocCard title="Usage des clés MCP" icon="KEY" description="Requêtes, succès/échecs, dernière utilisation et taux de refus par limite pour chaque clé." />
+  <DocCard title="Livraisons sortantes" icon="OUT" description="Inspecter l’état des livraisons webhook/SIEM et relancer les éléments en échec ou en attente lorsque l’autorisation le permet." />
+</CardGrid>
+
+Operability est la surface Admin permettant de comprendre **comment le runtime gouverné se comporte maintenant**. Elle complète Audit, centré sur les événements individuels de sécurité/exécution, ainsi qu’OpenTelemetry/Prometheus, qui exportent la télémétrie vers des systèmes externes.
+
+## Métriques d’exécution
+
+L’endpoint de métriques peut retourner :
+
+- nombres de Query et DML ;
+- succès, échecs et taux de succès ;
+- latences p50 et p95 ;
+- taille de l’échantillon et indicateur d’échantillonnage ;
+- nombre de requêtes lentes ;
+- nombre de limitations IP ;
+- nombre de limitations par clé MCP.
+
+Les filtres peuvent restreindre la vue par période, base, clé d’accès et nom d’outil.
+
+<Callout type="info" title="Interprétez une latence échantillonnée comme telle">
+La réponse indique explicitement la taille de l’échantillon et si la latence est échantillonnée. N’interprétez pas p50/p95 comme une distribution exhaustive lorsque le runtime indique qu’un échantillonnage a été utilisé.
+</Callout>
+
+## Santé des bases
+
+Les éléments de santé exposent l’état opérationnel de chaque connexion gérée :
+
+| Champ | Signification |
+| --- | --- |
+| `Status` | état de santé courant |
+| `LastCheckedAt` | dernière heure de sonde |
+| `LastSuccessAt` | dernière sonde réussie |
+| `LatencyMs` | latence de sonde si disponible |
+| `ConsecutiveFailures` | nombre d’échecs consécutifs |
+| `OutageStartedAt` | début de l’incident courant si connu |
+| `LastError` | dernière erreur moteur/sonde |
+
+Les sondes sont contrôlées par les paramètres `HEALTH_PROBE_*`. Si la sonde d’arrière-plan est désactivée, cette surface ne doit pas être interprétée comme un système de supervision externe continuellement rafraîchi.
+
+## Usage des clés MCP
+
+Les résultats indiquent l’identité/le nom de la clé, sa dernière utilisation, le nombre de requêtes, les succès/échecs, les limitations et le taux de refus.
+
+Utilisez ces données pour identifier les identifiants inutilisés, les agents anormalement bavards et les clés qui atteignent régulièrement leur limite. Consultez ensuite [Clés MCP](/fr/docs/administration/mcp-keys) avant de changer périmètre ou limites.
+
+## Livraisons sortantes
+
+Le runtime enregistre les tentatives de livraison sortante, notamment les webhooks d’alerte/SIEM configurés. Chaque élément expose :
+
+- catégorie et statut ;
+- nombre de tentatives ;
+- date de création/livraison/dernière tentative ;
+- dernière erreur.
+
+L’endpoint de liste accepte `limit`, avec `100` par défaut.
+
+## Relancer une livraison
+
+| Opération | Permission |
+| --- | --- |
+| métriques / santé DB / usage des clés / liste des livraisons | `/runtime/operability` → `view` |
+| relance de livraison | `/runtime/operability` → `edit` |
+
+La relance est une mutation opérateur explicite. Elle est utile après correction d’un problème réseau/destination transitoire, mais ne remplace pas la correction d’un endpoint, secret ou service aval invalide.
+
+<Callout type="warning" title="Une relance peut envoyer l’événement une seconde fois">
+Avant de relancer, vérifiez que la destination tolère les doublons ou les retards, et que la tentative d’origine n’a pas réussi sans que l’état local ne soit mis à jour comme prévu.
+</Callout>
+
+## Où poursuivre l’investigation
+
+- [Audit](/fr/docs/administration/audit) — acteurs/actions/résultats exacts et contexte d’exécution SQL.
+- [Politiques de sécurité](/fr/docs/administration/security-policies) — limites runtime pouvant expliquer les refus.
+- [Observabilité](/fr/docs/operations/observability) — Prometheus, OTLP, traces et intégration télémétrique externe.
+- [Déploiement distribué](/fr/docs/operations/distributed-deployment) — coordination partagée lorsque plusieurs nœuds doivent partager limites et état.

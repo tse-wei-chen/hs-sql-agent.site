@@ -1,0 +1,75 @@
+---
+title: Membres et rôles
+description: Gérer les utilisateurs Admin, les sessions, l’attribution de rôles et le cycle de vie des rôles dans hs-sql-agent 2.0.1.
+sidebar:
+  group: Administration
+  order: 78
+---
+
+import Callout from "@/components/docs/mdx/Callout.astro";
+import CardGrid from "@/components/docs/mdx/CardGrid.astro";
+import DocCard from "@/components/docs/mdx/DocCard.astro";
+import Flow from "@/components/docs/mdx/Flow.astro";
+
+<CardGrid columns={3}>
+  <DocCard title="Membres" icon="USR" description="Créer des utilisateurs Admin, activer ou désactiver leurs comptes et inspecter rôles et sessions actives." />
+  <DocCard title="Rôles" icon="ROL" description="Regrouper les paires permission/action autorisées dans des rôles d’autorisation réutilisables." />
+  <DocCard title="Invalidation des sessions" icon="REV" description="Les changements sensibles de membre ou de rôle invalident l’état d’autorisation runtime concerné." />
+</CardGrid>
+
+Les membres Admin sont des identités du **plan de contrôle**. Ils sont distincts des clés MCP qui authentifient les clients `/mcp`.
+
+## Cycle de vie d’un membre
+
+<Flow items={["Créer le membre", "Attribuer les rôles", "Utiliser l’Admin UI", "Modifier l’accès", "Révoquer les sessions si nécessaire"]} />
+
+Un nouveau membre exige une adresse e-mail valide et un mot de passe d’au moins 8 caractères. Le nom d’utilisateur est facultatif et limité à 100 caractères. À la création, l’opérateur peut attribuer des identifiants de rôle explicites ou demander tous les rôles.
+
+La liste peut être filtrée par recherche, statut actif et rôle, et elle est paginée. La vue 2.0.1 indique l’état du compte, les dates de création/dernière connexion, le nombre de sessions actives ainsi que les identifiants/noms des rôles courants.
+
+## Actions administratives sur les membres
+
+| Action | Permission | Garde-fou important |
+| --- | --- | --- |
+| créer un membre | `/auth/user` → `create` | validation e-mail/mot de passe |
+| lister/rechercher les membres | `/auth/user` → `view` | filtres statut/rôle/recherche |
+| remplacer les rôles | `/auth/user` → `edit` | impossible de modifier ses propres rôles |
+| activer / désactiver | `/auth/user` → `edit` | impossible de se désactiver soi-même |
+| révoquer toutes les sessions | `/auth/user` → `edit` | invalidation immédiate des sessions du membre |
+| exiger un changement de mot de passe | `/auth/user` → `edit` | drapeau appliqué à la prochaine connexion |
+| supprimer le membre | `/auth/user` → `delete` | impossible de se supprimer soi-même |
+
+<Callout type="warning" title="Les opérations d’auto-verrouillage sont refusées">
+Le contrôleur 2.0.1 empêche explicitement un administrateur de modifier ses propres rôles, de désactiver son propre compte ou de supprimer son propre enregistrement via ces endpoints de gestion.
+</Callout>
+
+## Rôles
+
+Un rôle possède un nom unique, une description facultative et un ensemble de sélections permission/action. L’attribution est many-to-many : un membre peut détenir plusieurs rôles et un rôle peut être attribué à plusieurs membres.
+
+Le rôle intégré `SuperUser` est protégé. Il ne peut être ni modifié ni supprimé, et un nouveau rôle ou un rôle renommé ne peut pas reprendre cette identité protégée.
+
+## Modifier un rôle change l’état d’autorisation actif
+
+Lorsque l’ensemble de permissions d’un rôle change, la version 2.0.1 identifie les membres associés, incrémente leur version de sécurité et effectue la mutation via la barrière de cache d’état runtime d’authentification. Une session déjà authentifiée ne peut ainsi pas conserver indéfiniment une autorisation obsolète.
+
+Le même principe s’applique lorsqu’un rôle attribué à des membres est supprimé.
+
+## Inspecter les dépendances avant de supprimer un rôle
+
+L’endpoint de dépendances indique :
+
+- les entrées permission/action associées au rôle ;
+- les membres actuellement assignés.
+
+La suppression d’un rôle encore attribué est refusée par défaut. Un chemin explicite `force=true` existe, mais les opérateurs doivent d’abord inspecter les dépendances car les membres concernés perdent ce rôle et leur état de sécurité est invalidé.
+
+<Callout type="danger" title="Traitez la suppression forcée comme un changement d’autorisation">
+N’utilisez pas la suppression forcée comme nettoyage courant. Vérifiez la liste des membres dépendants et assurez-vous qu’ils conserveront les accès nécessaires via leurs autres rôles.
+</Callout>
+
+## Mot de passe et sessions
+
+L’administration peut marquer un compte pour exiger un changement de mot de passe à la prochaine connexion et révoquer toutes les sessions d’un membre ciblé. Les utilisateurs peuvent aussi gérer leurs propres sessions via l’API Auth.
+
+Pour le modèle d’autorisation derrière les rôles, poursuivez avec [Permissions](/fr/docs/administration/permissions).
