@@ -1,0 +1,186 @@
+---
+title: Référence des outils MCP
+description: Contrats formels des outils MCP intégrés de hs-sql-agent 2.0.1, paramètres, réponses, autorisation et frontières de risque.
+sidebar:
+  group: MCP
+  order: 35
+---
+
+import Callout from "@/components/docs/mdx/Callout.astro";
+import CardGrid from "@/components/docs/mdx/CardGrid.astro";
+import DocCard from "@/components/docs/mdx/DocCard.astro";
+import Flow from "@/components/docs/mdx/Flow.astro";
+
+<CardGrid columns={3}>
+  <DocCard title="Découverte du schéma" icon="▦" badge="faible risque" description="get_schemas, get_tables et get_columns découvrent la base liée à la clé avant la génération SQL." />
+  <DocCard title="Query SQL" icon="SELECT" badge="lecture" description="execute_query_sql accepte un SELECT gouverné et retourne les lignes sérialisées." />
+  <DocCard title="Safe DML" icon="DML" badge="approbation" description="execute_dml_sql n’accepte les mutations prises en charge qu’après aperçu, Elicitation et revérification au commit." />
+</CardGrid>
+
+La **surface formelle des outils intégrés 2.0.1 gérée par les clés MCP** contient exactement cinq noms :
+
+| Tool | Entrée publique | Résultat | Risque |
+| --- | --- | --- | --- |
+| `get_schemas` | aucune | noms de schémas séparés par des virgules | lecture de métadonnées |
+| `get_tables` | `schemaName: string` | descriptions de tables séparées par des virgules | lecture de métadonnées |
+| `get_columns` | `schemaName: string`, `tableName: string` | tableau JSON d’objets colonne | lecture de métadonnées |
+| `execute_query_sql` | `sql: string` | tableau JSON de lignes ou chaîne d’erreur d’exécution | lecture de données |
+| `execute_dml_sql` | `sql: string` | texte d’approbation/exécution | mutation de données |
+
+Les Custom Tools publiés peuvent étendre la collection d’outils d’une base liée, mais ne constituent pas des outils intégrés supplémentaires.
+
+<Callout type="warning" title="La découverte des outils reste limitée par l’autorisation">
+La session MCP construit sa collection d’outils après authentification de la clé. Lorsque `AllowedTools` est configuré explicitement, seuls les outils intégrés ou Custom Tools publiés dont le nom correspond sont exposés. Une liste vide signifie absence de restriction de noms ; en production, sélectionnez normalement un ensemble minimal explicite.
+</Callout>
+
+## Parcours de découverte recommandé
+
+<Flow items={["get_schemas", "get_tables", "get_columns", "execute_query_sql"]} caption="Découvrez la structure physique avant de demander au modèle de générer SQL. DML n’appartient volontairement pas au parcours de lecture par défaut." />
+
+Utilisez la découverte de métadonnées lorsque le client ne possède pas déjà une représentation fiable de la structure. Les outils de schéma s’exécutent dans le contexte de base de la clé authentifiée, sans accepter de chaîne de connexion fournie par le client.
+
+## `get_schemas`
+
+Retourne les schémas signalés par le runtime de métadonnées du moteur pour la base liée à la clé MCP.
+
+**Paramètres :** aucun.
+
+**Résultat en succès :** noms de schémas joints par des virgules.
+
+**Autorisation et limites :**
+
+- la clé doit être autorisée à utiliser `get_schemas` lorsqu’une liste d’outils explicite existe ;
+- le moteur et la connexion doivent avoir été résolus depuis la clé authentifiée ;
+- l’opération acquiert le limiteur de concurrence SQL partagé ;
+- succès et échec sont écrits dans l’audit sous l’action `mcp.get_schemas`.
+
+L’outil n’accepte ni identifiant de base ni chaîne de connexion fournis par le modèle.
+
+## `get_tables`
+
+```text
+get_tables(schemaName: string)
+```
+
+Retourne les tables signalées par le moteur dans le schéma demandé, filtrées par la liste blanche de la clé MCP lorsqu’elle est configurée.
+
+Si des métadonnées sémantiques existent pour l’entrée Database Management liée, chaque table visible peut aussi inclure :
+
+- nom d’affichage ;
+- description ;
+- synonymes ;
+- descriptions de métriques limitées à cette table.
+
+**Résultat en succès :** chaîne séparée par des virgules. Les éléments peuvent donc être plus riches que de simples noms physiques.
+
+**Action d’audit :** `mcp.get_tables`.
+
+<Callout type="info" title="La liste blanche de tables s’applique aussi à la découverte">
+Une clé restreinte ne doit pas découvrir les tables hors de sa frontière via `get_tables`. L’enrichissement sémantique n’élargit pas cette frontière.
+</Callout>
+
+## `get_columns`
+
+```text
+get_columns(schemaName: string, tableName: string)
+```
+
+Le serveur vérifie d’abord que la table qualifiée demandée est autorisée par la clé MCP. Il lit ensuite les métadonnées de colonnes du moteur et sérialise un tableau JSON.
+
+Chaque objet `ColumnInfo` 2.0.1 expose :
+
+| Propriété | Signification |
+| --- | --- |
+| `Name` | nom physique de colonne |
+| `Column` | alias de la même valeur de nom |
+| `Type` | type signalé par le moteur |
+| `Description` | enrichissement sémantique si disponible |
+| `IsPrimaryKey` | colonne marquée comme appartenant à la clé primaire |
+| `PrimaryKeyOrdinal` | position nullable dans une clé primaire composite |
+
+L’enrichissement peut ajouter noms d’affichage, descriptions, synonymes et descriptions de relations dans `Description`. Le contexte relationnel n’est inclus que si les deux tables de la relation sont autorisées par la liste blanche de la clé.
+
+**Action d’audit :** `mcp.get_columns`.
+
+## `execute_query_sql`
+
+```text
+execute_query_sql(sql: string)
+```
+
+Accepte **une instruction SQL `SELECT`**. La description publique 2.0.1 mentionne explicitement JOIN, WHERE, GROUP BY, HAVING, ORDER BY, LIMIT/OFFSET, DISTINCT, CTE, sous-requêtes et UNION/INTERSECT/EXCEPT.
+
+<Flow items={["Parse", "Bind", "Autoriser les tables", "Valider la politique", "Compiler la commande immuable", "Exécuter"]} caption="Le SQL brut n’est pas envoyé directement au moteur." />
+
+La requête passe par le runtime de requête typé F#. Selon les capacités, des faits comme les tables référencées, la présence de CTE et de sous-requêtes sont collectés dans le même parcours gouverné et utilisés comme éléments de preuve d’audit.
+
+**Résultat en succès :** sérialisation JSON de la collection de lignes retournée.
+
+**Résultat en échec :** texte commençant par `Execution failed:` suivi du message d’erreur. Une annulation demandée par l’appelant est propagée au lieu d’être convertie en résultat normal.
+
+**Frontières runtime :**
+
+- liste d’outils MCP ;
+- liaison clé MCP → base ;
+- liste blanche de tables ;
+- politique courante de sécurité/requête ;
+- limiteur de concurrence SQL ;
+- contrôles de capacité SQL source/cible ;
+- événement d’audit `mcp.query.executed` avec opération, durée, lignes retournées et faits issus du compilateur.
+
+Consultez [Référence du support SQL](/fr/docs/sql-compiler/sql-support) pour un résumé lisible des capacités.
+
+## `execute_dml_sql`
+
+```text
+execute_dml_sql(sql: string)
+```
+
+L’entrée visible via MCP est SQL. Le `McpServer` et le token d’annulation utilisés par la méthode .NET sont de l’infrastructure injectée par le runtime, pas des champs fournis par l’agent.
+
+Les classes d’instructions prises en charge dans le chemin MCP DML 2.0.1 sont :
+
+| Instruction | Statut |
+| --- | --- |
+| `UPDATE` | prise en charge si parse, capacités, politique et approbation réussissent |
+| `DELETE` | prise en charge si parse, capacités, politique et approbation réussissent |
+| `INSERT ... VALUES` | prise en charge avec approbation liée au payload immuable |
+| `INSERT ... SELECT` | refusée par défaut en 2.0.1 |
+
+<Flow items={["Parse + vérification du profil", "Compiler la mutation", "Prévisualiser l’impact exact", "Elicitation humaine", "Revérifier dans la transaction", "Commit"]} caption="L’approbation est liée au contexte de mutation validé, pas simplement au texte SQL d’origine." />
+
+Pour UPDATE et DELETE, l’approbation est liée à l’ensemble exact de clés primaires et le code de commit revérifie les identités de lignes dans la transaction. Pour INSERT VALUES, l’approbation est liée au payload littéral immuable et à la commande compilée exacte, puis le commit vérifie le nombre de lignes du payload approuvé.
+
+Si l’humain refuse ou si la validation ne peut pas aboutir, la mutation n’est pas validée. Les événements utilisent `mcp.dml.executed` et enregistrent l’opération, la durée, les lignes affectées, l’état d’approbation et, le cas échéant, la catégorie d’erreur.
+
+<Callout type="danger" title="N’accordez pas DML à un client sans form Elicitation MCP compatible">
+La seule prise en charge des appels d’outils ne suffit pas. Le client doit pouvoir présenter et retourner le formulaire interactif utilisé par le flux Safe DML.
+</Callout>
+
+Consultez [Safe DML](/fr/docs/sql-compiler/safe-dml) pour le protocole complet.
+
+## Erreurs communes aux outils intégrés
+
+Les causes fréquentes sont :
+
+- contexte d’autorisation MCP absent ;
+- outil absent de la liste explicite de la clé ;
+- moteur ou connexion invalide ;
+- limite de concurrence incapable d’accorder un lease (`Server busy`) ;
+- table hors de la liste blanche ;
+- SQL vide, non pris en charge, refusé par la politique ou par une frontière de capacité ;
+- échec d’exécution du moteur.
+
+Les outils retournent volontairement des erreurs bornées au lieu de revenir vers une exécution libre chez le moteur.
+
+## Custom Tools
+
+Les Custom Tools publiés sont chargés depuis l’entrée Database Management liée à la clé et peuvent être sélectionnés dans le même `AllowedTools`. Leur invocation continue de passer par la liaison de base, la liste blanche, la politique de sécurité, les contrôles de concurrence, l’audit et, pour DML, le pipeline d’approbation.
+
+Consultez [Outils personnalisés](/fr/docs/administration/custom-tools).
+
+## Les métadonnées sémantiques ne sont pas un sixième outil intégré
+
+Le dépôt 2.0.1 contient une implémentation de gestion sémantique, mais le registre formel des outils intégrés et la gestion des clés Admin reconnaissent les cinq outils listés ici. La documentation traite donc les métadonnées sémantiques comme une **capacité du plan de contrôle consommée par la découverte de schéma**, et non comme un contrat MCP intégré supplémentaire.
+
+Consultez [Métadonnées sémantiques](/fr/docs/administration/semantic-metadata).

@@ -1,0 +1,51 @@
+---
+title: SSO OIDC et MFA TOTP
+description: Configurer l’identité OIDC d’entreprise, la correspondance des revendications, le provisionnement des rôles, la politique MFA et les clés persistantes de protection des données.
+sidebar:
+  group: Sécurité
+  order: 115
+---
+
+hs-sql-agent peut utiliser un fournisseur OpenID Connect externe pour l’identité Admin tout en conservant l’autorisation runtime locale et la politique d’accès MCP sous contrôle du serveur.
+
+## Connexion OIDC
+
+Les options serveur comprennent :
+
+```text
+OidcEnabled
+Authority
+ClientId
+ClientSecret
+RequireHttpsMetadata
+```
+
+En production, conservez la validation HTTPS des métadonnées activée, sauf si vous utilisez volontairement un fournisseur d’identité local de confiance sur HTTP.
+
+Les étendues OIDC par défaut sont `openid`, `profile` et `email`.
+
+## Correspondance des revendications et provisionnement
+
+Les options d’identité permettent de mapper les revendications d’e-mail, de nom d’affichage, de rôle et de vérification d’e-mail. Le service peut exiger une adresse e-mail vérifiée, mapper des rôles externes vers des rôles locaux et provisionner automatiquement les utilisateurs lorsque cette option est activée.
+
+Les concepts importants comprennent :
+
+- sélection des revendications e-mail et nom ;
+- sélection de la revendication de rôle et correspondances de rôles ;
+- exigence d’un e-mail vérifié ;
+- rôles locaux par défaut / provisionnement automatique ;
+- chemin de callback frontend utilisé par le flux de connexion.
+
+Traitez la correspondance des rôles comme une configuration d’autorisation, pas comme une simple métadonnée d’identité.
+
+## Politique MFA
+
+TOTP est disponible comme second facteur. Les options serveur comprennent le nom d’émetteur TOTP et une liste de rôles qui exigent MFA. Il est ainsi possible de renforcer l’authentification des rôles Admin privilégiés tout en laissant le fournisseur d’identité gérer la connexion principale.
+
+## Persister les clés de protection des données
+
+Les secrets MFA protégés et l’état de connexion dépendent des clés ASP.NET Core data protection. La configuration de déploiement comprend un chemin pour ces clés. Persistez ce répertoire entre les redémarrages ; le remplacer peut rendre l’état protégé existant illisible.
+
+## Les clés MCP restent une frontière distincte
+
+SSO/MFA protège le plan de gestion. Les clients MCP s’authentifient avec des clés serveur MCP et restent soumis à leur propre périmètre de base, tables, outils et politique runtime. Ne considérez pas le SSO Admin comme un remplacement de la gouvernance des clés MCP.

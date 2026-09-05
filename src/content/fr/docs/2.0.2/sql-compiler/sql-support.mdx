@@ -1,0 +1,115 @@
+---
+title: Référence du support SQL
+description: Résumé lisible de la grammaire SQL et des capacités des moteurs dans hs-sql-agent 2.0.1.
+sidebar:
+  group: Compilateur SQL
+  order: 62
+---
+
+hs-sql-agent 2.0.1 ne considère pas toute la grammaire SQL d’un moteur comme une entrée automatiquement fiable. SQL n’est accepté que si le parser F# peut représenter l’instruction, si la sémantique source est validée, si les capacités requises sont démontrées et si le runtime du moteur peut compiler la commande immuable résultante.
+
+Cette page résume le contrat 2.0.1. Le compilateur reste l’autorité : une construction non prise en charge ou dépendante de la version est refusée par défaut plutôt qu’approximée silencieusement.
+
+## Base Query
+
+`execute_query_sql` accepte une instruction `SELECT`. Son contrat public inclut explicitement :
+
+- `JOIN`
+- `WHERE`
+- `GROUP BY`
+- `HAVING`
+- `ORDER BY`
+- `LIMIT` / `OFFSET`
+- `DISTINCT`
+- expressions de table communes (CTE)
+- sous-requêtes
+- `UNION`, `INTERSECT`, `EXCEPT`
+
+Les expressions imbriquées, fonctions, fenêtres, casts, opérateurs, valeurs temporelles, opérations JSON et autres syntaxes avancées restent contrôlés par capacité. Ne déduisez pas la prise en charge d’une extension arbitraire d’un moteur à partir de cette liste de base.
+
+## Base DML
+
+`execute_dml_sql` accepte une mutation prise en charge et la fait passer par l’approbation Safe DML.
+
+| Instruction | Statut MCP DML 2.0.1 | Modèle d’approbation |
+| --- | --- | --- |
+| `UPDATE` | prise en charge si les capacités parser/moteur sont valides | prévisualiser les lignes, lier l’approbation à l’ensemble exact de clés primaires, revérifier dans la transaction de commit |
+| `DELETE` | prise en charge si les capacités parser/moteur sont valides | prévisualiser les lignes, lier l’approbation à l’ensemble exact de clés primaires, revérifier dans la transaction de commit |
+| `INSERT ... VALUES` | prise en charge si les capacités parser/moteur sont valides | lier l’approbation au payload littéral immuable et à la commande compilée, vérifier le nombre de lignes approuvées au commit |
+| `INSERT ... SELECT` | refusée | la sémantique d’approbation de l’ensemble source n’est pas définie en 2.0.1, donc le runtime refuse par défaut |
+
+Consultez [Safe DML](/fr/docs/sql-compiler/safe-dml) pour le protocole complet.
+
+## Modèle à six moteurs
+
+SQL Core possède des contrats de capacité pour PostgreSQL, MySQL, SQL Server, Oracle, SQLite et Firebird. Une capacité peut être :
+
+- **supported** — la cible possède la sémantique native requise ;
+- **translated** — Core possède une transformation de moteur déclarée préservant la sémantique ;
+- **rejected** — aucun contrat démontré n’existe pour le moteur/profil demandé.
+
+Certaines capacités dépendent aussi de la version du serveur cible ou du niveau de compatibilité SQL Server. Lorsqu’un profil de version est requis et qu’aucune base sûre n’est déclarée, l’absence de profil maintient la capacité désactivée.
+
+## Différences de moteurs sélectionnées
+
+Ce tableau met en évidence des différences importantes de 2.0.1 ; il ne reproduit volontairement pas chaque identifiant de `CapabilityMatrix.fs`.
+
+| Capacité | PostgreSQL | MySQL | SQL Server | Oracle | SQLite | Firebird |
+| --- | --- | --- | --- | --- | --- | --- |
+| `RIGHT JOIN` | translated | translated | translated | translated | profil cible 3.39+ | translated |
+| `FULL JOIN` | translated | rejected | translated | translated | profil cible 3.39+ | translated |
+| agrégat `FILTER` | natif ; PostgreSQL 9.4+ | rejected | rejected | profil Oracle 26ai+ avec restrictions supplémentaires de prédicat | profil explicite 3.30+ | profil explicite 4.0+ |
+| ordre local d’agrégat | natif | natif | SQL Server 14.0+ et niveau de compatibilité 110+ | Oracle 11.2+ | profil explicite 3.44+ | rejected |
+| DML `RETURNING` | translated | rejected | rejected | rejected | profil explicite 3.35+ | profil explicite 5.0+ |
+| contrat upsert | translated | rejected | rejected | rejected | profil explicite 3.24+ | rejected |
+| timestamp conservant l’offset | translated | rejected | translated | translated | translated | profil explicite 4.0+ |
+| `TIME` autonome | translated | translated | translated | rejected | translated | translated |
+
+La prise en charge de `RETURNING` et upsert dans SQL Core ne change pas la règle Safe DML MCP : la mutation doit toujours satisfaire le contrat DML runtime et d’approbation.
+
+## Capacités JSON
+
+La matrice 2.0.1 déclare une transformation portable d’extraction JSON pour PostgreSQL, MySQL et SQLite. La mutation JSON via le contrat JSON-set canonique est déclarée pour PostgreSQL, MySQL, SQLite et SQL Server.
+
+Les opérateurs PostgreSQL natifs `->` / `->>` sont modélisés séparément car leurs sémantiques de résultat JSON versus texte sont propres au moteur. Ils restent refusés par défaut pour une transformation cross-provider et nécessitent une cible PostgreSQL satisfaisant le contrat de version déclaré.
+
+## Agrégat `FILTER`
+
+`FILTER` est volontairement sensible à la version :
+
+- PostgreSQL prend en charge le contrat natif à partir de 9.4 ; une cible explicitement plus ancienne est refusée.
+- SQLite exige un profil serveur explicite 3.30 ou plus récent.
+- Firebird exige un profil explicite 4.0 ou plus récent.
+- Oracle exige un profil 26ai/26.0+ et Core refuse en plus les prédicats contenant sous-requêtes, fonctions de fenêtre ou références externes avant la transformation Oracle.
+- MySQL et SQL Server n’ont pas de contrat portable 2.0.1 déclaré pour cette capacité.
+
+C’est un exemple montrant pourquoi « le moteur sait exécuter ce SQL » n’est pas suffisant pour hs-sql-agent.
+
+## Garde de version des JOIN
+
+SQLite `RIGHT JOIN` et `FULL JOIN` exigent SQLite 3.39 ou plus récent dans le profil de capacité cible. `FULL JOIN` reste refusé pour MySQL dans la matrice 2.0.1.
+
+Une requête dépendant de ces capacités est refusée lorsque le contrat cible requis ne peut pas être démontré.
+
+## DML returning et upsert
+
+Les contrats cibles 2.0.1 comprennent :
+
+- PostgreSQL `RETURNING` et transformation upsert ;
+- SQLite `RETURNING` avec profil explicite 3.35+ ;
+- Firebird `RETURNING` avec profil explicite 5.0+ ;
+- contrats upsert PostgreSQL et SQLite 3.24+.
+
+Les autres cibles restent refusées pour ces capacités canoniques dans la matrice 2.0.1.
+
+## Diagnostics par refus par défaut
+
+Les échecs de capacité ne sont pas de simples erreurs d’exécution de base. SQL Core distingue notamment validation/capacité source et capacité cible. Le runtime peut ainsi refuser une instruction avant exécution lorsqu’il ne peut pas en représenter la sémantique en sécurité pour le moteur/profil demandé.
+
+En exploitation, traitez ces erreurs comme une demande de changer la forme SQL ou d’utiliser une capacité réellement prise en charge. Ne les contournez pas en évitant le compilateur.
+
+## Ce que cette référence ne promet pas
+
+Cette page ne promet pas chaque nom de fonction, orthographe d’opérateur, cible de cast, forme de chemin JSON, frame de fenêtre ou extension moteur. La matrice 2.0.1 est bien plus détaillée qu’un seul tableau et comprend des gardes de version runtime.
+
+Pour les clients MCP, utilisez [Référence des outils MCP](/fr/docs/mcp/tools-reference) pour le contrat public et considérez l’acceptation effective du compilateur comme le contrat SQL borné final.
