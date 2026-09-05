@@ -1,0 +1,37 @@
+---
+title: Upgrade Guide
+description: Upgrade hs-sql-agent from 2.0.2 to 2.0.3, including standard hosting, atomic multi-statement DML, and pluggable durable approvals.
+sidebar:
+  group: Reference
+  order: 144
+---
+
+import Callout from "@/components/docs/mdx/Callout.astro";
+
+## What changes in 2.0.3
+
+2.0.3 keeps the existing SQL and security boundaries, but expands how the product is hosted and how DML approval is integrated.
+
+- `HsSqlAgent.Hosting` is the batteries-included ASP.NET Core composition used by the first-party ToolBox/Docker host.
+- `HsSqlAgent.Server` remains the modular package for applications that own authentication, authorization, UI, middleware ordering, telemetry, or approval composition.
+- `execute_dml_sql` now accepts one or more semicolon-separated `UPDATE`, `DELETE`, or `INSERT ... VALUES` statements. Multiple statements are approved once and committed atomically in their original order. No new batch MCP tool is introduced.
+- DML approval is transport-neutral through `IDmlApprovalProvider`. A provider may approve, reject, or return `Pending` for asynchronous completion.
+- `HsSqlAgent.Approvals.Webhook` is the official generic asynchronous adapter. HsSqlAgent keeps ownership of SQL validation, approval fingerprint binding, current-state revalidation, and the eventual commit.
+
+<Callout type="warning" title="Back up the Admin Store before upgrading">
+Durable pending approvals use HsSqlAgent persistence when the Admin Store capability is present. Treat the control-plane database and its protected key material as upgrade state, not disposable cache.
+</Callout>
+
+## Choose the hosting path deliberately
+
+For a standalone service, keep using the official Docker image. For a .NET host that wants the same complete first-party composition, install `HsSqlAgent.Hosting` and use `AddHsSqlAgentStandardHost()` / `UseHsSqlAgentStandardHost()`. For a custom host, keep using `HsSqlAgent.Server` and its `AddHsSqlAgent*` capability APIs.
+
+## Re-test Safe DML
+
+Test a single statement and a multi-statement transaction on a non-production database. Verify approval, rejection, rollback on failure, and commit-time revalidation. If you enable an asynchronous provider, also test duplicate callbacks and stale/expired approval completion.
+
+## Configuration review
+
+Standard Hosting selects the approval provider through `DmlApproval:Provider`; `McpElicitation` remains the default. The Webhook provider additionally requires its endpoint, callback URL, and signing secret. A modular `HsSqlAgent.Server` host selects the provider through DI instead of the standard-host selector.
+
+Keep existing HMAC/JWT secrets and ASP.NET Core data-protection material unless you are intentionally rotating them, and preserve the pre-upgrade Admin database backup until smoke tests pass.

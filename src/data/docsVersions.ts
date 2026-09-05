@@ -13,10 +13,18 @@ export type DocsVersionDefinition = {
 
 const versionDefinitions = [
   {
+    version: "2.0.2",
+    label: "2.0.2",
+    status: "supported",
+    parent: null,
+    removed: [],
+    redirects: {},
+  },
+  {
     version: productRelease.version,
     label: productRelease.version,
     status: "current",
-    parent: null,
+    parent: "2.0.2",
     removed: [],
     redirects: {},
   },
