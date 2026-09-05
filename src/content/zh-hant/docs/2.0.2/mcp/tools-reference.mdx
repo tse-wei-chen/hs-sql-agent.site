@@ -1,6 +1,6 @@
 ---
-title: MCP Tools Reference
-description: hs-sql-agent 2.0.1 正式 built-in MCP tools 的參數、回傳、authorization 與風險邊界。
+title: MCP 工具參考
+description: hs-sql-agent 2.0.1 內建 MCP 工具的參數、回傳格式、授權與風險邊界。
 sidebar:
   group: MCP
   order: 35
@@ -12,49 +12,49 @@ import DocCard from "@/components/docs/mdx/DocCard.astro";
 import Flow from "@/components/docs/mdx/Flow.astro";
 
 <CardGrid columns={3}>
-  <DocCard title="Schema discovery" icon="▦" badge="low risk" description="get_schemas、get_tables、get_columns 先探索 key 綁定的 database，再產生 SQL。" />
-  <DocCard title="Query SQL" icon="SELECT" badge="read" description="execute_query_sql 接受單一 governed SELECT，回傳 serialized result rows。" />
-  <DocCard title="Safe DML" icon="DML" badge="approval" description="execute_dml_sql 只能透過 preview、Elicitation 與 commit-time revalidation 執行支援的 mutation。" />
+  <DocCard title="資料庫結構探索" icon="▦" badge="low risk" description="先用 get_schemas、get_tables、get_columns 探索金鑰綁定的資料庫，再產生 SQL。" />
+  <DocCard title="查詢 SQL" icon="SELECT" badge="read" description="execute_query_sql 接受單一受治理的 SELECT，並回傳序列化後的結果資料列。" />
+  <DocCard title="Safe DML" icon="DML" badge="approval" description="execute_dml_sql 只會在預覽、Elicitation 與提交前重新驗證都通過後執行支援的資料修改。" />
 </CardGrid>
 
-**2.0.1 由 MCP key 正式管理的 built-in tool surface** 只有五個 tool names：
+**2.0.1 由 MCP 金鑰正式管理的內建工具**只有五個名稱：
 
-| Tool | Public input | Result shape | Risk |
+| 工具 | 公開輸入 | 回傳格式 | 風險 |
 | --- | --- | --- | --- |
-| `get_schemas` | 無 | comma-separated schema names | metadata read |
-| `get_tables` | `schemaName: string` | comma-separated table descriptions | metadata read |
-| `get_columns` | `schemaName: string`, `tableName: string` | JSON array of column objects | metadata read |
-| `execute_query_sql` | `sql: string` | JSON result rows，或 execution error text | data read |
-| `execute_dml_sql` | `sql: string` | approval/execution result text | data mutation |
+| `get_schemas` | 無 | 以逗號分隔的 schema 名稱 | 讀取中繼資料 |
+| `get_tables` | `schemaName: string` | 以逗號分隔的資料表描述 | 讀取中繼資料 |
+| `get_columns` | `schemaName: string`, `tableName: string` | 欄位物件的 JSON 陣列 | 讀取中繼資料 |
+| `execute_query_sql` | `sql: string` | JSON 結果資料列，或執行錯誤文字 | 讀取資料 |
+| `execute_dml_sql` | `sql: string` | 核准 / 執行結果文字 | 修改資料 |
 
-Published Custom Tools 可以依 database 擴充 tool collection，但不算額外 built-in tools。
+已發布的 Custom Tools 可以依資料庫擴充工具集合，但不算額外的內建工具。
 
-<Callout type="warning" title="Tool discovery 本身也受 authorization scope 控制">
-MCP session 會在 MCP-key authentication 之後建立 tool collection。當 `AllowedTools` 明確設定時，只暴露名稱吻合的 built-in 或 published custom tools。空白 tool allowlist 代表不限制 tool name，所以 production key 通常應明確選最小必要集合。
+<Callout type="warning" title="工具探索本身也受授權範圍限制">
+MCP 工作階段會在 MCP 金鑰完成驗證後建立工具集合。當 `AllowedTools` 有明確設定時，只會暴露名稱吻合的內建工具或已發布 Custom Tools。空白的工具允許清單代表不限制工具名稱，因此正式環境通常應明確選出最小必要集合。
 </Callout>
 
-## 建議 discovery flow
+## 建議的探索流程
 
-<Flow items={["get_schemas", "get_tables", "get_columns", "execute_query_sql"]} caption="先探索 physical structure，再要求 model 產生 SQL。DML 刻意不放進預設 read flow。" />
+<Flow items={["get_schemas", "get_tables", "get_columns", "execute_query_sql"]} caption="先探索實體結構，再讓模型產生 SQL。DML 刻意不放進預設讀取流程。" />
 
-Client 不知道可靠 schema 時，先用 metadata tools。這些 tool 都在 authenticated key 的 database context 中執行，不接受 model 自行傳入 connection string。
+當用戶端不知道可靠的 schema 時，先使用中繼資料工具。這些工具都在已驗證金鑰所綁定的資料庫上下文中執行，不接受模型自行傳入 connection string。
 
 ## `get_schemas`
 
-回傳 MCP key 綁定 database 的 provider metadata runtime 所提供的 schemas。
+回傳 MCP 金鑰綁定資料庫的 provider metadata runtime 所提供的 schemas。
 
-**Parameters：** 無。
+**參數：** 無。
 
-**Success result：** 以逗號串接的 schema names。
+**成功結果：** 以逗號串接的 schema 名稱。
 
-**Authorization / limits：**
+**授權與限制：**
 
-- explicit tool allowlist 存在時，key 必須允許 `get_schemas`；
-- database provider/connection 由 authenticated key context 解析；
-- operation 會取得 shared SQL-concurrency limiter lease；
-- success/failure 會寫 audit action `mcp.get_schemas`。
+- 若有明確工具允許清單，金鑰必須允許 `get_schemas`；
+- 資料庫 provider 與連線會從已驗證的金鑰上下文解析；
+- 執行時會取得共用 SQL 並行限制器的 lease；
+- 成功或失敗都會寫入稽核 action `mcp.get_schemas`。
 
-Tool 不接受 database ID 或 connection string 作為 model input。
+這個工具不接受 database ID 或 connection string 作為模型輸入。
 
 ## `get_tables`
 
@@ -62,21 +62,21 @@ Tool 不接受 database ID 或 connection string 作為 model input。
 get_tables(schemaName: string)
 ```
 
-回傳指定 schema 的 provider-reported tables；如果 MCP key 有 table whitelist，結果會先被過濾。
+回傳指定 schema 中由 provider 回報的資料表；如果 MCP 金鑰設定了資料表白名單，結果會先經過篩選。
 
-如果綁定的 Database Management entry 有 semantic metadata，可見 table 還可能附加：
+如果綁定的 Database Management 項目有語意中繼資料，可見資料表還可能附加：
 
-- display name；
-- description；
-- synonyms；
-- 該 table scope 下的 metric descriptions。
+- 顯示名稱；
+- 說明；
+- 同義詞；
+- 該資料表範圍內的指標說明。
 
-**Success result：** comma-separated string，因此 entry 可能比 raw physical table name 更豐富。
+**成功結果：** 以逗號分隔的字串，因此每個項目可能比原始實體資料表名稱包含更多資訊。
 
-**Audit action：** `mcp.get_tables`。
+**稽核 action：** `mcp.get_tables`。
 
-<Callout type="info" title="Table whitelist 也會限制 discovery">
-受限 key 不應該透過 `get_tables` 得知 boundary 外的 tables。Semantic enrichment 不會擴大這個 boundary。
+<Callout type="info" title="資料表白名單也會限制探索結果">
+受限金鑰不應透過 `get_tables` 得知邊界外的資料表。語意中繼資料只會豐富既有結果，不會擴大可見範圍。
 </Callout>
 
 ## `get_columns`
@@ -85,22 +85,22 @@ get_tables(schemaName: string)
 get_columns(schemaName: string, tableName: string)
 ```
 
-Server 先檢查 requested qualified table 是否在 MCP key 允許範圍，再讀 provider column metadata，最後 serialize 成 JSON array。
+伺服器會先檢查要求的完整限定資料表是否在 MCP 金鑰允許範圍內，再讀取 provider 欄位中繼資料，最後序列化成 JSON 陣列。
 
-2.0.1 每個 `ColumnInfo` object 會暴露：
+2.0.1 每個 `ColumnInfo` 物件會暴露：
 
-| Property | 意義 |
+| 屬性 | 意義 |
 | --- | --- |
-| `Name` | physical column name |
-| `Column` | 同一 column-name value 的 alias |
-| `Type` | provider-reported column type |
-| `Description` | 有 semantic enrichment 時的描述 |
-| `IsPrimaryKey` | provider metadata 是否標示為 primary key 一部分 |
-| `PrimaryKeyOrdinal` | composite primary key 中的 nullable ordinal |
+| `Name` | 實體欄位名稱 |
+| `Column` | 同一欄位名稱值的 alias |
+| `Type` | provider 回報的欄位型別 |
+| `Description` | 有語意中繼資料時的說明 |
+| `IsPrimaryKey` | provider metadata 是否標示為主鍵的一部分 |
+| `PrimaryKeyOrdinal` | 複合主鍵中可為空的排序位置 |
 
-Semantic enrichment 可以把 display name、description、synonyms 與 relationship descriptions 加進 `Description`。Relationship context 只有在 key table whitelist 同時允許兩端 table 時才會出現。
+語意中繼資料可以把顯示名稱、說明、同義詞與關聯說明加入 `Description`。只有在金鑰的資料表白名單同時允許關聯兩端資料表時，才會提供關聯資訊。
 
-**Audit action：** `mcp.get_columns`。
+**稽核 action：** `mcp.get_columns`。
 
 ## `execute_query_sql`
 
@@ -108,25 +108,25 @@ Semantic enrichment 可以把 display name、description、synonyms 與 relation
 execute_query_sql(sql: string)
 ```
 
-接受**單一 `SELECT` SQL statement**。2.0.1 public tool description 明確列出常見 query forms：JOIN、WHERE、GROUP BY、HAVING、ORDER BY、LIMIT/OFFSET、DISTINCT、CTE、subquery，以及 UNION/INTERSECT/EXCEPT。
+接受**單一 `SELECT` SQL statement**。2.0.1 公開工具契約明確列出常見查詢形式：JOIN、WHERE、GROUP BY、HAVING、ORDER BY、LIMIT/OFFSET、DISTINCT、CTE、subquery，以及 UNION/INTERSECT/EXCEPT。
 
-<Flow items={["Parse", "Bind", "Authorize tables", "Validate policy", "Compile immutable command", "Execute"]} caption="Raw SQL 不會直接送給 provider。" />
+<Flow items={["Parse", "Bind", "Authorize tables", "Validate policy", "Compile immutable command", "Execute"]} caption="原始 SQL 不會直接送給 provider 執行。" />
 
-Request 進入 F# typed-query runtime。Runtime 會在 governed path 中取得 referenced tables、CTE/subquery 等 facts，並用於 audit evidence。
+請求會進入 F# 型別化查詢執行階段。執行流程會取得被參照的資料表、CTE、subquery 等編譯器事實，並把這些資訊用於稽核證據。
 
-**Success result：** returned row collection 的 JSON serialization。
+**成功結果：** 回傳資料列集合的 JSON 序列化結果。
 
-**Failure result：** 一般失敗回傳以 `Execution failed:` 開頭的文字；caller cancellation 則直接 propagate，不會包成普通 result string。
+**失敗結果：** 一般失敗會回傳以 `Execution failed:` 開頭的文字；如果是呼叫端取消，則會直接向外傳遞，不會包成一般結果字串。
 
-**Runtime boundaries：**
+**執行階段邊界：**
 
-- MCP tool allowlist；
-- MCP-key database binding；
-- table whitelist；
-- current security/query policy；
-- SQL concurrency limiter；
-- source/target SQL capability checks；
-- audit event `mcp.query.executed`，記錄 operation、duration、returned rows 與 compiler-derived definition facts。
+- MCP 工具允許清單；
+- MCP 金鑰的資料庫綁定；
+- 資料表白名單；
+- 目前的安全與查詢政策；
+- SQL 並行限制器；
+- 來源與目標 SQL capability 檢查；
+- 稽核事件 `mcp.query.executed`，記錄 operation、duration、returned rows 與編譯器推導出的 definition facts。
 
 可搭配 [SQL 支援參考](/zh-hant/docs/sql-compiler/sql-support)。
 
@@ -136,51 +136,51 @@ Request 進入 F# typed-query runtime。Runtime 會在 governed path 中取得 r
 execute_dml_sql(sql: string)
 ```
 
-MCP-visible input 是 SQL。`.NET` method 裡的 `McpServer` 與 cancellation token 是 runtime 注入的 infrastructure，不是 agent 要傳的欄位。
+MCP 對外可見的輸入只有 SQL。`.NET` 方法中的 `McpServer` 與 cancellation token 是執行階段注入的基礎設施，不是 Agent 需要傳入的欄位。
 
-2.0.1 MCP DML path 支援：
+2.0.1 MCP DML 路徑支援：
 
 | Statement | 狀態 |
 | --- | --- |
-| `UPDATE` | parse、capability、policy、approval 全部通過時支援 |
-| `DELETE` | parse、capability、policy、approval 全部通過時支援 |
-| `INSERT ... VALUES` | 支援 immutable-payload approval semantics |
-| `INSERT ... SELECT` | 2.0.1 fail-closed 拒絕 |
+| `UPDATE` | 解析、capability、政策與核准全部通過時支援 |
+| `DELETE` | 解析、capability、政策與核准全部通過時支援 |
+| `INSERT ... VALUES` | 支援不可變 payload 的核准語意 |
+| `INSERT ... SELECT` | 2.0.1 以 fail-closed 方式拒絕 |
 
-<Flow items={["Parse + verify profile", "Compile mutation", "Preview exact impact", "Human Elicitation", "Transaction revalidation", "Commit"]} caption="Approval 綁定 validated mutation context，不只是原始 SQL 文字。" />
+<Flow items={["Parse + verify profile", "Compile mutation", "Preview exact impact", "Human Elicitation", "Transaction revalidation", "Commit"]} caption="核准綁定的是已驗證的資料修改上下文，不只是原始 SQL 文字。" />
 
-UPDATE/DELETE approval 會綁定精確 primary-key row set，commit-time code 在 transaction 內再次驗證 row identities。INSERT VALUES 則把 approval 綁定 immutable literal payload 與 exact compiled command，commit 時再驗證 approved payload row count。
+UPDATE / DELETE 的核准會綁定精確的主鍵資料列集合，提交時會在交易內再次驗證資料列身分。INSERT VALUES 則把核准綁定到不可變的 literal payload 與精確編譯命令，提交時再驗證已核准 payload 的資料列數。
 
-若真人拒絕或 validation 無法完成，mutation 不 commit。Audit 使用 `mcp.dml.executed`，並記錄 operation、processing duration、affected rows、approval status 與必要的 error category。
+如果真人拒絕，或驗證無法完成，資料修改就不會提交。稽核使用 `mcp.dml.executed`，並記錄 operation、processing duration、affected rows、approval status 與必要的 error category。
 
-<Callout type="danger" title="不要把 DML 授權給不支援 MCP form Elicitation 的 client">
-只支援 MCP tool call 不夠；client 必須能顯示並回傳 Safe DML 使用的 interactive approval form。
+<Callout type="danger" title="不要把 DML 授權給不支援 MCP form Elicitation 的用戶端">
+只支援 MCP tool call 還不夠；用戶端必須能顯示並回傳 Safe DML 所需的互動式核准表單。
 </Callout>
 
-完整 protocol 請見 [Safe DML](/zh-hant/docs/sql-compiler/safe-dml)。
+完整協定請見 [Safe DML](/zh-hant/docs/sql-compiler/safe-dml)。
 
-## Built-in tools 的共通 errors
+## 內建工具的常見錯誤
 
 常見失敗包括：
 
-- MCP authorization context 缺失；
-- explicit tool allowlist 不含該 tool；
-- database provider/connection configuration 無效；
-- SQL-concurrency limiter 無法取得 lease（`Server busy`）；
-- requested table 不在 key whitelist；
-- SQL 為空、語法不支援、policy rejection 或 capability rejection；
-- provider execution failure。
+- 缺少 MCP 授權上下文；
+- 明確工具允許清單不包含該工具；
+- 資料庫 provider 或連線設定無效；
+- SQL 並行限制器無法取得 lease（`Server busy`）；
+- 要求的資料表不在金鑰白名單；
+- SQL 為空、語法不支援、政策拒絕或 capability 拒絕；
+- provider 執行失敗。
 
-Tool 會回傳 bounded error information，而不是 fallback 到 unrestricted provider execution。
+工具只會回傳受限制的錯誤資訊，不會退回成不受限制的 provider 執行模式。
 
 ## Custom Tools
 
-Published Custom Tools 會依 MCP key 綁定的 Database Management entry 載入，也可以依名稱放進同一個 `AllowedTools`。執行仍會經過 runtime database binding、table whitelist、security policy、concurrency controls、audit path；DML custom tool 同樣要走 approval pipeline。
+已發布的 Custom Tools 會依 MCP 金鑰綁定的 Database Management 項目載入，也可以依名稱加入同一個 `AllowedTools`。執行時仍會經過資料庫綁定、資料表白名單、安全政策、並行控制與稽核流程；DML Custom Tool 同樣必須走核准管線。
 
 請見 [Custom Tools](/zh-hant/docs/administration/custom-tools)。
 
-## Semantic metadata 不列為第六個正式 built-in
+## 語意中繼資料不算第六個內建工具
 
-2.0.1 repository 裡確實存在 semantic-management implementation detail，但正式 MCP key built-in registry 與 Admin key-management surface 所管理的仍是本頁五個 tools。因此官方 2.0.1 docs 把 semantic metadata 視為**由 Admin/control plane 管理、由 schema discovery 消費的能力**，不把它宣稱成額外正式 built-in MCP contract。
+2.0.1 程式庫確實存在語意管理相關實作，但正式 MCP 金鑰內建工具註冊表，以及管理介面的金鑰管理功能，仍只管理本頁列出的五個工具。因此 2.0.1 文件把語意中繼資料視為**由管理介面維護、再由 schema discovery 使用的能力**，不把它宣稱成額外的內建 MCP 契約。
 
-請見 [Semantic Metadata](/zh-hant/docs/administration/semantic-metadata)。
+請見 [語意中繼資料](/zh-hant/docs/administration/semantic-metadata)。

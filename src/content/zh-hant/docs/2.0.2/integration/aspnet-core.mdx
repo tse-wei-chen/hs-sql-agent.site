@@ -1,6 +1,6 @@
 ---
 title: ASP.NET Core 整合
-description: 把 HsSqlAgent.Server capability 組合進既有 ASP.NET Core application，可沿用 host authentication，也可選用內建 Admin experience。
+description: 把 HsSqlAgent.Server 的能力模組組合進既有 ASP.NET Core 應用程式，可沿用 host authentication，也可依需求啟用內建管理功能。
 sidebar:
   group: 整合
   order: 80
@@ -12,12 +12,12 @@ import DocCard from "@/components/docs/mdx/DocCard.astro";
 import Steps from "@/components/docs/mdx/Steps.astro";
 import Step from "@/components/docs/mdx/Step.astro";
 
-`HsSqlAgent.Server` 是可嵌入既有 ASP.NET Core host 的 class-library package。2.0.2 的新整合方式從 optionless core 開始，只明確選擇 host 真正需要的 capability。
+`HsSqlAgent.Server` 是可以嵌入既有 ASP.NET Core host 的類別庫套件。2.0.2 的新整合方式從不帶選項的核心註冊開始，只明確加入 host 真正需要的 capability。
 
 <CardGrid columns={3}>
-  <DocCard title="Host auth + Admin API" icon="API" description="沿用 application 已有的 Cookie/JWT/OIDC login 與 permission system，不需要 hs-sql-agent frontend 或 identity schema。" />
-  <DocCard title="需要時才加 MCP" icon="MCP" description="/mcp machine-access surface 與 human/Admin authorization 分開選擇。" />
-  <DocCard title="Built-in Admin experience" icon="UI" description="只有需要時才 opt in hs-sql-agent JWT/member/role identity 與 packaged Admin UI。" />
+  <DocCard title="沿用 Host 驗證 + Admin API" icon="API" description="沿用應用程式既有的 Cookie/JWT/OIDC 登入與權限系統，不需要 hs-sql-agent 前端或身分資料表。" />
+  <DocCard title="需要時才加入 MCP" icon="MCP" description="/mcp 的機器端存取介面和管理者授權可分開選擇。" />
+  <DocCard title="內建管理功能" icon="UI" description="只有需要時才啟用 hs-sql-agent 的 JWT/member/role 身分系統與隨套件提供的管理 UI。" />
 </CardGrid>
 
 ## 安裝
@@ -26,9 +26,9 @@ import Step from "@/components/docs/mdx/Step.astro";
 dotnet add package HsSqlAgent.Server
 ```
 
-## 既有 application 沿用自己的登入與權限
+## 既有應用程式沿用自己的登入與權限
 
-若 ASP.NET Core application 本來就有 authentication / authorization，這是建議的 embedding 方式。
+如果 ASP.NET Core 應用程式本來就有 authentication / authorization，建議採用這種嵌入方式。
 
 <Steps>
   <Step title="保留 host 原本的 authentication / authorization">
@@ -50,7 +50,7 @@ builder.Services.AddAuthorization(options =>
 HsSqlAgent 不會替換 host 的 default authentication scheme、authorization policy provider 或 default authorization policy。
   </Step>
 
-  <Step title="只組合需要的 hs-sql-agent capabilities">
+  <Step title="只加入需要的 hs-sql-agent capabilities">
 
 ```csharp
 var hs = builder.Services.AddHsSqlAgentCore();
@@ -68,10 +68,10 @@ hs.AddHsSqlAgentHostAuthorization("SqlAgentAdmin");
 hs.AddHsSqlAgentAdminApi();
 ```
 
-這個模式**不要**呼叫 `AddHsSqlAgentBuiltInAuth()`；HsSqlAgent 直接使用 host 已完成 authentication 的 `HttpContext.User`。
+這個模式**不要**呼叫 `AddHsSqlAgentBuiltInAuth()`；HsSqlAgent 會直接使用 host 已完成驗證的 `HttpContext.User`。
   </Step>
 
-  <Step title="ASP.NET Core pipeline 由 host 自己掌握">
+  <Step title="ASP.NET Core pipeline 仍由 host 掌握">
 
 ```csharp
 var app = builder.Build();
@@ -85,21 +85,21 @@ app.MapControllers();
 app.Run();
 ```
 
-Modular host 模式下，`UseHsSqlAgentAdminApi()` 不會替 application 呼叫 `MapControllers()`；controller endpoint mapping 仍由 host 決定。
+在模組化 host 模式下，`UseHsSqlAgentAdminApi()` 不會替應用程式呼叫 `MapControllers()`；controller endpoint 的 mapping 仍由 host 決定。
   </Step>
 </Steps>
 
-Host-authorization mode 不會 publish HsSqlAgent 內建的 `AuthController`、`MemberController`、`RoleController`，也不會安裝 HsSqlAgent identity schema，因此不需要 JWT、SMTP、password-reset 或 OIDC options。
+HostAuthorization 模式不會發布 HsSqlAgent 內建的 `AuthController`、`MemberController`、`RoleController`，也不會安裝 HsSqlAgent 身分資料表，因此不需要設定 JWT、SMTP、password reset 或 OIDC options。
 
-HsSqlAgent Admin permission filter 會把本次要求的 stable canonical permission keys 放在 `HsSqlAgentPermissionResource.Permissions`，再交給指定的 host policy。Host 可以只用粗粒度 Admin role，也可以把 canonical key 對映到自己既有的細粒度 permission model。
+HsSqlAgent 的管理端權限 filter 會把本次要求的穩定 canonical permission keys 放進 `HsSqlAgentPermissionResource.Permissions`，再交給指定的 host policy。Host 可以只使用粗粒度的管理角色，也可以把 canonical key 對映到自己既有的細粒度權限模型。
 
 <Callout type="info" title="Canonical permission 不是 route path">
-像 `/runtime/db-management.edit`、`/auth/role.view` 這些是穩定 authorization resource identifier，刻意與 frontend navigation 及 HTTP mount path 分離。
+像 `/runtime/db-management.edit`、`/auth/role.view` 這些是穩定的授權資源識別字，刻意和前端導覽路徑及 HTTP 掛載路徑分離。
 </Callout>
 
-## MCP 獨立選用
+## MCP 可獨立選用
 
-MCP 是另一條 machine-access security boundary。只有 application 真的要 expose MCP server 時才加入：
+MCP 是另一條機器端存取的安全邊界。只有應用程式確實要提供 MCP server 時才加入：
 
 ```csharp
 hs.AddHsSqlAgentMcp(options =>
@@ -109,17 +109,17 @@ hs.AddHsSqlAgentMcp(options =>
 });
 ```
 
-Application build 完後再掛載：
+應用程式建置完成後再掛載：
 
 ```csharp
 app.UseHsSqlAgentMcp();
 ```
 
-MCP key、tool scope、table scope、rate limit 與 HMAC validation 都與 human/Admin 的 host-authorization policy 分開。
+MCP 金鑰、工具範圍、資料表範圍、速率限制與 HMAC validation，都和管理者使用的 HostAuthorization policy 分開。
 
-## 需要時才使用內建 Admin identity
+## 需要時才使用內建管理端身分系統
 
-若 application 想使用 HsSqlAgent 自己的 JWT/member/role model，請明確選擇 BuiltInAuth，而不是 HostAuthorization：
+如果應用程式想使用 HsSqlAgent 自己的 JWT/member/role 模型，請明確選擇 BuiltInAuth，而不是 HostAuthorization：
 
 ```csharp
 var hs = builder.Services.AddHsSqlAgentCore();
@@ -140,9 +140,9 @@ hs.AddHsSqlAgentBuiltInAuth(options =>
 hs.AddHsSqlAgentAdminApi();
 ```
 
-Built-in authentication schemes 都使用 HsSqlAgent namespace（`HsSqlAgent.Jwt`、`HsSqlAgent.ExternalCookie`、`HsSqlAgent.Oidc`），不會成為 host application 的 default scheme。Built-in identity 與 host-authorization mode 互斥。
+內建 authentication schemes 都使用 HsSqlAgent namespace（`HsSqlAgent.Jwt`、`HsSqlAgent.ExternalCookie`、`HsSqlAgent.Oidc`），不會成為 host 應用程式的 default scheme。BuiltInAuth 與 HostAuthorization 互斥。
 
-Packaged Admin UI 也不是必選：
+隨套件提供的管理 UI 也不是必選：
 
 ```csharp
 app.UseHsSqlAgentAdminApi();
@@ -150,11 +150,11 @@ app.MapControllers();
 app.UseHsSqlAgentAdminUi();
 ```
 
-不掛 UI 時，Admin API 仍可由 host 自己的 frontend 呼叫。
+不掛載 UI 時，Admin API 仍可由 host 自己的前端呼叫。
 
-## Capability-owned options
+## 各 capability 負責自己的 options
 
-新程式只設定該 capability 真正擁有的 options：
+新程式只需要設定實際啟用 capability 所擁有的 options：
 
 | Capability | 負責的設定 |
 | --- | --- |
@@ -162,29 +162,29 @@ app.UseHsSqlAgentAdminUi();
 | `AddHsSqlAgentAdminStore()` | Admin database provider 與 connection string |
 | `AddHsSqlAgentBuiltInAuth()` | JWT、password reset/SMTP、enterprise identity/OIDC |
 | `AddHsSqlAgentHostAuthorization()` | 委派給既有 ASP.NET Core authorization policy |
-| `AddHsSqlAgentMcp()` | public MCP endpoint 與 MCP-key HMAC secret |
-| `AddHsSqlAgentAdminApi()` | HsSqlAgent administration controllers，以及 controller-scoped validation / exception mapping |
+| `AddHsSqlAgentMcp()` | 公開 MCP endpoint 與 MCP 金鑰 HMAC secret |
+| `AddHsSqlAgentAdminApi()` | HsSqlAgent 管理控制器，以及 controller 範圍的 validation / exception mapping |
 | `AddHsSqlAgentTelemetry()` | Prometheus 與 OTLP settings |
 
-沒有選到的 capability 不會建立或驗證它的 options。Modular API 保留原有 defaults；選 HostAuthorization 不會逼你設定 BuiltInAuth 的 JWT/OIDC/SMTP。
+沒有選到的 capability 不會建立或驗證它的 options。模組化 API 保留原有預設值；選擇 HostAuthorization 不會要求設定 BuiltInAuth 的 JWT/OIDC/SMTP。
 
 <Callout type="warning" title="Secret 只由擁有它的 capability 驗證">
-BuiltInAuth 需要至少 32 bytes 的 JWT secret；MCP 需要至少 32 bytes 的 HMAC secret。若沒有選該 capability，就不要求這些 secret。
+BuiltInAuth 需要至少 32 bytes 的 JWT secret；MCP 需要至少 32 bytes 的 HMAC secret。沒有啟用該 capability，就不會要求對應 secret。
 </Callout>
 
-## 目前 HTTP surface
+## 目前 HTTP 掛載路徑
 
-| Surface | Current mount |
+| 介面 | 目前路徑 |
 | --- | --- |
 | MCP endpoint | `/mcp` |
 | Admin API prefix | `/api` |
 | Admin UI | `/` |
 
-2.0.2 目前刻意固定這些 mount。Routing、frontend base path/assets、callback 與 security boundary 尚未能一起 relocation 前，不宣稱支援 arbitrary mount。
+2.0.2 目前刻意固定這些掛載位置。在 routing、frontend base path/assets、callback 與安全邊界能一起搬移之前，不宣稱支援任意掛載路徑。
 
-## Legacy compatibility
+## 舊版相容介面
 
-既有 package consumer 仍可使用 aggregate API：
+既有套件使用者仍可使用整合式 API：
 
 ```csharp
 builder.Services.AddHsSqlAgent(options =>
@@ -196,11 +196,11 @@ var app = builder.Build();
 app.UseHsSqlAgent().ServeAdminUi();
 ```
 
-`HsSqlAgentServiceOptions`、`AddHsSqlAgent()`、`UseHsSqlAgent()` 保留為 compatibility surface；新整合應優先使用 `AddHsSqlAgentCore()` 加上 explicit capability registration。
+`HsSqlAgentServiceOptions`、`AddHsSqlAgent()`、`UseHsSqlAgent()` 都會保留作為相容介面；新的整合應優先使用 `AddHsSqlAgentCore()`，再明確註冊需要的 capability。
 
 ## 相關文件
 
 <CardGrid columns={2}>
-  <DocCard title="設定參考" icon="CFG" href="/zh-hant/docs/operations/configuration" description="查看 standalone environment settings 與 embedded .NET host 使用的 capability-specific options。" />
-  <DocCard title="部署" icon="OPS" href="/zh-hant/docs/operations/deployment" description="套用 production hosting、secrets、persistence、reverse-proxy 與 operability guidance。" />
+  <DocCard title="設定參考" icon="CFG" href="/zh-hant/docs/operations/configuration" description="查看獨立部署使用的環境設定，以及內嵌 .NET host 對應的 capability options。" />
+  <DocCard title="部署" icon="OPS" href="/zh-hant/docs/operations/deployment" description="了解正式環境 hosting、密鑰、持久化、反向代理與維運建議。" />
 </CardGrid>
