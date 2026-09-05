@@ -4,7 +4,10 @@ import { getRelativeLocaleUrl } from "astro:i18n";
 import { locales, localeLabels } from "@/utils/getPostsByLocale";
 import { getDocsForVersion, hasDocInVersion } from "@/utils/contentRouting";
 import { docsVersions, isDocsVersion } from "@/data/docsVersions";
-import { isMarketingSection } from "@/data/marketing";
+import {
+  hasLocalizedMarketingPage,
+  isMarketingSection,
+} from "@/data/marketingCatalog";
 import { stripBase, stripLocale } from "@/utils/withBase";
 
 const currentLocale = Astro.currentLocale ?? "en";
@@ -54,8 +57,11 @@ if (firstSegment === "docs") {
 
   fallbackPath = versioned ? `docs/${docsVersion}` : "docs";
 } else if (isMarketingSection(firstSegment) && restSegments.length > 0) {
+  const marketingSlug = restSegments.join("/");
   translatedLocales = new Set(
-    locales.filter(locale => locale === "en" || locale === "zh-hant")
+    locales.filter(locale =>
+      hasLocalizedMarketingPage(locale, firstSegment, marketingSlug)
+    )
   );
   fallbackPath = firstSegment;
 }

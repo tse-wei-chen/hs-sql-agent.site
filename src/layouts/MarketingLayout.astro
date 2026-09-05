@@ -1,6 +1,10 @@
 ---
 import { getRelativeLocaleUrl } from "astro:i18n";
-import type { MarketingPage } from "@/data/marketing";
+import type {
+  LocalizedMarketingPage,
+  LocalizedMarketingLocale,
+} from "@/data/marketingCatalog";
+import { useMarketingUi } from "@/i18n/marketing";
 import Layout from "./Layout.astro";
 import Header from "@/components/Header.astro";
 import Footer from "@/components/Footer.astro";
@@ -9,35 +13,108 @@ import "@/styles/marketing.css";
 
 type Alternate = { locale: string; href: string };
 type Props = {
-  page: MarketingPage;
+  page: LocalizedMarketingPage;
   alternates?: Alternate[];
+};
+
+type DetailUi = {
+  readDocs: string;
+  relatedDocs: string;
+  visual: Record<LocalizedMarketingPage["visual"], string[]>;
+};
+
+const detailUi: Record<LocalizedMarketingLocale, DetailUi> = {
+  en: {
+    readDocs: "Read technical docs",
+    relatedDocs: "Related documentation",
+    visual: {
+      dml: ["Preview", "Approve", "Revalidate", "Commit"],
+      policy: ["Scope", "Policy", "Audit", "Execute"],
+      integration: ["Client", "MCP", "Policy", "SQL"],
+      database: ["MCP", "Parse", "Compile", "DB"],
+      compiler: ["Parse", "Validate", "Prove", "Compile"],
+    },
+  },
+  "zh-hant": {
+    readDocs: "閱讀技術文件",
+    relatedDocs: "相關技術文件",
+    visual: {
+      dml: ["預覽", "核准", "重新驗證", "提交"],
+      policy: ["範圍", "政策", "稽核", "執行"],
+      integration: ["用戶端", "MCP", "政策", "SQL"],
+      database: ["MCP", "解析", "編譯", "資料庫"],
+      compiler: ["解析", "驗證", "證明", "編譯"],
+    },
+  },
+  "zh-hans": {
+    readDocs: "阅读技术文档",
+    relatedDocs: "相关技术文档",
+    visual: {
+      dml: ["预览", "审批", "重新验证", "提交"],
+      policy: ["范围", "策略", "审计", "执行"],
+      integration: ["客户端", "MCP", "策略", "SQL"],
+      database: ["MCP", "解析", "编译", "数据库"],
+      compiler: ["解析", "验证", "证明", "编译"],
+    },
+  },
+  ja: {
+    readDocs: "技術ドキュメントを読む",
+    relatedDocs: "関連ドキュメント",
+    visual: {
+      dml: ["プレビュー", "承認", "再検証", "コミット"],
+      policy: ["範囲", "ポリシー", "監査", "実行"],
+      integration: ["クライアント", "MCP", "ポリシー", "SQL"],
+      database: ["MCP", "解析", "コンパイル", "DB"],
+      compiler: ["解析", "検証", "証明", "コンパイル"],
+    },
+  },
+  ko: {
+    readDocs: "기술 문서 읽기",
+    relatedDocs: "관련 기술 문서",
+    visual: {
+      dml: ["미리 보기", "승인", "재검증", "커밋"],
+      policy: ["범위", "정책", "감사", "실행"],
+      integration: ["클라이언트", "MCP", "정책", "SQL"],
+      database: ["MCP", "파싱", "컴파일", "DB"],
+      compiler: ["파싱", "검증", "증명", "컴파일"],
+    },
+  },
+  fr: {
+    readDocs: "Lire la documentation technique",
+    relatedDocs: "Documentation associée",
+    visual: {
+      dml: ["Prévisualiser", "Approuver", "Revalider", "Valider"],
+      policy: ["Périmètre", "Politique", "Audit", "Exécuter"],
+      integration: ["Client", "MCP", "Politique", "SQL"],
+      database: ["MCP", "Analyser", "Compiler", "BDD"],
+      compiler: ["Analyser", "Valider", "Prouver", "Compiler"],
+    },
+  },
+  de: {
+    readDocs: "Technische Dokumentation lesen",
+    relatedDocs: "Zugehörige Dokumentation",
+    visual: {
+      dml: ["Vorschau", "Freigabe", "Prüfen", "Commit"],
+      policy: ["Scope", "Richtlinie", "Audit", "Ausführen"],
+      integration: ["Client", "MCP", "Richtlinie", "SQL"],
+      database: ["MCP", "Parsen", "Kompilieren", "DB"],
+      compiler: ["Parsen", "Validieren", "Nachweisen", "Kompilieren"],
+    },
+  },
 };
 
 const { page, alternates = [] } = Astro.props;
 const { locale, section } = page;
-const isZh = locale === "zh-hant";
+const marketingUi = useMarketingUi(locale);
+const localizedDetailUi = detailUi[locale];
 const urlBase = Astro.site ?? Astro.url;
 const defaultAlternate =
-  alternates.find(alternate => alternate.locale === config.site.lang) ?? alternates[0];
+  alternates.find(alternate => alternate.locale === config.site.lang) ??
+  alternates[0];
 const headline = page.headline ?? page.title;
-const sectionLabel =
-  section === "databases"
-    ? isZh ? "資料庫" : "Databases"
-    : section === "features"
-      ? isZh ? "功能" : "Features"
-      : isZh ? "整合" : "Integrations";
+const sectionLabel = marketingUi.sections[section][0];
 const sectionUrl = getRelativeLocaleUrl(locale, section);
-
-const visualLabels =
-  page.visual === "dml"
-    ? ["Preview", "Approve", "Revalidate", "Commit"]
-    : page.visual === "policy"
-      ? ["Scope", "Policy", "Audit", "Execute"]
-      : page.visual === "integration"
-        ? ["Client", "MCP", "Policy", "SQL"]
-        : page.visual === "database"
-          ? ["MCP", "Parse", "Compile", "DB"]
-          : ["Parse", "Validate", "Prove", "Compile"];
+const visualLabels = localizedDetailUi.visual[page.visual];
 
 const orbitCore =
   page.visual === "database"
@@ -64,16 +141,39 @@ const structuredData = {
 };
 ---
 
-<Layout title={`${page.title} | ${config.site.title}`} description={page.description}>
+<Layout
+  title={`${page.title} | ${config.site.title}`}
+  description={page.description}
+>
   <Fragment slot="head">
-    {page.keywords.length > 0 && <meta name="keywords" content={page.keywords.join(", ")} />}
-    {alternates.map(alternate => (
-      <link rel="alternate" hreflang={alternate.locale} href={new URL(alternate.href, urlBase)} />
-    ))}
-    {defaultAlternate && (
-      <link rel="alternate" hreflang="x-default" href={new URL(defaultAlternate.href, urlBase)} />
-    )}
-    <script type="application/ld+json" is:inline set:html={JSON.stringify(structuredData)} />
+    {
+      page.keywords.length > 0 && (
+        <meta name="keywords" content={page.keywords.join(", ")} />
+      )
+    }
+    {
+      alternates.map(alternate => (
+        <link
+          rel="alternate"
+          hreflang={alternate.locale}
+          href={new URL(alternate.href, urlBase)}
+        />
+      ))
+    }
+    {
+      defaultAlternate && (
+        <link
+          rel="alternate"
+          hreflang="x-default"
+          href={new URL(defaultAlternate.href, urlBase)}
+        />
+      )
+    }
+    <script
+      type="application/ld+json"
+      is:inline
+      set:html={JSON.stringify(structuredData)}
+    />
   </Fragment>
 
   <Header />
@@ -81,8 +181,13 @@ const structuredData = {
     <section class="marketing-hero">
       <div class="marketing-shell marketing-hero-grid">
         <div>
-          <nav class="marketing-breadcrumb" aria-label="Breadcrumb">
-            <a href={getRelativeLocaleUrl(locale, "")}>{isZh ? "首頁" : "Home"}</a>
+          <nav
+            class="marketing-breadcrumb"
+            aria-label={marketingUi.breadcrumbLabel}
+          >
+            <a href={getRelativeLocaleUrl(locale, "")}
+              >{marketingUi.homeLabel}</a
+            >
             <span aria-hidden="true">/</span>
             <a href={sectionUrl}>{sectionLabel}</a>
           </nav>
@@ -90,18 +195,31 @@ const structuredData = {
           <h1>{headline}</h1>
           <p class="marketing-lead">{page.description}</p>
           <div class="marketing-actions">
-            {page.relatedDocs[0] && (
-              <a class="marketing-button marketing-button-primary" href={getRelativeLocaleUrl(locale, page.relatedDocs[0].path)}>
-                {isZh ? "閱讀技術文件" : "Read technical docs"} <span aria-hidden="true">→</span>
-              </a>
-            )}
-            <a class="marketing-button" href="https://github.com/tse-wei-chen/hs-sql-agent" rel="external">
+            {
+              page.relatedDocs[0] && (
+                <a
+                  class="marketing-button marketing-button-primary"
+                  href={getRelativeLocaleUrl(locale, page.relatedDocs[0].path)}
+                >
+                  {localizedDetailUi.readDocs} <span aria-hidden="true">→</span>
+                </a>
+              )
+            }
+            <a
+              class="marketing-button"
+              href="https://github.com/tse-wei-chen/hs-sql-agent"
+              rel="external"
+            >
               GitHub <span aria-hidden="true">↗</span>
             </a>
           </div>
         </div>
 
-        <div class:list={["marketing-orbit", `marketing-orbit-${page.visual}`]} aria-hidden="true" data-pagefind-ignore>
+        <div
+          class:list={["marketing-orbit", `marketing-orbit-${page.visual}`]}
+          aria-hidden="true"
+          data-pagefind-ignore
+        >
           <div class="marketing-orbit-core">{orbitCore}</div>
           <span class="orbit-node orbit-node-a">{visualLabels[0]}</span>
           <span class="orbit-node orbit-node-b">{visualLabels[1]}</span>
@@ -111,17 +229,22 @@ const structuredData = {
       </div>
     </section>
 
-    {page.highlights.length > 0 && (
-      <section class="marketing-shell marketing-highlights" aria-label={isZh ? "重點" : "Highlights"}>
-        {page.highlights.map((item, index) => (
-          <article>
-            <span>{String(index + 1).padStart(2, "0")}</span>
-            <h2>{item.title}</h2>
-            <p>{item.description}</p>
-          </article>
-        ))}
-      </section>
-    )}
+    {
+      page.highlights.length > 0 && (
+        <section
+          class="marketing-shell marketing-highlights"
+          aria-label={sectionLabel}
+        >
+          {page.highlights.map((item, index) => (
+            <article>
+              <span>{String(index + 1).padStart(2, "0")}</span>
+              <h2>{item.title}</h2>
+              <p>{item.description}</p>
+            </article>
+          ))}
+        </section>
+      )
+    }
 
     <section class="marketing-shell marketing-content-grid">
       <article class="app-prose marketing-prose">
@@ -129,11 +252,18 @@ const structuredData = {
       </article>
       <aside>
         <div class="marketing-related">
-          <p>{isZh ? "相關技術文件" : "Related documentation"}</p>
+          <p>{localizedDetailUi.relatedDocs}</p>
           <ul>
-            {page.relatedDocs.map(item => (
-              <li><a href={getRelativeLocaleUrl(locale, item.path)}>{item.label}<span aria-hidden="true">→</span></a></li>
-            ))}
+            {
+              page.relatedDocs.map(item => (
+                <li>
+                  <a href={getRelativeLocaleUrl(locale, item.path)}>
+                    {item.label}
+                    <span aria-hidden="true">→</span>
+                  </a>
+                </li>
+              ))
+            }
           </ul>
         </div>
       </aside>
