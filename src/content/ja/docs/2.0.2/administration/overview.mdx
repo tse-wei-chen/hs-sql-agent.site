@@ -1,0 +1,62 @@
+---
+title: 管理画面の概要
+description: データベースアクセス、MCP 認証情報、ID、認可、監査、セキュリティポリシー、ランタイム運用を管理するためのコントロールプレーンです。
+sidebar:
+  group: 管理
+  order: 70
+---
+
+import Callout from "@/components/docs/mdx/Callout.astro";
+import CardGrid from "@/components/docs/mdx/CardGrid.astro";
+import DocCard from "@/components/docs/mdx/DocCard.astro";
+import Flow from "@/components/docs/mdx/Flow.astro";
+
+管理画面は、hs-sql-agent の**運用者向けコントロールプレーン**です。運用者は MCP クライアントがアクセスできる範囲と SQL の統制方法をここで定義し、MCP クライアントは別途認証された `/mcp` エンドポイントを使用します。
+
+<CardGrid columns={2}>
+  <DocCard title="データベース管理" icon="DB" href="/ja/docs/administration/database-management" description="プロバイダー接続を登録し、接続確認を行い、MCP キーをどのデータベースに紐付けられるかを管理します。" />
+  <DocCard title="MCP キー" icon="KEY" href="/ja/docs/administration/mcp-keys" description="MCP 認証情報の発行、ローテーション、失効、スコープ設定、クライアント設定の生成を行います。" />
+  <DocCard title="セマンティックメタデータ" icon="AI" href="/ja/docs/administration/semantic-metadata" description="スキーマ探索に、人が理解しやすい名前、説明、同義語、リレーション、メトリクスを追加します。" />
+  <DocCard title="カスタムツール" icon="SQL" href="/ja/docs/administration/custom-tools" description="ランタイムポリシーを迂回せず、統制された SQL 操作を名前付き MCP ツールとして公開します。" />
+  <DocCard title="セキュリティ" icon="SEC" href="/ja/docs/security/overview" description="認証、認可、テーブル／ツールのスコープ、fail-closed の SQL ポリシー、監査境界を確認します。" />
+  <DocCard title="運用" icon="OPS" href="/ja/docs/operations/configuration" description="デプロイ、共有状態、オブザーバビリティ、保持期間、各種制限、本番ランタイムの動作を設定します。" />
+</CardGrid>
+
+## ID、ガバナンス、運用
+
+<CardGrid columns={3}>
+  <DocCard title="メンバーとロール" icon="USR" href="/ja/docs/administration/members-roles" description="管理ユーザーの作成、ロール割り当て、セッション失効、ロールのライフサイクル管理を安全に行います。" />
+  <DocCard title="権限" icon="RBAC" href="/ja/docs/administration/permissions" description="管理 API のコントローラーが適用する permission path と action のモデルを説明します。" />
+  <DocCard title="監査" icon="AUD" href="/ja/docs/administration/audit" description="ランタイムおよびセキュリティ監査レコードの検索、集計、エクスポート、保持を行います。" />
+  <DocCard title="セキュリティポリシー" icon="POL" href="/ja/docs/administration/security-policies" description="クエリ、DML、キー単位のレート制限、SQL 同時実行制御を管理します。" />
+  <DocCard title="運用状態" icon="P95" href="/ja/docs/administration/operability" description="実行メトリクス、DB ヘルス、キー利用状況、外向き配信の状態を確認します。" />
+  <DocCard title="Admin HTTP API" icon="API" href="/ja/docs/reference/api-reference" description="同梱 UI が利用する、ソースに基づく 2.0.2 のコントローラールートと認可サーフェスを確認します。" />
+</CardGrid>
+
+## 推奨する運用フロー
+
+<Flow items={["データベースを登録", "MCP キーを発行", "ツール／テーブル範囲を設定", "メタデータを補強", "クライアントを接続", "監視・監査"]} />
+
+1. エージェントに公開するデータベース接続を登録し、接続できることを確認します。
+2. そのデータベースに紐付けた MCP キーを発行し、クライアントに必要なツール／テーブルだけを許可します。
+3. 物理スキーマ名だけではエージェントが安定して探索できない場合は、セマンティックメタデータを追加します。
+4. クライアント設定を生成し、公開 Streamable HTTP `/mcp` エンドポイントへ接続します。
+5. 監査と運用状態の画面でランタイムの挙動を確認し、必要に応じてポリシーを絞り込みます。
+
+<Callout type="info" title="管理画面の認証と MCP の認証は別です">
+管理アカウントはコントロールプレーンを操作します。MCP クライアントは MCP キーで認証します。ユーザーに管理権限を付与しても MCP 認証情報が自動作成されることはなく、MCP キーだけで管理画面へアクセスすることもできません。
+</Callout>
+
+## MCP キーのライフサイクル
+
+キーを発行、ローテーション、または複製すると、UI は対応するクライアント形式向けの Streamable HTTP 設定を直接生成できます。平文のシークレットが表示されるのはそのライフサイクルダイアログ内だけで、後から再表示するためには保存されません。
+
+ダイアログを閉じる前に、生成された設定をコピーしてください。
+
+## 組み込み UI と内蔵 ID 管理は任意です
+
+ASP.NET Core のホストは、同梱の管理 UI を配信せずに HsSqlAgent Admin API だけを公開できます。モジュール型の統合では `UseHsSqlAgentAdminApi()` を使用し、ホスト側で `MapControllers()` を呼び出します。同梱 UI が必要な場合にだけ `UseHsSqlAgentAdminUi()` を追加してください。
+
+また、ホストは `AddHsSqlAgentHostAuthorization(...)` を使用し、HsSqlAgent のメンバー、ロール、JWT、SMTP、OIDC を導入せずに既存のログイン／権限システムを維持できます。MCP は `AddHsSqlAgentMcp(...)` / `UseHsSqlAgentMcp()` で独立して選択・マッピングします。
+
+2.0.2 の構成モデル全体については [ASP.NET Core 連携](/ja/docs/integration/aspnet-core) を参照してください。

@@ -1,0 +1,85 @@
+---
+title: セキュリティポリシー
+description: 管理コントロールプレーンから、hs-sql-agent 2.0.1 の SQL、DML、レート制限、同時実行に関するランタイムポリシーを設定します。
+sidebar:
+  group: 管理
+  order: 82
+---
+
+import Callout from "@/components/docs/mdx/Callout.astro";
+import CardGrid from "@/components/docs/mdx/CardGrid.astro";
+import DocCard from "@/components/docs/mdx/DocCard.astro";
+
+<CardGrid columns={3}>
+  <DocCard title="Query ポリシー" icon="Q" description="統制された Query の結果行数と実行タイムアウトに上限を設定します。" />
+  <DocCard title="DML ポリシー" icon="DML" description="WHERE 条件を要求し、全テーブル更新を制限し、影響行数に上限を設定します。" />
+  <DocCard title="ランタイム制限" icon="LIM" description="MCP キーの既定レート制限と、SQL の最大同時実行数を設定します。" />
+</CardGrid>
+
+Security Policy は、エージェントに自主的な振る舞いを期待するための説明ではなく、**ランタイムが強制するポリシー**です。現在のポリシーは Query / DML 実行とランタイムリミッターによって利用されます。
+
+## 2.0.1 のポリシーフィールド
+
+| フィールド | 既定値 | 有効範囲／意味 |
+| --- | ---: | --- |
+| `QueryMaxRows` | `1000` | 1–100,000 |
+| `QueryTimeoutSeconds` | `30` | 1–600 秒 |
+| `RequireWhereForUpdate` | `true` | UPDATE に条件を要求 |
+| `RequireWhereForDelete` | `true` | DELETE に条件を要求 |
+| `AllowFullTableUpdate` | `false` | 全テーブル UPDATE を明示的に許可 |
+| `AllowFullTableDelete` | `false` | 全テーブル DELETE を明示的に許可 |
+| `DmlMaxAffectedRows` | `100` | 1–1,000,000 |
+| `KeyPermitLimit` | `120` | 設定したキー用ウィンドウあたり 1–1,000,000 リクエスト |
+| `KeyWindowSeconds` | `60` | 1–86,400 秒 |
+| `MaxConcurrentSql` | `16` | 1–10,000 の同時 SQL 操作 |
+
+サービスは範囲外の値を、別のポリシーへ暗黙に補正せず拒否します。
+
+## 管理認可
+
+| 操作 | 権限 |
+| --- | --- |
+| 現在のポリシーを参照 | `/runtime/security` → `view` |
+| ポリシーを更新 | `/runtime/security` → `edit` |
+
+ポリシーを更新すると監査イベントが記録され、ランタイムのポリシー状態が直ちに置き換えられます。変更内容は、設定済みの security-policy synchronization provider を通じても発行されるため、分散デプロイでは複数インスタンスへ伝播できます。
+
+<Callout type="warning" title="ポリシー変更は稼働中のランタイム判断に影響します">
+Query の行数、DML 上限、キー制限、SQL 同時実行数の変更は、見た目だけの管理設定ではありません。本番環境の認可／可用性に関わる変更としてレビューし、反映後は監査と運用状態を確認してください。
+</Callout>
+
+## Query 制限
+
+`QueryMaxRows` はコンパイラ／ランタイムポリシーを通じて Query の出力行数を制限します。`QueryTimeoutSeconds` はランタイムの Query timeout contract を制御します。どちらもサーバー側で強制されるため、クライアントが `LIMIT` やキャンセル処理を忘れないことには依存しません。
+
+## UPDATE / DELETE の条件
+
+既定ポリシーでは UPDATE と DELETE に条件を要求し、全テーブル更新を禁止します。
+
+全テーブル更新の許可は明示的です。`RequireWhereForUpdate` をオフにすることと `AllowFullTableUpdate` を有効にすることは、同じ意図を表すわけではありません。実際の運用ワークフローで広範囲な更新が必要な場合を除き、保守的な既定値を維持してください。
+
+## DML の影響行数上限
+
+`DmlMaxAffectedRows` は更新による影響範囲を制限します。これは Safe DML の承認プロトコルを置き換えるものではなく、補完する制限です。更新文は引き続き parse / validate / compile に成功する必要があり、MCP の DML 経路では承認とコミット時の再検証も完了しなければなりません。
+
+詳しくは [Safe DML](/ja/docs/sql-compiler/safe-dml) を参照してください。
+
+## MCP キーのレート制限
+
+セキュリティポリシーは、キー単位の既定 permit limit / window を提供します。個々の MCP キーでは次のいずれかを選べます。
+
+- ポリシーを継承
+- 独自の上書き値を使用
+- 明示的に無制限
+
+キー単位のモードについては [MCP キー](/ja/docs/administration/mcp-keys) を参照してください。
+
+## SQL 同時実行数
+
+`MaxConcurrentSql` はランタイムの SQL 同時実行上限です。この上限がプロセス単位になるか、複数インスタンス間で共有されるかは、設定した SQL concurrency provider によって決まります。
+
+クラスター全体の上限として扱う必要がある場合は、各ノードで個別に制限するのではなく分散 provider を使用してください。
+
+<Callout type="tip" title="安全ポリシーとデータベース権限は別の層として設計してください">
+ランタイムポリシー、MCP キーのスコープ、コンパイラのチェックは、最小権限のデータベースアカウントの上に重ねてください。望ましくない SQL を防ぐために、いずれか 1 つの層だけへ依存しないでください。
+</Callout>

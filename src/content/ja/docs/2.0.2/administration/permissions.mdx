@@ -1,0 +1,82 @@
+---
+title: 権限
+description: hs-sql-agent 2.0.1 の管理操作で使用する permission path と action による認可モデルを説明します。
+sidebar:
+  group: 管理
+  order: 79
+---
+
+import Callout from "@/components/docs/mdx/Callout.astro";
+import CardGrid from "@/components/docs/mdx/CardGrid.astro";
+import DocCard from "@/components/docs/mdx/DocCard.astro";
+
+<CardGrid columns={3}>
+  <DocCard title="Permission path" icon="PATH" description="/runtime/db-management や /auth/user など、保護対象の管理リソースを識別します。" />
+  <DocCard title="Action" icon="ACT" description="view、create、edit、delete、export など、許可する操作を識別します。" />
+  <DocCard title="ロールへの選択" icon="RBAC" description="ロールには、サーバーのテンプレート一覧に存在する permission/action の組み合わせだけを保存できます。" />
+</CardGrid>
+
+2.0.1 の管理認可は、**permission path + action code** の組み合わせとして適用されます。各コントローラーが必要な組み合わせを宣言し、サインイン済みメンバーは割り当てられたロールを通じてアクセス権を得ます。
+
+## ランタイムでの例
+
+| 保護される操作 | 必要な組み合わせ |
+| --- | --- |
+| Database Management の参照 | `/runtime/db-management` → `view` |
+| Database Management エントリの作成 | `/runtime/db-management` → `create` |
+| セマンティックメタデータの編集 | `/runtime/db-management/semantic` → `edit` |
+| MCP キーの発行／管理 | `/runtime/mcp-keys` + 該当する action |
+| ユーザーの参照 | `/auth/user` → `view` |
+| ロールの編集 | `/auth/role` → `edit` |
+| 監査の参照 | `/runtime/audit` → `view` |
+| 監査のエクスポート | `/runtime/audit` → `export` |
+| セキュリティポリシーの編集 | `/runtime/security` → `edit` |
+| 外向き配信の再試行 | `/runtime/operability` → `edit` |
+
+したがって、これらの操作では認証済みであるだけでは不十分です。必要な path/action の組み合わせが、メンバーに割り当てられたロールから解決される必要があります。
+
+## Permission-action テンプレートが基準です
+
+Role API は `permission-action-templates` の一覧を公開します。各テンプレートには次が含まれます。
+
+- permission の ID、名前、path
+- action の ID、code、名前
+
+ロールの payload は `{ PermissionId, ActionId }` の組み合わせとして選択内容を送信します。ロールサービスは重複を正規化し、テンプレート一覧に存在する組み合わせだけを保存します。
+
+<Callout type="warning" title="権限は任意の文字列ではありません">
+クライアント側で新しい path/action 文字列を勝手に作って認可モデルを構築しないでください。ロールに保存できるのは、サーバーの permission-action template data に存在する組み合わせだけです。
+</Callout>
+
+## 割り当て単位はロールです
+
+メンバーにはロールを割り当て、ロールが permission/action の選択内容を持ちます。これによりユーザーのライフサイクルと、再利用可能なアクセスポリシーを分離できます。
+
+```text
+Member
+  └─ Role(s)
+       └─ Permission path + Action
+```
+
+1 人のメンバーが複数ロールを持つこともできます。実効的な管理アクセス権は、割り当てられたロールが持つ権限サーフェスの合算です。
+
+## 認可変更時は古い状態を無効化します
+
+ロール編集はセキュリティ上重要な変更です。ロールの権限が変わると、ロールサービスは影響を受けるメンバーを特定し、security version を増加させ、auth runtime-state cache barrier を通して変更を実行します。
+
+これは、以前に認証されたセッションがロール定義変更後も古い認可を保持し続けることを防ぐためです。
+
+## 保護された SuperUser ロール
+
+`SuperUser` は 2.0.1 の組み込み保護ロールです。通常のロール管理から編集・削除できません。これにより、bootstrap／フルコントロール用ロールが別の権限セットへ暗黙に再定義されることを防ぎます。
+
+<Callout type="tip" title="責務ごとに最小権限のロールを作成してください">
+すべてのアカウントに SuperUser 相当のロールを複製するのではなく、運用者の責務に合わせてロールを作成してください。たとえば監視担当者には audit / operability の `view` が必要でも、database の `edit`、key の `create`、security-policy の `edit` は不要かもしれません。
+</Callout>
+
+## 関連ガイド
+
+- [メンバーとロール](/ja/docs/administration/members-roles) — メンバーのライフサイクルとロールのガードレール
+- [データベース管理](/ja/docs/administration/database-management) — DB とセマンティック権限の例
+- [MCP キー](/ja/docs/administration/mcp-keys) — MCP 認証情報は管理ロールとは別の認可境界です
+- [セキュリティポリシー](/ja/docs/administration/security-policies) — 独自の管理権限で操作するランタイム SQL／レート／同時実行ポリシー
