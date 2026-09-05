@@ -1,0 +1,50 @@
+---
+title: 部署
+description: hs-sql-agent 獨立服務、標準嵌入與模組化 Host 的正式環境部署指南。
+sidebar:
+  group: 維運
+  order: 100
+---
+
+先決定誰要掌握 Web Host，再選部署方式。
+
+| 方式 | 建議用途 |
+| --- | --- |
+| 官方 Docker 映像 | 獨立 hs-sql-agent 服務 |
+| `HsSqlAgent.Hosting` | 在 .NET Host 嵌入完整產品 |
+| `HsSqlAgent.Server` | 客製 ASP.NET Core 組合 |
+
+## 獨立 Docker
+
+從 repository 的 `.env.example` 開始，替換所有範例 secrets。使用預設本機 Control Plane 時請持久化 `/app/data`；啟用受保護 Identity State 時也要持久化 `DATA_PROTECTION_KEY_PATH`。
+
+`MCP_PUBLIC_ENDPOINT` 必須是 MCP Client 真正可連線的絕對 URL，並包含 `/mcp`。Reverse Proxy 可以讓 Admin UI、MCP、Metrics 與 Approval Callback 使用不同公開路徑。
+
+## 標準 Embedded Host
+
+`HsSqlAgent.Hosting` 嵌入與官方 Docker 相同的標準第一方組合與設定契約。URL Binding 與 Logging 仍由一般 ASP.NET Core Host 掌握。
+
+若應用需要替換 Authentication、Authorization、UI、Telemetry、Middleware 順序或 DML Approval Provider，改用 `HsSqlAgent.Server`。
+
+## Webhook 核准部署
+
+設定 `DML_APPROVAL_PROVIDER=Webhook` 時，Webhook Endpoint 必須能由 hs-sql-agent 連線；Callback URL 必須能由核准服務連線；Signing Secret 必須唯一且至少 32 UTF-8 bytes。公開正式流量應使用 TLS。
+
+Callback 只會恢復受保護的執行意圖，commit 前仍重新驗證目前授權、Database Configuration、Policy、Plan 與 Row Set Evidence。核准系統不會取得 SQL 執行權。
+
+## Scale-out
+
+多 Instance 部署需要共享 Admin Database 與 Distributed Coordination Provider。Redis-backed Cache、Rate Limiting、Security Policy Sync、Outbound Delivery Sync、SQL Concurrency 可避免 process-local 狀態分岔。
+
+Durable Pending Approval 也依賴持久化 Admin Store；重啟或由其他 Instance 恢復時仍會重新載入目前狀態並驗證 Evidence。
+
+## 正式環境檢查
+
+- 替換 `HMAC_KEY`、`JWT_KEY`、Webhook Signing Secret、DB Password、SMTP 與 OIDC secrets。
+- 持久化 Admin Database、Data Protection Keys 與需要保留的 Audit Archive。
+- 設定外部可達的 MCP 與 Approval Callback URL。
+- 公開 Endpoint 使用 TLS 與合適的 Reverse Proxy。
+- 視需求啟用 Prometheus / OTLP。
+- 超過單一 Instance 前先切換 Distributed Providers。
+
+另見 [設定參考](/zh-hant/docs/operations/configuration)與 [分散式部署](/zh-hant/docs/operations/distributed-deployment)。

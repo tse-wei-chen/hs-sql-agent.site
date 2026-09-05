@@ -1,0 +1,65 @@
+---
+title: 設定參考
+description: 設定獨立 Docker、標準 HsSqlAgent.Hosting 或模組化 HsSqlAgent.Server Host。
+sidebar:
+  group: 維運
+  order: 90
+---
+
+hs-sql-agent 有三種使用方式，但安全邊界一致。
+
+| 方式 | 設定模型 |
+| --- | --- |
+| Docker / ToolBox | `.env.example` 定義的完整獨立服務環境設定 |
+| `HsSqlAgent.Hosting` | 透過 ASP.NET Core configuration 使用相同的標準第一方組合 |
+| `HsSqlAgent.Server` | Host 明確選擇各 Capability 自己的 Options |
+
+## DML 核准
+
+MCP Elicitation 是第一方預設 Provider。獨立 Docker 與 `HsSqlAgent.Hosting` 可切換成官方通用 Webhook adapter，而不改變 SQL 執行 primitive。
+
+| 環境變數 | 用途 |
+| --- | --- |
+| `DML_APPROVAL_PROVIDER` | `McpElicitation` 或 `Webhook` |
+| `DML_APPROVAL_WEBHOOK_ENDPOINT` | 外部核准服務 endpoint |
+| `DML_APPROVAL_WEBHOOK_CALLBACK_URL` | 完成 pending approval 的公開 callback URL |
+| `DML_APPROVAL_WEBHOOK_SIGNING_SECRET` | Webhook 簽章 secret，至少 32 UTF-8 bytes |
+
+ASP.NET Core 對應設定：
+
+```json
+{
+  "DmlApproval": {
+    "Provider": "Webhook",
+    "Webhook": {
+      "Endpoint": "https://approval.example.com/hssqlagent/requests",
+      "CallbackUrl": "https://sql-agent.example.com/api/hs-sql-agent/approvals/webhook",
+      "SigningSecret": "replace-with-a-unique-secret-at-least-32-bytes"
+    }
+  }
+}
+```
+
+未知 Provider 名稱會在啟動時 fail。非同步 Provider 可回傳 `Pending`；Durable Resume 需要 Admin Store，才能保存受保護的 Resume Intent 與 Approval Fingerprint。
+
+模組化 `HsSqlAgent.Server` 可註冊 `HsSqlAgent.Approvals.Webhook` 或自己的 `IDmlApprovalProvider`。核准 Provider 不會取得 Database Connection、Transaction、已驗證 Plan 或 commit primitive。
+
+## 應用程式與 Control Plane
+
+獨立服務設定涵蓋 Application Hosting、Admin Database、MCP HMAC/Public Endpoint、內建 Admin JWT、SMTP/Password Reset、OIDC/MFA、Bootstrap、Audit、Health、Delivery，以及 Cache、Rate Limit、Policy Sync、Outbound Delivery Sync、SQL Concurrency、Prometheus 與 OTLP。
+
+`HMAC_KEY` 與 `JWT_KEY` 必須使用不同且至少 32 bytes 的 secrets。啟用受保護身分狀態時請持久化 `DATA_PROTECTION_KEY_PATH`。
+
+## 單機與分散式 Provider
+
+單機可使用 SQLite Admin Database 與 process-local `Memory` Provider。多 Instance 時，改用共享 Admin Database，並以 Redis-backed Provider 處理 Cache、Rate Limiting、Security Policy Sync、Outbound Delivery Sync 與 SQL Concurrency。
+
+## Observability
+
+Prometheus 使用 `PROMETHEUS_ENABLED`、`PROMETHEUS_HOST`、`PROMETHEUS_PORT` 的獨立 Listener；OTLP 使用 `OTLP_ENDPOINT` 與 `OTEL_SERVICE_NAME`。
+
+## Embedded .NET Host
+
+`HsSqlAgent.Hosting` 掌握完整標準組合；`HsSqlAgent.Server` 從 `AddHsSqlAgentCore()` 開始，只驗證實際選取 Capability 的 Options。Host Authorization 可取代內建 Identity，DML 核准 Provider 也可獨立替換。
+
+另見 [部署](/zh-hant/docs/operations/deployment)、[ASP.NET Core 整合](/zh-hant/docs/integration/aspnet-core)與 [Safe DML](/zh-hant/docs/sql-compiler/safe-dml)。

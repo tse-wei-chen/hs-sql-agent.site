@@ -1,0 +1,63 @@
+---
+title: 設定リファレンス
+description: 単独 Docker、標準 HsSqlAgent.Hosting、モジュール式 HsSqlAgent.Server Host を設定します。
+sidebar:
+  group: 運用
+  order: 90
+---
+
+hs-sql-agent には 3 つの利用形態がありますが、セキュリティ境界は共通です。
+
+| 方式 | 設定モデル |
+| --- | --- |
+| Docker / ToolBox | `.env.example` による完全な単独サービス設定 |
+| `HsSqlAgent.Hosting` | ASP.NET Core configuration を使う同じ標準第一方構成 |
+| `HsSqlAgent.Server` | Host が Capability ごとの Options を明示的に選択 |
+
+## DML 承認
+
+第一方の既定 Provider は MCP Elicitation です。単独 Docker と `HsSqlAgent.Hosting` は、SQL 実行 primitive を変えずに公式の汎用 Webhook adapter へ切り替えられます。
+
+| 環境変数 | 用途 |
+| --- | --- |
+| `DML_APPROVAL_PROVIDER` | `McpElicitation` または `Webhook` |
+| `DML_APPROVAL_WEBHOOK_ENDPOINT` | 外部承認サービス endpoint |
+| `DML_APPROVAL_WEBHOOK_CALLBACK_URL` | pending approval を完了する公開 callback URL |
+| `DML_APPROVAL_WEBHOOK_SIGNING_SECRET` | Webhook signing secret、32 UTF-8 bytes 以上 |
+
+```json
+{
+  "DmlApproval": {
+    "Provider": "Webhook",
+    "Webhook": {
+      "Endpoint": "https://approval.example.com/hssqlagent/requests",
+      "CallbackUrl": "https://sql-agent.example.com/api/hs-sql-agent/approvals/webhook",
+      "SigningSecret": "replace-with-a-unique-secret-at-least-32-bytes"
+    }
+  }
+}
+```
+
+未知の Provider 名は起動時に失敗します。非同期 Provider は `Pending` を返せます。Durable Resume には Admin Store が必要で、保護された Resume Intent と Approval Fingerprint を保存します。
+
+モジュール式 `HsSqlAgent.Server` は `HsSqlAgent.Approvals.Webhook` または独自 `IDmlApprovalProvider` を登録できます。承認 Provider に Database Connection、Transaction、検証済み Plan、commit primitive は渡りません。
+
+## Application と Control Plane
+
+単独サービス設定には Application Hosting、Admin Database、MCP HMAC/Public Endpoint、内蔵 Admin JWT、SMTP/Password Reset、OIDC/MFA、Bootstrap、Audit、Health、Delivery、Cache、Rate Limit、Policy Sync、Outbound Delivery Sync、SQL Concurrency、Prometheus、OTLP が含まれます。
+
+`HMAC_KEY` と `JWT_KEY` は異なる 32 bytes 以上の secrets にしてください。保護された Identity State を使う場合は `DATA_PROTECTION_KEY_PATH` を永続化します。
+
+## 単一 Instance と分散 Provider
+
+単一 Instance は SQLite Admin Database と process-local `Memory` Provider を利用できます。複数 Instance では共有 Admin Database と、Cache、Rate Limiting、Security Policy Sync、Outbound Delivery Sync、SQL Concurrency の Redis-backed Provider を利用します。
+
+## Observability
+
+Prometheus は `PROMETHEUS_ENABLED`、`PROMETHEUS_HOST`、`PROMETHEUS_PORT` の専用 Listener、OTLP は `OTLP_ENDPOINT` と `OTEL_SERVICE_NAME` で設定します。
+
+## Embedded .NET Host
+
+`HsSqlAgent.Hosting` は完全な標準構成を所有します。`HsSqlAgent.Server` は `AddHsSqlAgentCore()` から始め、選択した Capability の Options だけ検証します。Host Authorization は内蔵 Identity を置き換えられ、DML 承認 Provider も独立して差し替えられます。
+
+[デプロイ](/ja/docs/operations/deployment)、[ASP.NET Core 統合](/ja/docs/integration/aspnet-core)、[Safe DML](/ja/docs/sql-compiler/safe-dml)も参照してください。

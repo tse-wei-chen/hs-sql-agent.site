@@ -1,0 +1,50 @@
+---
+title: Bereitstellung
+description: Produktionshinweise für eigenständige, standardmäßig eingebettete und modulare hs-sql-agent-Hosts.
+sidebar:
+  group: Betrieb
+  order: 100
+---
+
+Wählen Sie die Bereitstellungsform danach, wer den Web Host besitzen soll.
+
+| Weg | Empfohlener Einsatz |
+| --- | --- |
+| Offizielles Docker-Image | eigenständiger hs-sql-agent-Dienst |
+| `HsSqlAgent.Hosting` | vollständiges Produkt in einen .NET-Host einbetten |
+| `HsSqlAgent.Server` | eigene ASP.NET-Core-Komposition |
+
+## Eigenständiges Docker
+
+Beginnen Sie mit `.env.example`, ersetzen Sie alle Beispiel-Secrets und persistieren Sie `/app/data`, wenn die lokale Control Plane verwendet wird. Persistieren Sie auch `DATA_PROTECTION_KEY_PATH`, wenn geschützter Identity State aktiviert ist.
+
+`MCP_PUBLIC_ENDPOINT` muss die absolute, vom MCP Client tatsächlich erreichbare URL einschließlich `/mcp` sein. Ein Reverse Proxy kann Admin UI, MCP, Metrics und Approval Callback über unterschiedliche öffentliche Routen bereitstellen.
+
+## Standardmäßig eingebetteter Host
+
+`HsSqlAgent.Hosting` bettet dieselbe offizielle Standardkomposition und denselben Konfigurationsvertrag wie Docker ein. URL Binding und Logging bleiben normale Verantwortlichkeiten des ASP.NET-Core-Hosts.
+
+Verwenden Sie `HsSqlAgent.Server`, wenn Authentication, Authorization, UI, Telemetry, Middleware-Reihenfolge oder DML Approval Provider ersetzt werden sollen.
+
+## Webhook-Freigaben deployen
+
+Mit `DML_APPROVAL_PROVIDER=Webhook` muss der Webhook Endpoint von hs-sql-agent erreichbar sein und die Callback URL vom Freigabedienst. Das Signing Secret muss eindeutig und mindestens 32 UTF-8 bytes lang sein. Öffentlicher Produktionsverkehr sollte TLS verwenden.
+
+Der Callback setzt nur einen geschützten Intent fort. Vor dem Commit werden aktuelle Autorisierung, Database Configuration, Policy, Plan und Row Set Evidence erneut geprüft. Das Freigabesystem erhält keine SQL-Ausführungsautorität.
+
+## Scale-out
+
+Mehrere Instances benötigen eine gemeinsame Admin Database und Distributed Coordination Provider. Redis-backed Cache, Rate Limiting, Security Policy Sync, Outbound Delivery Sync und SQL Concurrency verhindern auseinanderlaufenden process-local State.
+
+Durable Pending Approvals benötigen ebenfalls persistenten Admin Store und werden nach Neustart oder auf einer anderen Instance mit aktuellem State und Evidence erneut validiert.
+
+## Produktionscheckliste
+
+- `HMAC_KEY`, `JWT_KEY`, Webhook Signing Secret, DB Password, SMTP- und OIDC-Secrets ersetzen.
+- Admin Database, Data Protection Keys und erforderliche Audit Archive persistieren.
+- Extern erreichbare MCP- und Approval-Callback-URLs konfigurieren.
+- Öffentliche Endpoint hinter TLS und einem geeigneten Reverse Proxy betreiben.
+- Prometheus / OTLP nach Bedarf aktivieren.
+- Vor mehreren Instances auf Distributed Providers wechseln.
+
+Siehe [Konfiguration](/de/docs/operations/configuration) und [Verteilte Bereitstellung](/de/docs/operations/distributed-deployment).

@@ -1,0 +1,63 @@
+---
+title: 설정 레퍼런스
+description: 독립 Docker, 표준 HsSqlAgent.Hosting 또는 모듈형 HsSqlAgent.Server Host를 구성합니다.
+sidebar:
+  group: 운영
+  order: 90
+---
+
+hs-sql-agent에는 세 가지 사용 방식이 있지만 보안 경계는 같습니다.
+
+| 방식 | 설정 모델 |
+| --- | --- |
+| Docker / ToolBox | `.env.example`의 완전한 독립 서비스 환경 설정 |
+| `HsSqlAgent.Hosting` | ASP.NET Core configuration을 통한 동일한 표준 공식 구성 |
+| `HsSqlAgent.Server` | Host가 Capability별 Options를 명시적으로 선택 |
+
+## DML 승인
+
+기본 공식 Provider는 MCP Elicitation입니다. 독립 Docker와 `HsSqlAgent.Hosting`은 SQL 실행 primitive를 바꾸지 않고 공식 범용 Webhook adapter로 전환할 수 있습니다.
+
+| 환경 변수 | 용도 |
+| --- | --- |
+| `DML_APPROVAL_PROVIDER` | `McpElicitation` 또는 `Webhook` |
+| `DML_APPROVAL_WEBHOOK_ENDPOINT` | 외부 승인 서비스 endpoint |
+| `DML_APPROVAL_WEBHOOK_CALLBACK_URL` | pending approval을 완료하는 공개 callback URL |
+| `DML_APPROVAL_WEBHOOK_SIGNING_SECRET` | Webhook signing secret, 최소 32 UTF-8 bytes |
+
+```json
+{
+  "DmlApproval": {
+    "Provider": "Webhook",
+    "Webhook": {
+      "Endpoint": "https://approval.example.com/hssqlagent/requests",
+      "CallbackUrl": "https://sql-agent.example.com/api/hs-sql-agent/approvals/webhook",
+      "SigningSecret": "replace-with-a-unique-secret-at-least-32-bytes"
+    }
+  }
+}
+```
+
+알 수 없는 Provider 이름은 시작 시 실패합니다. 비동기 Provider는 `Pending`을 반환할 수 있으며 Durable Resume에는 보호된 Resume Intent와 Approval Fingerprint를 저장할 Admin Store가 필요합니다.
+
+모듈형 `HsSqlAgent.Server`는 `HsSqlAgent.Approvals.Webhook` 또는 자체 `IDmlApprovalProvider`를 등록할 수 있습니다. 승인 Provider는 Database Connection, Transaction, 검증된 Plan, commit primitive를 받지 않습니다.
+
+## Application과 Control Plane
+
+독립 서비스 설정에는 Application Hosting, Admin Database, MCP HMAC/Public Endpoint, 내장 Admin JWT, SMTP/Password Reset, OIDC/MFA, Bootstrap, Audit, Health, Delivery, Cache, Rate Limit, Policy Sync, Outbound Delivery Sync, SQL Concurrency, Prometheus, OTLP가 포함됩니다.
+
+`HMAC_KEY`와 `JWT_KEY`는 서로 다른 32 bytes 이상의 secrets를 사용하세요. 보호된 Identity State를 사용할 때는 `DATA_PROTECTION_KEY_PATH`를 영속화합니다.
+
+## 단일 Instance와 분산 Provider
+
+단일 Instance는 SQLite Admin Database와 process-local `Memory` Provider를 사용할 수 있습니다. 여러 Instance에서는 공유 Admin Database와 Cache, Rate Limiting, Security Policy Sync, Outbound Delivery Sync, SQL Concurrency용 Redis-backed Provider를 사용합니다.
+
+## Observability
+
+Prometheus는 `PROMETHEUS_ENABLED`, `PROMETHEUS_HOST`, `PROMETHEUS_PORT`의 별도 Listener를 사용하고 OTLP는 `OTLP_ENDPOINT`, `OTEL_SERVICE_NAME`으로 설정합니다.
+
+## Embedded .NET Host
+
+`HsSqlAgent.Hosting`은 완전한 표준 구성을 소유합니다. `HsSqlAgent.Server`는 `AddHsSqlAgentCore()`에서 시작하고 선택된 Capability의 Options만 검증합니다. Host Authorization은 내장 Identity를 대체할 수 있고 DML 승인 Provider도 독립적으로 교체할 수 있습니다.
+
+[배포](/ko/docs/operations/deployment), [ASP.NET Core 통합](/ko/docs/integration/aspnet-core), [Safe DML](/ko/docs/sql-compiler/safe-dml)을 참고하세요.

@@ -1,0 +1,50 @@
+---
+title: デプロイ
+description: hs-sql-agent の単独サービス、標準組み込み、モジュール式 Host の本番デプロイ指針。
+sidebar:
+  group: 運用
+  order: 100
+---
+
+Web Host を誰が所有するかに応じてデプロイ形態を選びます。
+
+| 方式 | 推奨用途 |
+| --- | --- |
+| 公式 Docker イメージ | 独立 hs-sql-agent サービス |
+| `HsSqlAgent.Hosting` | 完全な製品を .NET Host に組み込む |
+| `HsSqlAgent.Server` | カスタム ASP.NET Core 構成 |
+
+## 単独 Docker
+
+repository の `.env.example` から始め、サンプル secrets をすべて置き換えます。既定のローカル Control Plane では `/app/data` を永続化し、保護された Identity State を使う場合は `DATA_PROTECTION_KEY_PATH` も永続化します。
+
+`MCP_PUBLIC_ENDPOINT` は MCP Client が実際に到達できる絶対 URL とし、`/mcp` を含めます。Reverse Proxy では Admin UI、MCP、Metrics、Approval Callback を別の公開経路にできます。
+
+## 標準 Embedded Host
+
+`HsSqlAgent.Hosting` は公式 Docker と同じ標準第一方構成と設定契約を組み込みます。URL Binding と Logging は通常の ASP.NET Core Host の責務です。
+
+Authentication、Authorization、UI、Telemetry、Middleware 順序、DML Approval Provider を差し替える場合は `HsSqlAgent.Server` を使います。
+
+## Webhook 承認のデプロイ
+
+`DML_APPROVAL_PROVIDER=Webhook` の場合、Webhook Endpoint は hs-sql-agent から到達可能、Callback URL は承認サービスから到達可能である必要があります。Signing Secret は一意の 32 UTF-8 bytes 以上にし、本番公開通信には TLS を使用します。
+
+Callback は保護された実行 Intent を再開するだけです。commit 前に現在の認可、Database Configuration、Policy、Plan、Row Set Evidence を再検証し、承認システムへ SQL 実行権限は渡しません。
+
+## Scale-out
+
+複数 Instance では共有 Admin Database と Distributed Coordination Provider を使います。Redis-backed Cache、Rate Limiting、Security Policy Sync、Outbound Delivery Sync、SQL Concurrency によって process-local 状態の分岐を防ぎます。
+
+Durable Pending Approval も永続 Admin Store に依存し、再起動または別 Instance での再開時にも現在の状態と Evidence を検証します。
+
+## 本番チェック
+
+- `HMAC_KEY`、`JWT_KEY`、Webhook Signing Secret、DB Password、SMTP、OIDC secrets を置き換える。
+- Admin Database、Data Protection Keys、必要な Audit Archive を永続化する。
+- 外部から到達できる MCP と Approval Callback URL を設定する。
+- 公開 Endpoint は TLS と適切な Reverse Proxy の背後に置く。
+- 必要に応じて Prometheus / OTLP を有効化する。
+- 2 Instance 以上にする前に Distributed Providers を設定する。
+
+[設定リファレンス](/ja/docs/operations/configuration)と[分散デプロイ](/ja/docs/operations/distributed-deployment)も参照してください。

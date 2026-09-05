@@ -1,0 +1,50 @@
+---
+title: Déploiement
+description: Guide de production pour les Hosts hs-sql-agent autonomes, intégrés standard et modulaires.
+sidebar:
+  group: Opérations
+  order: 100
+---
+
+Choisissez la forme de déploiement selon l'entité qui doit posséder le Web Host.
+
+| Mode | Usage recommandé |
+| --- | --- |
+| Image Docker officielle | service hs-sql-agent autonome |
+| `HsSqlAgent.Hosting` | produit complet intégré à un Host .NET |
+| `HsSqlAgent.Server` | composition ASP.NET Core sur mesure |
+
+## Docker autonome
+
+Partez de `.env.example`, remplacez tous les secrets d'exemple et persistez `/app/data` avec le Control Plane local par défaut. Persistez aussi `DATA_PROTECTION_KEY_PATH` lorsque l'Identity State protégé est activé.
+
+`MCP_PUBLIC_ENDPOINT` doit être l'URL absolue réellement joignable par les MCP Clients et inclure `/mcp`. Un Reverse Proxy peut publier Admin UI, MCP, Metrics et Approval Callback sur des routes différentes.
+
+## Host intégré standard
+
+`HsSqlAgent.Hosting` intègre la même composition officielle standard et le même contrat de configuration que Docker. URL Binding et Logging restent des responsabilités normales du Host ASP.NET Core.
+
+Utilisez `HsSqlAgent.Server` si l'application doit remplacer Authentication, Authorization, UI, Telemetry, l'ordre des Middleware ou le DML Approval Provider.
+
+## Déploiement des approbations Webhook
+
+Avec `DML_APPROVAL_PROVIDER=Webhook`, le Webhook Endpoint doit être accessible depuis hs-sql-agent et le Callback URL depuis le service d'approbation. Le Signing Secret doit être unique et contenir au moins 32 UTF-8 bytes. Utilisez TLS pour le trafic public de production.
+
+Le Callback reprend uniquement un Intent protégé : avant commit, le serveur revalide encore l'autorisation, la Database Configuration, la Policy, le Plan et les Row Set Evidence. Le système d'approbation n'obtient pas d'autorité d'exécution SQL.
+
+## Scale-out
+
+Plusieurs Instances nécessitent une Admin Database partagée et des Distributed Coordination Providers. Les Providers Redis-backed pour Cache, Rate Limiting, Security Policy Sync, Outbound Delivery Sync et SQL Concurrency évitent la divergence d'état process-local.
+
+Les Durable Pending Approvals dépendent aussi d'un Admin Store persistant et sont revalidées lors d'une reprise après redémarrage ou sur une autre Instance.
+
+## Checklist de production
+
+- Remplacer `HMAC_KEY`, `JWT_KEY`, Webhook Signing Secret, mots de passe DB, SMTP et secrets OIDC.
+- Persister Admin Database, Data Protection Keys et Audit Archive lorsque nécessaire.
+- Configurer des URL MCP et Approval Callback accessibles de l'extérieur.
+- Mettre les Endpoint publics derrière TLS et un Reverse Proxy adapté.
+- Activer Prometheus / OTLP selon les besoins.
+- Passer aux Distributed Providers avant d'utiliser plusieurs Instances.
+
+Voir [Configuration](/fr/docs/operations/configuration) et [Déploiement distribué](/fr/docs/operations/distributed-deployment).
