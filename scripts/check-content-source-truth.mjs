@@ -14,6 +14,16 @@ function extract(pattern, label) {
 const repository = extract(/repository:\s*"([^"]+)"/, "repository");
 const version = extract(/version:\s*"([^"]+)"/, "version");
 const tag = extract(/tag:\s*"([^"]+)"/, "tag");
+const historicalTagsSource = extract(
+  /historicalTags:\s*\[([^\]]*)\]/,
+  "historical tags"
+);
+const historicalTags = [...historicalTagsSource.matchAll(/"([^"]+)"/g)].map(
+  match => match[1]
+);
+const historicalVersions = historicalTags.map(historicalTag =>
+  historicalTag.startsWith("v") ? historicalTag.slice(1) : historicalTag
+);
 const sourcesBlock = extract(/sources:\s*{([\s\S]*?)}\s*,?\n}\s+as const;/, "sources");
 const sourceEntries = [...sourcesBlock.matchAll(/\b([A-Za-z][A-Za-z0-9]*):\s*"([^"]+)"/g)].map(
   ([, key, path]) => ({ key, path })
@@ -21,6 +31,14 @@ const sourceEntries = [...sourcesBlock.matchAll(/\b([A-Za-z][A-Za-z0-9]*):\s*"([
 
 if (tag !== `v${version}`) {
   throw new Error(`Release tag ${tag} does not match product version ${version}.`);
+}
+if (historicalTags.includes(tag)) {
+  throw new Error(`Current release tag ${tag} must not also be historical.`);
+}
+for (const historicalTag of historicalTags) {
+  if (!/^v\d+\.\d+\.\d+$/.test(historicalTag)) {
+    throw new Error(`Historical product tag ${historicalTag} is not a release tag.`);
+  }
 }
 if (sourceEntries.length === 0) {
   throw new Error("productRelease.sources must contain pinned product source files.");
@@ -31,9 +49,14 @@ if (!docsVersions.includes('from "./productRelease"')) {
   throw new Error("docsVersions.ts must derive the current version from productRelease.ts.");
 }
 
-const semver = /\b\d+\.\d+\.\d+\b/g;
 const errors = [];
 let currentDocsCount = 0;
+
+function staleVersionsIn(text) {
+  return historicalVersions.filter(stale =>
+    new RegExp(`(^|[^0-9])${stale.replaceAll(".", "\\.")}([^0-9]|$)`).test(text)
+  );
+}
 
 async function walkDocs(dir) {
   const entries = await readdir(dir, { withFileTypes: true });
@@ -52,10 +75,8 @@ async function checkDoc(path) {
   if (normalized.endsWith("/reference/upgrade-guide.mdx")) return;
 
   const text = await readFile(path, "utf8");
-  for (const found of new Set(text.match(semver) ?? [])) {
-    if (found !== version) {
-      errors.push(`${normalized}: current ${version} content contains stale version ${found}`);
-    }
+  for (const stale of staleVersionsIn(text)) {
+    errors.push(`${normalized}: current ${version} content contains stale product version ${stale}`);
   }
 }
 
@@ -68,10 +89,8 @@ for (const path of [
   "src/content/README.md",
 ]) {
   const text = await readFile(join(root, path), "utf8");
-  for (const found of new Set(text.match(semver) ?? [])) {
-    if (found !== version) {
-      errors.push(`${path}: current-content governance contains stale version ${found}`);
-    }
+  for (const stale of staleVersionsIn(text)) {
+    errors.push(`${path}: current-content governance contains stale product version ${stale}`);
   }
 }
 
@@ -95,10 +114,8 @@ async function checkMarketing(path) {
   }
 
   const text = await readFile(absolute, "utf8");
-  for (const found of new Set(text.match(semver) ?? [])) {
-    if (found !== version) {
-      errors.push(`${path}: marketing copy contains stale product version ${found}`);
-    }
+  for (const stale of staleVersionsIn(text)) {
+    errors.push(`${path}: marketing copy contains stale product version ${stale}`);
   }
 }
 
@@ -130,6 +147,14 @@ if (!productVersionSource) {
   }
 }
 
+for (const historicalTag of historicalTags) {
+  const historyUrl = `https://raw.githubusercontent.com/${repository}/${historicalTag}/${sourceEntries.find(entry => entry.key === "version")?.path ?? "backend/Directory.Build.props"}`;
+  const response = await fetch(historyUrl);
+  if (!response.ok) {
+    errors.push(`Historical product tag ${historicalTag} cannot be verified (${response.status}).`);
+  }
+}
+
 if (currentDocsCount === 0) {
   errors.push(`No current documentation was found under */docs/${version}/.`);
 }
@@ -141,5 +166,5 @@ if (errors.length > 0) {
 }
 
 console.log(
-  `Content source of truth verified: ${repository}@${tag}, version ${version}, ${sourceEntries.length} pinned source files, ${currentDocsCount} current docs.`
+  `Content source of truth verified: ${repository}@${tag}, version ${version}, ${historicalTags.length} historical release tag(s), ${sourceEntries.length} pinned source files, ${currentDocsCount} current docs.`
 );
