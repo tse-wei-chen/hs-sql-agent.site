@@ -49,10 +49,14 @@ function resolvePage(
   );
   if (!definition) return undefined;
 
+  // ASP.NET Core has release-sensitive package positioning. Keep all locales on
+  // one latest-only authority instead of duplicating versioned product claims
+  // across the supplemental locale catalogs.
+  if (section === "integrations" && slug === "aspnet-core") {
+    return getAspNetCoreMarketingPage(locale) as LocalizedMarketingPage;
+  }
+
   if (locale === "en" || locale === "zh-hant") {
-    if (section === "integrations" && slug === "aspnet-core") {
-      return getAspNetCoreMarketingPage(locale) as LocalizedMarketingPage;
-    }
     return getCoreMarketingPage(locale, section, slug) as
       | LocalizedMarketingPage
       | undefined;
