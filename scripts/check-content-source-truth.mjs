@@ -160,11 +160,12 @@ if (currentDocsCount === 0) {
 }
 
 if (errors.length > 0) {
-  console.error("Content source-of-truth check failed:\n");
-  for (const error of errors) console.error(`- ${error}`);
+  process.stderr.write(
+    `Content source-of-truth check failed:\n\n${errors.map(error => `- ${error}`).join("\n")}\n`
+  );
   process.exit(1);
 }
 
-console.log(
-  `Content source of truth verified: ${repository}@${tag}, version ${version}, ${historicalTags.length} historical release tag(s), ${sourceEntries.length} pinned source files, ${currentDocsCount} current docs.`
+process.stdout.write(
+  `Content source of truth verified: ${repository}@${tag}, version ${version}, ${historicalTags.length} historical release tag(s), ${sourceEntries.length} pinned source files, ${currentDocsCount} current docs.\n`
 );
