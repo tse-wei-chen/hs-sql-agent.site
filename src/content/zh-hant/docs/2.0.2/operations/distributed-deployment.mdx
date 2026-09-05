@@ -1,33 +1,33 @@
 ---
-title: Distributed Deployment
-description: 多個 hs-sql-agent instance 共用服務端點時，需要共享哪些 control-plane 與 coordination state。
+title: 分散式部署
+description: 多個 hs-sql-agent 執行個體共用服務端點時，需要共享哪些控制平面與協調狀態。
 sidebar:
   group: 維運
   order: 110
 ---
 
-Repository 提供 `.env.distributed.example` 作為 multi-instance topology 範例。重點不只是「加 Redis」，而是每個跨 node 必須一致的 state 都要有共享 provider。
+程式庫提供 `.env.distributed.example` 作為多執行個體拓樸範例。重點不只是「加上 Redis」，而是所有必須跨節點保持一致的狀態，都要使用共用 provider。
 
-## Shared control plane
+## 共用控制平面
 
-Distributed example 使用 PostgreSQL 作為 admin database，而不是 local SQLite：
+分散式範例使用 PostgreSQL 作為管理資料庫，而不是本機 SQLite：
 
 ```env
 ADMIN_DATABASE_PROVIDER=Postgres
 ADMIN_DATABASE_CONNECTION_STRING=Host=postgres;Port=5432;Database=hsqlagent;Username=postgres;Password=postgres;
 ```
 
-同一個 logical hs-sql-agent deployment 的所有 instance 應指向相同 control-plane database。
+同一個邏輯 hs-sql-agent 部署中的所有執行個體，都應指向相同的控制平面資料庫。
 
-## Redis-backed coordination
+## Redis 協調狀態
 
-範例把以下 subsystem 移到 Redis：
+範例把以下子系統移到 Redis：
 
-- cache
-- rate limiter
-- security-policy synchronization
-- outbound-delivery synchronization
-- SQL concurrency coordination
+- 快取；
+- 速率限制器；
+- 安全政策同步；
+- 外送同步；
+- SQL 並行執行協調。
 
 例如：
 
@@ -42,8 +42,8 @@ SQL_CONCURRENCY_CONNECTION_STRING=redis:6379
 SQL_CONCURRENCY_FAILURE_MODE=FailClosed
 ```
 
-## Failure mode 有安全意義
+## Failure mode 具有安全意義
 
-對保護 execution boundary 的 coordination，example 使用 `FailClosed`。Distributed coordinator 不可用時拒絕 operation，比讓每個 node 各自做獨立判斷更安全。
+對負責保護執行邊界的協調機制，範例使用 `FailClosed`。當分散式 coordinator 無法使用時直接拒絕操作，比讓每個節點各自做獨立判斷更安全。
 
-增加 replicas 前，先確認哪些 decision 可以 process-local、哪些必須 shared；否則可能出現 inconsistent rate limit、stale security policy 或 uncoordinated SQL concurrency。
+增加 replicas 前，先確認哪些決策可以只存在單一程序、哪些必須共享；否則可能出現彼此不一致的速率限制、過期安全政策，或沒有協調的 SQL 並行執行。
