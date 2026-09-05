@@ -1,0 +1,180 @@
+---
+title: ASP.NET Core 集成
+description: 嵌入完整第一方产品时使用 HsSqlAgent.Hosting；需要由宿主掌握边界与能力组合时使用 HsSqlAgent.Server。
+sidebar:
+  group: 集成
+  order: 80
+---
+
+ASP.NET Core 应用有两个 NuGet 入口。请根据“宿主需要掌握哪些边界”来选择，而不是把两个包当成同一层级的别名。
+
+| 目标 | 包 | 边界 |
+| --- | --- | --- |
+| 嵌入完整产品 | `HsSqlAgent.Hosting` | HsSqlAgent 负责标准运行时、Admin Store、内置身份系统、MCP、管理 API/界面、遥测、异常处理和审批提供程序选择。 |
+| 构建定制集成 | `HsSqlAgent.Server` | 应用自行选择能力，可以保留已有身份验证、授权、前端、中间件顺序、遥测或审批提供程序。 |
+
+如果要把 hs-sql-agent 作为独立服务运行，而不是嵌入 .NET 宿主，请直接使用官方 Docker 镜像。
+
+## 使用 HsSqlAgent.Hosting 嵌入完整产品
+
+安装完整主机包：
+
+```bash
+dotnet add package HsSqlAgent.Hosting
+```
+
+添加并启用标准主机：
+
+```csharp
+using HsSqlAgent.Hosting;
+
+var builder = WebApplication.CreateBuilder(args);
+builder.AddHsSqlAgentStandardHost();
+
+var app = builder.Build();
+app.UseHsSqlAgentStandardHost();
+await app.RunAsync();
+```
+
+这与官方 ToolBox / Docker 主机使用相同的第一方能力组合和配置契约。URL 绑定与日志仍由常规 ASP.NET Core 宿主负责。
+
+`HsSqlAgent.Hosting` 会带入标准 `HsSqlAgent.Server` 运行时和官方 `HsSqlAgent.Approvals.Webhook` 适配器；它不会加入运行时 NuGet 或 DLL 插件加载机制。
+
+### 选择 DML 审批提供程序
+
+MCP Elicitation 仍是默认的第一方审批方式：
+
+```json
+{
+  "DmlApproval": {
+    "Provider": "McpElicitation"
+  }
+}
+```
+
+要使用官方通用 Webhook 适配器：
+
+```json
+{
+  "DmlApproval": {
+    "Provider": "Webhook",
+    "Webhook": {
+      "Endpoint": "https://approval.example.com/hssqlagent/requests",
+      "CallbackUrl": "https://sql-agent.example.com/api/hs-sql-agent/approvals/webhook",
+      "SigningSecret": "replace-with-a-unique-secret-at-least-32-bytes"
+    }
+  }
+}
+```
+
+环境变量使用 ASP.NET Core 常规命名，例如 `DmlApproval__Provider=Webhook`。未知的 provider 名称会在启动时直接失败。
+
+如果需要自定义 `IDmlApprovalProvider`，请使用 `HsSqlAgent.Server` 并通过依赖注入注册。审批系统不会获得任意执行 SQL 的权限：SQL 验证、审批 fingerprint 绑定、当前状态重新验证和最终 commit 仍由 HsSqlAgent 负责。
+
+## 使用 HsSqlAgent.Server 构建定制集成
+
+安装模块化包：
+
+```bash
+dotnet add package HsSqlAgent.Server
+```
+
+已有应用可以保留自己的身份验证与授权，只加入所需的 HsSqlAgent 能力：
+
+```csharp
+var hs = builder.Services.AddHsSqlAgentCore();
+
+hs.AddHsSqlAgentRuntime();
+hs.AddHsSqlAgentAdminStore(options =>
+{
+    options.Provider = "Postgres";
+    options.ConnectionString =
+        builder.Configuration.GetConnectionString("HsSqlAgent")!;
+});
+hs.AddHsSqlAgentHostAuthorization("SqlAgentAdmin");
+hs.AddHsSqlAgentAdminApi();
+```
+
+ASP.NET Core 管线仍由宿主管理：
+
+```csharp
+var app = builder.Build();
+
+app.UseAuthentication();
+app.UseAuthorization();
+app.UseHsSqlAgentAdminApi();
+app.MapControllers();
+
+app.Run();
+```
+
+使用宿主授权时不要调用 `AddHsSqlAgentBuiltInAuth()`。HsSqlAgent 直接使用已验证的 `HttpContext.User`，不发布内置身份控制器，也不安装 HsSqlAgent 身份结构。
+
+`/runtime/db-management.edit`、`/auth/role.view` 这类 canonical permission 是稳定的授权资源标识，不是路由。宿主策略可以把它们映射到已有权限模型。
+
+### 需要 MCP 时再加入
+
+MCP 仍是独立的机器访问安全边界：
+
+```csharp
+hs.AddHsSqlAgentMcp(options =>
+{
+    options.PublicEndpoint = "https://example.com/mcp";
+    options.HmacSecretKey = builder.Configuration["HMAC_KEY"]!; // >= 32 bytes
+});
+```
+
+构建应用后再挂载：
+
+```csharp
+app.UseHsSqlAgentMcp();
+```
+
+MCP 密钥、工具范围、数据表范围、速率限制和 HMAC 验证，都与人员/管理端授权策略分开。
+
+### 确实需要时才使用内置身份系统
+
+如果宿主要使用 HsSqlAgent 自己的 JWT/member/role 模型，请选择内置身份验证，而不是宿主授权：
+
+```csharp
+hs.AddHsSqlAgentBuiltInAuth(options =>
+{
+    options.Jwt.SecretKey = builder.Configuration["JWT_KEY"]!; // >= 32 bytes
+});
+```
+
+内置身份与宿主授权互斥；模块化宿主也可以选择不挂载内置管理界面。
+
+## 能力与配置职责
+
+| 能力 | 负责内容 |
+| --- | --- |
+| `AddHsSqlAgentRuntime()` | 运行服务、可观测运行状态、协调机制、SQL 并发和 DML 审批持久化 |
+| `AddHsSqlAgentAdminStore()` | Admin database provider 与连接字符串 |
+| `AddHsSqlAgentBuiltInAuth()` | JWT、密码重置/SMTP、企业身份/OIDC |
+| `AddHsSqlAgentHostAuthorization()` | 委托到现有 ASP.NET Core 授权策略 |
+| `AddHsSqlAgentMcp()` | 公开 MCP 端点与 MCP key HMAC secret |
+| `AddHsSqlAgentAdminApi()` | 管理控制器及控制器范围的验证/异常映射 |
+| `AddHsSqlAgentTelemetry()` | Prometheus 与 OTLP 配置 |
+
+未选择的能力不会分配或验证它的配置。
+
+## 当前 HTTP 挂载位置
+
+| 功能面 | 路径 |
+| --- | --- |
+| MCP endpoint | `/mcp` |
+| Admin API prefix | `/api` |
+| Admin UI | `/` |
+
+在路由、前端基础路径/静态资源、callback 和安全边界能够一起移动之前，不宣告支持任意搬移这些路径。
+
+## 兼容 API
+
+已有包使用者仍可继续使用 `AddHsSqlAgent()` 与 `UseHsSqlAgent()`。新的集成应优先选择标准 `HsSqlAgent.Hosting` 入口，或使用 `AddHsSqlAgentCore()` 后明确注册能力。
+
+## 相关文档
+
+- [部署](/zh-hans/docs/operations/deployment)
+- [配置](/zh-hans/docs/operations/configuration)
+- [安全 DML](/zh-hans/docs/sql-compiler/safe-dml)

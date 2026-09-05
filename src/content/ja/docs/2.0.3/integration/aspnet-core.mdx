@@ -1,0 +1,180 @@
+---
+title: ASP.NET Core 統合
+description: 第一方の完全構成には HsSqlAgent.Hosting、ホスト主導のモジュール統合には HsSqlAgent.Server を使用します。
+sidebar:
+  group: 統合
+  order: 80
+---
+
+ASP.NET Core アプリには 2 つの NuGet エントリーポイントがあります。名前の違いではなく、ホスト側でどの境界を管理したいかで選びます。
+
+| 目的 | パッケージ | 管理範囲 |
+| --- | --- | --- |
+| 製品一式を組み込む | `HsSqlAgent.Hosting` | HsSqlAgent が標準ランタイム、Admin Store、組み込み認証、MCP、管理 API/UI、テレメトリ、例外処理、承認プロバイダー選択を管理します。 |
+| 独自統合を構成する | `HsSqlAgent.Server` | アプリ側で機能を選び、既存の認証、認可、UI、ミドルウェア順序、テレメトリ、承認プロバイダーを維持できます。 |
+
+.NET ホストへ組み込まず独立サービスとして使う場合は、公式 Docker イメージを利用します。
+
+## HsSqlAgent.Hosting で製品一式を組み込む
+
+完全構成のパッケージを追加します。
+
+```bash
+dotnet add package HsSqlAgent.Hosting
+```
+
+標準ホストを登録して有効化します。
+
+```csharp
+using HsSqlAgent.Hosting;
+
+var builder = WebApplication.CreateBuilder(args);
+builder.AddHsSqlAgentStandardHost();
+
+var app = builder.Build();
+app.UseHsSqlAgentStandardHost();
+await app.RunAsync();
+```
+
+これは公式 ToolBox / Docker ホストと同じ第一方の機能構成と設定契約です。URL バインドとログは通常どおり ASP.NET Core ホスト側の責務です。
+
+`HsSqlAgent.Hosting` には標準 `HsSqlAgent.Server` ランタイムと公式 `HsSqlAgent.Approvals.Webhook` アダプターが含まれます。実行時に NuGet や DLL をプラグインとして読み込む仕組みは追加しません。
+
+### DML 承認プロバイダーを選ぶ
+
+既定の第一方承認方式は MCP Elicitation です。
+
+```json
+{
+  "DmlApproval": {
+    "Provider": "McpElicitation"
+  }
+}
+```
+
+公式の汎用 Webhook アダプターを使う場合：
+
+```json
+{
+  "DmlApproval": {
+    "Provider": "Webhook",
+    "Webhook": {
+      "Endpoint": "https://approval.example.com/hssqlagent/requests",
+      "CallbackUrl": "https://sql-agent.example.com/api/hs-sql-agent/approvals/webhook",
+      "SigningSecret": "replace-with-a-unique-secret-at-least-32-bytes"
+    }
+  }
+}
+```
+
+環境変数は ASP.NET Core の通常の命名規則を使います。たとえば `DmlApproval__Provider=Webhook` です。未知の provider 名は起動時に失敗します。
+
+独自の `IDmlApprovalProvider` が必要なら `HsSqlAgent.Server` を使い、依存性注入で登録します。承認システムには任意の SQL を実行する権限は渡されません。SQL 検証、承認 fingerprint の束縛、現状態の再検証、最終 commit は HsSqlAgent が保持します。
+
+## HsSqlAgent.Server で独自統合を構成する
+
+モジュール式パッケージを追加します。
+
+```bash
+dotnet add package HsSqlAgent.Server
+```
+
+既存アプリの認証・認可を維持し、必要な HsSqlAgent 機能だけを追加できます。
+
+```csharp
+var hs = builder.Services.AddHsSqlAgentCore();
+
+hs.AddHsSqlAgentRuntime();
+hs.AddHsSqlAgentAdminStore(options =>
+{
+    options.Provider = "Postgres";
+    options.ConnectionString =
+        builder.Configuration.GetConnectionString("HsSqlAgent")!;
+});
+hs.AddHsSqlAgentHostAuthorization("SqlAgentAdmin");
+hs.AddHsSqlAgentAdminApi();
+```
+
+ASP.NET Core のパイプラインはホスト側で管理します。
+
+```csharp
+var app = builder.Build();
+
+app.UseAuthentication();
+app.UseAuthorization();
+app.UseHsSqlAgentAdminApi();
+app.MapControllers();
+
+app.Run();
+```
+
+ホスト認可を使う場合は `AddHsSqlAgentBuiltInAuth()` を呼びません。HsSqlAgent は認証済み `HttpContext.User` を使い、組み込みの認証コントローラーや認証スキーマを導入しません。
+
+`/runtime/db-management.edit` や `/auth/role.view` のような canonical permission は安定した認可リソース識別子であり、URL ルートではありません。ホスト側の policy から既存権限モデルへ対応付けできます。
+
+### 必要な場合だけ MCP を追加する
+
+MCP は独立したマシンアクセスのセキュリティ境界です。
+
+```csharp
+hs.AddHsSqlAgentMcp(options =>
+{
+    options.PublicEndpoint = "https://example.com/mcp";
+    options.HmacSecretKey = builder.Configuration["HMAC_KEY"]!; // >= 32 bytes
+});
+```
+
+アプリ構築後にマップします。
+
+```csharp
+app.UseHsSqlAgentMcp();
+```
+
+MCP キー、ツール範囲、テーブル範囲、レート制限、HMAC 検証は、人向けの管理認可とは独立しています。
+
+### 必要な場合だけ組み込み認証を使う
+
+HsSqlAgent 独自の JWT/member/role モデルが必要なら、ホスト認可ではなく組み込み認証を選択します。
+
+```csharp
+hs.AddHsSqlAgentBuiltInAuth(options =>
+{
+    options.Jwt.SecretKey = builder.Configuration["JWT_KEY"]!; // >= 32 bytes
+});
+```
+
+組み込み認証とホスト認可は同時には使えません。モジュール式ホストでは管理 UI 自体を省くこともできます。
+
+## 機能ごとの設定責任
+
+| 機能 | 管理する内容 |
+| --- | --- |
+| `AddHsSqlAgentRuntime()` | ランタイム、運用機能、協調処理、SQL 同時実行、DML 承認の永続化 |
+| `AddHsSqlAgentAdminStore()` | Admin database provider と接続文字列 |
+| `AddHsSqlAgentBuiltInAuth()` | JWT、パスワード再設定/SMTP、企業認証/OIDC |
+| `AddHsSqlAgentHostAuthorization()` | 既存 ASP.NET Core 認可 policy への委譲 |
+| `AddHsSqlAgentMcp()` | 公開 MCP エンドポイントと MCP key の HMAC secret |
+| `AddHsSqlAgentAdminApi()` | 管理コントローラーと検証/例外マッピング |
+| `AddHsSqlAgentTelemetry()` | Prometheus と OTLP の設定 |
+
+選択していない機能の設定は割り当てられず、検証もされません。
+
+## 現在の HTTP マウント
+
+| 機能面 | パス |
+| --- | --- |
+| MCP endpoint | `/mcp` |
+| Admin API prefix | `/api` |
+| Admin UI | `/` |
+
+ルーティング、フロントエンドの base path/静的アセット、callback、セキュリティ境界を一緒に移動できるまでは、任意のパス移動はサポート対象として案内しません。
+
+## 互換 API
+
+既存利用者は `AddHsSqlAgent()` と `UseHsSqlAgent()` を引き続き利用できます。新規統合では標準の `HsSqlAgent.Hosting`、または `AddHsSqlAgentCore()` と明示的な機能登録を推奨します。
+
+## 関連ドキュメント
+
+- [デプロイ](/ja/docs/operations/deployment)
+- [設定](/ja/docs/operations/configuration)
+- [Safe DML](/ja/docs/sql-compiler/safe-dml)

@@ -1,0 +1,180 @@
+---
+title: ASP.NET Core Integration
+description: Choose HsSqlAgent.Hosting for the complete first-party product or HsSqlAgent.Server for a host-owned, modular ASP.NET Core integration.
+sidebar:
+  group: Integration
+  order: 80
+---
+
+ASP.NET Core applications have two NuGet entry points. Pick the boundary you actually want the host application to own.
+
+| Goal | Package | Ownership |
+| --- | --- | --- |
+| Embed the complete product | `HsSqlAgent.Hosting` | HsSqlAgent owns the standard runtime, Admin Store, built-in identity, MCP, Admin API/UI, telemetry, exception handling, and approval-provider selection. |
+| Build a custom integration | `HsSqlAgent.Server` | The application selects capabilities and can keep its own authentication, authorization, UI, middleware ordering, telemetry, or approval provider. |
+
+For a standalone service instead of an embedded .NET host, use the official Docker image.
+
+## Embed the complete product with HsSqlAgent.Hosting
+
+Install the batteries-included package:
+
+```bash
+dotnet add package HsSqlAgent.Hosting
+```
+
+Then add and use the standard host:
+
+```csharp
+using HsSqlAgent.Hosting;
+
+var builder = WebApplication.CreateBuilder(args);
+builder.AddHsSqlAgentStandardHost();
+
+var app = builder.Build();
+app.UseHsSqlAgentStandardHost();
+await app.RunAsync();
+```
+
+This is the same first-party capability composition and configuration contract used by the official ToolBox / Docker host. URL binding and logging remain normal ASP.NET Core host concerns.
+
+`HsSqlAgent.Hosting` includes the standard `HsSqlAgent.Server` runtime plus the official `HsSqlAgent.Approvals.Webhook` adapter. It does not introduce runtime NuGet or DLL plugin loading.
+
+### Choose the DML approval provider
+
+MCP Elicitation remains the default first-party approval path:
+
+```json
+{
+  "DmlApproval": {
+    "Provider": "McpElicitation"
+  }
+}
+```
+
+To use the official generic Webhook adapter:
+
+```json
+{
+  "DmlApproval": {
+    "Provider": "Webhook",
+    "Webhook": {
+      "Endpoint": "https://approval.example.com/hssqlagent/requests",
+      "CallbackUrl": "https://sql-agent.example.com/api/hs-sql-agent/approvals/webhook",
+      "SigningSecret": "replace-with-a-unique-secret-at-least-32-bytes"
+    }
+  }
+}
+```
+
+Environment variables use normal ASP.NET Core configuration names, for example `DmlApproval__Provider=Webhook`. Unknown provider names fail at startup.
+
+If you need a custom `IDmlApprovalProvider`, use `HsSqlAgent.Server` and register the provider through dependency injection. The approval system never receives authority to execute arbitrary SQL: HsSqlAgent still owns validation, approval fingerprint binding, current-state revalidation, and the final commit.
+
+## Build a custom integration with HsSqlAgent.Server
+
+Install the modular package:
+
+```bash
+dotnet add package HsSqlAgent.Server
+```
+
+An existing application can keep its own authentication and authorization while adding only the HsSqlAgent capabilities it needs:
+
+```csharp
+var hs = builder.Services.AddHsSqlAgentCore();
+
+hs.AddHsSqlAgentRuntime();
+hs.AddHsSqlAgentAdminStore(options =>
+{
+    options.Provider = "Postgres";
+    options.ConnectionString =
+        builder.Configuration.GetConnectionString("HsSqlAgent")!;
+});
+hs.AddHsSqlAgentHostAuthorization("SqlAgentAdmin");
+hs.AddHsSqlAgentAdminApi();
+```
+
+The host keeps the ASP.NET Core pipeline:
+
+```csharp
+var app = builder.Build();
+
+app.UseAuthentication();
+app.UseAuthorization();
+app.UseHsSqlAgentAdminApi();
+app.MapControllers();
+
+app.Run();
+```
+
+Do not call `AddHsSqlAgentBuiltInAuth()` in host-authorization mode. HsSqlAgent uses the authenticated `HttpContext.User`, does not publish its built-in identity controllers, and does not install the HsSqlAgent identity schema.
+
+Canonical permission identifiers such as `/runtime/db-management.edit` and `/auth/role.view` are stable authorization resources, not route paths. A host policy may map them into its own permission model.
+
+### Add MCP only when needed
+
+MCP remains a separate machine-access boundary:
+
+```csharp
+hs.AddHsSqlAgentMcp(options =>
+{
+    options.PublicEndpoint = "https://example.com/mcp";
+    options.HmacSecretKey = builder.Configuration["HMAC_KEY"]!; // >= 32 bytes
+});
+```
+
+Then map it after building the application:
+
+```csharp
+app.UseHsSqlAgentMcp();
+```
+
+MCP keys, tool scope, table scope, rate limits, and HMAC validation remain independent from the human/Admin authorization policy.
+
+### Use built-in identity only when wanted
+
+If the host wants HsSqlAgent's own JWT/member/role model, select built-in authentication instead of host authorization:
+
+```csharp
+hs.AddHsSqlAgentBuiltInAuth(options =>
+{
+    options.Jwt.SecretKey = builder.Configuration["JWT_KEY"]!; // >= 32 bytes
+});
+```
+
+Built-in identity and host-authorization mode are mutually exclusive. The packaged Admin UI is also optional for modular hosts.
+
+## Capability ownership
+
+| Capability | What it owns |
+| --- | --- |
+| `AddHsSqlAgentRuntime()` | Runtime services, operability, coordination, SQL concurrency, and DML approval persistence |
+| `AddHsSqlAgentAdminStore()` | Admin database provider and connection string |
+| `AddHsSqlAgentBuiltInAuth()` | JWT, password reset/SMTP, and enterprise identity/OIDC |
+| `AddHsSqlAgentHostAuthorization()` | Delegation to an existing ASP.NET Core authorization policy |
+| `AddHsSqlAgentMcp()` | Public MCP endpoint and MCP-key HMAC secret |
+| `AddHsSqlAgentAdminApi()` | Administration controllers and controller-scoped validation/exception mapping |
+| `AddHsSqlAgentTelemetry()` | Prometheus and OTLP settings |
+
+Unselected capabilities do not allocate or validate their options.
+
+## Current HTTP surface
+
+| Surface | Mount |
+| --- | --- |
+| MCP endpoint | `/mcp` |
+| Admin API prefix | `/api` |
+| Admin UI | `/` |
+
+Arbitrary relocation is not advertised until routing, frontend base paths/assets, callbacks, and security boundaries can move together.
+
+## Legacy compatibility
+
+Existing package consumers may continue to use `AddHsSqlAgent()` and `UseHsSqlAgent()`. New integrations should prefer either the standard `HsSqlAgent.Hosting` entry point or `AddHsSqlAgentCore()` plus explicit capability registration.
+
+## Related documentation
+
+- [Deployment](/en/docs/operations/deployment)
+- [Configuration](/en/docs/operations/configuration)
+- [Safe DML](/en/docs/sql-compiler/safe-dml)

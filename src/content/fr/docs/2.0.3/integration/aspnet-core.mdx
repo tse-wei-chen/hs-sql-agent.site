@@ -1,0 +1,180 @@
+---
+title: Intégration ASP.NET Core
+description: Utilisez HsSqlAgent.Hosting pour le produit officiel complet, ou HsSqlAgent.Server pour une intégration ASP.NET Core modulaire maîtrisée par l'hôte.
+sidebar:
+  group: Intégration
+  order: 80
+---
+
+Une application ASP.NET Core dispose de deux points d'entrée NuGet. Choisissez selon les frontières que l'application hôte doit réellement maîtriser.
+
+| Objectif | Package | Responsabilité |
+| --- | --- | --- |
+| Intégrer le produit complet | `HsSqlAgent.Hosting` | HsSqlAgent gère l'exécution standard, l'Admin Store, l'identité intégrée, MCP, l'API/interface d'administration, la télémétrie, les exceptions et le choix du fournisseur d'approbation. |
+| Construire une intégration sur mesure | `HsSqlAgent.Server` | L'application choisit les capacités et peut conserver son authentification, son autorisation, son interface, l'ordre du pipeline ASP.NET Core, sa télémétrie ou son fournisseur d'approbation. |
+
+Pour un service autonome plutôt qu'un composant intégré dans un hôte .NET, utilisez l'image Docker officielle.
+
+## Intégrer le produit complet avec HsSqlAgent.Hosting
+
+Installez le package complet :
+
+```bash
+dotnet add package HsSqlAgent.Hosting
+```
+
+Ajoutez puis activez l'hôte standard :
+
+```csharp
+using HsSqlAgent.Hosting;
+
+var builder = WebApplication.CreateBuilder(args);
+builder.AddHsSqlAgentStandardHost();
+
+var app = builder.Build();
+app.UseHsSqlAgentStandardHost();
+await app.RunAsync();
+```
+
+Cette composition et ce contrat de configuration sont les mêmes que ceux de l'hôte officiel ToolBox / Docker. Le binding des URL et la journalisation restent des responsabilités ASP.NET Core normales de l'hôte.
+
+`HsSqlAgent.Hosting` inclut le runtime standard `HsSqlAgent.Server` ainsi que l'adaptateur officiel `HsSqlAgent.Approvals.Webhook`. Il n'ajoute aucun chargement dynamique de packages NuGet ou de DLL.
+
+### Choisir le fournisseur d'approbation DML
+
+MCP Elicitation reste le mécanisme officiel par défaut :
+
+```json
+{
+  "DmlApproval": {
+    "Provider": "McpElicitation"
+  }
+}
+```
+
+Pour utiliser l'adaptateur Webhook générique officiel :
+
+```json
+{
+  "DmlApproval": {
+    "Provider": "Webhook",
+    "Webhook": {
+      "Endpoint": "https://approval.example.com/hssqlagent/requests",
+      "CallbackUrl": "https://sql-agent.example.com/api/hs-sql-agent/approvals/webhook",
+      "SigningSecret": "replace-with-a-unique-secret-at-least-32-bytes"
+    }
+  }
+}
+```
+
+Les variables d'environnement suivent la convention ASP.NET Core normale, par exemple `DmlApproval__Provider=Webhook`. Un nom de provider inconnu fait échouer le démarrage.
+
+Pour un `IDmlApprovalProvider` personnalisé, utilisez `HsSqlAgent.Server` et enregistrez-le par injection de dépendances. Le système d'approbation ne reçoit jamais le droit d'exécuter du SQL arbitraire : HsSqlAgent conserve la validation, la liaison du fingerprint d'approbation, la revalidation de l'état courant et le commit final.
+
+## Construire une intégration sur mesure avec HsSqlAgent.Server
+
+Installez le package modulaire :
+
+```bash
+dotnet add package HsSqlAgent.Server
+```
+
+Une application existante peut conserver son authentification et son autorisation tout en ajoutant uniquement les capacités HsSqlAgent dont elle a besoin :
+
+```csharp
+var hs = builder.Services.AddHsSqlAgentCore();
+
+hs.AddHsSqlAgentRuntime();
+hs.AddHsSqlAgentAdminStore(options =>
+{
+    options.Provider = "Postgres";
+    options.ConnectionString =
+        builder.Configuration.GetConnectionString("HsSqlAgent")!;
+});
+hs.AddHsSqlAgentHostAuthorization("SqlAgentAdmin");
+hs.AddHsSqlAgentAdminApi();
+```
+
+Le pipeline ASP.NET Core reste sous le contrôle de l'hôte :
+
+```csharp
+var app = builder.Build();
+
+app.UseAuthentication();
+app.UseAuthorization();
+app.UseHsSqlAgentAdminApi();
+app.MapControllers();
+
+app.Run();
+```
+
+En mode autorisation déléguée à l'hôte, n'appelez pas `AddHsSqlAgentBuiltInAuth()`. HsSqlAgent utilise le `HttpContext.User` déjà authentifié, ne publie pas ses contrôleurs d'identité intégrés et n'installe pas son schéma d'identité.
+
+Les canonical permissions comme `/runtime/db-management.edit` et `/auth/role.view` sont des identifiants stables de ressources d'autorisation, pas des routes. La policy de l'hôte peut les faire correspondre à son propre modèle de permissions.
+
+### Ajouter MCP uniquement si nécessaire
+
+MCP reste une frontière de sécurité distincte pour l'accès machine :
+
+```csharp
+hs.AddHsSqlAgentMcp(options =>
+{
+    options.PublicEndpoint = "https://example.com/mcp";
+    options.HmacSecretKey = builder.Configuration["HMAC_KEY"]!; // >= 32 bytes
+});
+```
+
+Puis mappez-le après la construction de l'application :
+
+```csharp
+app.UseHsSqlAgentMcp();
+```
+
+Les clés MCP, les périmètres d'outils et de tables, les limites de débit et la validation HMAC restent indépendants de l'autorisation humaine/administrative.
+
+### Utiliser l'identité intégrée uniquement si nécessaire
+
+Si l'hôte veut le modèle JWT/member/role de HsSqlAgent, choisissez l'authentification intégrée plutôt que l'autorisation déléguée :
+
+```csharp
+hs.AddHsSqlAgentBuiltInAuth(options =>
+{
+    options.Jwt.SecretKey = builder.Configuration["JWT_KEY"]!; // >= 32 bytes
+});
+```
+
+L'identité intégrée et l'autorisation déléguée à l'hôte sont mutuellement exclusives. Un hôte modulaire peut également ne pas monter l'interface d'administration intégrée.
+
+## Responsabilité des capacités
+
+| Capacité | Configuration gérée |
+| --- | --- |
+| `AddHsSqlAgentRuntime()` | Runtime, opérabilité, coordination, concurrence SQL et persistance des approbations DML |
+| `AddHsSqlAgentAdminStore()` | Fournisseur et chaîne de connexion de la base Admin |
+| `AddHsSqlAgentBuiltInAuth()` | JWT, réinitialisation de mot de passe/SMTP, identité d'entreprise/OIDC |
+| `AddHsSqlAgentHostAuthorization()` | Délégation vers une policy d'autorisation ASP.NET Core existante |
+| `AddHsSqlAgentMcp()` | Point d'accès MCP public et secret HMAC des clés MCP |
+| `AddHsSqlAgentAdminApi()` | Contrôleurs d'administration et gestion de validation/exceptions |
+| `AddHsSqlAgentTelemetry()` | Réglages Prometheus et OTLP |
+
+Une capacité non sélectionnée n'alloue ni ne valide ses options.
+
+## Surfaces HTTP actuelles
+
+| Surface | Chemin |
+| --- | --- |
+| Point d'accès MCP | `/mcp` |
+| Préfixe de l'API d'administration | `/api` |
+| Interface d'administration | `/` |
+
+Le déplacement arbitraire de ces chemins n'est pas annoncé tant que le routage, les chemins/assets du frontend, les callbacks et les frontières de sécurité ne peuvent pas évoluer ensemble.
+
+## API de compatibilité
+
+Les consommateurs existants peuvent continuer à utiliser `AddHsSqlAgent()` et `UseHsSqlAgent()`. Pour une nouvelle intégration, préférez l'entrée standard `HsSqlAgent.Hosting` ou `AddHsSqlAgentCore()` avec enregistrement explicite des capacités.
+
+## Documentation associée
+
+- [Déploiement](/fr/docs/operations/deployment)
+- [Configuration](/fr/docs/operations/configuration)
+- [DML sécurisé](/fr/docs/sql-compiler/safe-dml)
