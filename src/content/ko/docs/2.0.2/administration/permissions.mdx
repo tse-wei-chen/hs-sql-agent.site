@@ -1,6 +1,6 @@
 ---
 title: 권한
-description: hs-sql-agent 2.0.1 Admin 작업에 사용되는 path + action authorization 모델을 설명합니다.
+description: hs-sql-agent 2.0.2 Admin 작업에 사용되는 path + action authorization 모델을 설명합니다.
 sidebar:
   group: 관리
   order: 79
@@ -16,7 +16,13 @@ import DocCard from "@/components/docs/mdx/DocCard.astro";
   <DocCard title="Role selection" icon="RBAC" description="역할에는 서버 template inventory에 존재하는 permission/action pair만 저장됩니다." />
 </CardGrid>
 
-2.0.1의 Admin authorization은 **permission path + action code** 쌍으로 강제됩니다. Controller는 필요한 pair를 선언하고, 로그인한 멤버는 할당된 역할을 통해 접근 권한을 얻습니다.
+2.0.2의 관리 권한 부여는 **canonical permission path + action code**를 사용합니다. canonical path는 안정적인 권한 부여 리소스 식별자이며 Admin UI route나 HTTP mount path가 아닙니다. 예를 들어 `/runtime/db-management`와 `/auth/role`은 내비게이션이나 controller URL 구성이 달라져도 같은 권한 ID를 뜻합니다.
+
+<Callout type="warning" title="Canonical permission은 route가 아닙니다">
+`route.path`에서 권한을 유도하거나 canonical permission path를 그대로 HTTP로 호출할 수 있다고 가정하지 마세요. 2.0.2의 공개 mount는 별도의 고정 계약이며 MCP는 `/mcp`, 관리 API는 `/api`, 관리 UI는 `/`입니다.
+</Callout>
+
+같은 canonical identifier는 서로 배타적인 두 관리 권한 부여 모드에서 사용됩니다. 내장 identity를 사용하면 HsSqlAgent member / role이 permission/action template을 해석합니다. host authorization을 사용하면 HsSqlAgent가 요청된 canonical permission key를 `HsSqlAgentPermissionResource.Permissions`로 호스트에 전달하고, 호스트 애플리케이션이 이를 자체 policy model에 매핑합니다. 별도 설명이 없으면 아래 role / template 내용은 **내장 identity 모드**를 기준으로 합니다.
 
 ## 런타임 예시
 
@@ -68,7 +74,7 @@ Member
 
 ## 보호된 SuperUser 역할
 
-`SuperUser`는 2.0.1의 내장 보호 역할입니다. 일반 역할 관리로 수정하거나 삭제할 수 없습니다. Bootstrap/full-control 역할이 다른 permission set으로 조용히 재정의되는 것을 막습니다.
+`SuperUser`는 2.0.2의 내장 보호 역할입니다. 일반 역할 관리로 수정하거나 삭제할 수 없습니다. Bootstrap/full-control 역할이 다른 permission set으로 조용히 재정의되는 것을 막습니다.
 
 <Callout type="tip" title="업무 책임 기준의 최소 권한을 권장합니다">
 모든 계정에 SuperUser를 복제하지 말고 운영 책임별 역할을 만드십시오. 예를 들어 런타임 관찰자는 audit/operability `view`가 필요할 수 있지만 database `edit`, key `create`, security-policy `edit`까지 필요하지는 않습니다.

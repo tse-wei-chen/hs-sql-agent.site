@@ -76,6 +76,9 @@ jobs:
             exit 1
           fi
 
+      - name: Check content source of truth
+        run: pnpm run content:check
+
       - name: Lint
         run: pnpm run lint
 

@@ -1,14 +1,14 @@
 ---
 title: Référence du support SQL
-description: Résumé lisible de la grammaire SQL et des capacités des moteurs dans hs-sql-agent 2.0.1.
+description: Résumé lisible de la grammaire SQL et des capacités des moteurs dans hs-sql-agent 2.0.2.
 sidebar:
   group: Compilateur SQL
   order: 62
 ---
 
-hs-sql-agent 2.0.1 ne considère pas toute la grammaire SQL d’un moteur comme une entrée automatiquement fiable. SQL n’est accepté que si le parser F# peut représenter l’instruction, si la sémantique source est validée, si les capacités requises sont démontrées et si le runtime du moteur peut compiler la commande immuable résultante.
+hs-sql-agent 2.0.2 ne considère pas toute la grammaire SQL d’un moteur comme une entrée automatiquement fiable. SQL n’est accepté que si le parser F# peut représenter l’instruction, si la sémantique source est validée, si les capacités requises sont démontrées et si le runtime du moteur peut compiler la commande immuable résultante.
 
-Cette page résume le contrat 2.0.1. Le compilateur reste l’autorité : une construction non prise en charge ou dépendante de la version est refusée par défaut plutôt qu’approximée silencieusement.
+Cette page résume le contrat 2.0.2. Le compilateur reste l’autorité : une construction non prise en charge ou dépendante de la version est refusée par défaut plutôt qu’approximée silencieusement.
 
 ## Base Query
 
@@ -31,12 +31,12 @@ Les expressions imbriquées, fonctions, fenêtres, casts, opérateurs, valeurs t
 
 `execute_dml_sql` accepte une mutation prise en charge et la fait passer par l’approbation Safe DML.
 
-| Instruction | Statut MCP DML 2.0.1 | Modèle d’approbation |
+| Instruction | Statut MCP DML 2.0.2 | Modèle d’approbation |
 | --- | --- | --- |
 | `UPDATE` | prise en charge si les capacités parser/moteur sont valides | prévisualiser les lignes, lier l’approbation à l’ensemble exact de clés primaires, revérifier dans la transaction de commit |
 | `DELETE` | prise en charge si les capacités parser/moteur sont valides | prévisualiser les lignes, lier l’approbation à l’ensemble exact de clés primaires, revérifier dans la transaction de commit |
 | `INSERT ... VALUES` | prise en charge si les capacités parser/moteur sont valides | lier l’approbation au payload littéral immuable et à la commande compilée, vérifier le nombre de lignes approuvées au commit |
-| `INSERT ... SELECT` | refusée | la sémantique d’approbation de l’ensemble source n’est pas définie en 2.0.1, donc le runtime refuse par défaut |
+| `INSERT ... SELECT` | refusée | la sémantique d’approbation de l’ensemble source n’est pas définie en 2.0.2, donc le runtime refuse par défaut |
 
 Consultez [Safe DML](/fr/docs/sql-compiler/safe-dml) pour le protocole complet.
 
@@ -52,7 +52,7 @@ Certaines capacités dépendent aussi de la version du serveur cible ou du nivea
 
 ## Différences de moteurs sélectionnées
 
-Ce tableau met en évidence des différences importantes de 2.0.1 ; il ne reproduit volontairement pas chaque identifiant de `CapabilityMatrix.fs`.
+Ce tableau met en évidence des différences importantes de 2.0.2 ; il ne reproduit volontairement pas chaque identifiant de `CapabilityMatrix.fs`.
 
 | Capacité | PostgreSQL | MySQL | SQL Server | Oracle | SQLite | Firebird |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -69,7 +69,7 @@ La prise en charge de `RETURNING` et upsert dans SQL Core ne change pas la règl
 
 ## Capacités JSON
 
-La matrice 2.0.1 déclare une transformation portable d’extraction JSON pour PostgreSQL, MySQL et SQLite. La mutation JSON via le contrat JSON-set canonique est déclarée pour PostgreSQL, MySQL, SQLite et SQL Server.
+La matrice 2.0.2 déclare une transformation portable d’extraction JSON pour PostgreSQL, MySQL et SQLite. La mutation JSON via le contrat JSON-set canonique est déclarée pour PostgreSQL, MySQL, SQLite et SQL Server.
 
 Les opérateurs PostgreSQL natifs `->` / `->>` sont modélisés séparément car leurs sémantiques de résultat JSON versus texte sont propres au moteur. Ils restent refusés par défaut pour une transformation cross-provider et nécessitent une cible PostgreSQL satisfaisant le contrat de version déclaré.
 
@@ -81,26 +81,26 @@ Les opérateurs PostgreSQL natifs `->` / `->>` sont modélisés séparément car
 - SQLite exige un profil serveur explicite 3.30 ou plus récent.
 - Firebird exige un profil explicite 4.0 ou plus récent.
 - Oracle exige un profil 26ai/26.0+ et Core refuse en plus les prédicats contenant sous-requêtes, fonctions de fenêtre ou références externes avant la transformation Oracle.
-- MySQL et SQL Server n’ont pas de contrat portable 2.0.1 déclaré pour cette capacité.
+- MySQL et SQL Server n’ont pas de contrat portable 2.0.2 déclaré pour cette capacité.
 
 C’est un exemple montrant pourquoi « le moteur sait exécuter ce SQL » n’est pas suffisant pour hs-sql-agent.
 
 ## Garde de version des JOIN
 
-SQLite `RIGHT JOIN` et `FULL JOIN` exigent SQLite 3.39 ou plus récent dans le profil de capacité cible. `FULL JOIN` reste refusé pour MySQL dans la matrice 2.0.1.
+SQLite `RIGHT JOIN` et `FULL JOIN` exigent SQLite 3.39 ou plus récent dans le profil de capacité cible. `FULL JOIN` reste refusé pour MySQL dans la matrice 2.0.2.
 
 Une requête dépendant de ces capacités est refusée lorsque le contrat cible requis ne peut pas être démontré.
 
 ## DML returning et upsert
 
-Les contrats cibles 2.0.1 comprennent :
+Les contrats cibles 2.0.2 comprennent :
 
 - PostgreSQL `RETURNING` et transformation upsert ;
 - SQLite `RETURNING` avec profil explicite 3.35+ ;
 - Firebird `RETURNING` avec profil explicite 5.0+ ;
 - contrats upsert PostgreSQL et SQLite 3.24+.
 
-Les autres cibles restent refusées pour ces capacités canoniques dans la matrice 2.0.1.
+Les autres cibles restent refusées pour ces capacités canoniques dans la matrice 2.0.2.
 
 ## Diagnostics par refus par défaut
 
@@ -110,6 +110,6 @@ En exploitation, traitez ces erreurs comme une demande de changer la forme SQL o
 
 ## Ce que cette référence ne promet pas
 
-Cette page ne promet pas chaque nom de fonction, orthographe d’opérateur, cible de cast, forme de chemin JSON, frame de fenêtre ou extension moteur. La matrice 2.0.1 est bien plus détaillée qu’un seul tableau et comprend des gardes de version runtime.
+Cette page ne promet pas chaque nom de fonction, orthographe d’opérateur, cible de cast, forme de chemin JSON, frame de fenêtre ou extension moteur. La matrice 2.0.2 est bien plus détaillée qu’un seul tableau et comprend des gardes de version runtime.
 
 Pour les clients MCP, utilisez [Référence des outils MCP](/fr/docs/mcp/tools-reference) pour le contrat public et considérez l’acceptation effective du compilateur comme le contrat SQL borné final.

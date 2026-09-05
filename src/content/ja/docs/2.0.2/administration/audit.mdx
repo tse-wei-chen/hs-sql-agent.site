@@ -1,6 +1,6 @@
 ---
 title: 監査
-description: 管理コントロールプレーンから hs-sql-agent 2.0.1 の監査レコードを検索、集計、エクスポートし、保持ポリシーを適用します。
+description: 管理コントロールプレーンから hs-sql-agent 2.0.2 の監査レコードを検索、集計、エクスポートし、保持ポリシーを適用します。
 sidebar:
   group: 管理
   order: 80
@@ -20,7 +20,7 @@ import DocCard from "@/components/docs/mdx/DocCard.astro";
 
 ## 監査レコードの構造
 
-2.0.1 の監査項目には、次のフィールドが含まれる場合があります。
+2.0.2 の監査項目には、次のフィールドが含まれる場合があります。
 
 | 領域 | フィールド |
 | --- | --- |
@@ -62,7 +62,7 @@ import DocCard from "@/components/docs/mdx/DocCard.astro";
 | CSV または JSON のエクスポート | `/runtime/audit` → `export` |
 | 保持の dry-run／実行 | `/runtime/audit` → `edit` |
 
-エクスポートエンドポイントは `format=csv` または `format=json` を受け付けます。2.0.1 では、100,000 行を超えるエクスポートを無制限にダウンロードしようとせず、要求を拒否します。
+エクスポートエンドポイントは `format=csv` または `format=json` を受け付けます。2.0.2 では、100,000 行を超えるエクスポートを無制限にダウンロードしようとせず、要求を拒否します。
 
 <Callout type="info" title="CSV エクスポートでは表計算ソフト向けのセルを保護します">
 `=`、`+`、`-`、`@` など、表計算ソフトで数式として解釈される文字から始まる CSV 値にはエクスポート時に prefix を追加し、ファイルを表計算ソフトで開いた際の formula injection リスクを低減します。
@@ -79,7 +79,7 @@ import DocCard from "@/components/docs/mdx/DocCard.astro";
 3. 想定したモードと件数であることを確かめます。
 4. レビュー後にだけ保持処理を実行します。
 
-2.0.1 のランタイムで有効なモードは次のとおりです。
+2.0.2 のランタイムで有効なモードは次のとおりです。
 
 - `Archive` — 期限切れレコードを設定済み archive path へ書き出してから、Admin データベースから削除します。
 - `Purge` — archive を作成せず、期限切れレコードを削除します。

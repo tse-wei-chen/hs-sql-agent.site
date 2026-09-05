@@ -1,6 +1,6 @@
 ---
 title: Semantic Metadata
-description: Enrich database discovery with table and column semantics, relationships, and metric metadata in hs-sql-agent 2.0.1.
+description: Enrich database discovery with table and column semantics, relationships, and metric metadata in hs-sql-agent 2.0.2.
 sidebar:
   group: Administration
   order: 76
@@ -63,10 +63,10 @@ Metric metadata is scoped to a table and can describe a business measure:
 | `Grain` | Optional grain metadata |
 | `Filter` | Optional filter metadata |
 | `Synonyms` | Alternate terms for the metric |
-| `Executable` | `false` in the 2.0.1 model |
+| `Executable` | `false` in the 2.0.2 model |
 
 <Callout type="warning" title="Metrics are metadata, not an execution bypass">
-The 2.0.1 semantic metric model marks `Executable` false. A metric description can help an agent understand schema meaning, but it does not become an executable SQL macro and does not bypass the SQL compiler or authorization pipeline.
+The 2.0.2 semantic metric model marks `Executable` false. A metric description can help an agent understand schema meaning, but it does not become an executable SQL macro and does not bypass the SQL compiler or authorization pipeline.
 </Callout>
 
 ## How MCP schema discovery consumes semantics
@@ -83,7 +83,7 @@ Semantic metadata therefore enriches discovery; it does not widen what a key can
 
 ## Admin API surface
 
-The 2.0.1 Admin API exposes semantic management under `api/DbSemantic`:
+The 2.0.2 Admin API exposes semantic management under `api/DbSemantic`:
 
 | Operation | Permission |
 | --- | --- |
@@ -95,7 +95,7 @@ The 2.0.1 Admin API exposes semantic management under `api/DbSemantic`:
 | upsert/delete metric | `/runtime/db-management/semantic` → `edit` |
 
 <Callout type="info" title="This is an Admin feature, not a sixth documented built-in MCP tool">
-For 2.0.1 documentation, the formal MCP key tool surface is the five built-in tools listed in MCP Tools Reference plus published Custom Tools. Semantic metadata is managed through the Admin control plane and consumed by schema discovery.
+For 2.0.2 documentation, the formal MCP key tool surface is the five built-in tools listed in MCP Tools Reference plus published Custom Tools. Semantic metadata is managed through the Admin control plane and consumed by schema discovery.
 </Callout>
 
 ## Modeling guidance

@@ -62,7 +62,7 @@ L’export d’audit est une capacité d’autorisation distincte :
 | export CSV ou JSON | `/runtime/audit` → `export` |
 | simulation / exécution de rétention | `/runtime/audit` → `edit` |
 
-L’endpoint d’export accepte `format=csv` ou `format=json`. La version 2.0.1 refuse les ensembles dépassant 100 000 lignes au lieu de tenter un téléchargement sans borne.
+L’endpoint d’export accepte `format=csv` ou `format=json`. La version 2.0.2 refuse les ensembles dépassant 100 000 lignes au lieu de tenter un téléchargement sans borne.
 
 <Callout type="info" title="L’export CSV protège les cellules de tableur">
 Les valeurs CSV commençant par des caractères interprétables comme une formule de tableur, tels que `=`, `+`, `-` ou `@`, reçoivent un préfixe afin de réduire le risque d’injection de formule lors de l’ouverture du fichier.

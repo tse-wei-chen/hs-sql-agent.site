@@ -1,6 +1,6 @@
 ---
 title: 稽核
-description: 在管理介面查詢、彙總、匯出與保留 hs-sql-agent 2.0.1 的稽核紀錄。
+description: 在管理介面查詢、彙總、匯出與保留 hs-sql-agent 2.0.2 的稽核紀錄。
 sidebar:
   group: 管理
   order: 80
@@ -20,7 +20,7 @@ import DocCard from "@/components/docs/mdx/DocCard.astro";
 
 ## 稽核紀錄欄位
 
-2.0.1 的稽核項目可能包含：
+2.0.2 的稽核項目可能包含：
 
 | 類別 | 欄位 |
 | --- | --- |
@@ -53,7 +53,7 @@ import DocCard from "@/components/docs/mdx/DocCard.astro";
 | 匯出 CSV 或 JSON | `/runtime/audit` → `export` |
 | 保留政策 dry-run / 執行 | `/runtime/audit` → `edit` |
 
-匯出端點接受 `format=csv` 或 `format=json`。2.0.1 若匯出結果超過 100,000 筆，會直接拒絕，不提供無上限下載。
+匯出端點接受 `format=csv` 或 `format=json`。2.0.2 若匯出結果超過 100,000 筆，會直接拒絕，不提供無上限下載。
 
 <Callout type="info" title="CSV 匯出會降低試算表公式注入風險">
 若 CSV 值以 `=`、`+`、`-`、`@` 等試算表公式字元開頭，匯出時會先加上前綴，降低管理者用試算表軟體開啟檔案時觸發 formula injection 的風險。
@@ -70,7 +70,7 @@ import DocCard from "@/components/docs/mdx/DocCard.astro";
 3. 確認模式與預期處理量。
 4. 完成檢查後才真正執行保留作業。
 
-2.0.1 支援的執行模式：
+2.0.2 支援的執行模式：
 
 - `Archive` — 先把過期紀錄寫入設定的封存路徑，再從管理資料庫刪除；
 - `Purge` — 直接刪除過期紀錄，不建立封存副本。

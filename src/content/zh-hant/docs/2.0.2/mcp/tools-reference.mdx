@@ -1,6 +1,6 @@
 ---
 title: MCP 工具參考
-description: hs-sql-agent 2.0.1 內建 MCP 工具的參數、回傳格式、授權與風險邊界。
+description: hs-sql-agent 2.0.2 內建 MCP 工具的參數、回傳格式、授權與風險邊界。
 sidebar:
   group: MCP
   order: 35
@@ -17,7 +17,7 @@ import Flow from "@/components/docs/mdx/Flow.astro";
   <DocCard title="Safe DML" icon="DML" badge="approval" description="execute_dml_sql 只會在預覽、Elicitation 與提交前重新驗證都通過後執行支援的資料修改。" />
 </CardGrid>
 
-**2.0.1 由 MCP 金鑰正式管理的內建工具**只有五個名稱：
+**2.0.2 由 MCP 金鑰正式管理的內建工具**只有五個名稱：
 
 | 工具 | 公開輸入 | 回傳格式 | 風險 |
 | --- | --- | --- | --- |
@@ -87,7 +87,7 @@ get_columns(schemaName: string, tableName: string)
 
 伺服器會先檢查要求的完整限定資料表是否在 MCP 金鑰允許範圍內，再讀取 provider 欄位中繼資料，最後序列化成 JSON 陣列。
 
-2.0.1 每個 `ColumnInfo` 物件會暴露：
+2.0.2 每個 `ColumnInfo` 物件會暴露：
 
 | 屬性 | 意義 |
 | --- | --- |
@@ -108,7 +108,7 @@ get_columns(schemaName: string, tableName: string)
 execute_query_sql(sql: string)
 ```
 
-接受**單一 `SELECT` SQL statement**。2.0.1 公開工具契約明確列出常見查詢形式：JOIN、WHERE、GROUP BY、HAVING、ORDER BY、LIMIT/OFFSET、DISTINCT、CTE、subquery，以及 UNION/INTERSECT/EXCEPT。
+接受**單一 `SELECT` SQL statement**。2.0.2 公開工具契約明確列出常見查詢形式：JOIN、WHERE、GROUP BY、HAVING、ORDER BY、LIMIT/OFFSET、DISTINCT、CTE、subquery，以及 UNION/INTERSECT/EXCEPT。
 
 <Flow items={["Parse", "Bind", "Authorize tables", "Validate policy", "Compile immutable command", "Execute"]} caption="原始 SQL 不會直接送給 provider 執行。" />
 
@@ -138,14 +138,14 @@ execute_dml_sql(sql: string)
 
 MCP 對外可見的輸入只有 SQL。`.NET` 方法中的 `McpServer` 與 cancellation token 是執行階段注入的基礎設施，不是 Agent 需要傳入的欄位。
 
-2.0.1 MCP DML 路徑支援：
+2.0.2 MCP DML 路徑支援：
 
 | Statement | 狀態 |
 | --- | --- |
 | `UPDATE` | 解析、capability、政策與核准全部通過時支援 |
 | `DELETE` | 解析、capability、政策與核准全部通過時支援 |
 | `INSERT ... VALUES` | 支援不可變 payload 的核准語意 |
-| `INSERT ... SELECT` | 2.0.1 以 fail-closed 方式拒絕 |
+| `INSERT ... SELECT` | 2.0.2 以 fail-closed 方式拒絕 |
 
 <Flow items={["Parse + verify profile", "Compile mutation", "Preview exact impact", "Human Elicitation", "Transaction revalidation", "Commit"]} caption="核准綁定的是已驗證的資料修改上下文，不只是原始 SQL 文字。" />
 
@@ -181,6 +181,6 @@ UPDATE / DELETE 的核准會綁定精確的主鍵資料列集合，提交時會�
 
 ## 語意中繼資料不算第六個內建工具
 
-2.0.1 程式庫確實存在語意管理相關實作，但正式 MCP 金鑰內建工具註冊表，以及管理介面的金鑰管理功能，仍只管理本頁列出的五個工具。因此 2.0.1 文件把語意中繼資料視為**由管理介面維護、再由 schema discovery 使用的能力**，不把它宣稱成額外的內建 MCP 契約。
+2.0.2 程式庫確實存在語意管理相關實作，但正式 MCP 金鑰內建工具註冊表，以及管理介面的金鑰管理功能，仍只管理本頁列出的五個工具。因此 2.0.2 文件把語意中繼資料視為**由管理介面維護、再由 schema discovery 使用的能力**，不把它宣稱成額外的內建 MCP 契約。
 
 請見 [語意中繼資料](/zh-hant/docs/administration/semantic-metadata)。

@@ -1,6 +1,6 @@
 ---
 title: Admin HTTP API Reference
-description: Source-backed hs-sql-agent 2.0.1 HTTP controller surface used by the bundled Admin UI.
+description: Source-backed hs-sql-agent 2.0.2 HTTP controller surface used by the bundled Admin UI.
 sidebar:
   group: Reference
   order: 142
@@ -16,19 +16,27 @@ import DocCard from "@/components/docs/mdx/DocCard.astro";
   <DocCard title="MCP is separate" icon="MCP" description="The /mcp Streamable HTTP transport is not part of this Admin REST reference." />
 </CardGrid>
 
-This page documents the **actual controller routes in the hs-sql-agent 2.0.1 source**. The bundled Admin UI uses this surface.
+This page lists controller routes that exist in the **hs-sql-agent 2.0.2 source**, but controller availability is capability-dependent. The bundled Admin UI normally uses the built-in identity composition; an embedding host can select a different composition.
 
-<Callout type="warning" title="This is a 2.0.1 source contract, not a separately versioned REST standard">
-The 2.0.1 server does not expose these controllers under a `/v1` compatibility namespace. Integrations outside the bundled Admin UI should pin the hs-sql-agent version and re-check this reference when upgrading.
+<Callout type="warning" title="This is a 2.0.2 source contract, not a separately versioned REST standard">
+The 2.0.2 server does not expose these controllers under a `/v1` compatibility namespace. External integrations should pin the hs-sql-agent version and re-check the selected capability surface when upgrading.
 </Callout>
 
-## Authentication and authorization
+<Callout type="note" title="Built-in identity and host authorization expose different identity surfaces">
+When `AddHsSqlAgentBuiltInAuth()` is selected, the built-in Auth, Member, and Role controllers are part of the administration surface. When `AddHsSqlAgentHostAuthorization()` is selected, HsSqlAgent intentionally does **not** publish `AuthController`, `MemberController`, or `RoleController`, does not install its identity schema, and delegates canonical permission checks to the host. The two authorization modes are mutually exclusive.
+</Callout>
 
-Most Admin routes require an authenticated Admin identity. Protected runtime actions additionally use path/action permission checks such as `/runtime/db-management` → `view` or `/auth/role` → `edit`.
+## Authentication, authorization, and MVC ownership
 
-Anonymous exceptions exist for flows that must begin before an Admin session exists, including first-run/sign-in/sign-up, selected OIDC endpoints, password recovery, and MFA challenge completion.
+When the Admin API capability is selected, its public mount remains `/api`. Canonical permission paths such as `/auth/role` and `/runtime/db-management` are authorization resource identifiers, not HTTP paths.
+
+In built-in identity mode, protected Admin routes use HsSqlAgent authentication plus canonical permission/action checks, with anonymous exceptions for flows such as first-run, sign-in, selected OIDC/password-recovery endpoints, and MFA challenge completion.
+
+In host-authorization mode, the host owns authentication defaults and its authorization policy. Requested canonical permission keys arrive through `HsSqlAgentPermissionResource.Permissions`. In modular host mode `UseHsSqlAgentAdminApi()` deliberately does not call `MapControllers()`; the host owns controller endpoint mapping for the MVC application.
 
 See [Permissions](/en/docs/administration/permissions).
+
+The Auth, Member, and Role sections below apply only when the built-in identity capability is selected.
 
 ## Auth — `/api/Auth`
 
@@ -162,10 +170,10 @@ See [Audit](/en/docs/administration/audit) and [Operability](/en/docs/administra
 
 ## Credential status
 
-`GET /api/Credential/status` exists in 2.0.1 and returns a simple Credential API running status. The controller itself has no `[Authorize]` attribute. Treat it as a narrow status endpoint, not as an authenticated credential-management API.
+`GET /api/Credential/status` exists in 2.0.2 and returns a simple Credential API running status. The controller itself has no `[Authorize]` attribute. Treat it as a narrow status endpoint, not as an authenticated credential-management API.
 
 ## Errors and compatibility
 
 Controllers use ordinary HTTP status codes such as 400 for validation, 401/403 for authentication/authorization, 404 for missing resources, 409 for conflicting tool/role state, 413 for oversized audit export, and 429 for bounded SQL-operation pressure where applicable.
 
-For client automation, pin to 2.0.1 and validate the actual response model you consume. This page intentionally documents routes and important contracts without pretending that every Admin view model is a permanently versioned external SDK.
+For client automation, pin to 2.0.2 and validate the actual response model you consume. This page intentionally documents routes and important contracts without pretending that every Admin view model is a permanently versioned external SDK.

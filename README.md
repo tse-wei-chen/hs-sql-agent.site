@@ -13,13 +13,15 @@ pnpm install
 pnpm dev
 ```
 
-Production build:
+Validation and production build:
 
 ```bash
-pnpm build
+pnpm run content:check
+pnpm run lint
+pnpm run build
 ```
 
-The build runs `astro check`, generates the static site, and builds the Pagefind search index.
+The production build runs `astro check`, generates the static site, and builds the Pagefind search index. `content:check` independently verifies current content against the pinned product release manifest.
 
 ## Information architecture
 
@@ -40,13 +42,9 @@ The root route is handled by Astro i18n and redirects to the configured default 
 
 ### Product / SEO pages
 
-Product pages are Astro UI, not content-collection documents. Their localized copy is defined in:
+Product pages are Astro UI, not content-collection documents. Core English/Traditional Chinese definitions live in `src/data/marketing.ts` and the dedicated ASP.NET Core definition, while additional localized detail copy lives under `src/data/marketingLocales/`. `src/data/marketingCatalog.ts` resolves the unified seven-locale page catalog used by routes and locale switching.
 
-```text
-src/data/marketing.ts
-```
-
-and rendered through shared Astro marketing routes/layouts. This keeps landing/product pages free to use purpose-built components, visuals, and animation.
+This keeps landing/product pages free to use purpose-built components, visuals, and animation without pretending marketing copy is technical source authority.
 
 ### Documentation
 
@@ -64,16 +62,16 @@ src/components/docs/mdx/
 
 Use those shared components instead of embedding one-off page-specific HTML/JSX whenever a reusable documentation pattern exists.
 
-`2.0.1` is the first complete documentation baseline. Documentation versions are declared in `src/data/docsVersions.ts` and form an inheritance chain. Future versions should contain only pages that changed in that version; unchanged pages are inherited from the parent version. A version can also explicitly remove inherited slugs or redirect old slugs.
+The **currently published documentation baseline is 2.0.2**, pinned to the immutable product tag `v2.0.2` through `src/data/productRelease.ts`. Earlier product releases are not published as version trees by this site. Documentation versions are declared in `src/data/docsVersions.ts`; future versions may inherit unchanged pages from a parent while explicitly removing or redirecting slugs.
 
 The public routes deliberately separate stable latest URLs from immutable version URLs:
 
 ```text
 /<locale>/docs/*                 -> current effective documentation set
-/<locale>/docs/2.0.1/*           -> fixed 2.0.1 documentation set
+/<locale>/docs/2.0.2/*           -> fixed 2.0.2 documentation set
 ```
 
-When the current version advances, `/docs/*` moves to the new effective set while `/docs/2.0.1/*` remains fixed.
+When the current version advances, `/docs/*` moves to the new effective set while `/docs/2.0.2/*` remains fixed.
 
 The documentation is organized by product responsibility rather than by historical GitHub Wiki page names:
 
@@ -87,7 +85,7 @@ The documentation is organized by product responsibility rather than by historic
 - Development
 - Reference
 
-See [`CONTENT_MIGRATION.md`](./CONTENT_MIGRATION.md) for the migration rules.
+See [`CONTENT_MIGRATION.md`](./CONTENT_MIGRATION.md) for migration/versioning rules and [`CONTENT_SOURCES.md`](./CONTENT_SOURCES.md) for product source-of-truth rules.
 
 ## i18n content model
 
@@ -96,18 +94,18 @@ Locale and source version are structural and come from the content path. Do **no
 Translations intentionally share the same slug inside the same version:
 
 ```text
-src/content/en/docs/2.0.1/sql-compiler/safe-dml.mdx
-src/content/zh-hant/docs/2.0.1/sql-compiler/safe-dml.mdx
+src/content/en/docs/2.0.2/sql-compiler/safe-dml.mdx
+src/content/zh-hant/docs/2.0.2/sql-compiler/safe-dml.mdx
 ```
 
-which is available through both the current alias and immutable version route while 2.0.1 is current:
+which is available through both the current alias and immutable version route while 2.0.2 is current:
 
 ```text
 /en/docs/sql-compiler/safe-dml
-/en/docs/2.0.1/sql-compiler/safe-dml
+/en/docs/2.0.2/sql-compiler/safe-dml
 
 /zh-hant/docs/sql-compiler/safe-dml
-/zh-hant/docs/2.0.1/sql-compiler/safe-dml
+/zh-hant/docs/2.0.2/sql-compiler/safe-dml
 ```
 
 Language switching preserves the selected documentation version. If a translation does not exist, the user falls back to the target-language index for that version instead of a 404.
@@ -152,12 +150,14 @@ Before publishing, ensure the configured `site.url` matches the real production 
 
 ## GitHub Actions
 
-This repository intentionally does not include a GitHub Actions workflow. Build and deployment are expected to run in the chosen external hosting/deployment environment or locally.
+`.github/workflows/ci.yml` runs on pushes and pull requests. The Quality job checks changed-file formatting, runs the product source-of-truth validation, and runs ESLint. The Build job runs the production static build.
+
+The source-of-truth validation is intentionally read-only: CI may reject stale or untraceable content, but it does not rewrite documentation or push commits back to a branch.
 
 ## Source truth and attribution
 
-Product and technical claims must be verified against the matching hs-sql-agent release/source implementation. Historical Wiki content is migration input, not an authoritative runtime contract.
+Product and technical claims must be verified against the matching immutable hs-sql-agent release tag. Product `main`, historical Wiki content, previous website copy, and another translation are not authorities for a versioned runtime contract.
 
-Versioned docs should prefer the corresponding product tag (for example `v2.0.1`) when describing version-specific behavior.
+The current release mapping and source hierarchy are documented in [`CONTENT_SOURCES.md`](./CONTENT_SOURCES.md).
 
 This site started from AstroPaper and retains the upstream MIT license attribution for derived portions. See [`LICENSE`](./LICENSE).

@@ -1,6 +1,6 @@
 ---
 title: 成员与角色
-description: 管理 hs-sql-agent 2.0.1 的管理用户、会话、角色分配和角色生命周期。
+description: 管理 hs-sql-agent 2.0.2 的管理用户、会话、角色分配和角色生命周期。
 sidebar:
   group: 管理
   order: 78
@@ -25,7 +25,7 @@ import Flow from "@/components/docs/mdx/Flow.astro";
 
 新成员必须使用有效邮箱和至少 8 个字符的密码。用户名可选，最长 100 个字符。创建时可以显式指定角色 ID，也可以请求分配全部角色。
 
-成员列表支持按搜索词、启用状态和角色过滤，并支持分页。2.0.1 的成员视图会显示账号状态、创建/最后登录时间、活跃会话数以及当前角色 ID/名称。
+成员列表支持按搜索词、启用状态和角色过滤，并支持分页。2.0.2 的成员视图会显示账号状态、创建/最后登录时间、活跃会话数以及当前角色 ID/名称。
 
 ## 成员管理操作
 
@@ -40,7 +40,7 @@ import Flow from "@/components/docs/mdx/Flow.astro";
 | 删除成员 | `/auth/user` → `delete` | 不能删除自己 |
 
 <Callout type="warning" title="会导致自己被锁在系统外的操作会被拒绝">
-2.0.1 控制器明确禁止管理员通过这些管理端点修改自己的角色、停用自己的账号或删除自己的成员记录。
+2.0.2 控制器明确禁止管理员通过这些管理端点修改自己的角色、停用自己的账号或删除自己的成员记录。
 </Callout>
 
 ## 角色
@@ -51,7 +51,7 @@ import Flow from "@/components/docs/mdx/Flow.astro";
 
 ## 修改角色会影响当前授权状态
 
-角色权限集合发生变化时，2.0.1 会找到所有使用该角色的成员，递增他们的 security version，并通过 auth runtime-state cache barrier 执行变更。这用于防止已经登录的会话在角色定义变化后长期保留旧授权。
+角色权限集合发生变化时，2.0.2 会找到所有使用该角色的成员，递增他们的 security version，并通过 auth runtime-state cache barrier 执行变更。这用于防止已经登录的会话在角色定义变化后长期保留旧授权。
 
 删除已分配给成员的角色时也遵循同一原则。
 

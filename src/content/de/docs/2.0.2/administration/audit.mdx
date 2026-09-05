@@ -62,7 +62,7 @@ Der Audit-Export ist eine eigene Autorisierungsfähigkeit:
 | CSV- oder JSON-Export | `/runtime/audit` → `export` |
 | Aufbewahrungs-Dry-Run / Ausführung | `/runtime/audit` → `edit` |
 
-Der Export-Endpunkt akzeptiert `format=csv` oder `format=json`. 2.0.1 lehnt Exportmengen über 100.000 Zeilen ab, statt einen unbegrenzten Download zu versuchen.
+Der Export-Endpunkt akzeptiert `format=csv` oder `format=json`. 2.0.2 lehnt Exportmengen über 100.000 Zeilen ab, statt einen unbegrenzten Download zu versuchen.
 
 <Callout type="info" title="CSV-Export schützt Tabellenkalkulationszellen">
 CSV-Werte, die mit Formelzeichen wie `=`, `+`, `-` oder `@` beginnen, erhalten vor dem Export ein Präfix. Das reduziert das Risiko einer Formelinjektion, wenn Betreiber die Datei in Tabellenkalkulationssoftware öffnen.

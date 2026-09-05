@@ -1,6 +1,6 @@
 ---
 title: MCP キー
-description: hs-sql-agent 2.0.1 の MCP 認証情報を発行し、スコープ設定、ローテーション、複製、失効を管理します。
+description: hs-sql-agent 2.0.2 の MCP 認証情報を発行し、スコープ設定、ローテーション、複製、失効を管理します。
 sidebar:
   group: 管理
   order: 74
@@ -20,7 +20,7 @@ import Step from "@/components/docs/mdx/Step.astro";
 
 MCP キーは `/mcp` リクエストの認証に使われ、hs-sql-agent がランタイム認可に利用するスコープを持ちます。管理ユーザーのセッションや OIDC ID とは別の認証境界です。
 
-## 2.0.1 の正式な組み込みツールサーフェス
+## 2.0.2 の正式な組み込みツールサーフェス
 
 キー管理サービスが認識する組み込みツールは 5 つです。
 
@@ -42,7 +42,7 @@ MCP キーは `/mcp` リクエストの認証に使われ、hs-sql-agent がラ�
 
 <Steps>
   <Step title="名前を決める" description="名前は必須で、最大 100 文字です。" />
-  <Step title="データベースを紐付ける" description="2.0.1 の発行バリデーターでは DbManagementId が必須です。" />
+  <Step title="データベースを紐付ける" description="2.0.2 の発行バリデーターでは DbManagementId が必須です。" />
   <Step title="ツールを選択する" description="組み込みツールと、そのデータベース向けに公開済みの Custom Tool を選びます。" />
   <Step title="データアクセスを制限する" description="クライアントが紐付け先データベースの一部だけを参照すべき場合は、テーブルホワイトリストを有効にします。" />
   <Step title="ライフサイクル制御を設定する" description="必要に応じて有効期限、CORS オリジン、レート制限モード／上書き値を設定します。" />

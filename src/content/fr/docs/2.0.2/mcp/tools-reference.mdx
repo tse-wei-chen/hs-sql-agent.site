@@ -1,6 +1,6 @@
 ---
 title: Référence des outils MCP
-description: Contrats formels des outils MCP intégrés de hs-sql-agent 2.0.1, paramètres, réponses, autorisation et frontières de risque.
+description: Contrats formels des outils MCP intégrés de hs-sql-agent 2.0.2, paramètres, réponses, autorisation et frontières de risque.
 sidebar:
   group: MCP
   order: 35
@@ -17,7 +17,7 @@ import Flow from "@/components/docs/mdx/Flow.astro";
   <DocCard title="Safe DML" icon="DML" badge="approbation" description="execute_dml_sql n’accepte les mutations prises en charge qu’après aperçu, Elicitation et revérification au commit." />
 </CardGrid>
 
-La **surface formelle des outils intégrés 2.0.1 gérée par les clés MCP** contient exactement cinq noms :
+La **surface formelle des outils intégrés 2.0.2 gérée par les clés MCP** contient exactement cinq noms :
 
 | Tool | Entrée publique | Résultat | Risque |
 | --- | --- | --- | --- |
@@ -87,7 +87,7 @@ get_columns(schemaName: string, tableName: string)
 
 Le serveur vérifie d’abord que la table qualifiée demandée est autorisée par la clé MCP. Il lit ensuite les métadonnées de colonnes du moteur et sérialise un tableau JSON.
 
-Chaque objet `ColumnInfo` 2.0.1 expose :
+Chaque objet `ColumnInfo` 2.0.2 expose :
 
 | Propriété | Signification |
 | --- | --- |
@@ -108,7 +108,7 @@ L’enrichissement peut ajouter noms d’affichage, descriptions, synonymes et d
 execute_query_sql(sql: string)
 ```
 
-Accepte **une instruction SQL `SELECT`**. La description publique 2.0.1 mentionne explicitement JOIN, WHERE, GROUP BY, HAVING, ORDER BY, LIMIT/OFFSET, DISTINCT, CTE, sous-requêtes et UNION/INTERSECT/EXCEPT.
+Accepte **une instruction SQL `SELECT`**. La description publique 2.0.2 mentionne explicitement JOIN, WHERE, GROUP BY, HAVING, ORDER BY, LIMIT/OFFSET, DISTINCT, CTE, sous-requêtes et UNION/INTERSECT/EXCEPT.
 
 <Flow items={["Parse", "Bind", "Autoriser les tables", "Valider la politique", "Compiler la commande immuable", "Exécuter"]} caption="Le SQL brut n’est pas envoyé directement au moteur." />
 
@@ -138,14 +138,14 @@ execute_dml_sql(sql: string)
 
 L’entrée visible via MCP est SQL. Le `McpServer` et le token d’annulation utilisés par la méthode .NET sont de l’infrastructure injectée par le runtime, pas des champs fournis par l’agent.
 
-Les classes d’instructions prises en charge dans le chemin MCP DML 2.0.1 sont :
+Les classes d’instructions prises en charge dans le chemin MCP DML 2.0.2 sont :
 
 | Instruction | Statut |
 | --- | --- |
 | `UPDATE` | prise en charge si parse, capacités, politique et approbation réussissent |
 | `DELETE` | prise en charge si parse, capacités, politique et approbation réussissent |
 | `INSERT ... VALUES` | prise en charge avec approbation liée au payload immuable |
-| `INSERT ... SELECT` | refusée par défaut en 2.0.1 |
+| `INSERT ... SELECT` | refusée par défaut en 2.0.2 |
 
 <Flow items={["Parse + vérification du profil", "Compiler la mutation", "Prévisualiser l’impact exact", "Elicitation humaine", "Revérifier dans la transaction", "Commit"]} caption="L’approbation est liée au contexte de mutation validé, pas simplement au texte SQL d’origine." />
 
@@ -181,6 +181,6 @@ Consultez [Outils personnalisés](/fr/docs/administration/custom-tools).
 
 ## Les métadonnées sémantiques ne sont pas un sixième outil intégré
 
-Le dépôt 2.0.1 contient une implémentation de gestion sémantique, mais le registre formel des outils intégrés et la gestion des clés Admin reconnaissent les cinq outils listés ici. La documentation traite donc les métadonnées sémantiques comme une **capacité du plan de contrôle consommée par la découverte de schéma**, et non comme un contrat MCP intégré supplémentaire.
+Le dépôt 2.0.2 contient une implémentation de gestion sémantique, mais le registre formel des outils intégrés et la gestion des clés Admin reconnaissent les cinq outils listés ici. La documentation traite donc les métadonnées sémantiques comme une **capacité du plan de contrôle consommée par la découverte de schéma**, et non comme un contrat MCP intégré supplémentaire.
 
 Consultez [Métadonnées sémantiques](/fr/docs/administration/semantic-metadata).

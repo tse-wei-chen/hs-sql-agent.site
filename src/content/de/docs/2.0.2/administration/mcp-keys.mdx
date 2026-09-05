@@ -1,6 +1,6 @@
 ---
 title: MCP-Schlüssel
-description: MCP-Zugangsdaten in hs-sql-agent 2.0.1 ausstellen, einschränken, rotieren, duplizieren und widerrufen.
+description: MCP-Zugangsdaten in hs-sql-agent 2.0.2 ausstellen, einschränken, rotieren, duplizieren und widerrufen.
 sidebar:
   group: Administration
   order: 74
@@ -20,7 +20,7 @@ import Step from "@/components/docs/mdx/Step.astro";
 
 MCP-Schlüssel authentifizieren Anfragen an `/mcp` und tragen den Laufzeit-Berechtigungsumfang, den hs-sql-agent durchsetzt. Sie sind von Admin-Sitzungen und OIDC-Identitäten getrennt.
 
-## Integrierte Tool-Oberfläche in 2.0.1
+## Integrierte Tool-Oberfläche in 2.0.2
 
 Der Schlüsselverwaltungsdienst kennt fünf integrierte Tools:
 
@@ -42,7 +42,7 @@ Die Laufzeit interpretiert ein leeres `AllowedTools` als keine Einschränkung na
 
 <Steps>
   <Step title="Namen festlegen" description="Der Request benötigt einen nicht leeren Namen mit maximal 100 Zeichen." />
-  <Step title="Datenbank binden" description="DbManagementId ist bei der Ausstellung in 2.0.1 erforderlich." />
+  <Step title="Datenbank binden" description="DbManagementId ist bei der Ausstellung in 2.0.2 erforderlich." />
   <Step title="Tools auswählen" description="Wählen Sie integrierte Tools sowie veröffentlichte Custom Tools dieser Datenbank." />
   <Step title="Datenzugriff einschränken" description="Aktivieren Sie eine Tabellen-Whitelist, wenn der Client nur einen Teil der gebundenen Datenbank sehen soll." />
   <Step title="Lebenszyklus festlegen" description="Konfigurieren Sie optional Ablaufzeit, CORS-Origins und Rate-Limit-Modus beziehungsweise Overrides." />

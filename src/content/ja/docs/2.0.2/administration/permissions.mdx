@@ -1,6 +1,6 @@
 ---
 title: 権限
-description: hs-sql-agent 2.0.1 の管理操作で使用する permission path と action による認可モデルを説明します。
+description: hs-sql-agent 2.0.2 の管理操作で使用する permission path と action による認可モデルを説明します。
 sidebar:
   group: 管理
   order: 79
@@ -16,7 +16,13 @@ import DocCard from "@/components/docs/mdx/DocCard.astro";
   <DocCard title="ロールへの選択" icon="RBAC" description="ロールには、サーバーのテンプレート一覧に存在する permission/action の組み合わせだけを保存できます。" />
 </CardGrid>
 
-2.0.1 の管理認可は、**permission path + action code** の組み合わせとして適用されます。各コントローラーが必要な組み合わせを宣言し、サインイン済みメンバーは割り当てられたロールを通じてアクセス権を得ます。
+2.0.2 の管理認可では **canonical permission path + action code** を使用します。canonical path は安定した認可リソース識別子であり、Admin UI の route や HTTP mount path ではありません。たとえば `/runtime/db-management` と `/auth/role` は、ナビゲーションや controller URL の構成が変わっても同じ認可 ID を表します。
+
+<Callout type="warning" title="Canonical permission は route ではありません">
+`route.path` から認可を導出したり、canonical permission path をそのまま HTTP で呼べると仮定したりしないでください。2.0.2 の公開 mount は別の固定契約で、MCP は `/mcp`、管理 API は `/api`、管理 UI は `/` です。
+</Callout>
+
+同じ canonical identifier は、相互排他的な 2 つの管理認可モードで使われます。組み込み ID を使う場合は HsSqlAgent の member / role が permission/action template を解決します。host authorization を使う場合は、HsSqlAgent が要求された canonical permission key を `HsSqlAgentPermissionResource.Permissions` でホストへ渡し、ホスト側が自身の policy model に対応付けます。特記がない限り、以下の role / template の説明は **組み込み ID モード** を対象とします。
 
 ## ランタイムでの例
 
@@ -68,7 +74,7 @@ Member
 
 ## 保護された SuperUser ロール
 
-`SuperUser` は 2.0.1 の組み込み保護ロールです。通常のロール管理から編集・削除できません。これにより、bootstrap／フルコントロール用ロールが別の権限セットへ暗黙に再定義されることを防ぎます。
+`SuperUser` は 2.0.2 の組み込み保護ロールです。通常のロール管理から編集・削除できません。これにより、bootstrap／フルコントロール用ロールが別の権限セットへ暗黙に再定義されることを防ぎます。
 
 <Callout type="tip" title="責務ごとに最小権限のロールを作成してください">
 すべてのアカウントに SuperUser 相当のロールを複製するのではなく、運用者の責務に合わせてロールを作成してください。たとえば監視担当者には audit / operability の `view` が必要でも、database の `edit`、key の `create`、security-policy の `edit` は不要かもしれません。

@@ -1,6 +1,6 @@
 ---
 title: Admin HTTP API Referenz
-description: Quellcodegestützte HTTP-Controller-Oberfläche von hs-sql-agent 2.0.1, die von der mitgelieferten Admin UI verwendet wird.
+description: Quellcodegestützte HTTP-Controller-Oberfläche von hs-sql-agent 2.0.2, die von der mitgelieferten Admin UI verwendet wird.
 sidebar:
   group: Referenz
   order: 142
@@ -16,19 +16,27 @@ import DocCard from "@/components/docs/mdx/DocCard.astro";
   <DocCard title="MCP ist getrennt" icon="MCP" description="Der Streamable-HTTP-Transport unter /mcp gehört nicht zu dieser Admin-REST-Referenz." />
 </CardGrid>
 
-Diese Seite dokumentiert die **tatsächlich im Quellcode von hs-sql-agent 2.0.1 vorhandenen Controller-Routen**. Die mitgelieferte Admin UI verwendet genau diese Oberfläche.
+Diese Seite listet Controller-Routen auf, die im **Quellcode von hs-sql-agent 2.0.2** existieren; ob ein Controller tatsächlich veröffentlicht wird, hängt jedoch von den ausgewählten Capabilities ab. Die mitgelieferte Admin UI verwendet normalerweise die Zusammensetzung mit integrierter Identität. Ein eingebetteter ASP.NET-Core-Host kann eine andere Zusammensetzung wählen.
 
-<Callout type="warning" title="Quellcodevertrag von 2.0.1, kein separat versionierter REST-Standard">
-Der Server 2.0.1 veröffentlicht diese Controller nicht unter einem `/v1`-Kompatibilitäts-Namespace. Integrationen außerhalb der mitgelieferten Admin UI sollten die hs-sql-agent-Version festlegen und diese Referenz bei Upgrades erneut prüfen.
+<Callout type="warning" title="Quellcodevertrag von 2.0.2, kein separat versionierter REST-Standard">
+Der Server 2.0.2 veröffentlicht diese Controller nicht unter einem `/v1`-Kompatibilitäts-Namespace. Externe Integrationen sollten die hs-sql-agent-Version festlegen und beim Upgrade die tatsächlich ausgewählte Capability-Oberfläche erneut prüfen.
 </Callout>
 
-## Authentifizierung und Autorisierung
+<Callout type="note" title="Integrierte Identität und Host-Autorisierung veröffentlichen unterschiedliche Identity-Oberflächen">
+Mit `AddHsSqlAgentBuiltInAuth()` gehören die integrierten Auth-, Member- und Role-Controller zur Administrationsoberfläche. Mit `AddHsSqlAgentHostAuthorization()` veröffentlicht HsSqlAgent `AuthController`, `MemberController` und `RoleController` absichtlich **nicht**, installiert kein eigenes Identity-Schema und delegiert kanonische Berechtigungsprüfungen an die Host-Anwendung. Die beiden Autorisierungsmodi schließen sich gegenseitig aus.
+</Callout>
 
-Die meisten Admin-Routen benötigen eine authentifizierte Admin-Identität. Geschützte Laufzeitaktionen prüfen zusätzlich Path/Action-Berechtigungen wie `/runtime/db-management` → `view` oder `/auth/role` → `edit`.
+## Authentifizierung, Autorisierung und MVC-Verantwortung
 
-Anonyme Ausnahmen existieren für Abläufe, die vor einer Admin-Sitzung beginnen müssen: First Run, Sign-in/Sign-up, ausgewählte OIDC-Endpunkte, Passwort-Wiederherstellung und Abschluss einer MFA-Challenge.
+Wenn die Admin-API-Capability ausgewählt ist, bleibt ihr öffentlicher Mount `/api`. Kanonische Permission Paths wie `/auth/role` und `/runtime/db-management` sind Kennungen für Autorisierungsressourcen, keine HTTP-Pfade.
+
+Im Modus mit integrierter Identität verwenden geschützte Admin-Routen die HsSqlAgent-Authentifizierung sowie kanonische Permission/Action-Prüfungen. Notwendige anonyme Ausnahmen bestehen unter anderem für First Run, Sign-in, ausgewählte OIDC-/Passwort-Wiederherstellungsendpunkte und den Abschluss einer MFA-Challenge.
+
+Bei Host-Autorisierung besitzt die Host-Anwendung die Authentifizierungsdefaults und ihre Authorization Policy. Angeforderte kanonische Permission Keys werden über `HsSqlAgentPermissionResource.Permissions` übergeben. Im modularen Host-Modus ruft `UseHsSqlAgentAdminApi()` absichtlich nicht `MapControllers()` auf; das MVC-Endpoint-Mapping bleibt damit unter Kontrolle des Hosts.
 
 Siehe [Berechtigungen](/de/docs/administration/permissions).
+
+Die folgenden Abschnitte Auth, Member und Role gelten nur, wenn die Capability für integrierte Identität ausgewählt ist.
 
 ## Auth — `/api/Auth`
 
@@ -162,10 +170,10 @@ Filter, Antwortfelder und Berechtigungen stehen unter [Audit](/de/docs/administr
 
 ## Credential-Status
 
-`GET /api/Credential/status` existiert in 2.0.1 und liefert lediglich einen einfachen Status der Credential API. Der Controller selbst besitzt kein `[Authorize]`-Attribut. Behandeln Sie ihn als eng begrenzten Status-Endpunkt, nicht als authentifizierte Credential-Management-API.
+`GET /api/Credential/status` existiert in 2.0.2 und liefert lediglich einen einfachen Status der Credential API. Der Controller selbst besitzt kein `[Authorize]`-Attribut. Behandeln Sie ihn als eng begrenzten Status-Endpunkt, nicht als authentifizierte Credential-Management-API.
 
 ## Fehler und Kompatibilität
 
 Die Controller verwenden übliche HTTP-Statuscodes: beispielsweise 400 für Validierung, 401/403 für Authentifizierung/Autorisierung, 404 für fehlende Ressourcen, 409 für widersprüchlichen Tool-/Rollenzustand, 413 für zu große Audit-Exporte und gegebenenfalls 429 bei begrenztem Druck auf SQL-Operationen.
 
-Externe Automatisierung sollte auf 2.0.1 festgelegt werden und das tatsächlich verwendete Response Model prüfen. Diese Seite dokumentiert bewusst Routen und wichtige Verträge, ohne jedes Admin View Model als dauerhaft versioniertes externes SDK darzustellen.
+Externe Automatisierung sollte auf 2.0.2 festgelegt werden und das tatsächlich verwendete Response Model prüfen. Diese Seite dokumentiert bewusst Routen und wichtige Verträge, ohne jedes Admin View Model als dauerhaft versioniertes externes SDK darzustellen.

@@ -1,6 +1,6 @@
 ---
 title: Membres et rôles
-description: Gérer les utilisateurs Admin, les sessions, l’attribution de rôles et le cycle de vie des rôles dans hs-sql-agent 2.0.1.
+description: Gérer les utilisateurs Admin, les sessions, l’attribution de rôles et le cycle de vie des rôles dans hs-sql-agent 2.0.2.
 sidebar:
   group: Administration
   order: 78
@@ -25,7 +25,7 @@ Les membres Admin sont des identités du **plan de contrôle**. Ils sont distinc
 
 Un nouveau membre exige une adresse e-mail valide et un mot de passe d’au moins 8 caractères. Le nom d’utilisateur est facultatif et limité à 100 caractères. À la création, l’opérateur peut attribuer des identifiants de rôle explicites ou demander tous les rôles.
 
-La liste peut être filtrée par recherche, statut actif et rôle, et elle est paginée. La vue 2.0.1 indique l’état du compte, les dates de création/dernière connexion, le nombre de sessions actives ainsi que les identifiants/noms des rôles courants.
+La liste peut être filtrée par recherche, statut actif et rôle, et elle est paginée. La vue 2.0.2 indique l’état du compte, les dates de création/dernière connexion, le nombre de sessions actives ainsi que les identifiants/noms des rôles courants.
 
 ## Actions administratives sur les membres
 
@@ -40,7 +40,7 @@ La liste peut être filtrée par recherche, statut actif et rôle, et elle est p
 | supprimer le membre | `/auth/user` → `delete` | impossible de se supprimer soi-même |
 
 <Callout type="warning" title="Les opérations d’auto-verrouillage sont refusées">
-Le contrôleur 2.0.1 empêche explicitement un administrateur de modifier ses propres rôles, de désactiver son propre compte ou de supprimer son propre enregistrement via ces endpoints de gestion.
+Le contrôleur 2.0.2 empêche explicitement un administrateur de modifier ses propres rôles, de désactiver son propre compte ou de supprimer son propre enregistrement via ces endpoints de gestion.
 </Callout>
 
 ## Rôles
@@ -51,7 +51,7 @@ Le rôle intégré `SuperUser` est protégé. Il ne peut être ni modifié ni su
 
 ## Modifier un rôle change l’état d’autorisation actif
 
-Lorsque l’ensemble de permissions d’un rôle change, la version 2.0.1 identifie les membres associés, incrémente leur version de sécurité et effectue la mutation via la barrière de cache d’état runtime d’authentification. Une session déjà authentifiée ne peut ainsi pas conserver indéfiniment une autorisation obsolète.
+Lorsque l’ensemble de permissions d’un rôle change, la version 2.0.2 identifie les membres associés, incrémente leur version de sécurité et effectue la mutation via la barrière de cache d’état runtime d’authentification. Une session déjà authentifiée ne peut ainsi pas conserver indéfiniment une autorisation obsolète.
 
 Le même principe s’applique lorsqu’un rôle attribué à des membres est supprimé.
 

@@ -1,6 +1,6 @@
 ---
 title: Permissions
-description: Understand the path-and-action authorization model used by hs-sql-agent 2.0.1 Admin operations.
+description: Understand the path-and-action authorization model used by hs-sql-agent 2.0.2 Admin operations.
 sidebar:
   group: Administration
   order: 79
@@ -16,7 +16,13 @@ import DocCard from "@/components/docs/mdx/DocCard.astro";
   <DocCard title="Role selection" icon="RBAC" description="Roles store only permission/action pairs that exist in the server's template inventory." />
 </CardGrid>
 
-Admin authorization in 2.0.1 is enforced as a **permission path + action code** pair. Controllers declare the pair they require, and signed-in members receive access through their assigned roles.
+Admin authorization in 2.0.2 uses a **canonical permission path + action code**. The canonical path is a stable authorization resource identifier; it is not the Admin UI route or an HTTP mount path. For example, `/runtime/db-management` and `/auth/role` remain authorization identities even if navigation or controller URLs are organized differently.
+
+<Callout type="warning" title="Canonical permissions are not routes">
+Do not derive authorization from `route.path` or assume a canonical permission path is callable over HTTP. In 2.0.2 the public mounts are separate contracts: MCP is `/mcp`, the administration API is `/api`, and the administration UI is `/`.
+</Callout>
+
+The same canonical identifiers support two mutually exclusive administration authorization modes. With built-in identity, HsSqlAgent members and roles resolve permission/action templates. With host authorization, HsSqlAgent passes the requested canonical permission keys through `HsSqlAgentPermissionResource.Permissions`, and the host application maps those keys into its own policy model. Unless a section says otherwise, the role/template details below describe **built-in identity mode**.
 
 ## Examples from the runtime
 
@@ -68,7 +74,7 @@ This is intended to prevent a previously authenticated session from keeping stal
 
 ## Protected SuperUser role
 
-`SuperUser` is a built-in protected role in 2.0.1. It cannot be edited or deleted through normal role management. This ensures the bootstrap/full-control role cannot be silently redefined into a different permission set.
+`SuperUser` is a built-in protected role in 2.0.2. It cannot be edited or deleted through normal role management. This ensures the bootstrap/full-control role cannot be silently redefined into a different permission set.
 
 <Callout type="tip" title="Prefer least privilege by responsibility">
 Create roles around operator responsibilities instead of cloning SuperUser for every account. For example, a runtime observer may need audit/operability `view` but not database `edit`, key `create`, or security-policy `edit`.
