@@ -1,8 +1,8 @@
 ---
-title: Semantic Metadata
-description: 在 hs-sql-agent 2.0.1 用 table/column semantics、relationships 與 metric metadata 強化 schema discovery。
+title: 語意中繼資料
+description: 用資料表與欄位語意、關聯與指標中繼資料，強化 hs-sql-agent 2.0.1 的 schema discovery。
 sidebar:
-  group: Administration
+  group: 管理
   order: 76
 ---
 
@@ -11,100 +11,100 @@ import CardGrid from "@/components/docs/mdx/CardGrid.astro";
 import DocCard from "@/components/docs/mdx/DocCard.astro";
 
 <CardGrid columns={3}>
-  <DocCard title="Entities" icon="Aa" description="為 table 與 column 提供 display name、description、synonyms。" />
-  <DocCard title="Relationships" icon="↔" description="描述 source-to-target column relationship、cardinality 與 direction。" />
-  <DocCard title="Metrics" icon="∑" description="以 formula、aggregation、grain、filter、synonyms 描述 scoped metric metadata。" />
+  <DocCard title="實體" icon="Aa" description="替資料表與欄位提供顯示名稱、說明與同義詞。" />
+  <DocCard title="關聯" icon="↔" description="描述來源欄位與目標欄位之間的關係、基數與方向。" />
+  <DocCard title="指標" icon="∑" description="用公式、彙總方式、粒度、篩選條件與同義詞描述指標。" />
 </CardGrid>
 
-Semantic metadata 綁定到 Database Management entry。它會豐富 schema discovery 對實體 database 的描述，但不修改實體 schema。
+語意中繼資料會綁定到 Database Management 項目。它用來豐富 schema discovery 對實體資料庫的描述，但不會修改真正的資料庫 schema。
 
-## Entity metadata
+## 實體中繼資料
 
-Entity record 可以描述整張 table，或 table 裡的一個 column。
+一筆實體紀錄可以描述整張資料表，也可以描述資料表中的單一欄位。
 
-| Field | 意義 |
+| 欄位 | 意義 |
 | --- | --- |
-| `DbManagementId` | 擁有該 semantic record 的 Database Management entry |
-| `SchemaName` | 選用 schema |
-| `TableName` | 必填 physical table name |
-| `ColumnName` | 選用；不填代表 table-level metadata |
-| `DisplayName` | 人類可讀名稱 |
-| `Description` | Business 或 operational description |
-| `Synonyms` | 描述該 table/column 的替代術語 |
+| `DbManagementId` | 擁有這筆語意紀錄的 Database Management 項目 |
+| `SchemaName` | 選用的 schema |
+| `TableName` | 必填的實體資料表名稱 |
+| `ColumnName` | 選用；未填時代表資料表層級的中繼資料 |
+| `DisplayName` | 易讀的顯示名稱 |
+| `Description` | 業務或維運說明 |
+| `Synonyms` | 描述該資料表或欄位的替代名稱 |
 
-Synonyms 會 trim 空白、case-insensitive 去重，單筆 record 最多保留 100 個值。
+`Synonyms` 會去除前後空白，並以不分大小寫的方式去重；單筆紀錄最多保留 100 個值。
 
-## Relationships
+## 關聯
 
-Relationship metadata 描述兩個 physical columns 之間的關係。
+關聯中繼資料描述兩個實體欄位之間的關係。
 
-| Field | 意義 |
+| 欄位 | 意義 |
 | --- | --- |
-| `Name` | 穩定 relationship name |
-| `SourceSchema` / `SourceTable` / `SourceColumn` | Source side |
-| `TargetSchema` / `TargetTable` / `TargetColumn` | Target side |
+| `Name` | 穩定的關聯名稱 |
+| `SourceSchema` / `SourceTable` / `SourceColumn` | 來源端 |
+| `TargetSchema` / `TargetTable` / `TargetColumn` | 目標端 |
 | `Cardinality` | 預設 `many-to-one` |
 | `Direction` | 預設 `source-to-target` |
-| `Description` | 選用的 operator/business explanation |
+| `Description` | 選用的管理或業務說明 |
 
-Schema discovery 只有在 authenticated MCP key 的 table whitelist 同時允許 relationship 兩端 table 時，才會把 relationship description 暴露出去。
+只有在已驗證 MCP 金鑰的資料表白名單同時允許關聯兩端的資料表時，schema discovery 才會把這項關聯說明提供給用戶端。
 
-## Metrics
+## 指標
 
-Metric metadata 綁定 table，可描述 business measure：
+指標中繼資料綁定到資料表，可用來描述業務指標：
 
-| Field | 意義 |
+| 欄位 | 意義 |
 | --- | --- |
-| `Name` | 穩定 metric identifier |
-| `DisplayName` | 人類可讀名稱 |
-| `Description` | Business explanation |
-| `Formula` | Formula metadata |
-| `Aggregation` | 預設 `custom`；描述 intended aggregation |
-| `Grain` | 選用 grain metadata |
-| `Filter` | 選用 filter metadata |
-| `Synonyms` | Metric alternate terms |
-| `Executable` | 2.0.1 model 固定為 `false` |
+| `Name` | 穩定的指標識別名稱 |
+| `DisplayName` | 易讀的顯示名稱 |
+| `Description` | 業務說明 |
+| `Formula` | 公式中繼資料 |
+| `Aggregation` | 預設 `custom`；描述預期的彙總方式 |
+| `Grain` | 選用的粒度資訊 |
+| `Filter` | 選用的篩選條件 |
+| `Synonyms` | 指標的替代名稱 |
+| `Executable` | 2.0.1 模型固定為 `false` |
 
-<Callout type="warning" title="Metric 是 metadata，不是 execution bypass">
-2.0.1 semantic metric model 的 `Executable` 是 false。Metric description 可以協助 agent 理解 schema 意義，但不會變成可執行 SQL macro，也不會繞過 SQL compiler 或 authorization pipeline。
+<Callout type="warning" title="指標是中繼資料，不是繞過執行限制的捷徑">
+2.0.1 語意指標模型中的 `Executable` 固定為 `false`。指標說明可以協助 Agent 理解 schema 的業務含義，但不會變成可執行 SQL macro，也不會繞過 SQL 編譯器或授權流程。
 </Callout>
 
-## MCP schema discovery 如何使用 semantics
+## MCP schema discovery 如何使用語意資料
 
-正式 MCP schema tools 仍然是 `get_schemas`、`get_tables`、`get_columns`。
+正式的 MCP schema 工具仍是 `get_schemas`、`get_tables`、`get_columns`。
 
-當 key 綁定的 Database Management entry 有 semantic metadata 時：
+當金鑰綁定的 Database Management 項目具有語意中繼資料時：
 
-- `get_tables` 可以附加 table display name、description、synonyms 與 scoped metric descriptions；
-- `get_columns` 可以附加 column display name、description、synonyms 與 relationship descriptions；
-- table whitelist 仍會限制 physical table visibility 與 relationship context。
+- `get_tables` 可以附加資料表顯示名稱、說明、同義詞與該資料表範圍內的指標說明；
+- `get_columns` 可以附加欄位顯示名稱、說明、同義詞與關聯說明；
+- 資料表白名單仍會限制實體資料表的可見範圍與可提供的關聯資訊。
 
-因此 semantic metadata 只會 enrich discovery，不會擴張 key 能存取的資料範圍。
+因此，語意中繼資料只會豐富探索結果，不會擴大 MCP 金鑰原本可存取的資料範圍。
 
-## Admin API surface
+## 管理端 API
 
-2.0.1 Admin API 在 `api/DbSemantic` 提供 semantic management：
+2.0.1 Admin API 在 `api/DbSemantic` 提供語意資料管理：
 
-| Operation | Permission |
+| 操作 | 權限 |
 | --- | --- |
-| 讀取 database entity records | `/runtime/db-management/semantic` → `view` |
-| 讀取 entities/relationships/metrics combined model | `/runtime/db-management/semantic` → `view` |
-| upsert entity metadata | `/runtime/db-management/semantic` → `edit` |
-| delete entity metadata | `/runtime/db-management/semantic` → `edit` |
-| upsert/delete relationship | `/runtime/db-management/semantic` → `edit` |
-| upsert/delete metric | `/runtime/db-management/semantic` → `edit` |
+| 讀取資料庫實體紀錄 | `/runtime/db-management/semantic` → `view` |
+| 讀取實體 / 關聯 / 指標的整合模型 | `/runtime/db-management/semantic` → `view` |
+| upsert 實體中繼資料 | `/runtime/db-management/semantic` → `edit` |
+| delete 實體中繼資料 | `/runtime/db-management/semantic` → `edit` |
+| upsert / delete 關聯 | `/runtime/db-management/semantic` → `edit` |
+| upsert / delete 指標 | `/runtime/db-management/semantic` → `edit` |
 
-<Callout type="info" title="這是 Admin 功能，不把它算成第六個正式 built-in MCP tool">
-2.0.1 文件中的正式 MCP key tool surface 是 MCP Tools Reference 列出的五個 built-in tools，再加上已 publish 的 Custom Tools。Semantic metadata 由 Admin control plane 管理，再被 schema discovery 消費。
+<Callout type="info" title="這是管理功能，不會因此多出第六個內建 MCP 工具">
+2.0.1 正式的 MCP 金鑰工具集合，是 MCP Tools Reference 列出的五個內建工具，再加上已發布的 Custom Tools。語意中繼資料由管理介面維護，再提供給 schema discovery 使用。
 </Callout>
 
-## Modeling 建議
+## 建模建議
 
-適合放進 semantic metadata 的內容，是足夠穩定、能幫助多個 agent 與 operator 的 domain knowledge：
+適合放進語意中繼資料的內容，應該是夠穩定、能同時幫助多個 Agent 與管理者理解資料的領域知識：
 
-- 與 physical table/column name 不同的 business names；
-- abbreviation 與 domain synonyms；
-- query generation 重要的 relationships；
-- 能釐清 formula 與 grain 的 metric definitions。
+- 和實體資料表或欄位名稱不同的業務名稱；
+- 縮寫與領域同義詞；
+- 對查詢產生很重要的資料關聯；
+- 能說清楚公式與粒度的指標定義。
 
-不要把 credentials、runtime instructions 或 authorization decision 偷塞進 schema description。Access control 仍然是獨立且被強制執行的 layer。
+不要把憑證、執行階段指令或授權決策塞進 schema 說明。存取控制仍是獨立、且由伺服器強制執行的安全層。
