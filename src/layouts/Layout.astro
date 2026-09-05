@@ -32,22 +32,46 @@ const socialImageURL = new URL(ogImage, Astro.site ?? Astro.url);
 ---
 
 <!doctype html>
-<html dir={site.dir ?? "ltr"} lang={locale} class="overflow-y-scroll scroll-smooth">
+<html
+  dir={site.dir ?? "ltr"}
+  lang={locale}
+  class="overflow-y-scroll scroll-smooth"
+>
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link
+      rel="icon"
+      type="image/png"
+      sizes="96x96"
+      href={getAssetPath("favicon.png")}
+    />
     <link rel="icon" type="image/svg+xml" href={getAssetPath("favicon.svg")} />
     <link rel="canonical" href={canonicalURL} />
     <meta name="generator" content={Astro.generator} />
 
     <meta data-pagefind-filter="locale[content]" content={locale} />
-    <meta data-pagefind-filter="contentType[content]" content={pagefindContentType} />
-    <meta data-pagefind-filter="searchSurface[content]" content={pagefindSearchSurface} />
-    {pagefindDocsVersion && (
-      <meta data-pagefind-filter="docsVersion[content]" content={pagefindDocsVersion} />
-    )}
+    <meta
+      data-pagefind-filter="contentType[content]"
+      content={pagefindContentType}
+    />
+    <meta
+      data-pagefind-filter="searchSurface[content]"
+      content={pagefindSearchSurface}
+    />
+    {
+      pagefindDocsVersion && (
+        <meta
+          data-pagefind-filter="docsVersion[content]"
+          content={pagefindDocsVersion}
+        />
+      )
+    }
 
-    <Font cssVariable="--font-google-sans-code" preload={[{ subset: "latin", weight: 400, style: "normal" }]} />
+    <Font
+      cssVariable="--font-google-sans-code"
+      preload={[{ subset: "latin", weight: 400, style: "normal" }]}
+    />
 
     <title>{title}</title>
     <meta name="title" content={title} />
@@ -71,12 +95,21 @@ const socialImageURL = new URL(ogImage, Astro.site ?? Astro.url);
     <meta name="theme-color" content="" />
     <slot name="head" />
 
-    {site.googleVerification && <meta name="google-site-verification" content={site.googleVerification} />}
+    {
+      site.googleVerification && (
+        <meta
+          name="google-site-verification"
+          content={site.googleVerification}
+        />
+      )
+    }
 
     <script is:inline>
       (function () {
         const stored = localStorage.getItem("theme");
-        const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+        const prefersDark = window.matchMedia(
+          "(prefers-color-scheme: dark)"
+        ).matches;
         const theme = stored ?? (prefersDark ? "dark" : "light");
         const root = document.firstElementChild;
         root?.setAttribute("data-theme", theme);
@@ -87,7 +120,9 @@ const socialImageURL = new URL(ogImage, Astro.site ?? Astro.url);
 
     <ClientRouter />
   </head>
-  <body class="bg-background font-app text-foreground selection:bg-accent/75 selection:text-white dark:selection:text-accent-foreground flex min-h-svh flex-col">
+  <body
+    class="bg-background font-app text-foreground selection:bg-accent/75 dark:selection:text-accent-foreground flex min-h-svh flex-col selection:text-white"
+  >
     <slot />
     <script>
       import "@/scripts/theme";
