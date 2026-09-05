@@ -132,10 +132,10 @@ const marketingUi: Record<string, MarketingUiStrings> = {
   },
   ko: {
     footerTagline:
-      "AI가 생성한 SQL과 데이터베이스 사이에 컴파일, 접근 정책, 사용자 승인을 담당하는 안전 경계를 둡니다.",
-    footerNavigation: "푸터 탐색",
+      "AI가 생성한 SQL과 데이터베이스 사이에 컴파일, 접근 정책, 사람의 승인을 담당하는 안전 경계를 둡니다.",
+    footerNavigation: "푸터 내비게이션",
     homeLabel: "홈",
-    breadcrumbLabel: "경로 탐색",
+    breadcrumbLabel: "이동 경로",
     learnMore: "자세히 보기",
     integrations: {
       claudeDesktop:
@@ -162,7 +162,7 @@ const marketingUi: Record<string, MarketingUiStrings> = {
   },
   fr: {
     footerTagline:
-      "Une frontière de compilation, de politiques d’accès et d’approbation humaine entre le SQL généré par l’IA et vos bases de données.",
+      "Une couche de contrôle pour la compilation, les politiques d’accès et l’approbation humaine entre le SQL généré par l’IA et vos bases de données.",
     footerNavigation: "Navigation du pied de page",
     homeLabel: "Accueil",
     breadcrumbLabel: "Fil d’Ariane",
@@ -182,7 +182,7 @@ const marketingUi: Record<string, MarketingUiStrings> = {
       ],
       features: [
         "Fonctionnalités du produit",
-        "Découvrez le compilateur SQL, Safe DML et les frontières de gouvernance de hs-sql-agent.",
+        "Découvrez le compilateur SQL, Safe DML et les mécanismes de contrôle de hs-sql-agent.",
       ],
       integrations: [
         "Intégrations",

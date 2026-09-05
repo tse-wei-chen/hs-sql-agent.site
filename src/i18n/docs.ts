@@ -89,7 +89,7 @@ const docsUi: Record<string, DocsUiStrings> = {
     latest: "最新",
     supported: "支持中",
     archived: "已归档",
-    humanApproval: "人工批准",
+    humanApproval: "人工审批",
     sections: {
       administration: "管理",
       development: "开发",
@@ -145,7 +145,7 @@ const docsUi: Record<string, DocsUiStrings> = {
     latest: "최신",
     supported: "지원 중",
     archived: "보관됨",
-    humanApproval: "사용자 승인",
+    humanApproval: "사람의 승인",
     sections: {
       administration: "관리",
       development: "개발",
@@ -170,7 +170,7 @@ const docsUi: Record<string, DocsUiStrings> = {
     previous: "Précédent",
     next: "Suivant",
     versionLabel: "Version de la documentation",
-    latest: "Dernière",
+    latest: "Actuelle",
     supported: "Prise en charge",
     archived: "Archivée",
     humanApproval: "APPROBATION HUMAINE",
