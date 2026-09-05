@@ -18,13 +18,13 @@ DML folgt einem strengeren Pfad als die Ausführung von Abfragen, weil die Freig
 <Flow items={["Kompilieren", "Vorschau", "Freigeben", "Erneut prüfen", "Commit"]} />
 
 <CardGrid columns={3}>
-  <DocCard title="Vorschau statt Änderung" icon="01" description="UPDATE/DELETE liest zunächst die aktuell passenden Zeilen in einer Vorschau-Transaktion, ohne die Änderung anzuwenden." />
-  <DocCard title="Freigabe ist an den geprüften Zustand gebunden" icon="02" description="Eine einmalige Freigabe-Challenge bindet den validierten Plan, die Richtlinienversion, die Anzahl betroffener Zeilen und den Fingerabdruck der Zeilenmenge." />
+  <DocCard title="Vorschau statt Änderung" icon="01" description="Die Anweisungen UPDATE und DELETE lesen zunächst die aktuell passenden Zeilen in einer Vorschau-Transaktion, ohne die Änderung anzuwenden." />
+  <DocCard title="Freigabe ist an den geprüften Zustand gebunden" icon="02" description="Ein einmaliger Freigabenachweis bindet den validierten Plan, die Richtlinienversion, die Anzahl betroffener Zeilen und den Fingerabdruck der Zeilenmenge." />
   <DocCard title="Vor dem Commit wird der Ist-Zustand erneut geprüft" icon="03" description="Die Commit-Transaktion fragt die Zielzeilen erneut ab und bricht ab, wenn die freigegebenen Fakten nicht mehr übereinstimmen." />
 </CardGrid>
 
 <Callout type="danger" title="Eine Freigabe ist keine Erlaubnis für eine spätere, andere Datenänderung">
-Die Freigabe-Challenge ist an die validierte Operation und ihre beobachteten Auswirkungen gebunden. Ändern sich Plan, Richtlinie, Freigabe-Challenge, Anzahl betroffener Zeilen oder Fingerabdruck der Zeilenmenge vor dem Commit, bricht hs-sql-agent die Operation ab, statt sie auszuführen.
+Der Freigabenachweis ist an die validierte Operation und ihre beobachteten Auswirkungen gebunden. Ändern sich Plan, Richtlinie, Freigabenachweis, Anzahl betroffener Zeilen oder Fingerabdruck der Zeilenmenge vor dem Commit, bricht hs-sql-agent die Operation ab, statt sie auszuführen.
 </Callout>
 
 ## UPDATE und DELETE
@@ -37,35 +37,35 @@ Die angeforderte Änderung parsen, validieren, autorisieren und kompilieren, bev
 Eine Vorschau-Transaktion öffnen und die aktuell passenden Zeilen lesen, ohne die Datenänderung auszuführen.
   </Step>
   <Step title="Einmaligen Freigabenachweis erzeugen">
-Die Freigabe-Challenge an den validierten kompilierten Plan, die Richtlinienversion, die Anzahl betroffener Zeilen und den Fingerabdruck der Zeilenmenge binden.
+Den Freigabenachweis an den validierten kompilierten Plan, die Richtlinienversion, die Anzahl betroffener Zeilen und den Fingerabdruck der Zeilenmenge binden.
   </Step>
   <Step title="Menschliche Freigabe über MCP Elicitation anfordern">
 `elicitation/create` senden und eine ausdrückliche Formularfreigabe durch den MCP-Client verlangen.
   </Step>
-  <Step title="Freigabe-Challenge verbrauchen">
-Nach der Annahme die einmalige Freigabe-Challenge validieren und verbrauchen, damit sie nicht als allgemeines Berechtigungstoken wiederverwendet werden kann.
+  <Step title="Freigabenachweis verbrauchen">
+Nach der Annahme den einmaligen Freigabenachweis validieren und verbrauchen, damit er nicht als allgemeines Zugriffstoken wiederverwendet werden kann.
   </Step>
   <Step title="In der Commit-Transaktion erneut abfragen">
 Die Zielzeilen erneut lesen und aktuellen Fingerabdruck sowie Zeilenanzahl mit der freigegebenen Vorschau vergleichen.
   </Step>
   <Step title="Nur bei unverändertem Zustand per Commit übernehmen">
-Genau die kompilierte Datenänderung nur dann ausführen, wenn Plan, Richtlinie, Freigabe-Challenge, Zeilenanzahl und Zeilenmenge unverändert sind.
+Die kompilierte Datenänderung nur dann ausführen, wenn Plan, Richtlinie, Freigabenachweis, Zeilenanzahl und Zeilenmenge unverändert sind.
   </Step>
 </Steps>
 
 ## INSERT VALUES
 
-Eine Anweisung `INSERT ... VALUES` besitzt keine bereits vorhandene Zielzeilenmenge. Deshalb bindet das Freigabeprotokoll die unveränderliche Einfügenutzlast und den exakten kompilierten Plan statt einer Vorschau vorhandener Zeilen.
+Eine Anweisung `INSERT ... VALUES` besitzt keine bereits vorhandene Zielzeilenmenge. Deshalb bindet das Freigabeprotokoll das unveränderliche Insert-Payload und den exakten kompilierten Plan statt einer Vorschau vorhandener Zeilen.
 
 <Callout type="info" title="Andere Änderungsform, gleiches Prinzip">
-Der freigegebene Nachweis unterscheidet sich zwischen Änderungen vorhandener Zeilen und einer Einfügenutzlast, die Invariante bleibt jedoch gleich: Commit nur für genau die validierte Datenänderung, die durch die Freigabe beschrieben wurde.
+Der freigegebene Nachweis unterscheidet sich zwischen Änderungen vorhandener Zeilen und einem Insert-Payload, die Invariante bleibt jedoch gleich: Commit nur für genau die validierte Datenänderung, die durch die Freigabe beschrieben wurde.
 </Callout>
 
 ## Elicitation ist erforderlich
 
-`execute_dml_sql` und veröffentlichte DML Custom Tools setzen **Elicitation per Formular** (`form Elicitation`) im MCP-Client voraus. Ein Client, der diese Freigabeinteraktion nicht ausführen kann, kann diese Änderungspfade nicht verwenden.
+`execute_dml_sql` und veröffentlichte DML Custom Tools setzen **Elicitation per Formular** (`form Elicitation`) im MCP-Client voraus. Ein Client, der diesen Freigabeprozess nicht ausführen kann, kann diese Änderungspfade nicht verwenden.
 
-Dies unterscheidet sich bewusst von einem reinen Bestätigungsdialog in der Benutzeroberfläche: Die Freigabe-Challenge ist Teil des serverseitigen Änderungsprotokolls und wird vor der Ausführung erneut geprüft.
+Dies unterscheidet sich bewusst von einem reinen Bestätigungsdialog in der Benutzeroberfläche: Der Freigabenachweis ist Teil des serverseitigen Änderungsprotokolls und wird vor der Ausführung erneut geprüft.
 
 ## Verwandte Dokumentation
 

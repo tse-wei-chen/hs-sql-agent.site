@@ -1,6 +1,6 @@
 ---
 title: Safe DML
-description: 预览修改范围、固定审批内容、重新验证目标行，只提交用户实际批准的那一次数据修改。
+description: 预览修改范围、固定审批内容、重新验证目标行，只提交用户实际审批的那一次数据修改。
 sidebar:
   group: SQL Compiler
   order: 50
@@ -13,43 +13,43 @@ import Flow from "@/components/docs/mdx/Flow.astro";
 import Steps from "@/components/docs/mdx/Steps.astro";
 import Step from "@/components/docs/mdx/Step.astro";
 
-DML 采用比普通查询更严格的执行流程，因为系统必须确保最终提交的修改与用户实际批准的内容**完全一致**。
+DML 采用比普通查询更严格的执行流程，因为系统必须确保最终提交的修改与用户实际审批的内容**完全一致**。
 
-<Flow items={["编译", "预览", "批准", "重新验证", "提交"]} />
+<Flow items={["编译", "预览", "审批", "重新验证", "提交"]} />
 
 <CardGrid columns={3}>
   <DocCard title="先预览影响范围" icon="01" description="UPDATE/DELETE 不会立即修改数据，而是先在预览事务中读取当前会受影响的目标行。" />
-  <DocCard title="固定批准内容" icon="02" description="一次性批准挑战会绑定已验证的执行计划、策略版本、目标行数以及目标行集指纹。" />
-  <DocCard title="提交前再次核对" icon="03" description="提交事务会重新查询目标行；如果当前状态与批准时不一致，就取消操作。" />
+  <DocCard title="固定审批内容" icon="02" description="一次性审批挑战会绑定已验证的执行计划、策略版本、目标行数以及目标行集指纹。" />
+  <DocCard title="提交前再次核对" icon="03" description="提交事务会重新查询目标行；如果当前状态与审批时不一致，就取消操作。" />
 </CardGrid>
 
-<Callout type="danger" title="一次批准不能用来执行之后的另一项数据修改">
-批准挑战只对应已经验证的操作和用户当时看到的影响范围。如果提交前执行计划、策略、挑战、目标行数或目标行集指纹发生变化，hs-sql-agent 会取消操作，而不是继续修改数据。
+<Callout type="danger" title="一次审批不能用来执行之后的另一项数据修改">
+审批挑战只对应已经验证的操作和用户当时看到的影响范围。如果提交前执行计划、策略、挑战、目标行数或目标行集指纹发生变化，hs-sql-agent 会取消操作，而不是继续修改数据。
 </Callout>
 
 ## UPDATE 与 DELETE
 
 <Steps>
   <Step title="编译数据修改">
-在请求用户批准之前，先解析、验证并授权这条 SQL，再把它编译为可执行计划。
+在请求用户审批之前，先解析、验证并授权这条 SQL，再把它编译为可执行计划。
   </Step>
   <Step title="预览目标行">
 打开预览事务，在不执行修改的情况下读取当前满足条件的目标行。
   </Step>
-  <Step title="创建一次性批准信息">
-把批准挑战绑定到已验证的执行计划、策略版本、目标行数和目标行集指纹。
+  <Step title="创建一次性审批信息">
+把审批挑战绑定到已验证的执行计划、策略版本、目标行数和目标行集指纹。
   </Step>
-  <Step title="通过 MCP Elicitation 请求用户批准">
-发送 `elicitation/create`，要求 MCP 客户端通过表单明确取得用户批准。
+  <Step title="通过 MCP Elicitation 请求用户审批">
+发送 `elicitation/create`，要求 MCP 客户端通过表单明确取得用户审批。
   </Step>
-  <Step title="消费已批准的挑战">
-用户接受后验证并消费这次性挑战，避免它被重复使用为通用权限凭证。
+  <Step title="消费已审批的挑战">
+用户接受后验证并消费这一次性挑战，避免它被重复使用为通用权限凭证。
   </Step>
   <Step title="在提交事务中重新查询">
-再次读取目标行，并将当前行集指纹和行数与批准时的预览结果进行比较。
+再次读取目标行，并将当前行集指纹和行数与审批时的预览结果进行比较。
   </Step>
   <Step title="只有全部一致才提交">
-只有执行计划、策略、批准挑战、行数和目标行集都没有变化时，才执行用户批准的那项数据修改。
+只有执行计划、策略、审批挑战、行数和目标行集都没有变化时，才执行用户审批的那项数据修改。
   </Step>
 </Steps>
 
@@ -58,14 +58,14 @@ DML 采用比普通查询更严格的执行流程，因为系统必须确保最�
 `INSERT ... VALUES` 在修改前不存在一组“已经匹配的目标行”。因此审批协议不会绑定行集预览，而是绑定不可变的插入数据和已经验证的执行计划。
 
 <Callout type="info" title="修改方式不同，安全原则相同">
-修改现有行和插入新行时，需要固定的审批信息不同；但不变条件相同：只执行用户实际查看并批准的那一项数据修改。
+修改现有行和插入新行时，需要固定的审批信息不同；但不变条件相同：只执行用户实际查看并审批的那一项数据修改。
 </Callout>
 
 ## Elicitation 是必需条件
 
-`execute_dml_sql` 和已发布的 DML Custom Tools 要求 MCP 客户端支持 **form Elicitation**。无法完成审批交互的客户端不能使用这些数据修改路径。
+`execute_dml_sql` 和已发布的 DML Custom Tools 要求 MCP 客户端支持 **form Elicitation**。无法完成审批流程的客户端不能使用这些数据修改路径。
 
-这与普通 UI 确认弹窗不同。批准挑战是服务器端数据修改协议的一部分，并且会在真正执行前再次验证。
+这与普通 UI 确认弹窗不同。审批挑战是服务器端数据修改协议的一部分，并且会在真正执行前再次验证。
 
 ## 相关文档
 
