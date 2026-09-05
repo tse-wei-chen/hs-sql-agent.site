@@ -1,33 +1,33 @@
 ---
-title: Troubleshooting
-description: 從 hs-sql-agent 的 runtime invariant 判斷常見 configuration 與 compatibility failure。
+title: 疑難排解
+description: 從 hs-sql-agent 的執行階段不變條件，判斷常見設定與相容性失敗原因。
 sidebar:
   group: 參考
   order: 140
 ---
 
-Troubleshooting 先從「是哪一個 boundary 拒絕 request」開始。hs-sql-agent 在多個位置刻意 fail closed，因此 rejection 常代表 configuration/capability mismatch，不一定是暫時性 SQL error。
+排錯時先確認「是哪一個安全或執行邊界拒絕了這次請求」。hs-sql-agent 在多個位置刻意採用 fail-closed，因此被拒絕往往代表設定或 capability 不相容，不一定是暫時性的 SQL 執行錯誤。
 
-## Local 可連線，但 generated config URL 錯誤
+## 本機可以連線，但產生的設定 URL 錯誤
 
-檢查 `MCP_PUBLIC_ENDPOINT`。它必須是外部 client 實際可到達、包含 `/mcp` 的 absolute HTTP/HTTPS URL。Reverse proxy 若讓 Admin UI 與 MCP 走不同位置，不要用 UI URL 猜 MCP endpoint。
+檢查 `MCP_PUBLIC_ENDPOINT`。它必須是外部用戶端實際可到達、包含 `/mcp` 的 HTTP / HTTPS 絕對 URL。如果反向代理讓 Admin UI 與 MCP 使用不同位置，不要直接拿 UI URL 猜 MCP endpoint。
 
 ## Query 可用，但 DML 被拒絕
 
-MCP connection 成功不代表 Elicitation 可用。`execute_dml_sql` 與 published DML Custom Tools 需要 form Elicitation。請用實際 client version 驗證 Decline 與 Accept 兩條流程。
+MCP 已連線成功不代表 Elicitation 一定可用。`execute_dml_sql` 與已發布的 DML Custom Tools 都需要 form Elicitation。請用實際使用的用戶端版本，同時驗證 Decline 與 Accept 兩條流程。
 
-## Restart 後 authentication / MFA state 壞掉
+## 重新啟動後，登入或 MFA 狀態失效
 
-檢查 `DATA_PROTECTION_KEY_PATH` 是否持久化。若每次 container 都換掉 ASP.NET Core data-protection keys，既有 protected login/MFA state 可能無法解密。
+檢查 `DATA_PROTECTION_KEY_PATH` 是否已持久化。如果每次替換 container 都換掉 ASP.NET Core data-protection keys，既有受保護的登入與 MFA 狀態可能無法解密。
 
-## Multi-instance 行為不一致
+## 多執行個體行為不一致
 
-確認需要協調的 provider 是否還停在 `Memory`。Distributed deployment 應替需要跨 node 一致的 cache、rate limiting、security-policy sync、outbound-delivery sync 與 SQL concurrency 使用 shared provider。
+確認需要跨節點協調的 provider 是否仍使用 `Memory`。分散式部署應替必須跨節點一致的快取、速率限制、安全政策同步、外送同步與 SQL 並行協調使用共用 provider。
 
-## Prometheus 不在 application port
+## Prometheus 不在應用程式連接埠
 
-Prometheus 啟用後使用獨立 listener；example port 是 `9000`，不要預期 metrics 自動出現在 main API listener。
+啟用 Prometheus 後會使用獨立 listener；範例連接埠是 `9000`。不要預期 metrics 會自動出現在主要 API listener。
 
-## Database CLI 能跑的 SQL 卻被拒絕
+## 資料庫 CLI 能執行的 SQL，卻被 hs-sql-agent 拒絕
 
-這可能是正常行為。Provider support 受 compiler contract 約束；尚未表示或無法證明語意的 syntax/capability 會被拒絕，而不是任意 pass-through vendor SQL。
+這可能是正常行為。Provider 支援範圍受編譯器契約約束；尚未能表示、或無法證明語意安全的 syntax / capability 會被拒絕，而不是直接把任意 vendor SQL 傳給資料庫執行。
