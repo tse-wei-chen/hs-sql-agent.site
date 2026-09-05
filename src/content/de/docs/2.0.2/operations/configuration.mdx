@@ -1,0 +1,248 @@
+---
+title: Konfigurationsreferenz
+description: Quellcodegestützte Referenz für Umgebungsvariablen und Laufzeitkonfiguration von hs-sql-agent 2.0.2.
+sidebar:
+  group: Betrieb
+  order: 90
+---
+
+import Callout from "@/components/docs/mdx/Callout.astro";
+import CardGrid from "@/components/docs/mdx/CardGrid.astro";
+import DocCard from "@/components/docs/mdx/DocCard.astro";
+
+<CardGrid columns={3}>
+  <DocCard title="Einzelinstanz" icon="1" description="Mit .env.example beginnen und prozesslokale Provider verwenden, solange Zustand nicht geteilt werden muss." />
+  <DocCard title="Verteilt" icon="N" description="Postgres für die Steuerungsebene sowie Redis für Cache, Limits, Policy-Sync, Delivery-Sync und SQL Concurrency verwenden." />
+  <DocCard title="Eingebettetes .NET" icon=".NET" description="Neue Integrationen konfigurieren Capability-spezifische Options; HsSqlAgentServiceOptions bleibt nur für Legacy-Kompatibilität erhalten." />
+</CardGrid>
+
+Die eingecheckte **v2.0.2 `.env.example`** ist die betriebliche Variablenliste für den standardmäßigen Compose-Pfad. Diese Seite übernimmt die Variablennamen daraus; wenn Beispielkommentar und Laufzeitvalidierung voneinander abweichen, ist der ausführbare Code von v2.0.2 maßgeblich.
+
+<Callout type="warning" title="Vor dem Produktivstart echte Secrets erzeugen">
+`HMAC_KEY` und `JWT_KEY` müssen jeweils mindestens 32 Bytes enthalten und sollten unterschiedliche, eindeutige Werte besitzen. Die eingecheckten Strings sind nur Platzhalter. Webhook-Secrets benötigen ebenfalls mindestens 32 Bytes, sobald die zugehörige Webhook-URL aktiviert ist.
+</Callout>
+
+## Anwendung und Steuerungsebene
+
+| Variable | Beispiel/Standard in `.env.example` | Zweck |
+| --- | --- | --- |
+| `ASPNETCORE_URLS` | `http://+:8080` | Haupt-Listener von ASP.NET Core |
+| `ALLOWED_HOSTS` | `*` | ASP.NET-Core-Host-Filter |
+| `ADMIN_DATABASE_PROVIDER` | `Sqlite` | Datenbank-Provider für Admin/Steuerungsebene |
+| `ADMIN_DATABASE_CONNECTION_STRING` | `Data Source=/app/data/hsqlagent.db` | Speichert Konten, Rollen, Schlüssel, Audit-Einträge, Richtlinien und weiteren Control-Plane-Zustand |
+| `HMAC_KEY` | Platzhalter | HMAC-Secret zum Schutz/Prüfen ausgestellter MCP-Schlüssel; ≥32 Bytes |
+| `MCP_PUBLIC_ENDPOINT` | `http://localhost:8080/mcp` | Absoluter Endpunkt, der in erzeugte MCP-Client-Konfigurationen geschrieben wird |
+
+`MCP_PUBLIC_ENDPOINT` muss eine absolute HTTP- oder HTTPS-URL sein. In Produktion muss dies die URL sein, die der **Client** tatsächlich erreicht, einschließlich `/mcp`, nicht eine interne Container-Adresse.
+
+### Topologie der Admin-Datenbank
+
+Das Einzelinstanz-Beispiel verwendet SQLite, das verteilte Beispiel PostgreSQL:
+
+```text
+ADMIN_DATABASE_PROVIDER=Postgres
+ADMIN_DATABASE_CONNECTION_STRING=Host=postgres;Port=5432;Database=hsqlagent;Username=postgres;Password=...
+```
+
+Verwenden Sie eine gemeinsame Admin-Datenbank, wenn mehrere hs-sql-agent-Instanzen dieselben Identitäten, Schlüssel, Richtlinien sowie Audit-/Control-Plane-Datensätze sehen müssen.
+
+## Cache
+
+| Variable | Einzelinstanz | Verteilt | Zweck |
+| --- | --- | --- | --- |
+| `CACHE_PROVIDER` | `Memory` | `Redis` | Laufzeit-Cache-Provider |
+| `CACHE_CONNECTION_STRING` | leer | `redis:6379` | Redis-Verbindung bei Auswahl von Redis |
+| `CACHE_KEY_PREFIX` | `hsqlagent:cache:` | gleich | Namespace für Cache-Keys |
+
+Prozesslokales `Memory` ist nur geeignet, wenn Cache-Zustand nicht zwischen Anwendungsinstanzen geteilt werden muss.
+
+## Bootstrap / automatische Provisionierung
+
+| Variable | Beispiel | Zweck |
+| --- | --- | --- |
+| `BOOTSTRAP_ENABLED` | `false` | Provisionierung/Synchronisierung beim Start aktivieren |
+| `BOOTSTRAP_DB_ID` | `default-db` | Stabile Bootstrap-Identität der initialen Datenbank |
+| `BOOTSTRAP_DB_NAME` | `Default DB` | Anzeigename der Datenbank in der Admin UI |
+| `BOOTSTRAP_DB_PROVIDER` | leer | Zu provisionierender Provider |
+| `BOOTSTRAP_DB_HOST` | `localhost` | Datenbank-Host |
+| `BOOTSTRAP_DB_PORT` | `5432` | Datenbank-Port |
+| `BOOTSTRAP_DB_DATABASE` | `mydb` | Datenbank-/Katalog-/Dateiwert |
+| `BOOTSTRAP_DB_USERNAME` | `myuser` | Datenbank-Benutzername |
+| `BOOTSTRAP_DB_PASSWORD` | `mypassword` | Datenbank-Passwort |
+| `BOOTSTRAP_DB_EXTRA_SETTINGS` | leer | Provider-spezifische Verbindungseinstellungen |
+| `BOOTSTRAP_MCP_KEY_ID` | `default-key` | Stabile Bootstrap-Identität des initialen MCP-Schlüssels |
+| `BOOTSTRAP_MCP_KEY_NAME` | `Default MCP Key` | Anzeigename des Schlüssels in der Admin UI |
+| `BOOTSTRAP_MCP_KEY` | Platzhalter | Initialer Raw-Key-Wert |
+| `BOOTSTRAP_MCP_ALLOWED_TOOLS` | leer | Tool-Einschränkung für den Bootstrap-Schlüssel |
+
+Per Bootstrap verwaltete MCP-Schlüssel lassen sich bewusst nicht über den normalen Key-Lebenszyklus bearbeiten, rotieren oder widerrufen. Ändern Sie stattdessen ihre Quellkonfiguration.
+
+## Admin-Authentifizierung
+
+| Variable | Beispiel | Zweck |
+| --- | --- | --- |
+| `JWT_KEY` | Platzhalter | JWT-Signing-Secret; ≥32 Bytes |
+| `JWT_ISS` | `HS-Agent` | JWT Issuer |
+| `JWT_AUD` | `HS-Agent-Users` | JWT Audience |
+| `JWT_ACCESS_TOKEN_EXPIRATION_MINUTES` | `10` | Lebensdauer des Access Tokens |
+| `JWT_REFRESH_TOKEN_EXPIRATION_DAYS` | `1` | Lebensdauer des Refresh Tokens |
+| `AUTH_LOCKOUT_THRESHOLD` | `5` | Fehlgeschlagene Logins vor temporärer Sperre; Werte unter 1 werden als 1 behandelt |
+| `AUTH_LOCKOUT_MINUTES` | `15` | Dauer der temporären Sperre |
+
+Diese Einstellungen steuern Admin-Authentifizierung, nicht die Authentifizierung mit MCP-Schlüsseln.
+
+## Passwort-Reset und SMTP
+
+Passwort-Reset per E-Mail ist effektiv deaktiviert, wenn SMTP-Host oder Absender leer ist.
+
+| Variable | Beispiel | Zweck |
+| --- | --- | --- |
+| `PASSWORD_RESET_BASE_URL` | `http://localhost:3000/reset-password` | Von außen erreichbare Reset-Seite; Server hängt `?token=...` an |
+| `PASSWORD_RESET_EXPIRATION_MINUTES` | `30` | Lebensdauer des einmaligen Reset Tokens |
+| `SMTP_HOST` | `smtp.example.com` | SMTP-Host |
+| `SMTP_PORT` | `587` | SMTP-Port |
+| `SMTP_ENABLE_SSL` | `true` | SSL-/STARTTLS-Verhalten des Mail-Senders |
+| `SMTP_USERNAME` | Beispiel | SMTP-Zugangsdaten |
+| `SMTP_PASSWORD` | Beispiel | SMTP-Zugangsdaten |
+| `SMTP_FROM` | `no-reply@example.com` | Vom SMTP-Provider akzeptierte Absenderadresse |
+
+## OIDC / SSO und MFA
+
+| Variable | Beispiel | Zweck |
+| --- | --- | --- |
+| `OIDC_ENABLED` | `false` | OIDC-Authentifizierung aktivieren |
+| `OIDC_AUTHORITY` | leer | Authority des Identity Providers |
+| `OIDC_CLIENT_ID` | leer | OIDC Client ID |
+| `OIDC_CLIENT_SECRET` | leer | OIDC Client Secret |
+| `OIDC_REQUIRE_HTTPS_METADATA` | `true` | HTTPS für Discovery-Metadaten verlangen |
+| `OIDC_EMAIL_CLAIM` | `email` | Name des E-Mail-Claims |
+| `OIDC_NAME_CLAIM` | `name` | Claim für den Anzeigenamen |
+| `OIDC_ROLE_CLAIM` | `roles` | Role Claim |
+| `OIDC_EMAIL_VERIFIED_CLAIM` | `email_verified` | Claim für verifizierte E-Mail |
+| `OIDC_REQUIRE_VERIFIED_EMAIL` | `true` | Identitäten ohne verifizierte E-Mail anhand des konfigurierten Claims ablehnen |
+| `OIDC_SCOPE_0..2` | `openid`, `profile`, `email` | Standard-Scopes |
+| `OIDC_ROLE_MAPPING_SQL_ADMINS` | `SuperUser` | Beispiel für externes Rollen-Mapping auf lokale Rolle |
+| `OIDC_AUTO_PROVISION` | `true` | Benutzer nach erfolgreicher externer Identitätsauflösung automatisch provisionieren |
+| `OIDC_FRONTEND_CALLBACK_URL` | `/sso-callback` | Abschlussroute im Frontend |
+| `OIDC_LOGIN_CODE_EXPIRATION_MINUTES` | `2` | Lebensdauer des kurzlebigen Login-Codes |
+| `OIDC_TOTP_ISSUER` | `HS SQL Agent` | TOTP-Issuer-Label |
+| `DATA_PROTECTION_KEY_PATH` | `/app/data/data-protection-keys` | Verzeichnis für persistente ASP.NET-Core-Data-Protection-Keys |
+
+<Callout type="danger" title="Data-Protection-Keys bei geschütztem Identity-Zustand persistieren">
+Verschwindet der Data-Protection-Key-Ring bei Neustarts, können geschützte MFA-Secrets und External-Login-Zustand unlesbar werden. Mounten Sie `DATA_PROTECTION_KEY_PATH` in Produktion auf persistenten Speicher.
+</Callout>
+
+Siehe [OIDC SSO und TOTP MFA](/de/docs/security/oidc-mfa).
+
+## Health, Slow Queries, Zustellung und Audit-Aufbewahrung
+
+| Variable | Beispiel | Zweck |
+| --- | --- | --- |
+| `HEALTH_PROBE_ENABLED` | `false` | Hintergrundprüfung des DB-Zustands aktivieren |
+| `HEALTH_PROBE_INTERVAL_SECONDS` | `60` | Prüfintervall |
+| `HEALTH_PROBE_TIMEOUT_SECONDS` | `10` | Timeout pro Prüfung |
+| `HEALTH_PROBE_MAX_CONCURRENCY` | `4` | Maximale parallele Prüfungen |
+| `SLOW_QUERY_THRESHOLD_MS` | `1000` | Queries ab dieser Dauer werden als langsam erfasst |
+| `ALERT_WEBHOOK_URL` | leer | Optionales signiertes Alert-Ziel |
+| `ALERT_WEBHOOK_SECRET` | leer | HMAC-/Signing-Secret; ≥32 Bytes bei aktivierter URL |
+| `SIEM_WEBHOOK_URL` | leer | Optionales signiertes SIEM-Ziel |
+| `SIEM_WEBHOOK_SECRET` | leer | HMAC-/Signing-Secret; ≥32 Bytes bei aktivierter URL |
+| `DELIVERY_MAX_ATTEMPTS` | `6` | Maximale Retry-Anzahl für ausgehende Zustellungen |
+| `DELIVERY_MAX_CONCURRENCY` | `4` | Maximale parallele ausgehende Zustellungen |
+| `AUDIT_RETENTION_DAYS` | `90` | Aufbewahrungsdauer; `0` deaktiviert automatische Retention |
+| `AUDIT_RETENTION_MODE` | `Archive` | **Gültige Laufzeitwerte: `Archive` oder `Purge`** |
+| `AUDIT_ARCHIVE_PATH` | `/app/data/audit-archive` | Archivziel im Modus Archive |
+| `AUDIT_FALLBACK_PATH` | `/app/data/audit-fallback.jsonl` | Audit-Fallback-Pfad; durch Startvalidierung erforderlich |
+| `AUDIT_RETENTION_RUN_HOUR_UTC` | `2` | Geplante UTC-Stunde; Laufzeit begrenzt auf 0–23 |
+
+<Callout type="warning" title="Der v2.0.2-Beispielkommentar nennt Delete, der Laufzeitcode verlangt Purge">
+`AuditRetentionService` akzeptiert nur `Archive` und `Purge`; jeder andere Nicht-Archive-Wert, einschließlich `Delete`, löst `AuditRetentionMode must be Purge or Archive.` aus. Diese Referenz folgt dem ausführbaren v2.0.2-Code und nicht dem veralteten Beispielkommentar.
+</Callout>
+
+`Archive` schreibt abgelaufene Audit-Zeilen in ein JSONL-Archiv, bevor sie aus der Admin-Datenbank gelöscht werden. `Purge` löscht passende abgelaufene Zeilen ohne dieses Archiv.
+
+## Globales und schlüsselbezogenes Rate Limiting
+
+| Variable | Einzelinstanz | Verteilt | Zweck |
+| --- | --- | --- | --- |
+| `RATE_LIMITING_PERMIT_LIMIT` | `0` | `0` | Globales IP-Permit-Limit; `0` bei ebenfalls null gesetztem Fenster bedeutet unbegrenzt |
+| `RATE_LIMITING_WINDOW_SECONDS` | `0` | `0` | Globales IP-Zeitfenster |
+| `RATE_LIMITER_PROVIDER` | `Memory` | `Redis` | Implementierung des gemeinsamen Limiters |
+| `RATE_LIMITER_CONNECTION_STRING` | leer | `redis:6379` | Redis-Verbindung |
+| `RATE_LIMITER_FAILURE_MODE` | `FailClosed` | `FailClosed` | Verhalten bei Ausfall des verteilten Limiters |
+| `RATE_LIMITER_KEY_PREFIX` | `hsqlagent:ratelimit:` | gleich | Redis-Key-Namespace |
+
+MCP-Schlüssel können ihre Limits zusätzlich erben, überschreiben oder deaktivieren. Siehe [MCP-Schlüssel](/de/docs/administration/mcp-keys).
+
+## Synchronisierung der Laufzeitrichtlinie
+
+| Variable | Einzelinstanz | Verteilt | Zweck |
+| --- | --- | --- | --- |
+| `SECURITY_POLICY_SYNC_PROVIDER` | `Memory` | `Redis` | Provider für Synchronisierung der Laufzeitrichtlinie |
+| `SECURITY_POLICY_SYNC_CONNECTION_STRING` | leer | `redis:6379` | Redis-Verbindung |
+| `SECURITY_POLICY_SYNC_KEY_PREFIX` | `hsqlagent:security-policy:` | gleich | Key-Namespace |
+| `SECURITY_POLICY_SYNC_REFRESH_INTERVAL_SECONDS` | `30` | `30` | Refresh-Intervall |
+
+Wählen Sie Redis, wenn Richtlinienänderungen über mehrere hs-sql-agent-Instanzen verteilt werden müssen.
+
+## Synchronisierung ausgehender Zustellungen
+
+| Variable | Einzelinstanz | Verteilt | Zweck |
+| --- | --- | --- | --- |
+| `OUTBOUND_DELIVERY_SYNC_PROVIDER` | `Memory` | `Redis` | Koordination von Zustellungssignalen |
+| `OUTBOUND_DELIVERY_SYNC_CONNECTION_STRING` | leer | `redis:6379` | Redis-Verbindung |
+| `OUTBOUND_DELIVERY_SYNC_KEY_PREFIX` | `hsqlagent:outbound-delivery:` | gleich | Key-Namespace |
+
+## Koordination der SQL-Parallelität
+
+| Variable | Einzelinstanz | Verteilt | Zweck |
+| --- | --- | --- | --- |
+| `SQL_CONCURRENCY_PROVIDER` | `Memory` | `Redis` | Provider für SQL-Concurrency-Limiter |
+| `SQL_CONCURRENCY_CONNECTION_STRING` | leer | `redis:6379` | Redis-Verbindung |
+| `SQL_CONCURRENCY_FAILURE_MODE` | `FailClosed` | `FailClosed` | Verhalten, wenn verteilte Koordination fehlschlägt |
+| `SQL_CONCURRENCY_KEY` | `hsqlagent:sql-concurrency` | gleich | Gemeinsamer Koordinations-Key |
+| `SQL_CONCURRENCY_LEASE_SECONDS` | `30` | `30` | Lease-Dauer |
+
+Metadata Discovery, Queries, DML-Planung/-Ausführung und Health-bezogene SQL-Arbeit laufen über begrenzte Laufzeitpfade. Verwenden Sie verteilte SQL Concurrency, wenn das Limit für den gesamten Cluster statt pro Prozess gelten muss.
+
+## Observability
+
+| Variable | Beispiel | Zweck |
+| --- | --- | --- |
+| `PROMETHEUS_ENABLED` | `false` | Prometheus-HTTP-Listener aktivieren |
+| `PROMETHEUS_HOST` | `0.0.0.0` | Bind-Host des Metrics-Listeners |
+| `PROMETHEUS_PORT` | `9000` | Separater Metrics-Port; bei Aktivierung auf 1–65535 validiert |
+| `OTLP_ENDPOINT` | leer | Absoluter HTTP(S)-Endpunkt eines OTLP Collectors |
+| `OTEL_SERVICE_NAME` | `hs-sql-agent` | OpenTelemetry-Service-Name; darf nicht leer sein |
+
+Prometheus läuft bewusst auf einem **separaten Listener**, nicht auf dem Admin-/MCP-Anwendungsport. Ist `OTLP_ENDPOINT` gesetzt, exportiert v2.0.2 Telemetrie einschließlich SQL-Compile-Evidence-Tracing-/Logging-Integration.
+
+Siehe [Observability und Audit-Betrieb](/de/docs/operations/observability).
+
+## Logging
+
+| Variable | Beispiel |
+| --- | --- |
+| `LOGGING_EFCORE_COMMAND_LOGLEVEL` | `Warning` |
+| `LOGGING_DEFAULT_LOGLEVEL` | `Information` |
+| `LOGGING_ASPNETCORE_LOGLEVEL` | `Warning` |
+
+Routine-EF-Core-Command-Logging auf `Warning` reduziert unnötige SQL-Command-Traces im normalen Produktionsbetrieb.
+
+## Docker-Umgebung und Capability-Options für eingebettetes .NET
+
+Die Docker-/ToolBox-Umgebung ist eine vollständige Konfigurationsoberfläche für den eigenständigen Server. Neue NuGet-Integrationen funktionieren anders: `AddHsSqlAgentCore()` besitzt keine Options; jede ausgewählte Capability verwaltet nur ihre eigenen Einstellungen.
+
+Beispiele:
+
+- `HsSqlAgentAdminStoreOptions` verwaltet Admin-Datenbank-Provider und Connection String;
+- `HsSqlAgentRuntimeOptions` verwaltet Cache, Rate Limiting, Synchronisierung, SQL Concurrency, DML Approval Storage, Bootstrap und Operability;
+- `HsSqlAgentBuiltInAuthOptions` verwaltet JWT, Passwort-Reset/SMTP und Enterprise Identity/OIDC;
+- `McpOptions` verwaltet öffentlichen MCP-Endpunkt und HMAC-Secret;
+- `TelemetryOptions` verwaltet Prometheus- und OTLP-Einstellungen.
+
+`HsSqlAgentServiceOptions` bleibt nur als Legacy-Aggregat-Kompatibilitäts-DTO erhalten. Nicht ausgewählte Capabilities erzeugen oder validieren ihre Options nicht. Ein eingebetteter Host mit `AddHsSqlAgentHostAuthorization(...)` benötigt daher keine HsSqlAgent-JWT-, SMTP-, Passwort-Reset- oder OIDC-Einstellungen.
+
+Die modulare API erhält bestehende Code-Standardwerte. `.env.example` ist ein Deployment-Beispiel für den eigenständigen ToolBox-Pfad und bedeutet nicht, dass jeder eingebettete Host jede Capability konfigurieren muss.
+
+Siehe [ASP.NET-Core-Integration](/de/docs/integration/aspnet-core).

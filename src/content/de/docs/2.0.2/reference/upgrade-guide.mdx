@@ -1,0 +1,94 @@
+---
+title: Upgrade-Leitfaden
+description: Sichere Upgrade-Checkliste für Installationen, die von der hs-sql-agent-Dokumentationsbasis 2.0.1 auf eine spätere Version wechseln.
+sidebar:
+  group: Referenz
+  order: 144
+---
+
+import Callout from "@/components/docs/mdx/Callout.astro";
+import CardGrid from "@/components/docs/mdx/CardGrid.astro";
+import DocCard from "@/components/docs/mdx/DocCard.astro";
+import Steps from "@/components/docs/mdx/Steps.astro";
+import Step from "@/components/docs/mdx/Step.astro";
+
+<CardGrid columns={3}>
+  <DocCard title="Zustand der Steuerungsebene" icon="DB" description="Admin-Datenbank schützen, in der Identitäten, Rollen, MCP-Schlüssel, Richtlinien, Audit und weiterer Laufzeitzustand liegen." />
+  <DocCard title="Secrets und geschützter Zustand" icon="KEY" description="HMAC-/JWT-Konfiguration und persistente ASP.NET-Core-Data-Protection-Keys erhalten." />
+  <DocCard title="Verhaltensverträge" icon="MCP" description="Client-Transport, SQL-Capabilities, Key-Scope und DML Elicitation nach Versionswechsel erneut testen." />
+</CardGrid>
+
+Die versionierte Dokumentation beginnt bei **2.0.1**. Es gibt bewusst keine auf der Site gehostete Upgrade-Matrix für Versionen vor 2.0.1. Diese Seite beschreibt die betriebliche Checkliste zum Verlassen der 2.0.1-Basis; versionsspezifische Breaking Changes gehören in die Dokumentation der jeweiligen Zielversion.
+
+<Callout type="warning" title="Migrationsanforderungen zukünftiger Releases nicht aus dieser Seite ableiten">
+Lesen Sie vor dem Upgrade die Release Notes und die versionierte Dokumentation der Zielversion. Ändert eine spätere Version Storage-Schema, Konfiguration, SQL-Capabilities oder API-Verträge, ist diese Zielversion maßgeblich.
+</Callout>
+
+## Vor dem Wechsel der laufenden Version
+
+<Steps>
+  <Step title="Aktuelles Deployment erfassen" description="Exakte hs-sql-agent-Version, Container-/Paketversion, Topologie, Admin-Datenbank-Provider und Shared-State-Provider dokumentieren." />
+  <Step title="Control-Plane-Zustand sichern" description="Ein wiederherstellbares Backup der Admin-Datenbank erstellen, bevor ein neueres Binary persistenten Zustand verändern kann." />
+  <Step title="Geschütztes Schlüsselmaterial erhalten" description="HMAC_KEY, JWT_KEY, Webhook-Secrets und das persistente Material unter DATA_PROTECTION_KEY_PATH für das aktualisierte Deployment verfügbar halten." />
+  <Step title="Konfiguration vergleichen" description="Beispiele/Options der Zielversion mit der aktiven 2.0.1-Konfiguration vergleichen, statt ein neues Sample über Produktionswerte zu kopieren." />
+  <Step title="Integrationen inventarisieren" description="MCP-Clients, Custom Tools, OIDC, SMTP, Webhooks/SIEM, Prometheus/OTLP, Redis/Shared State, Reverse Proxy und externe Admin-API-Nutzer erfassen." />
+</Steps>
+
+## Zustand, der nicht beiläufig neu erzeugt werden darf
+
+### HMAC- und JWT-Secrets
+
+`HMAC_KEY` schützt die Prüfung von MCP-Schlüsseln; `JWT_KEY` signiert Admin-Authentifizierungstokens. Behandeln Sie Secret-Rotation als geplante Sicherheitsmigration und nicht als Nebeneffekt eines neuen Container-Images.
+
+### Data-Protection-Key-Ring
+
+Wenn geschützter Identity-/MFA-Zustand ASP.NET Core Data Protection verwendet, muss `DATA_PROTECTION_KEY_PATH` auf persistentem Speicher liegen. Ein Austausch des Key Rings kann bereits geschützte Werte unlesbar machen.
+
+### Admin-Datenbank
+
+Die Admin-Datenbank trägt die Steuerungsebene: Identitäten/Rollen, Datenbankregistrierungen, MCP-Key-Datensätze, Richtlinien, semantische Metadaten, Custom-Tool-Definitionen/-Revisionen, Audit-Daten und weiteren Betriebszustand. Sichern Sie sie vor einem Upgrade, das Persistenz verändern könnte, mit dem für SQLite oder PostgreSQL passenden Verfahren.
+
+## Checkliste für Konfigurationsunterschiede
+
+Starten Sie nicht mit einer leeren neuen `.env`. Vergleichen Sie die Kategorien ausdrücklich:
+
+- Application Host und öffentlicher MCP-Endpunkt;
+- Admin-Datenbank-Provider/-Verbindung;
+- HMAC/JWT und Identity-Einstellungen;
+- Bootstrap-Konfiguration;
+- OIDC/MFA/Data Protection;
+- Audit-Aufbewahrung und ausgehende Zustellung;
+- Rate Limiting und Security-Policy-Synchronisierung;
+- Cache / SQL Concurrency / weitere Redis-basierte Koordination;
+- Prometheus und OTLP.
+
+Die 2.0.1-Basis steht in der [Konfigurationsreferenz](/de/docs/operations/configuration).
+
+## Nach dem Upgrade validieren
+
+<Steps>
+  <Step title="Admin-Authentifizierung" description="Anmelden und erwartete Rollen/Berechtigungen prüfen; bei Aktivierung auch OIDC/MFA bestätigen." />
+  <Step title="Datenbankverbindungen" description="Für jeden verwendeten Provider verwaltete Verbindungen und das Browsen der Schema-Metadaten prüfen." />
+  <Step title="MCP-Key-Scope" description="Repräsentative Schlüssel prüfen: erwartete Datenbank, Tools, Tabellen-Whitelist und effektive Limits müssen unverändert aufgelöst werden." />
+  <Step title="Read-only SQL" description="Repräsentative unterstützte Query-Formen ausführen und Compiler-/Ausgabeverhalten prüfen." />
+  <Step title="Safe DML" description="Mit einem Nicht-Produktionsziel sowohl Decline- als auch Accept-Elicitation testen und Verhalten beim Commit prüfen." />
+  <Step title="Betrieb" description="Audit, Health, Schlüsselnutzung, Telemetrie-Export und Zustand ausgehender Zustellungen prüfen." />
+</Steps>
+
+## Custom Tools und semantische Metadaten
+
+Prüfen Sie jedes veröffentlichte Custom Tool gegen Compiler und Policy der Zielversion und bestätigen Sie, dass die beabsichtigte Datenbank-/Key-Sichtbarkeit weiterhin stimmt. Bei semantischen Metadaten müssen Tabellen-/Spaltenbeschreibungen, Beziehungen und Metriken in der Schema-Ermittlung weiterhin wie erwartet erscheinen.
+
+## API-Nutzer
+
+Die Admin-Controller von 2.0.1 liegen nicht unter einem versionierten `/v1`-Vertrag. Wenn externe Automatisierung Admin-HTTP-Routen direkt aufruft, muss Route-/Request-/Response-Kompatibilität ausdrücklich Teil des Upgrade-Tests sein.
+
+Siehe [Admin HTTP API Referenz](/de/docs/reference/api-reference).
+
+## Rollback planen
+
+<Callout type="danger" title="Binary-Rollback ist nicht automatisch ein Daten-Rollback">
+Wenn eine neuere Version persistentes Control-Plane-Schema oder Zustand verändert, kann es unsicher sein, einfach das alte Binary gegen die geänderte Datenbank zu starten. Halten Sie ein Datenbank-Backup von vor dem Upgrade bereit und folgen Sie den Rollback-Hinweisen der Zielversion.
+</Callout>
+
+Ein belastbarer Rollout hält alte Deployment-Artefakte/-Konfiguration, das Admin-Datenbank-Backup von vor dem Upgrade und geschütztes Schlüsselmaterial verfügbar, bis die neue Version funktionale und betriebliche Smoke Tests bestanden hat.

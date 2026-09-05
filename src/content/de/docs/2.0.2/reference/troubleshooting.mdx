@@ -1,0 +1,39 @@
+---
+title: Fehlerbehebung
+description: Häufige Konfigurations- und Kompatibilitätsprobleme anhand der Laufzeit-Invarianten von hs-sql-agent diagnostizieren.
+sidebar:
+  group: Referenz
+  order: 140
+---
+
+Beginnen Sie die Fehlersuche an der Grenze, die die Anfrage abgelehnt hat. hs-sql-agent arbeitet an mehreren Stellen bewusst fail-closed; eine Ablehnung weist daher häufig auf eine Konfigurations- oder Capability-Abweichung hin und nicht nur auf einen vorübergehenden SQL-Fehler.
+
+## Client verbindet sich lokal, aber die erzeugte Konfiguration ist falsch
+
+Prüfen Sie `MCP_PUBLIC_ENDPOINT`.
+
+Der Wert muss die von außen erreichbare absolute HTTP- oder HTTPS-MCP-URL einschließlich `/mcp` sein. Leiten Sie ihn nicht aus der Admin-UI-URL ab, wenn ein Reverse Proxy beide unterschiedlich veröffentlicht.
+
+## Queries funktionieren, DML wird aber abgelehnt
+
+Eine funktionierende MCP-Verbindung beweist keine Elicitation-Unterstützung.
+
+`execute_dml_sql` und veröffentlichte DML Custom Tools benötigen Form Elicitation. Testen Sie die konkrete Client-Version sowohl mit Decline- als auch Accept-Ablauf. Unterstützt der Client diese Capability nicht, verwenden Sie nur Query-Tools.
+
+## Authentifizierung oder MFA-Zustand funktioniert nach Neustart nicht mehr
+
+Prüfen Sie, ob `DATA_PROTECTION_KEY_PATH` persistent gespeichert wird. Geschützter Login-/MFA-Zustand kann unlesbar werden, wenn das ASP.NET-Core-Data-Protection-Key-Material bei jedem Container ersetzt wird.
+
+## Verhalten mehrerer Instanzen ist inkonsistent
+
+Prüfen Sie, ob koordinationsrelevante Provider weiterhin `Memory` verwenden.
+
+In einer verteilten Bereitstellung benötigen Subsysteme, die zwischen Knoten übereinstimmen müssen, gemeinsame Provider. Dazu gehören Cache, Rate Limiting, Security-Policy-Synchronisierung, Outbound-Delivery-Synchronisierung und SQL Concurrency.
+
+## Prometheus läuft nicht auf dem Anwendungsport
+
+Prometheus verwendet bei Aktivierung einen eigenen Listener. Die Beispielkonfiguration nutzt Port `9000`; erwarten Sie Metriken nicht automatisch am Listener der Haupt-API.
+
+## Datenbank akzeptiert das SQL, hs-sql-agent lehnt es ab
+
+Das kann beabsichtigt sein. Der Provider-Support wird durch den Compiler-Vertrag begrenzt. Syntax oder Semantik, die nicht dargestellt und nachgewiesen werden kann, wird abgelehnt, statt als beliebiges Hersteller-SQL durchgereicht zu werden.
