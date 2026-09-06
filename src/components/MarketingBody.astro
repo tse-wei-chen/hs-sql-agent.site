@@ -1,11 +1,22 @@
 ---
+import { Code } from "astro:components";
 import type { MarketingBodySection } from "@/data/marketing";
+import { useDocsUi } from "@/i18n/docs";
 
 type Props = {
   sections: MarketingBodySection[];
+  locale?: string;
 };
 
-const { sections } = Astro.props;
+const { sections, locale = "en" } = Astro.props;
+const codeUi = useDocsUi(locale);
+
+function resolveMarketingCodeLanguage(language?: string): "csharp" {
+  if (language === "csharp") return language;
+  throw new Error(
+    `Unsupported marketing code language: ${language ?? "missing"}`
+  );
+}
 ---
 
 {
@@ -23,23 +34,186 @@ const { sections } = Astro.props;
         </ul>
       )}
       {section.code && (
-        <div class="marketing-code" data-pagefind-ignore>
-          {section.code.label && (
-            <div class="marketing-code-label">{section.code.label}</div>
-          )}
-          <pre class="marketing-code-scroll" tabindex="0">
-            <code
-              class={
-                section.code.language
-                  ? `language-${section.code.language}`
-                  : undefined
-              }
+        <div
+          class="marketing-doc-code-frame not-prose"
+          data-marketing-code
+          data-pagefind-ignore
+        >
+          <div class="marketing-doc-code-toolbar">
+            <span class="marketing-doc-code-label">
+              {section.code.language ?? section.code.label ?? codeUi.code}
+            </span>
+            <button
+              type="button"
+              class="marketing-doc-copy-button"
+              data-copy-label={codeUi.copy}
+              data-copied-label={codeUi.copied}
+              aria-label={codeUi.copy}
             >
-              {section.code.value}
-            </code>
-          </pre>
+              {codeUi.copy}
+            </button>
+          </div>
+          <div class="marketing-code-theme marketing-code-theme-light">
+            <Code
+              code={section.code.value}
+              lang={resolveMarketingCodeLanguage(section.code.language)}
+              theme="min-light"
+            />
+          </div>
+          <div class="marketing-code-theme marketing-code-theme-dark">
+            <Code
+              code={section.code.value}
+              lang={resolveMarketingCodeLanguage(section.code.language)}
+              theme="night-owl"
+            />
+          </div>
         </div>
       )}
     </section>
   ))
 }
+
+<style>
+  .marketing-doc-code-frame {
+    position: relative;
+    width: 100%;
+    min-width: 0;
+    margin-block: 1.8rem;
+    overflow: hidden;
+    border: 1px solid color-mix(in oklab, var(--border) 75%, transparent);
+    border-radius: 0.9rem;
+    background: color-mix(in oklab, var(--card) 88%, var(--background));
+    box-shadow: 0 0.8rem 2.5rem
+      color-mix(in oklab, var(--foreground) 4%, transparent);
+  }
+
+  .marketing-doc-code-toolbar {
+    display: flex;
+    min-height: 2.4rem;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    border-bottom: 1px solid color-mix(in oklab, var(--border) 70%, transparent);
+    padding: 0.45rem 0.55rem 0.45rem 0.8rem;
+    background: color-mix(in oklab, var(--muted) 42%, transparent);
+  }
+
+  .marketing-doc-code-label {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+    color: var(--muted-foreground);
+    font-family:
+      ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    font-size: 0.68rem;
+    font-weight: 750;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+
+  .marketing-doc-code-label::before {
+    width: 0.45rem;
+    height: 0.45rem;
+    margin-right: 1.35rem;
+    border-radius: 999px;
+    background: var(--primary);
+    content: "";
+    box-shadow:
+      0.7rem 0 var(--info),
+      1.4rem 0 color-mix(in oklab, var(--foreground) 30%, transparent);
+  }
+
+  .marketing-doc-copy-button {
+    border: 1px solid transparent;
+    border-radius: 0.45rem;
+    padding: 0.3rem 0.5rem;
+    color: var(--muted-foreground);
+    font-size: 0.7rem;
+    font-weight: 700;
+    transition:
+      border-color 0.16s ease,
+      color 0.16s ease,
+      background 0.16s ease;
+  }
+
+  .marketing-doc-copy-button:hover {
+    border-color: var(--border);
+    background: var(--background);
+    color: var(--foreground);
+  }
+
+  .marketing-code-theme {
+    min-width: 0;
+  }
+
+  .marketing-code-theme-dark {
+    display: none;
+  }
+
+  :global(html[data-theme="dark"]) .marketing-code-theme-light {
+    display: none;
+  }
+
+  :global(html[data-theme="dark"]) .marketing-code-theme-dark {
+    display: block;
+  }
+
+  .marketing-doc-code-frame :global(.astro-code) {
+    width: 100%;
+    max-width: 100%;
+    margin: 0;
+    overflow-x: auto;
+    border: 0;
+    outline: 0;
+    border-radius: 0;
+    padding: 1rem 1.1rem;
+    overscroll-behavior-inline: contain;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .marketing-doc-code-frame :global(.astro-code code) {
+    font-size: 0.84rem;
+    line-height: 1.75;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .marketing-doc-copy-button {
+      transition: none;
+    }
+  }
+</style>
+
+<script>
+  function enhanceMarketingCode() {
+    document
+      .querySelectorAll<HTMLElement>(
+        "[data-marketing-code]:not([data-code-enhanced])"
+      )
+      .forEach(frame => {
+        frame.dataset.codeEnhanced = "true";
+        const button = frame.querySelector<HTMLButtonElement>(
+          ".marketing-doc-copy-button"
+        );
+        const pre = frame.querySelector<HTMLPreElement>("pre");
+        if (!button || !pre) return;
+
+        const copyLabel = button.dataset.copyLabel ?? "Copy";
+        const copiedLabel = button.dataset.copiedLabel ?? "Copied";
+
+        button.addEventListener("click", async () => {
+          try {
+            await navigator.clipboard.writeText(pre.textContent ?? "");
+            button.textContent = copiedLabel;
+            window.setTimeout(() => {
+              button.textContent = copyLabel;
+            }, 1600);
+          } catch {
+            button.textContent = copyLabel;
+          }
+        });
+      });
+  }
+
+  document.addEventListener("astro:page-load", enhanceMarketingCode);
+  enhanceMarketingCode();
+</script>
