@@ -13,7 +13,9 @@ const codeUi = useDocsUi(locale);
 
 function resolveMarketingCodeLanguage(language?: string): "csharp" {
   if (language === "csharp") return language;
-  throw new Error(`Unsupported marketing code language: ${language ?? "missing"}`);
+  throw new Error(
+    `Unsupported marketing code language: ${language ?? "missing"}`
+  );
 }
 ---
 
