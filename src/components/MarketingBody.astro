@@ -10,6 +10,11 @@ type Props = {
 
 const { sections, locale = "en" } = Astro.props;
 const codeUi = useDocsUi(locale);
+
+function resolveMarketingCodeLanguage(language?: string): "csharp" {
+  if (language === "csharp") return language;
+  throw new Error(`Unsupported marketing code language: ${language ?? "missing"}`);
+}
 ---
 
 {
@@ -49,14 +54,14 @@ const codeUi = useDocsUi(locale);
           <div class="marketing-code-theme marketing-code-theme-light">
             <Code
               code={section.code.value}
-              lang={section.code.language ?? "text"}
+              lang={resolveMarketingCodeLanguage(section.code.language)}
               theme="min-light"
             />
           </div>
           <div class="marketing-code-theme marketing-code-theme-dark">
             <Code
               code={section.code.value}
-              lang={section.code.language ?? "text"}
+              lang={resolveMarketingCodeLanguage(section.code.language)}
               theme="night-owl"
             />
           </div>
