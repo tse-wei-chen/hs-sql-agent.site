@@ -35,6 +35,9 @@ export default defineConfig({
       redirectToDefaultLocale: false,
     },
   },
+  prefetch: {
+    prefetchAll: false,
+  },
   markdown: {
     processor: unified({
       remarkPlugins: [
