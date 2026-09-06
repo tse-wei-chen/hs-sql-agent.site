@@ -9,7 +9,11 @@ const ui = useDocsVisualUi(locale);
 const wideGlyphPattern =
   /[\u1100-\u11ff\u2e80-\ua4cf\uac00-\ud7af\uf900-\ufaff\ufe10-\ufe6f\uff01-\uff60\uffe0-\uffe6]/u;
 
-function estimateSvgTextWidth(text: string, fontSize: number, letterSpacing = 0) {
+function estimateSvgTextWidth(
+  text: string,
+  fontSize: number,
+  letterSpacing = 0
+) {
   const glyphs = Array.from(text);
   const width = glyphs.reduce((total, glyph) => {
     if (/\s/u.test(glyph)) return total + fontSize * 0.34;
@@ -215,11 +219,7 @@ function fitSvgText(
           </g>
         ))}
         <circle class="doc-svg-packet" r="6">
-          <animateMotion
-            dur="5s"
-            repeatCount="indefinite"
-            path="M92 166H608"
-          />
+          <animateMotion dur="5s" repeatCount="indefinite" path="M92 166H608" />
         </circle>
         <rect
           class="doc-svg-node doc-svg-terminal"
@@ -281,11 +281,7 @@ function fitSvgText(
         ].map(([x, label, number], index) => (
           <g class={`doc-svg-stage doc-svg-delay-${(index % 3) + 1}`}>
             <circle class="doc-svg-stage-ring" cx={x} cy="176" r="38" />
-            <text
-              class="doc-svg-kicker doc-svg-label-center"
-              x={x}
-              y="172"
-            >
+            <text class="doc-svg-kicker doc-svg-label-center" x={x} y="172">
               {number}
             </text>
             <text
@@ -376,10 +372,7 @@ function fitSvgText(
             path="M118 166H582"
           />
         </circle>
-        <path
-          class="doc-svg-return"
-          d="M582 232C460 284 240 284 118 232"
-        />
+        <path class="doc-svg-return" d="M582 232C460 284 240 284 118 232" />
         <circle class="doc-svg-packet doc-svg-packet-alt" r="5">
           <animateMotion
             dur="6s"
@@ -418,11 +411,7 @@ function fitSvgText(
           r="70"
         />
         <circle class="doc-svg-core-glow" cx="350" cy="160" r="44" />
-        <text
-          class="doc-svg-label doc-svg-label-center"
-          x="350"
-          y="156"
-        >
+        <text class="doc-svg-label doc-svg-label-center" x="350" y="156">
           SQL
         </text>
         <text
@@ -537,11 +526,7 @@ function fitSvgText(
           height="58"
           rx="14"
         />
-        <text
-          class="doc-svg-kicker doc-svg-label-center"
-          x="107"
-          y="158"
-        >
+        <text class="doc-svg-kicker doc-svg-label-center" x="107" y="158">
           MCP
         </text>
         <text
@@ -642,11 +627,7 @@ function fitSvgText(
           height="58"
           rx="14"
         />
-        <text
-          class="doc-svg-kicker doc-svg-label-center"
-          x="350"
-          y="106"
-        >
+        <text class="doc-svg-kicker doc-svg-label-center" x="350" y="106">
           POSTGRES
         </text>
         <text
@@ -665,11 +646,7 @@ function fitSvgText(
           height="58"
           rx="14"
         />
-        <text
-          class="doc-svg-kicker doc-svg-label-center"
-          x="350"
-          y="208"
-        >
+        <text class="doc-svg-kicker doc-svg-label-center" x="350" y="208">
           REDIS
         </text>
         <text
@@ -736,13 +713,7 @@ function fitSvgText(
             >
               {label}
             </text>
-            <line
-              class="doc-svg-trace-lane"
-              x1="144"
-              y1={y}
-              x2="628"
-              y2={y}
-            />
+            <line class="doc-svg-trace-lane" x1="144" y1={y} x2="628" y2={y} />
             <rect
               class={`doc-svg-span doc-svg-delay-${(index % 3) + 1}`}
               x={176 + index * 34}
