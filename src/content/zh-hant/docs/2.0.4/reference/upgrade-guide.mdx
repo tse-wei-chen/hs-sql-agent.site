@@ -1,0 +1,40 @@
+---
+title: 升級指南
+description: 從 hs-sql-agent 2.0.3 升級至 2.0.4，包含固定的五項 MCP 內建工具契約與建置開發體驗改善。
+sidebar:
+  group: 參考
+  order: 144
+---
+
+import Callout from "@/components/docs/mdx/Callout.astro";
+
+## 2.0.4 有哪些變更
+
+2.0.4 主要收緊公開 MCP 邊界，並消除開發與操作流程中的設定漂移；SQL 編譯器與資料庫結構契約沒有因此改變。
+
+- MCP 內建工具現在由伺服器單一目錄統一定義：`get_schemas`、`get_tables`、`get_columns`、`execute_query_sql`、`execute_dml_sql`。
+- 啟動時會比對實際反射出的 MCP 工具與正式目錄；若多出或缺少內建工具，服務會直接拒絕啟動，避免未預期工具被「不限工具」的金鑰取得。
+- `update_semantic_layer` 不再透過 MCP 暴露。語意中繼資料仍可在管理介面與管理 API 中編輯，並沿用既有的語意管理權限。
+- 管理 API 的工具目錄現在會提供內建／自訂分類、Query／DML 類型、顯示名稱與風險資訊，供 MCP 金鑰介面使用。
+- Docker 前端建置改為與 CI 對齊：Node.js 22、pnpm 10.22.0，並強制使用鎖定檔安裝。
+- 移除管理側欄中沒有實際功能的「Search the docs...」欄位，側欄品牌也直接顯示 hs-sql-agent Admin Console。
+
+<Callout type="warning" title="如果你曾透過 MCP 呼叫 update_semantic_layer">
+這個方法並不屬於 2.0.3 已公開文件所列的五項內建工具。升級前請把語意中繼資料寫入流程移到 **Runtime → DB Management → Semantic Layer** 或受權限保護的管理 API。唯讀結構探索工具仍會帶回已授權的語意描述。
+</Callout>
+
+## MCP 金鑰行為
+
+既有 MCP 金鑰不需要遷移。明確設定 `AllowedTools` 時，仍只會暴露指定的內建工具與已發布自訂工具；未設定工具白名單時，會提供五項正式內建工具，加上該金鑰綁定資料庫中已發布的自訂工具，但不再包含未公開的語意層寫入工具。
+
+DML 核准、資料表白名單、速率限制、SQL 併發、編譯驗證與稽核行為皆未因這次契約修正而改變。
+
+## 資料庫與設定遷移
+
+這批 2.0.4 變更本身不需要新增 Admin Store 資料庫遷移，也沒有新增必填環境變數。
+
+升級後建議至少測試一把唯讀 MCP 金鑰；若有啟用 DML，再測一次完整核准流程。同時確認具備 `/runtime/db-management/semantic.edit` 權限的角色仍可從管理介面更新 Semantic Layer。
+
+## 建置與部署
+
+若你有自製映像，請跟隨儲存庫鎖定的前端工具鏈。第一方 Dockerfile 現在使用 `pnpm install --frozen-lockfile`；當鎖定檔與套件宣告不一致時會直接讓建置失敗，而不是悄悄解析出不同的依賴版本。
