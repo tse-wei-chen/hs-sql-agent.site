@@ -1,0 +1,40 @@
+---
+title: アップグレードガイド
+description: hs-sql-agent 2.0.3 から 2.0.4 へ移行し、5 つの組み込み MCP tool 契約と build DX の改善を適用します。
+sidebar:
+  group: リファレンス
+  order: 144
+---
+
+import Callout from "@/components/docs/mdx/Callout.astro";
+
+## 2.0.4 の主な変更点
+
+2.0.4 は公開 MCP 境界をより厳密にし、開発・運用時の構成差異を減らします。SQL compiler と database schema の契約自体は変更しません。
+
+- 組み込み MCP tool は、サーバー側の単一 catalog で `get_schemas`、`get_tables`、`get_columns`、`execute_query_sql`、`execute_dml_sql` の 5 つに固定されます。
+- 起動時に reflection で検出した MCP tool と正式 catalog を照合し、余分な tool または不足があれば fail closed で起動を拒否します。
+- `update_semantic_layer` は MCP から公開されなくなります。Semantic Layer の編集は引き続き Admin UI または権限保護された Admin API から行えます。
+- Admin API の tool catalog は、組み込み／Custom Tool の区別、Query／DML 種別、表示名、risk 情報を返すようになります。
+- Docker の frontend build を CI に合わせ、Node.js 22、pnpm 10.22.0、frozen lockfile を使用します。
+- 動作していなかった Admin sidebar の「Search the docs...」入力を削除し、hs-sql-agent Admin Console として表示を整理しました。
+
+<Callout type="warning" title="MCP から update_semantic_layer を呼び出していた場合">
+この method は、2.0.3 の公開ドキュメントで定義された 5 つの組み込み tool には含まれていませんでした。アップグレード前に Semantic Layer の書き込みを **Runtime → DB Management → Semantic Layer** または権限保護された Admin API へ移してください。read-only の schema discovery は、引き続き許可された semantic metadata を返します。
+</Callout>
+
+## MCP key の挙動
+
+既存の MCP key に migration は不要です。`AllowedTools` を明示した場合は指定した組み込み tool と公開済み Custom Tool のみに制限されます。allowlist がない key は、正式な 5 つの組み込み tool と、紐づく database の公開済み Custom Tool を利用できますが、未公開の Semantic Layer 更新 tool は含まれません。
+
+DML approval、table allowlist、rate limit、SQL concurrency、compiler validation、audit の挙動は今回の契約修正では変わりません。
+
+## Database と設定の migration
+
+今回の 2.0.4 変更だけを理由とする Admin Store の schema migration や、新しい必須 environment variable はありません。
+
+アップグレード後は read-only MCP key を 1 つ smoke test してください。DML を有効にしている場合は approval flow も 1 回確認し、`/runtime/db-management/semantic.edit` を持つ role から Semantic Layer を編集できることも確認してください。
+
+## Build と deployment
+
+独自 image を構築している場合は repository の固定 frontend toolchain に合わせてください。公式 Dockerfile は `pnpm install --frozen-lockfile` を使うため、lockfile と package 定義がずれている場合は異なる dependency graph を黙って解決せず build を失敗させます。
