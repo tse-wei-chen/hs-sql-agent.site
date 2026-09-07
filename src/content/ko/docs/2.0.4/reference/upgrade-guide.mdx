@@ -21,6 +21,7 @@ import Callout from "@/components/docs/mdx/Callout.astro";
 - MCP 키 생성/편집 화면에는 **Access Posture**가 표시되어 `Read/query only`, `DML enabled`, `Unrestricted tool access` 중 현재 상태와 데이터 범위가 `All tables`인지 제한된 테이블 수인지 확인할 수 있습니다.
 - **Issued Keys** 목록도 posture-first 방식으로 바뀌어 상태, 데이터베이스, Access Posture, 데이터 범위, 사용 여부, 만료, 실제 적용 rate limit을 원시 설정값보다 먼저 보여 줍니다. 기존 키는 연결된 데이터베이스의 현재 tool catalog를 사용하므로 게시된 Custom DML도 정확히 분류합니다. 저장된 예전 tool이 현재 catalog에 없다면 read-only로 단정하지 않고 `Review tool scope`를 표시합니다.
 - **Audit Logs**도 빠르게 훑어볼 수 있는 scan-first 형태로 정리되었습니다. 압축된 event row에서는 결과, 시간, 대상, actor, tool/database/key 문맥과 실행 신호를 먼저 보여 주고, 전체 내용은 오른쪽 detail sheet에서 Identity, Execution, Trace, Detail, Definition으로 나누어 확인합니다. Event/Request/Session ID는 바로 복사할 수 있고 JSON definition은 저장된 감사 데이터를 변경하지 않은 채 보기 좋게 정리됩니다.
+- **Operability**의 데이터베이스/MCP 키 필터는 raw numeric ID 입력 대신 검색 가능한 entity selector를 사용합니다. UI는 기존과 동일하게 runtime API에 `dbManagementId` / `accessKeyId`를 보내며, 선택지는 Operability가 이미 가진 health / key-usage 데이터에서 만들기 때문에 Database Management 또는 MCP Keys 관리 권한을 추가로 요구하지 않습니다.
 - Admin 홈은 최초 설정 중에만 **System Readiness** 경로를 표시합니다. 데이터베이스 추가 → 활성 MCP 키 발급 → agent가 키를 실제로 한 번 사용한 상태까지 안내하고, 완료되면 onboarding 카드가 자동으로 사라져 기존 운영 대시보드로 돌아갑니다.
 - Docker 프런트엔드 빌드는 CI와 맞춰 Node.js 22, pnpm 10.22.0, 고정 lockfile 설치를 사용합니다.
 - 실제 동작이 없던 Admin 사이드바의 “Search the docs...” 입력란을 제거하고 hs-sql-agent Admin Console이라는 제품 이름을 직접 표시합니다.
@@ -46,6 +47,12 @@ DML 승인, 테이블 allowlist, 속도 제한, SQL 동시성, 컴파일러 검�
 감사 이벤트의 저장, 필터, 내보내기, retention 계약은 그대로입니다. 2.0.4에서는 Admin Console에서 이벤트를 보는 방식만 바뀌며, 목록은 빠른 triage에 집중하고 **View details**를 열면 전체 event context가 구조화된 오른쪽 패널에 표시됩니다.
 
 detail panel은 trace 식별자와 execution evidence를 목록 행에서 분리합니다. `definition`이 JSON이면 읽기 쉽게 포맷하고, JSON이 아니면 원문을 유지합니다. Event ID, Request ID, Session ID, Definition 복사는 저장된 원래 값을 사용합니다.
+
+## Operability 필터
+
+Operability 페이지는 DB ID / Key ID를 외워서 입력하는 대신 검색 가능한 이름 기반 selector를 사용합니다. 데이터베이스 후보는 `/runtime/operability`가 이미 제공하는 scheduled health data에서, 키 후보는 같은 페이지의 필터되지 않은 key-usage data에서 가져옵니다. 화면에는 읽기 쉬운 이름과 ID를 함께 보여 주지만 API 계약은 기존과 동일한 numeric `dbManagementId` / `accessKeyId`입니다.
+
+후보 데이터는 Operability 권한 경계 안에서만 가져옵니다. label을 표시하기 위해 Database Management나 MCP Keys 관리 endpoint를 호출하지 않으므로 Operability view 권한만 가진 role에 별도 관리 조회 권한이 필요하지 않습니다.
 
 ## 최초 readiness
 
