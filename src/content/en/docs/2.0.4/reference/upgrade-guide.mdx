@@ -21,6 +21,7 @@ import Callout from "@/components/docs/mdx/Callout.astro";
 - MCP Key issue/edit forms now show an **Access Posture** summary: `Read/query only`, `DML enabled`, or `Unrestricted tool access`, plus the effective data scope (`All tables` or the number of restricted tables).
 - The Issued Keys list is now posture-first: status, database, access posture, data scope, usage, expiry, and effective rate limit are surfaced before raw configuration details. Existing keys use their database-scoped current tool catalog so published Custom DML is classified correctly; saved tools that cannot be classified from the currently available catalog show `Review tool scope` instead of being presented as read-only.
 - Audit Logs are now scan-first: compact event rows surface result, time, target, actor, tool/database/key context, and execution signals, while a right-side detail sheet organizes Identity, Execution, Trace, Detail, and Definition fields. Event/request/session IDs can be copied directly, and JSON definitions are pretty-printed without changing stored audit data.
+- Operability database and MCP-key filters are now searchable entity selectors instead of raw numeric ID inputs. They still submit the existing numeric filter IDs to the runtime APIs and intentionally derive their choices from Operability data, so viewing the page does not gain a new dependency on Database Management or MCP Keys permissions.
 - The Admin home page now shows a first-run **System Readiness** path—add a database, issue an active key, then connect an agent—until an active key has actually been used. Established environments return to the normal operational dashboard without a permanent onboarding panel.
 - The Docker frontend build now matches CI more closely by using Node.js 22, pnpm 10.22.0, and a frozen lockfile.
 - The inert Admin sidebar “Search the docs...” field was removed and the sidebar branding now identifies the hs-sql-agent Admin Console directly.
@@ -46,6 +47,12 @@ DML approval, table allowlists, rate limits, SQL concurrency, compiler validatio
 Audit event storage, filtering, export, and retention contracts are unchanged. The 2.0.4 Admin Console changes how operators inspect those records: the list favors fast triage, and **View details** opens a structured side panel for the complete event context.
 
 The detail panel keeps trace identifiers and execution evidence visible without filling every list row. JSON-shaped `definition` values are formatted for readability, non-JSON values are preserved as-is, and copy actions use the original stored values for Event ID, Request ID, Session ID, and Definition.
+
+## Operability filtering
+
+The Operability page no longer expects operators to memorize database and MCP-key IDs. Database choices are built from the scheduled health data already available to `/runtime/operability`, while key choices come from the page's unfiltered key-usage data. The selectors show readable names plus IDs, support search, and map the selected label back to the same numeric `dbManagementId` / `accessKeyId` filter contract used by 2.0.3.
+
+The selector catalog intentionally stays inside the Operability permission boundary. It does not call Database Management or MCP-key management endpoints just to populate labels, so a role with Operability view access is not forced to gain unrelated management-view permissions.
 
 ## First-run readiness
 
