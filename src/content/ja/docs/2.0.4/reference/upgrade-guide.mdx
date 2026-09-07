@@ -19,6 +19,7 @@ import Callout from "@/components/docs/mdx/Callout.astro";
 - MCP key の新規作成・編集画面はこの server catalog を直接描画し、frontend 側に別の組み込み tool 一覧を持たなくなります。
 - 新しい key は `get_schemas`、`get_tables`、`get_columns`、`execute_query_sql` の 4 つの read/query tool を既定で選択します。`execute_dml_sql` は利用可能ですが、**既定では選択されません**。
 - MCP key の新規作成・編集画面には **Access Posture** が表示され、`Read/query only`、`DML enabled`、`Unrestricted tool access` のどれに当たるかと、data scope が `All tables` か制限された table 数かを確認できます。
+- **Issued Keys** 一覧も posture-first に変更され、status、database、Access Posture、data scope、usage、expiry、実効 rate limit を raw 設定より先に確認できます。既存 key は紐づく database の現在の tool catalog を使うため、公開済み Custom DML も正しく分類されます。保存済み tool が現在の catalog から消えている場合は read-only と決めつけず、`Review tool scope` を表示します。
 - Admin home は初回セットアップ中だけ **System Readiness** を表示し、database の追加 → active MCP key の発行 → agent による key の実利用、という最短経路を示します。完了後は onboarding card が自動的に消え、通常の operational dashboard に戻ります。
 - Docker の frontend build を CI に合わせ、Node.js 22、pnpm 10.22.0、frozen lockfile を使用します。
 - 動作していなかった Admin sidebar の「Search the docs...」入力を削除し、hs-sql-agent Admin Console として表示を整理しました。
@@ -33,7 +34,7 @@ import Callout from "@/components/docs/mdx/Callout.astro";
 
 新規発行する key は unrestricted ではなく、明示的な 4-tool read/query allowlist から開始します。`execute_dml_sql` または公開済み Custom DML tool を有効にするには operator が明示的に選択する必要があり、UI は MCP Elicitation が必要であることを引き続き表示します。すべての tool 選択を外した場合の意味は従来どおり **unrestricted** なので、その状態には DML も含まれることを UI が警告します。
 
-Access Posture は発行／保存前の実効選択をそのまま可視化します。緑は read/query-only、黄は 1 つ以上の DML tool が有効、赤は tool scope が unrestricted であることを示します。さらに、全 table にアクセスできるか、現在の table whitelist 件数に制限されているかも表示します。これは説明用の UI であり、実際の authorization は既存の key／tool／table policy pipeline が引き続き強制します。
+Access Posture は発行／保存前だけでなく、発行済み key 一覧でも実効選択を可視化します。緑は read/query-only、黄は 1 つ以上の DML tool が有効、赤は tool scope が unrestricted であることを示します。さらに、全 table にアクセスできるか、現在の table whitelist 件数に制限されているかも表示します。既存 key の判定はその key が紐づく database の現在の published catalog を基準にするため Custom DML も反映されます。保存済み tool を現在の catalog で分類できない場合は `Review tool scope` とし、低リスクな read-only 状態だとは表示しません。これは説明用の UI であり、実際の authorization は既存の key／tool／table policy pipeline が引き続き強制します。
 
 表示名、Query／DML 分類、risk、既定選択は server catalog が source of truth です。catalog を取得できない場合、Admin Console は空の frontend state を unrestricted と解釈せず、key の発行を停止します。
 
