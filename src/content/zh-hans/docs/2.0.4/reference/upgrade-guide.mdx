@@ -22,6 +22,7 @@ import Callout from "@/components/docs/mdx/Callout.astro";
 - **Issued Keys** 列表也改为优先呈现权限姿态：先显示状态、数据库、Access Posture、数据范围、使用情况、到期时间和实际生效的速率限制，再显示原始配置细节。现有密钥会使用自己绑定数据库当前的工具目录识别已发布 Custom DML；如果保存的旧工具已经不在当前目录中，界面会显示 `Review tool scope`，而不会误标成只读。
 - **Audit Logs** 改为适合快速排查的 scan-first 视图：紧凑事件行优先显示结果、时间、目标、操作者、tool／database／key 上下文与执行信号；完整事件内容则通过右侧详情面板按 Identity、Execution、Trace、Detail、Definition 分组查看。Event／Request／Session ID 可直接复制，JSON definition 会格式化展示，但不会改变已存储的审计数据。
 - **Operability** 的数据库和 MCP 密钥筛选改成可搜索的实体选择器，不再要求操作人员手动输入 numeric ID。界面仍向 runtime API 发送原有的 `dbManagementId` / `accessKeyId`，选项也只来自 Operability 已有的健康与 key-usage 数据，因此不会新增对 Database Management 或 MCP Keys 管理权限的依赖。
+- 具有 Audit 查看权限的操作人员现在可以从 Operability 直接 drill down 到匹配的 Audit Logs。当前日期／数据库／密钥／工具筛选可直接带过去，Database health 与 Key usage 行也提供聚焦的 Audit 快捷入口；异常 route query 会在进入 audit API 之前被忽略。
 - Admin 首页现在会在首次配置阶段显示 **System Readiness** 路径：添加数据库、签发有效 MCP 密钥、让 agent 实际使用一次密钥。完成后 onboarding 卡会自动消失，不会长期占用成熟环境的运营仪表盘。
 - Docker 前端构建改为与 CI 对齐：Node.js 22、pnpm 10.22.0，并强制按锁文件安装。
 - 移除了管理侧栏中没有实际功能的“Search the docs...”输入框，侧栏品牌也直接显示 hs-sql-agent Admin Console。
@@ -53,6 +54,12 @@ DML 审批、数据表白名单、速率限制、SQL 并发、编译验证与审
 Operability 页面现在用可搜索名称替代需要记住 DB ID / Key ID 的操作方式。数据库选项直接来自 `/runtime/operability` 已获取的定时健康数据；密钥选项则来自同一页面未筛选的 key-usage 数据。选择器会显示可读名称和 ID，但最终仍映射回 2.0.3 已有的 numeric `dbManagementId` / `accessKeyId` 筛选契约。
 
 选项来源刻意维持在 Operability 权限边界内，不会为了显示名称而调用 Database Management 或 MCP Keys 管理端点，因此只有 Operability view 权限的角色不需要额外获得管理查看权限。
+
+## 从 Operability drill down 到 Audit
+
+如果当前操作人员同时拥有 `/runtime/audit.view`，Operability 会显示 **View matching audit**，Database health 与 Key usage 行也会提供对应的 Audit 操作。跳转时会携带当前 `from`、`to`、数据库、密钥和工具条件，让运维信号可以直接进入同一上下文的审计事件，而不必重新手动填写筛选。
+
+Audit 页面会防御性地解析 route query：日期只接受 `YYYY-MM-DD`，数据库／密钥 ID 必须是正整数，工具名不得为空。无效值会在构造 Audit API 请求前被忽略。这些链接只提供导航便利；Audit 页面仍执行现有权限检查，不会绕过任何 authorization 契约。
 
 ## 首次启用 readiness
 
