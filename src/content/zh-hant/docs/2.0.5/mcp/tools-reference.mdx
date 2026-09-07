@@ -1,0 +1,86 @@
+---
+title: MCP 工具參考
+description: hs-sql-agent 2.0.5 的內建 MCP 工具契約，涵蓋查詢、中繼資料探索與需核准 DML 的結構化結果。
+sidebar:
+  group: MCP
+  order: 35
+---
+
+hs-sql-agent 刻意把內建 MCP 工具維持在五項。2.0.5 起，五項工具都會透過 MCP `structuredContent` 回傳可由程式直接判讀的結構化結果，並提供推導出的輸出結構定義。
+
+| 工具 | 公開輸入 | 新金鑰預設 | 回傳內容 |
+| --- | --- | --- | --- |
+| `get_schemas` | 無 | 勾選 | 結構化的資料庫結構描述清單 |
+| `get_tables` | `schemaName: string` | 勾選 | 結構化的資料表與語意中繼資料 |
+| `get_columns` | `schemaName: string`、`tableName: string` | 勾選 | 結構化的欄位與關聯 |
+| `execute_query_sql` | `sql: string` | 勾選 | 結構化的查詢列與錯誤資訊 |
+| `execute_dml_sql` | `sql: string` | **不勾選** | 結構化的核准與提交狀態 |
+
+已發布的自訂工具仍可擴充特定資料庫的工具集合，但不屬於內建工具。
+
+## 共用錯誤契約
+
+唯讀／查詢工具失敗，以及真正失敗的 DML，都使用 `McpToolError`：
+
+| 欄位 | 意義 |
+| --- | --- |
+| `Code` | 穩定、可由程式判讀的錯誤代碼 |
+| `Message` | 可安全顯示給 MCP 用戶端的人類可讀訊息 |
+| `Stage` | 已知時指出拒絕發生在哪個管線或執行階段 |
+| `Retryable` | 不修改輸入、稍後重試是否可能成功 |
+
+用戶端應依 `Code`、`Stage` 與 DML 的 `Status` 分支處理，不要再解析顯示文字。
+
+## `get_schemas`
+
+回傳 `Success`、`Provider`、`Schemas`、`Error`。`Schemas` 只包含目前 MCP 金鑰可見的資料庫結構描述名稱；資料庫綁定與授權仍由伺服器掌控。
+
+## `get_tables`
+
+回傳 `Success`、`Provider`、`Schema`、`Tables`、`Error`。
+
+每筆資料表包含 `Name`、`DisplayName`、`Description`、`Synonyms`、`Metrics`。每個指標包含 `Name`、`DisplayName`、`Aggregation`、`Formula`、`Grain`、`Filter`、`Synonyms`。
+
+語意中繼資料只有在已設定且權限允許時才會出現；實體資料表名稱仍是執行身分。
+
+## `get_columns`
+
+回傳 `Success`、`Provider`、`Schema`、`Table`、`Columns`、`Error`。
+
+每個欄位包含 `Name`、`Type`、`IsPrimaryKey`、`PrimaryKeyOrdinal`、`DisplayName`、`Description`、`Synonyms`、`Relationships`。每筆關聯包含 `Name`、`Source`、`Target`、`Cardinality`、`Direction`。
+
+## `execute_query_sql`
+
+```text
+execute_query_sql(sql: string)
+```
+
+回傳 `Success`、`Provider`、`RowCount`、`DurationMs`、`Rows`、`Error`。`Rows` 是以欄位名稱為鍵的 JSON 物件清單。
+
+不支援的 SQL、授權失敗、政策拒絕、逾時、伺服器忙碌或執行失敗仍一律 fail closed；查詢未完成時會提供可由程式判讀的錯誤資訊。
+
+結構化輸出沒有改變 SQL 安全管線：仍依序解析、繫結、授權、驗證政策與來源語意、證明目標資料庫能力、編譯不可變命令，最後才執行。
+
+## `execute_dml_sql`
+
+```text
+execute_dml_sql(sql: string)
+```
+
+DML 對新發行的 MCP 金鑰仍是選用功能，不會預設勾選。工具可接受一筆或多筆以分號分隔的受支援敘述，並維持既有的核准流程與伺服器管理原子交易。
+
+結構化結果包含：`Status`、`Provider`、`Committed`、`StatementCount`、`AffectedRows`、`ApprovalWaitDurationMs`、`ApprovalDecision`、`ApprovalRequestId`、`ApprovalExternalReference`、`ReturnedRows`、`Message`、`Error`。
+
+`Status` 只有四種：`committed`、`pending`、`rejected`、`failed`。
+
+`pending` 與 `rejected` 是正常的核准狀態，不是執行錯誤，因此這兩種狀態的 `Error` 為 null。只有 `Status` 為 `failed` 時才會填入 `Error`。
+
+已提交的敘述若使用受支援的結果子句（例如 `RETURNING`），`ReturnedRows` 會直接包含結構化資料列。一般提交與所有未提交狀態都會回傳空陣列。
+
+外部核准若處於 `pending`，結果會帶回穩定的 `ApprovalRequestId`；核准提供者若有給外部識別值，也會放在 `ApprovalExternalReference`。此時資料庫尚未提交任何變更。
+
+## 安全邊界
+
+結構化結果不會放寬 SQL 或核准邊界。資料表授權、編譯器驗證、政策檢查、DML 預覽證據、核准綁定、重新驗證、交易控制與回滾仍由伺服器強制執行。
+
+請參閱[安全 DML](/zh-hant/docs/sql-compiler/safe-dml)與[升級指南](/zh-hant/docs/reference/upgrade-guide)。

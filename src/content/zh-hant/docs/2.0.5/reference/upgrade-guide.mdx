@@ -1,0 +1,58 @@
+---
+title: 升級指南
+description: 將 hs-sql-agent 從 2.0.4 升級到 2.0.5，並把 MCP 用戶端從文字解析遷移到內建工具的結構化結果。
+sidebar:
+  group: Reference
+  order: 144
+---
+
+## 2.0.5 改了什麼
+
+2.0.5 把五項內建 MCP 工具的公開回傳契約，從偏向文字呈現的結果改成具型別的結構化結果。這次版本沒有放寬 SQL 編譯器、資料表授權、DML 核准模型、交易控制或 MCP 金鑰的預設安全姿態。
+
+五項內建工具仍是 `get_schemas`、`get_tables`、`get_columns`、`execute_query_sql`、`execute_dml_sql`。
+
+## 用戶端遷移
+
+如果用戶端只把工具結果顯示給使用者，通常不需要額外修改。若自動化流程會解析工具文字，請改用 MCP `structuredContent` 與輸出結構定義中的正式欄位。
+
+`execute_query_sql` 請直接讀取 `Success`、`Provider`、`RowCount`、`DurationMs`、`Rows`、`Error`，不要再從顯示文字擷取列數或 JSON 資料。
+
+中繼資料工具請直接使用 `Schemas`、`Tables`、`Columns`。資料表與欄位物件會把已授權的語意中繼資料放在明確的巢狀欄位中。
+
+失敗處理請依 `McpToolError.Code`、`Stage`、`Retryable` 判斷，不要比對訊息前綴。`Message` 仍適合顯示與記錄，但不應當成穩定控制欄位。
+
+## DML 狀態遷移
+
+`execute_dml_sql` 的 `Status` 現在明確只有四種：
+
+| `Status` | 意義 | `Committed` | `Error` |
+| --- | --- | --- | --- |
+| `committed` | 已核准且完成提交 | `true` | null |
+| `pending` | 等待外部核准 | `false` | null |
+| `rejected` | 核准被拒絕 | `false` | null |
+| `failed` | 政策、驗證、併發、設定或執行失敗 | `false` | 有值 |
+
+不要把 `pending` 或 `rejected` 當成傳輸錯誤或執行錯誤，它們是有效的核准結果。
+
+非同步核准流程應保存或關聯 `ApprovalRequestId`；若核准提供者有外部識別值，也可使用 `ApprovalExternalReference`。收到 `pending` 代表資料庫尚未提交任何變更。
+
+若受支援的 DML 使用 `RETURNING` 等結果子句，請直接從 `ReturnedRows` 取得已提交資料列，不要解析 `Message`。
+
+## 沒有改變的部分
+
+- 新發行的 MCP 金鑰仍預設勾選四項唯讀／查詢工具；
+- `execute_dml_sql` 仍需主動啟用；
+- 不支援的 SQL 仍會 fail closed；
+- 資料表白名單與工具授權仍由伺服器強制執行；
+- 多敘述 DML 仍只核准一次，並在伺服器管理的單一原子交易中依序執行；
+- durable pending approval 後續提交前仍會重新驗證目前的授權、設定、政策、執行計畫、row-set 與受影響列數證據；
+- 用戶端提供的交易控制 SQL 仍會被拒絕。
+
+## 回復舊版時
+
+若回復到 2.0.4，內建工具會恢復先前的回傳形狀。若分階段部署期間必須同時支援兩個版本，已改成只讀結構化欄位的用戶端應依伺服器版本處理相容性。
+
+這次結構化結果變更本身不需要資料庫結構或 SQL 定義遷移。
+
+完整欄位請參閱 [MCP 工具參考](/zh-hant/docs/mcp/tools-reference)。

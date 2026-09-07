@@ -1,0 +1,99 @@
+---
+title: MCP Tools Reference
+description: Built-in MCP contracts in hs-sql-agent 2.0.5, including structured outputs for query, metadata discovery, and approval-gated DML.
+sidebar:
+  group: MCP
+  order: 35
+---
+
+hs-sql-agent keeps the built-in MCP surface intentionally small: exactly five built-in tools. In 2.0.5, all five publish machine-readable results through MCP `structuredContent` with an inferred output schema.
+
+| Tool | Public input | Default posture | Result |
+| --- | --- | --- | --- |
+| `get_schemas` | none | selected | structured schema discovery |
+| `get_tables` | `schemaName: string` | selected | structured tables and semantic metadata |
+| `get_columns` | `schemaName: string`, `tableName: string` | selected | structured columns and relationships |
+| `execute_query_sql` | `sql: string` | selected | structured query rows and errors |
+| `execute_dml_sql` | `sql: string` | **not selected** | structured approval and commit state |
+
+Published Custom Tools may extend the collection for a bound database, but they are not additional built-ins.
+
+## Common error contract
+
+Read/query failures and failed DML use `McpToolError`:
+
+| Field | Meaning |
+| --- | --- |
+| `Code` | stable machine-readable error code |
+| `Message` | human-readable detail safe to surface to the MCP client |
+| `Stage` | pipeline or execution stage when known |
+| `Retryable` | whether the same request may succeed later without changing input |
+
+Clients should branch on structured fields such as `Code`, `Stage`, and DML `Status` instead of parsing presentation text.
+
+## `get_schemas`
+
+Returns `Success`, `Provider`, `Schemas`, and `Error`.
+
+`Schemas` contains only schema names visible to the current MCP key. Database binding and authorization remain server-owned; the model does not provide a connection string.
+
+## `get_tables`
+
+Returns `Success`, `Provider`, `Schema`, `Tables`, and `Error`.
+
+Each table contains `Name`, `DisplayName`, `Description`, `Synonyms`, and `Metrics`. A metric contains `Name`, `DisplayName`, `Aggregation`, `Formula`, `Grain`, `Filter`, and `Synonyms`.
+
+Semantic metadata appears only when configured and authorized. The physical table name remains the execution identity.
+
+## `get_columns`
+
+Returns `Success`, `Provider`, `Schema`, `Table`, `Columns`, and `Error`.
+
+Each column contains `Name`, `Type`, `IsPrimaryKey`, `PrimaryKeyOrdinal`, `DisplayName`, `Description`, `Synonyms`, and `Relationships`. A relationship contains `Name`, `Source`, `Target`, `Cardinality`, and `Direction`.
+
+## `execute_query_sql`
+
+```text
+execute_query_sql(sql: string)
+```
+
+Returns `Success`, `Provider`, `RowCount`, `DurationMs`, `Rows`, and `Error`.
+
+`Rows` is a list of JSON objects keyed by column name. Unsupported SQL, authorization failures, policy failures, timeout, busy-server conditions, and execution failures remain fail closed; machine-readable error details are returned when the query does not complete.
+
+The SQL path is unchanged by structured output: parse, bind, authorize, validate policy and source semantics, prove target capabilities, compile an immutable provider command, then execute.
+
+## `execute_dml_sql`
+
+```text
+execute_dml_sql(sql: string)
+```
+
+DML remains opt-in for newly issued MCP keys. The tool accepts one or more supported semicolon-separated statements and keeps the existing approval and server-owned atomic transaction model.
+
+The structured result contains:
+
+- `Status`: `committed`, `pending`, `rejected`, or `failed`
+- `Provider`
+- `Committed`
+- `StatementCount`
+- `AffectedRows`
+- `ApprovalWaitDurationMs`
+- `ApprovalDecision`: `approved`, `pending`, `rejected`, or null before approval is reached
+- `ApprovalRequestId`
+- `ApprovalExternalReference`
+- `ReturnedRows`
+- `Message`
+- `Error`
+
+`pending` and `rejected` are valid approval states, not execution errors, so `Error` is null for those states. `Error` is populated only when `Status` is `failed`.
+
+For a committed statement with a supported result clause such as `RETURNING`, `ReturnedRows` contains structured row objects. It is empty for ordinary commits and for every non-committed state.
+
+A pending external approval exposes the stable approval request identifier and, when supplied by the provider, its external reference. No database change has been committed at that point.
+
+## Safety boundary
+
+Structured results do not weaken the SQL or approval boundary. Table authorization, compiler validation, policy checks, DML preview evidence, approval binding, revalidation, transaction ownership, and rollback behavior remain server-side controls.
+
+See [Safe DML](/en/docs/sql-compiler/safe-dml) and the [upgrade guide](/en/docs/reference/upgrade-guide).

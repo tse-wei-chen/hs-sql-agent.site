@@ -1,0 +1,58 @@
+---
+title: Upgrade-Leitfaden
+description: Upgrade von hs-sql-agent 2.0.4 auf 2.0.5 und Migration von MCP-Clients vom Text-Parsing auf strukturierte Ergebnisse der eingebauten Tools.
+sidebar:
+  group: Reference
+  order: 144
+---
+
+## Änderungen in 2.0.5
+
+2.0.5 ändert den öffentlichen Ergebnisvertrag aller fünf eingebauten MCP-Tools von darstellungsorientiertem Text auf typisierte strukturierte Ergebnisse. SQL-Compiler, Tabellenautorisierung, DML-Freigabemodell, Transaktionshoheit und die Standardhaltung neuer MCP-Schlüssel werden dadurch nicht gelockert.
+
+Die fünf eingebauten Tools bleiben `get_schemas`, `get_tables`, `get_columns`, `execute_query_sql` und `execute_dml_sql`.
+
+## Client-Migration
+
+Clients, die Tool-Ergebnisse nur anzeigen, benötigen normalerweise keine besondere Anpassung. Wenn Automatisierung Tool-Text parst, sollte sie stattdessen die offiziellen Felder aus MCP `structuredContent` und dem abgeleiteten Ausgabeschema verwenden.
+
+Bei `execute_query_sql` lesen Sie `Success`, `Provider`, `RowCount`, `DurationMs`, `Rows` und `Error` direkt. Zeilenzahl und JSON-Zeilen sollten nicht mehr aus Darstellungstext extrahiert werden.
+
+Bei Metadaten-Tools verwenden Sie `Schemas`, `Tables` und `Columns` direkt. Autorisierte semantische Metadaten stehen als explizite verschachtelte Felder bereit.
+
+Bei Fehlern sollte nach `McpToolError.Code`, `Stage` und `Retryable` verzweigt werden, nicht nach Meldungspräfixen. `Message` bleibt für Menschen und Logs geeignet, ist aber kein stabiler Steuerwert.
+
+## Migration der DML-Zustände
+
+`execute_dml_sql` stellt vier explizite Werte in `Status` bereit:
+
+| `Status` | Bedeutung | `Committed` | `Error` |
+| --- | --- | --- | --- |
+| `committed` | freigegeben und committet | `true` | null |
+| `pending` | wartet auf externe Freigabe | `false` | null |
+| `rejected` | Freigabe abgelehnt | `false` | null |
+| `failed` | Policy-, Validierungs-, Parallelitäts-, Konfigurations- oder Ausführungsfehler | `false` | gesetzt |
+
+`pending` und `rejected` sind gültige Freigabeergebnisse und keine Transport- oder Ausführungsfehler.
+
+Bei asynchroner Freigabe sollte `ApprovalRequestId` gespeichert oder korreliert werden. Liefert der Freigabeanbieter eine externe Referenz, steht auch `ApprovalExternalReference` zur Verfügung. Bei `pending` wurden noch keine Datenbankänderungen committet.
+
+Für unterstützte DML-Ergebnisklauseln wie `RETURNING` lesen Sie die committeten Zeilen aus `ReturnedRows`, statt `Message` zu parsen.
+
+## Was unverändert bleibt
+
+- neue MCP-Schlüssel wählen weiterhin standardmäßig die vier Lese-/Abfragetools;
+- `execute_dml_sql` bleibt opt-in;
+- nicht unterstütztes SQL bleibt fail closed;
+- Tabellen- und Tool-Autorisierung werden weiterhin serverseitig erzwungen;
+- mehrere DML-Anweisungen werden einmal freigegeben und in einer servergesteuerten atomaren Transaktion der Reihe nach ausgeführt;
+- eine dauerhafte `pending`-Freigabe revalidiert vor einem späteren Commit weiterhin Autorisierung, Konfiguration, Policy, Plan, row-set und betroffene Zeilen;
+- clientseitig geliefertes Transaktionssteuerungs-SQL bleibt abgelehnt.
+
+## Rollback
+
+Ein Rollback auf 2.0.4 stellt das frühere Ergebnisformat der eingebauten Tools wieder her. Müssen während eines gestaffelten Rollouts beide Versionen unterstützt werden, sollten Clients mit ausschließlich strukturiertem Feldzugriff die Serverversion berücksichtigen.
+
+Für die Änderung an strukturierten Ergebnissen selbst ist keine Migration des Datenbankschemas oder der SQL-Definitionen nötig.
+
+Die exakten Felder stehen in der [MCP-Tool-Referenz](/de/docs/mcp/tools-reference).

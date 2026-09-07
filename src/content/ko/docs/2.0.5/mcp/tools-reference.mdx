@@ -1,0 +1,86 @@
+---
+title: MCP 도구 참조
+description: hs-sql-agent 2.0.5의 내장 MCP 도구 계약과 쿼리, 메타데이터 탐색, 승인형 DML의 구조화 결과를 설명합니다.
+sidebar:
+  group: MCP
+  order: 35
+---
+
+hs-sql-agent는 내장 MCP 도구를 의도적으로 5개만 제공합니다. 2.0.5부터 5개 도구 모두 MCP `structuredContent`를 통해 기계가 바로 해석할 수 있는 구조화 결과를 반환하며 출력 스키마도 추론됩니다.
+
+| 도구 | 공개 입력 | 새 키 기본값 | 결과 |
+| --- | --- | --- | --- |
+| `get_schemas` | 없음 | 선택 | 구조화된 스키마 목록 |
+| `get_tables` | `schemaName: string` | 선택 | 구조화된 테이블 및 의미 메타데이터 |
+| `get_columns` | `schemaName: string`, `tableName: string` | 선택 | 구조화된 컬럼 및 관계 |
+| `execute_query_sql` | `sql: string` | 선택 | 구조화된 쿼리 행 및 오류 |
+| `execute_dml_sql` | `sql: string` | **선택 안 함** | 구조화된 승인 및 커밋 상태 |
+
+게시된 Custom Tool은 연결된 데이터베이스의 도구 모음을 확장할 수 있지만 내장 도구는 아닙니다.
+
+## 공통 오류 계약
+
+읽기/쿼리 도구 실패와 실제로 실패한 DML은 `McpToolError`를 사용합니다.
+
+| 필드 | 의미 |
+| --- | --- |
+| `Code` | 안정적인 기계 판독용 오류 코드 |
+| `Message` | MCP 클라이언트에 안전하게 표시할 수 있는 설명 |
+| `Stage` | 알 수 있는 경우 거부 또는 실패 단계 |
+| `Retryable` | 입력을 바꾸지 않고 나중에 다시 시도해 성공할 가능성이 있는지 여부 |
+
+클라이언트는 표시 문자열을 파싱하지 말고 `Code`, `Stage`, DML `Status`로 분기해야 합니다.
+
+## `get_schemas`
+
+`Success`, `Provider`, `Schemas`, `Error`를 반환합니다. `Schemas`에는 현재 MCP 키가 볼 수 있는 스키마 이름만 포함됩니다.
+
+## `get_tables`
+
+`Success`, `Provider`, `Schema`, `Tables`, `Error`를 반환합니다.
+
+각 테이블은 `Name`, `DisplayName`, `Description`, `Synonyms`, `Metrics`를 포함합니다. 각 지표는 `Name`, `DisplayName`, `Aggregation`, `Formula`, `Grain`, `Filter`, `Synonyms`를 포함합니다.
+
+의미 메타데이터는 설정되어 있고 권한이 허용된 경우에만 반환됩니다. 물리 테이블 이름은 계속 실행 식별자로 사용됩니다.
+
+## `get_columns`
+
+`Success`, `Provider`, `Schema`, `Table`, `Columns`, `Error`를 반환합니다.
+
+각 컬럼은 `Name`, `Type`, `IsPrimaryKey`, `PrimaryKeyOrdinal`, `DisplayName`, `Description`, `Synonyms`, `Relationships`를 포함합니다. 각 관계는 `Name`, `Source`, `Target`, `Cardinality`, `Direction`을 포함합니다.
+
+## `execute_query_sql`
+
+```text
+execute_query_sql(sql: string)
+```
+
+`Success`, `Provider`, `RowCount`, `DurationMs`, `Rows`, `Error`를 반환합니다. `Rows`는 컬럼 이름을 키로 사용하는 JSON 객체 목록입니다.
+
+지원되지 않는 SQL, 권한 거부, 정책 거부, 시간 초과, 서버 혼잡, 실행 실패는 계속 fail closed로 처리됩니다. 쿼리가 완료되지 않으면 기계 판독 가능한 오류 정보가 반환됩니다.
+
+구조화 결과는 SQL 안전 경계를 변경하지 않습니다. 구문 분석, 바인딩, 권한 검사, 정책 및 원본 방언 검증, 대상 DB 기능 증명, 불변 명령 컴파일을 통과한 뒤 실행됩니다.
+
+## `execute_dml_sql`
+
+```text
+execute_dml_sql(sql: string)
+```
+
+DML은 새 MCP 키에서 계속 선택형이며 기본으로 켜지지 않습니다. 지원되는 한 개 또는 세미콜론으로 구분된 여러 DML 문을 받아 기존 승인 흐름과 서버 소유 원자 트랜잭션을 유지합니다.
+
+결과에는 `Status`, `Provider`, `Committed`, `StatementCount`, `AffectedRows`, `ApprovalWaitDurationMs`, `ApprovalDecision`, `ApprovalRequestId`, `ApprovalExternalReference`, `ReturnedRows`, `Message`, `Error`가 포함됩니다.
+
+`Status`는 `committed`, `pending`, `rejected`, `failed` 중 하나입니다.
+
+`pending`과 `rejected`는 정상적인 승인 상태이며 실행 오류가 아닙니다. 따라서 이 상태에서는 `Error`가 null입니다. `Error`는 `Status`가 `failed`일 때만 채워집니다.
+
+커밋된 DML이 `RETURNING` 같은 지원 결과 절을 사용하면 `ReturnedRows`에 구조화된 행이 들어갑니다. 일반 커밋과 모든 미커밋 상태에서는 빈 배열입니다.
+
+외부 승인이 `pending`이면 안정적인 `ApprovalRequestId`가 반환되고, 승인 제공자가 외부 참조를 제공하면 `ApprovalExternalReference`도 포함됩니다. 이 시점에는 DB 변경이 커밋되지 않았습니다.
+
+## 안전 경계
+
+구조화 결과는 SQL 또는 승인 경계를 완화하지 않습니다. 테이블 권한, 컴파일러 검증, 정책 검사, DML 미리보기 증거, 승인 바인딩, 재검증, 트랜잭션 소유권, 롤백은 계속 서버에서 강제됩니다.
+
+[Safe DML](/ko/docs/sql-compiler/safe-dml)과 [업그레이드 가이드](/ko/docs/reference/upgrade-guide)를 참고하세요.

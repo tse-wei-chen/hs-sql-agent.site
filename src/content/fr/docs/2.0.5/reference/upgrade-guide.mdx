@@ -1,0 +1,58 @@
+---
+title: Guide de mise à niveau
+description: Passer hs-sql-agent de 2.0.4 à 2.0.5 et migrer les clients MCP de l'analyse de texte vers les résultats structurés des outils intégrés.
+sidebar:
+  group: Reference
+  order: 144
+---
+
+## Ce qui change en 2.0.5
+
+2.0.5 fait évoluer le contrat public des cinq outils MCP intégrés : les résultats orientés affichage deviennent des résultats structurés et typés. Le compilateur SQL, l'autorisation des tables, le modèle d'approbation DML, la propriété des transactions et la posture par défaut des clés MCP ne sont pas assouplis.
+
+Les cinq outils restent `get_schemas`, `get_tables`, `get_columns`, `execute_query_sql` et `execute_dml_sql`.
+
+## Migration des clients
+
+Un client qui se contente d'afficher le résultat n'a généralement rien à changer. Si une automatisation analyse le texte renvoyé par un outil, utilisez désormais les champs officiels exposés via MCP `structuredContent` et le schéma de sortie déduit.
+
+Pour `execute_query_sql`, lisez directement `Success`, `Provider`, `RowCount`, `DurationMs`, `Rows` et `Error`. N'extrayez plus le nombre de lignes ou les données JSON du texte de présentation.
+
+Pour les outils de métadonnées, utilisez directement `Schemas`, `Tables` et `Columns`. Les métadonnées sémantiques autorisées sont présentes dans des champs imbriqués explicites.
+
+Pour les échecs, branchez-vous sur `McpToolError.Code`, `Stage` et `Retryable` plutôt que sur un préfixe de message. `Message` reste utile pour l'affichage et les journaux, pas comme champ de contrôle stable.
+
+## Migration des états DML
+
+`execute_dml_sql` expose quatre valeurs explicites dans `Status` :
+
+| `Status` | Signification | `Committed` | `Error` |
+| --- | --- | --- | --- |
+| `committed` | approuvé et validé | `true` | null |
+| `pending` | attente d'une approbation externe | `false` | null |
+| `rejected` | approbation refusée | `false` | null |
+| `failed` | échec de politique, validation, concurrence, configuration ou exécution | `false` | renseigné |
+
+`pending` et `rejected` sont des résultats d'approbation valides, pas des erreurs de transport ou d'exécution.
+
+Dans un flux d'approbation asynchrone, conservez ou corrélez `ApprovalRequestId`. Si le fournisseur fournit une référence externe, `ApprovalExternalReference` est également disponible. Un résultat `pending` signifie qu'aucune modification de base n'a été validée.
+
+Pour une clause de résultat DML prise en charge telle que `RETURNING`, lisez les lignes validées dans `ReturnedRows` au lieu d'analyser `Message`.
+
+## Ce qui ne change pas
+
+- les nouvelles clés MCP sélectionnent toujours par défaut les quatre outils de lecture/requête ;
+- `execute_dml_sql` reste optionnel ;
+- le SQL non pris en charge reste fail closed ;
+- listes de tables autorisées et autorisations d'outils restent imposées côté serveur ;
+- plusieurs DML sont approuvés une fois puis exécutés dans l'ordre au sein d'une transaction atomique contrôlée par le serveur ;
+- une approbation durable `pending` revalide encore autorisation, configuration, politique, plan, row-set et nombre de lignes avant un commit ultérieur ;
+- le SQL de contrôle de transaction fourni par le client reste refusé.
+
+## Retour arrière
+
+Un retour à 2.0.4 restaure l'ancien format des résultats intégrés. Lors d'un déploiement progressif devant prendre en charge les deux versions, les clients qui ne lisent plus que les champs structurés doivent tenir compte de la version du serveur.
+
+Le changement de résultats structurés ne nécessite aucune migration du schéma de base ni des définitions SQL.
+
+Consultez la [référence des outils MCP](/fr/docs/mcp/tools-reference) pour les champs exacts.

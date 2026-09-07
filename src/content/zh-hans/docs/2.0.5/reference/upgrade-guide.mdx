@@ -1,0 +1,58 @@
+---
+title: 升级指南
+description: 将 hs-sql-agent 从 2.0.4 升级到 2.0.5，并把 MCP 客户端从文本解析迁移到内置工具的结构化结果。
+sidebar:
+  group: Reference
+  order: 144
+---
+
+## 2.0.5 有哪些变化
+
+2.0.5 将五项内置 MCP 工具的公开返回契约，从偏向文本展示的结果改为带类型的结构化结果。本次版本没有放宽 SQL 编译器、数据表授权、DML 审批模型、事务控制或 MCP 密钥的默认安全姿态。
+
+五项内置工具仍是 `get_schemas`、`get_tables`、`get_columns`、`execute_query_sql`、`execute_dml_sql`。
+
+## 客户端迁移
+
+如果客户端只负责展示工具输出，通常不需要特殊修改。如果自动化流程会解析工具文本，请改为使用 MCP `structuredContent` 和输出结构定义中的正式字段。
+
+`execute_query_sql` 请直接读取 `Success`、`Provider`、`RowCount`、`DurationMs`、`Rows`、`Error`，不要再从展示文本中提取行数或 JSON 数据。
+
+元数据工具请直接使用 `Schemas`、`Tables`、`Columns`。数据表和字段对象会把已授权的语义元数据放入明确的嵌套字段。
+
+失败处理请依据 `McpToolError.Code`、`Stage`、`Retryable`，不要匹配消息前缀。`Message` 仍适合展示和日志，但不应作为稳定的控制字段。
+
+## DML 状态迁移
+
+`execute_dml_sql` 的 `Status` 现在明确只有四种：
+
+| `Status` | 含义 | `Committed` | `Error` |
+| --- | --- | --- | --- |
+| `committed` | 已审批并完成提交 | `true` | null |
+| `pending` | 等待外部审批 | `false` | null |
+| `rejected` | 审批被拒绝 | `false` | null |
+| `failed` | 策略、验证、并发、配置或执行失败 | `false` | 有值 |
+
+不要把 `pending` 或 `rejected` 当作传输错误或执行错误，它们是有效的审批结果。
+
+异步审批流程应保存或关联 `ApprovalRequestId`；如果审批提供方给出外部引用，也可使用 `ApprovalExternalReference`。收到 `pending` 表示数据库尚未提交任何变更。
+
+如果受支持的 DML 使用 `RETURNING` 等结果子句，请直接从 `ReturnedRows` 读取已提交数据，不要解析 `Message`。
+
+## 没有变化的部分
+
+- 新签发的 MCP 密钥仍默认选择四项只读／查询工具；
+- `execute_dml_sql` 仍需主动启用；
+- 不支持的 SQL 仍会 fail closed；
+- 数据表白名单和工具授权仍由服务器强制执行；
+- 多语句 DML 仍只审批一次，并在服务器管理的单一原子事务中按顺序执行；
+- durable pending approval 后续提交前仍会重新验证当前授权、配置、策略、执行计划、row-set 和受影响行数证据；
+- 客户端提交的事务控制 SQL 仍会被拒绝。
+
+## 回滚说明
+
+如果回滚到 2.0.4，内置工具会恢复之前的返回形状。如果分阶段部署期间需要同时支持两个版本，已经只读取结构化字段的客户端应根据服务器版本处理兼容性。
+
+本次结构化结果变更本身不要求迁移数据库结构或 SQL 定义。
+
+完整字段请参阅 [MCP 工具参考](/zh-hans/docs/mcp/tools-reference)。

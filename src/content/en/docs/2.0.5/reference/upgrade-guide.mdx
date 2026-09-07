@@ -1,0 +1,58 @@
+---
+title: Upgrade Guide
+description: Upgrade hs-sql-agent from 2.0.4 to 2.0.5 and migrate MCP clients from text parsing to structured built-in tool results.
+sidebar:
+  group: Reference
+  order: 144
+---
+
+## What changes in 2.0.5
+
+2.0.5 changes the public result contract of all five built-in MCP tools from text-oriented responses to typed structured results. The SQL compiler, table authorization, DML approval model, transaction ownership, and default MCP-key posture are not relaxed by this release.
+
+The five built-ins remain `get_schemas`, `get_tables`, `get_columns`, `execute_query_sql`, and `execute_dml_sql`.
+
+## Client migration
+
+If a client only displays tool output, no special migration is usually required. If automation parses tool text, migrate it to the structured fields exposed through MCP `structuredContent` and the inferred output schema.
+
+For `execute_query_sql`, consume `Success`, `Provider`, `RowCount`, `DurationMs`, `Rows`, and `Error` directly. Do not extract row count or JSON rows from presentation text.
+
+For metadata tools, consume `Schemas`, `Tables`, and `Columns` directly. Table and column objects now carry authorized Semantic Layer metadata as explicit nested fields.
+
+For failures, branch on `McpToolError.Code`, `Stage`, and `Retryable` rather than matching message prefixes. `Message` remains available for people and logs but is not the stable control field.
+
+## DML state migration
+
+`execute_dml_sql` now exposes four explicit states in `Status`:
+
+| `Status` | Meaning | `Committed` | `Error` |
+| --- | --- | --- | --- |
+| `committed` | approved and committed | `true` | null |
+| `pending` | awaiting external approval | `false` | null |
+| `rejected` | approval was declined | `false` | null |
+| `failed` | policy, validation, concurrency, configuration, or execution failure | `false` | populated |
+
+Do not treat `pending` or `rejected` as transport or execution errors. They are valid approval outcomes.
+
+For asynchronous approval flows, persist or correlate `ApprovalRequestId`; when the approval provider supplies one, `ApprovalExternalReference` is also available. A `pending` result means no database change has been committed.
+
+For supported DML result clauses such as `RETURNING`, read committed rows from `ReturnedRows` instead of parsing them from `Message`.
+
+## What does not change
+
+- new MCP keys still select the four read/query tools by default;
+- `execute_dml_sql` remains opt-in;
+- unsupported SQL still fails closed;
+- table allowlists and tool authorization are still enforced server-side;
+- multi-statement DML is still approved once and committed atomically in server-owned transaction order;
+- pending durable approval still revalidates current authorization, configuration, policy, plan, row-set, and affected-row evidence before later commit;
+- client-supplied transaction-control SQL remains rejected.
+
+## Rollback considerations
+
+A rollback to 2.0.4 restores the previous built-in result shape. Clients already migrated to structured-only field access should therefore be version-aware if they must support both server versions during a staged rollout.
+
+The database schema and SQL definitions do not require a migration for the structured-result change itself.
+
+See [MCP Tools Reference](/en/docs/mcp/tools-reference) for the exact 2.0.5 fields.

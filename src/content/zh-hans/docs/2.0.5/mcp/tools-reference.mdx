@@ -1,0 +1,86 @@
+---
+title: MCP 工具参考
+description: hs-sql-agent 2.0.5 的内置 MCP 工具契约，涵盖查询、元数据发现以及需审批 DML 的结构化结果。
+sidebar:
+  group: MCP
+  order: 35
+---
+
+hs-sql-agent 有意将内置 MCP 工具保持在五项。自 2.0.5 起，五项工具都会通过 MCP `structuredContent` 返回可由程序直接处理的结构化结果，并提供推导出的输出结构定义。
+
+| 工具 | 公开输入 | 新密钥默认 | 返回内容 |
+| --- | --- | --- | --- |
+| `get_schemas` | 无 | 选中 | 结构化的数据库架构名称 |
+| `get_tables` | `schemaName: string` | 选中 | 结构化的数据表与语义元数据 |
+| `get_columns` | `schemaName: string`、`tableName: string` | 选中 | 结构化的字段与关系 |
+| `execute_query_sql` | `sql: string` | 选中 | 结构化的查询行与错误信息 |
+| `execute_dml_sql` | `sql: string` | **不选中** | 结构化的审批与提交状态 |
+
+已发布的自定义工具仍可扩展绑定数据库的工具集合，但不属于内置工具。
+
+## 通用错误契约
+
+只读／查询工具失败以及真正失败的 DML 都使用 `McpToolError`：
+
+| 字段 | 含义 |
+| --- | --- |
+| `Code` | 稳定、可供程序判断的错误代码 |
+| `Message` | 可安全显示给 MCP 客户端的可读信息 |
+| `Stage` | 已知时指出拒绝发生的管线或执行阶段 |
+| `Retryable` | 不修改输入、稍后重试是否可能成功 |
+
+客户端应依据 `Code`、`Stage` 和 DML 的 `Status` 分支处理，不应再解析展示文本。
+
+## `get_schemas`
+
+返回 `Success`、`Provider`、`Schemas`、`Error`。`Schemas` 仅包含当前 MCP 密钥可见的数据库架构名称；数据库绑定与授权仍由服务器控制。
+
+## `get_tables`
+
+返回 `Success`、`Provider`、`Schema`、`Tables`、`Error`。
+
+每个数据表包含 `Name`、`DisplayName`、`Description`、`Synonyms`、`Metrics`。每个指标包含 `Name`、`DisplayName`、`Aggregation`、`Formula`、`Grain`、`Filter`、`Synonyms`。
+
+语义元数据只会在已经配置且权限允许时返回；物理表名仍是执行标识。
+
+## `get_columns`
+
+返回 `Success`、`Provider`、`Schema`、`Table`、`Columns`、`Error`。
+
+每个字段包含 `Name`、`Type`、`IsPrimaryKey`、`PrimaryKeyOrdinal`、`DisplayName`、`Description`、`Synonyms`、`Relationships`。每条关系包含 `Name`、`Source`、`Target`、`Cardinality`、`Direction`。
+
+## `execute_query_sql`
+
+```text
+execute_query_sql(sql: string)
+```
+
+返回 `Success`、`Provider`、`RowCount`、`DurationMs`、`Rows`、`Error`。`Rows` 是以字段名为键的 JSON 对象列表。
+
+不支持的 SQL、授权失败、策略拒绝、超时、服务器繁忙或执行失败仍会 fail closed；查询未完成时会返回可供程序判断的错误信息。
+
+结构化输出不会改变 SQL 安全管线：仍依次进行解析、绑定、授权、策略与源语义验证、目标数据库能力证明、不可变命令编译，最后才执行。
+
+## `execute_dml_sql`
+
+```text
+execute_dml_sql(sql: string)
+```
+
+DML 对新签发的 MCP 密钥仍是可选能力，默认不选中。工具可接受一条或多条以分号分隔的受支持语句，并继续采用既有审批流程和服务器管理的原子事务。
+
+结构化结果包含 `Status`、`Provider`、`Committed`、`StatementCount`、`AffectedRows`、`ApprovalWaitDurationMs`、`ApprovalDecision`、`ApprovalRequestId`、`ApprovalExternalReference`、`ReturnedRows`、`Message`、`Error`。
+
+`Status` 只有四种：`committed`、`pending`、`rejected`、`failed`。
+
+`pending` 和 `rejected` 是正常审批状态，并不是执行错误，因此这两种状态下 `Error` 为 null。只有 `Status` 为 `failed` 时才会填充 `Error`。
+
+已提交语句如果使用受支持的结果子句（例如 `RETURNING`），`ReturnedRows` 会直接包含结构化数据行。普通提交以及所有未提交状态均返回空数组。
+
+外部审批处于 `pending` 时，结果会返回稳定的 `ApprovalRequestId`；审批提供方如给出外部引用，也会出现在 `ApprovalExternalReference`。此时数据库尚未提交任何变更。
+
+## 安全边界
+
+结构化结果不会放宽 SQL 或审批边界。数据表授权、编译器验证、策略检查、DML 预览证据、审批绑定、重新验证、事务控制与回滚仍由服务器强制执行。
+
+请参阅[安全 DML](/zh-hans/docs/sql-compiler/safe-dml)和[升级指南](/zh-hans/docs/reference/upgrade-guide)。

@@ -1,0 +1,58 @@
+---
+title: 업그레이드 가이드
+description: hs-sql-agent를 2.0.4에서 2.0.5로 업그레이드하고 MCP 클라이언트를 텍스트 파싱에서 내장 도구의 구조화 결과로 이전합니다.
+sidebar:
+  group: Reference
+  order: 144
+---
+
+## 2.0.5의 변경 사항
+
+2.0.5에서는 5개 내장 MCP 도구의 공개 결과 계약이 표시 문자열 중심 형식에서 형식화된 구조화 결과로 바뀝니다. SQL 컴파일러, 테이블 권한, DML 승인 모델, 트랜잭션 소유권, MCP 키의 기본 보안 자세는 완화되지 않습니다.
+
+내장 도구는 계속 `get_schemas`, `get_tables`, `get_columns`, `execute_query_sql`, `execute_dml_sql` 5개입니다.
+
+## 클라이언트 이전
+
+도구 출력을 표시만 하는 클라이언트는 일반적으로 별도 변경이 필요하지 않습니다. 자동화가 도구 텍스트를 파싱한다면 MCP `structuredContent`와 추론된 출력 스키마의 정식 필드로 이전하세요.
+
+`execute_query_sql`에서는 `Success`, `Provider`, `RowCount`, `DurationMs`, `Rows`, `Error`를 직접 사용합니다. 표시 문자열에서 행 수나 JSON을 추출하지 마세요.
+
+메타데이터 도구에서는 `Schemas`, `Tables`, `Columns`를 직접 사용합니다. 허용된 의미 메타데이터는 테이블과 컬럼 객체의 명시적인 중첩 필드로 제공됩니다.
+
+실패 처리는 메시지 접두사가 아니라 `McpToolError.Code`, `Stage`, `Retryable`을 기준으로 하세요. `Message`는 표시와 로그에는 적합하지만 안정적인 제어 필드는 아닙니다.
+
+## DML 상태 이전
+
+`execute_dml_sql`의 `Status`는 다음 네 가지입니다.
+
+| `Status` | 의미 | `Committed` | `Error` |
+| --- | --- | --- | --- |
+| `committed` | 승인 후 커밋 완료 | `true` | null |
+| `pending` | 외부 승인 대기 | `false` | null |
+| `rejected` | 승인 거절 | `false` | null |
+| `failed` | 정책, 검증, 동시 실행, 설정 또는 실행 실패 | `false` | 값 있음 |
+
+`pending`과 `rejected`를 전송 오류나 실행 오류로 취급하지 마세요. 둘 다 유효한 승인 결과입니다.
+
+비동기 승인에서는 `ApprovalRequestId`를 저장하거나 연계하세요. 승인 제공자가 외부 참조를 주면 `ApprovalExternalReference`도 사용할 수 있습니다. `pending` 상태에서는 DB 변경이 아직 커밋되지 않았습니다.
+
+지원 DML에서 `RETURNING` 같은 결과 절을 사용하면 `Message`를 파싱하지 말고 `ReturnedRows`에서 커밋된 행을 읽으세요.
+
+## 변경되지 않는 사항
+
+- 새 MCP 키는 계속 4개 읽기/쿼리 도구를 기본 선택합니다.
+- `execute_dml_sql`은 계속 명시적으로 켜야 합니다.
+- 지원하지 않는 SQL은 계속 fail closed입니다.
+- 테이블 허용 목록과 도구 권한은 서버에서 강제됩니다.
+- 여러 DML 문은 한 번 승인되고 서버 소유 단일 원자 트랜잭션에서 순서대로 실행됩니다.
+- durable `pending` 승인은 나중에 커밋하기 전에 현재 권한, 설정, 정책, 계획, row-set, 영향 행 증거를 다시 검증합니다.
+- 클라이언트가 보낸 트랜잭션 제어 SQL은 계속 거부됩니다.
+
+## 롤백 시 주의점
+
+2.0.4로 되돌리면 내장 도구는 이전 결과 형식으로 돌아갑니다. 단계적 배포에서 두 버전을 동시에 지원해야 한다면 구조화 필드만 읽는 클라이언트는 서버 버전을 고려해야 합니다.
+
+이번 구조화 결과 변경 자체에는 DB 스키마나 SQL 정의 마이그레이션이 필요하지 않습니다.
+
+정확한 필드는 [MCP 도구 참조](/ko/docs/mcp/tools-reference)를 확인하세요.
