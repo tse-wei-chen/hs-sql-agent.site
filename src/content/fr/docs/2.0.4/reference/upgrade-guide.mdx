@@ -22,6 +22,7 @@ import Callout from "@/components/docs/mdx/Callout.astro";
 - La liste **Issued Keys** devient elle aussi posture-first : état, base liée, Access Posture, portée de données, utilisation, expiration et limite de débit effective apparaissent avant les valeurs de configuration brutes. Les clés existantes sont classées à partir du catalogue courant de leur base, ce qui inclut correctement les Custom Tools DML publiés. Si un ancien outil enregistré n'existe plus dans le catalogue courant, l'interface affiche `Review tool scope` au lieu de le présenter à tort comme read-only.
 - Les **Audit Logs** adoptent une présentation scan-first : les lignes compactes montrent d'abord le résultat, l'heure, la cible, l'acteur, le contexte tool/base/key et les signaux d'exécution ; le contexte complet s'ouvre dans un panneau de détail à droite, organisé en Identity, Execution, Trace, Detail et Definition. Les Event/Request/Session ID sont copiables directement et les definitions JSON sont mises en forme sans modifier les données d'audit stockées.
 - Les filtres base de données / clé MCP d'**Operability** deviennent des sélecteurs d'entités recherchables au lieu de champs d'ID numériques bruts. L'interface continue d'envoyer les `dbManagementId` / `accessKeyId` existants aux API runtime et construit les choix uniquement à partir des données health / key-usage déjà disponibles dans Operability, sans exiger de permissions supplémentaires sur Database Management ou MCP Keys.
+- Les opérateurs disposant du droit de consultation Audit peuvent désormais passer directement d'Operability aux Audit Logs correspondants. Les filtres actuels de date, base, clé et outil sont transmis, et les lignes Database health / Key usage proposent des raccourcis Audit ciblés ; les valeurs de route query invalides sont ignorées avant d'atteindre l'API d'audit.
 - La page d'accueil Admin affiche pendant la première configuration un parcours **System Readiness** : ajouter une base, émettre une clé MCP active, puis faire réellement utiliser cette clé par un agent. Une fois terminé, le panneau d'onboarding disparaît automatiquement afin que les environnements établis reviennent au tableau de bord opérationnel normal.
 - Le build frontend Docker est aligné sur la CI : Node.js 22, pnpm 10.22.0 et installation avec lockfile figé.
 - Le champ « Search the docs... » sans comportement réel a été retiré de la barre latérale d'administration, dont l'identité affiche désormais directement hs-sql-agent Admin Console.
@@ -53,6 +54,12 @@ Les identifiants de trace et les preuves d'exécution quittent ainsi les lignes 
 La page Operability ne demande plus de mémoriser les ID de base et de clé. Les choix de base proviennent des données de health planifiées déjà disponibles dans `/runtime/operability`, et les choix de clé des données key-usage non filtrées de la même page. Les sélecteurs affichent des noms lisibles avec l'ID, puis reviennent au même contrat numérique `dbManagementId` / `accessKeyId` qu'en 2.0.3.
 
 Les options restent volontairement dans la frontière de permission Operability. Aucun endpoint de gestion Database Management ou MCP Keys n'est appelé uniquement pour afficher les libellés ; un rôle disposant de l'accès Operability view n'a donc pas besoin de permissions supplémentaires de consultation d'administration.
+
+## Drill-down d'Operability vers Audit
+
+Si l'opérateur courant possède aussi `/runtime/audit.view`, Operability affiche **View matching audit** ainsi que des actions Audit sur les lignes Database health et Key usage. La navigation transmet les filtres `from`, `to`, base, clé et outil actuels afin d'examiner un signal opérationnel dans le même contexte sans ressaisir les critères.
+
+L'initialisation de la page Audit depuis la route query est défensive : seules les dates `YYYY-MM-DD`, les ID de base/clé entiers positifs et les noms d'outil non vides sont acceptés. Les valeurs invalides sont ignorées avant de construire la requête vers l'API Audit. Ces liens ne sont qu'une aide de navigation ; le contrôle de permission Audit existant reste pleinement appliqué.
 
 ## Readiness de première utilisation
 
