@@ -1,0 +1,87 @@
+---
+title: Upgrade-Leitfaden
+description: hs-sql-agent von 2.0.3 auf 2.0.4 aktualisieren – mit verbindlichem Fünf-Tool-MCP-Vertrag und reproduzierbarerem Frontend-Build.
+sidebar:
+  group: Referenz
+  order: 144
+---
+
+import Callout from "@/components/docs/mdx/Callout.astro";
+
+## Wesentliche Änderungen in 2.0.4
+
+2.0.4 schärft die öffentliche MCP-Grenze und reduziert Abweichungen zwischen Entwicklung, CI und Deployment. Der SQL-Compiler-Vertrag und das Datenbankschema ändern sich dadurch nicht.
+
+- Die eingebauten MCP-Tools werden nun aus einem einzigen serverseitigen Katalog erzwungen: `get_schemas`, `get_tables`, `get_columns`, `execute_query_sql` und `execute_dml_sql`.
+- Beim Start wird die per Reflection gefundene MCP-Oberfläche mit diesem Katalog verglichen. Unerwartete oder fehlende eingebaute Tools führen zu einem Fail-Closed-Startfehler.
+- `update_semantic_layer` wird nicht mehr über MCP veröffentlicht. Semantische Metadaten bleiben über die Admin-Oberfläche und die berechtigungsgeschützte Admin-API bearbeitbar.
+- Der Tool-Katalog der Admin-API liefert nun Kennzeichnung als eingebautes bzw. benutzerdefiniertes Tool, Query-/DML-Typ, Anzeigename, Risikoeinstufung und sichere Standardauswahl.
+- Die Ansichten zum Erstellen und Bearbeiten von MCP-Schlüsseln werden direkt aus diesem Server-Katalog erzeugt; das Frontend pflegt keine zweite Liste eingebauter Tools mehr.
+- Neue Schlüssel wählen standardmäßig die vier Lese-/Query-Tools `get_schemas`, `get_tables`, `get_columns` und `execute_query_sql`. `execute_dml_sql` bleibt verfügbar, ist aber **standardmäßig nicht ausgewählt**.
+- Die Ansichten zum Erstellen und Bearbeiten von MCP-Schlüsseln zeigen nun eine **Access Posture**-Zusammenfassung: `Read/query only`, `DML enabled` oder `Unrestricted tool access`, zusammen mit dem effektiven Datenumfang (`All tables` oder der Anzahl eingeschränkter Tabellen).
+- Auch die Liste **Issued Keys** ist jetzt posture-first aufgebaut: Status, Datenbank, Access Posture, Datenumfang, Nutzung, Ablauf und effektives Rate Limit erscheinen vor den Rohkonfigurationswerten. Bestehende Schlüssel werden gegen den aktuellen Tool-Katalog ihrer gebundenen Datenbank ausgewertet, sodass veröffentlichte Custom-DML-Tools korrekt erkannt werden. Ist ein gespeichertes älteres Tool im aktuellen Katalog nicht mehr vorhanden, zeigt die Oberfläche `Review tool scope`, statt den Schlüssel fälschlich als read-only darzustellen.
+- **Audit Logs** sind jetzt scan-first aufgebaut: Kompakte Ereigniszeilen zeigen Ergebnis, Zeit, Ziel, Actor, Tool-/Datenbank-/Key-Kontext und Ausführungssignale zuerst; der vollständige Datensatz erscheint in einem rechten Detail-Panel, gegliedert nach Identity, Execution, Trace, Detail und Definition. Event-/Request-/Session-ID lassen sich direkt kopieren, und JSON-Definitionen werden lesbar formatiert, ohne gespeicherte Audit-Daten zu verändern.
+- Die Datenbank- und MCP-Key-Filter unter **Operability** sind jetzt durchsuchbare Entity-Selector statt roher numerischer ID-Felder. Die Oberfläche sendet weiterhin die bestehenden `dbManagementId`-/`accessKeyId`-Filter an die Runtime-API und erzeugt die Auswahl ausschließlich aus bereits vorhandenen Operability-Daten, sodass keine zusätzliche Abhängigkeit von Database-Management- oder MCP-Key-Verwaltungsrechten entsteht.
+- Operatoren mit Audit-Leserechten können jetzt direkt von Operability zu den passenden Audit Logs wechseln. Aktuelle Datums-, Datenbank-, Key- und Tool-Filter werden übernommen; Database-Health- und Key-Usage-Zeilen bieten zusätzlich fokussierte Audit-Aktionen. Ungültige Route-Query-Werte werden verworfen, bevor sie die Audit-API erreichen.
+- **Security Policy** beginnt nun mit einer **Effective policy posture**. Sie zeigt den vom Compiler tatsächlich aufgelösten UPDATE-/DELETE-Mutationszustand, DML-/Query-Grenzen, Key-Rate-Limit, SQL-Parallelität sowie Saved/Unsaved-Status. Es wird kein willkürlicher Security Score erzeugt; kann die Server-Policy nicht geladen werden, werden Frontend-Fallbackwerte nicht als effektiver Zustand ausgegeben.
+- Die Admin-Startseite zeigt während der Ersteinrichtung einen **System Readiness**-Pfad: Datenbank hinzufügen, aktiven MCP-Schlüssel ausgeben und den Schlüssel einmal tatsächlich durch einen Agent verwenden. Nach Abschluss verschwindet die Onboarding-Karte automatisch, damit etablierte Umgebungen beim normalen Operations-Dashboard bleiben.
+- Der Frontend-Build im Dockerfile wird an CI angeglichen: Node.js 22, pnpm 10.22.0 und Installation mit unverändertem Lockfile.
+- Das funktionslose Suchfeld „Search the docs...“ wurde aus der Admin-Seitenleiste entfernt; die Navigation kennzeichnet die Oberfläche nun direkt als hs-sql-agent Admin Console.
+
+<Callout type="warning" title="Falls update_semantic_layer bisher über MCP aufgerufen wurde">
+Diese Methode gehörte nicht zum dokumentierten Fünf-Tool-Vertrag von 2.0.3. Verschieben Sie Schreibzugriffe auf semantische Metadaten vor dem Upgrade zu **Runtime → DB Management → Semantic Layer** oder zur berechtigungsgeschützten Admin-API. Die schreibgeschützten Metadaten-Tools liefern autorisierte semantische Informationen weiterhin aus.
+</Callout>
+
+## Verhalten von MCP-Schlüsseln
+
+Bestehende MCP-Schlüssel benötigen keine Migration. Eine explizite `AllowedTools`-Liste begrenzt weiterhin die veröffentlichten eingebauten und Custom Tools. Ohne Tool-Allowlist kann eine Sitzung die fünf kanonischen eingebauten Tools sowie veröffentlichte Custom Tools der gebundenen Datenbank erhalten; das undokumentierte Schreib-Tool für die Semantic Layer gehört nicht mehr dazu.
+
+Neu ausgegebene Schlüssel starten nicht unrestricted, sondern mit einer expliziten Allowlist aus vier Lese-/Query-Tools. `execute_dml_sql` oder ein veröffentlichtes Custom-DML-Tool muss durch einen Operator ausdrücklich ausgewählt werden; die Oberfläche weist weiterhin auf die erforderliche MCP-Elicitation-Freigabe hin. Werden alle Tool-Auswahlen entfernt, bedeutet dies weiterhin **unrestricted** – die Oberfläche warnt daher, dass dieser Zustand auch DML einschließt.
+
+Die Access Posture spiegelt die tatsächlich wirksame Auswahl sowohl vor Ausgabe/Speichern als auch in der Liste bereits ausgegebener Schlüssel wider. Grün bedeutet nur Lese-/Query-Zugriff, Gelb mindestens ein aktiviertes DML-Tool und Rot einen unrestricted Tool-Umfang. Zusätzlich wird angezeigt, ob alle Tabellen zugänglich sind oder der Zugriff auf die aktuelle Anzahl ausgewählter Tabellen begrenzt ist. Bei bestehenden Schlüsseln basiert die Klassifizierung auf dem aktuellen published Tool-Katalog der gebundenen Datenbank und berücksichtigt damit auch Custom DML. Lässt sich ein gespeichertes Tool mit dem aktuellen Katalog nicht mehr klassifizieren, zeigt die Oberfläche `Review tool scope`, statt einen niedrigeren read-only-Risikostatus zu behaupten. Diese Anzeige ist rein erklärend; die tatsächliche Autorisierung bleibt durch die bestehende Key-/Tool-/Table-Policy-Pipeline erzwungen.
+
+Anzeigename, Query-/DML-Klassifizierung, Risiko und Standardauswahl stammen vollständig aus dem Server-Katalog. Kann der Katalog nicht geladen werden, blockiert die Admin Console die Ausgabe eines neuen Schlüssels, statt einen leeren Frontend-Zustand als unrestricted zu interpretieren.
+
+DML-Freigaben, Tabellen-Whitelist, Rate Limits, SQL-Parallelität, Compiler-Validierung und Audit-Verhalten ändern sich durch diese Vertragskorrektur nicht.
+
+## Audit-Prüfung
+
+Die Verträge für Speicherung, Filterung, Export und Aufbewahrung von Audit-Ereignissen bleiben unverändert. In 2.0.4 ändert sich nur die Inspektionsoberfläche: Die Liste ist auf schnelle Triage ausgelegt, und **View details** öffnet den vollständigen Ereigniskontext in einem strukturierten Seitenpanel.
+
+Trace-IDs und Ausführungsnachweise werden dort aus der Hauptliste herausgehalten. Ist `definition` JSON, wird es für die Anzeige formatiert; andere Werte bleiben unverändert. Kopieraktionen für Event ID, Request ID, Session ID und Definition verwenden jeweils den original gespeicherten Wert.
+
+## Operability-Filter
+
+Die Operability-Seite verlangt nicht mehr, dass Operatoren DB- und Key-IDs auswendig kennen. Datenbankoptionen stammen aus den bereits für `/runtime/operability` verfügbaren geplanten Health-Daten; Key-Optionen aus den ungefilterten Key-Usage-Daten derselben Seite. Die Selector zeigen lesbare Namen plus ID und werden anschließend wieder auf den bestehenden numerischen `dbManagementId`-/`accessKeyId`-Filtervertrag abgebildet.
+
+Die Optionen bleiben bewusst innerhalb der Operability-Berechtigungsgrenze. Nur für Labels werden keine Database-Management- oder MCP-Key-Verwaltungsendpunkte aufgerufen; eine Rolle mit Operability-view benötigt daher keine zusätzlichen Verwaltungs-Leserechte.
+
+## Drill-down von Operability zu Audit
+
+Besitzt der aktuelle Operator zusätzlich `/runtime/audit.view`, zeigt Operability **View matching audit** sowie passende Audit-Aktionen in Database-Health- und Key-Usage-Zeilen. Beim Wechsel werden die aktuellen `from`-, `to`-, Datenbank-, Key- und Tool-Filter übernommen, sodass ein Betriebssignal ohne erneutes Eingeben des Kontexts untersucht werden kann.
+
+Die Audit-Seite initialisiert Route-Queries defensiv: Datumswerte werden nur im Format `YYYY-MM-DD` akzeptiert, Datenbank-/Key-IDs müssen positive Ganzzahlen sein und Tool-Namen dürfen nicht leer sein. Ungültige Werte werden vor dem Aufbau der Audit-API-Anfrage ignoriert. Die Links sind reine Navigation; die vorhandene Audit-Berechtigungsprüfung bleibt vollständig wirksam.
+
+## Effektive Security-Policy-Posture
+
+Die Security-Policy-Seite zeigt Zusammenfassung und Eingabefelder erst, nachdem die tatsächliche Server-Policy erfolgreich geladen wurde. Die Zusammenfassung enthält das effektive UPDATE-/DELETE-Mutationsverhalten, DML-Zeilenlimit, Query-Zeilen-/Timeout-Grenzen, Key-Rate-Limit und SQL-Parallelität und unterscheidet **Saved** von **Unsaved changes**. Nur Änderungen an tatsächlich durchgesetzten Policy-Feldern erzeugen einen unsaved Zustand; Server-Auditmetadaten wie `updatedAt` oder `updatedBy` erzeugen keinen falschen Dirty-State.
+
+Die Mutation-Posture folgt der kombinierten `MutationSafety`-Semantik des SQL-Compilers und bewertet nicht einzelne Raw Flags isoliert. UPDATE wird nur dann als `Full-table allowed` angezeigt, wenn `RequireWhereForUpdate=false` **und** `AllowFullTableUpdate=true` gleichzeitig gelten; für DELETE gilt dieselbe Zwei-Bedingungen-Regel. In allen anderen Kombinationen bleibt der effektive Zustand `Predicate required`. `Guarded mutation policy` bedeutet deshalb, dass beide Mutationspfade weiterhin ein Prädikat verlangen; `Review mutation policy` erscheint nur, wenn mindestens ein Pfad tatsächlich Full-Table-Mutation erlaubt.
+
+Kann die effektive Policy nicht geladen werden, zeigt die Admin Console einen klaren Fehler mit **Retry** und stellt Frontend-Fallbackwerte weder dar noch zur Bearbeitung bereit, als wären sie Serverzustand. Dies ist ausschließlich eine Presentation-/DX-Änderung; Security-Policy-Speichermodell, Compiler-Enforcement, Admin-Store-Schema und Environment-Variable-Verträge bleiben unverändert.
+
+## First-Run Readiness
+
+Operatoren mit Leserechten für Database Management und MCP Keys sehen auf der Startseite eine dreistufige Readiness-Prüfung. Die Erfüllung basiert auf realem Runtime-Zustand statt auf einem wegklickbaren Tutorial: Es existiert mindestens eine Datenbankkonfiguration, mindestens ein MCP-Schlüssel ist aktiv und ein aktiver Schlüssel besitzt nach einer MCP-Client-Anfrage einen gesetzten `LastUsedAt`-Wert.
+
+Sobald alle drei Bedingungen erfüllt sind, verschwindet die Readiness-Karte automatisch. Sie erstellt keine Ressourcen, ändert keine Berechtigungen und schätzt keinen Readiness-Zustand für Rollen, die Datenbank- und Schlüsselstatus nicht beide einsehen können.
+
+## Datenbank- und Konfigurationsmigration
+
+Für diese Änderungen ist keine zusätzliche Admin-Store-Schemamigration erforderlich und es kommt keine neue verpflichtende Umgebungsvariable hinzu.
+
+Geben Sie nach dem Upgrade einen MCP-Schlüssel mit Standardeinstellungen aus und prüfen Sie, dass nur die vier Lese-/Query-Tools und kein DML-Tool freigegeben sind. Wenn DML aktiviert wird, testen Sie zusätzlich einen vollständigen Freigabeablauf. Prüfen Sie außerdem, dass Rollen mit `/runtime/db-management/semantic.edit` die Semantic Layer weiterhin über die Admin-Oberfläche bearbeiten können.
+
+## Build und Deployment
+
+Eigene Images sollten dieselbe festgelegte Frontend-Toolchain verwenden. Das offizielle Dockerfile führt nun `pnpm install --frozen-lockfile` aus. Stimmen Lockfile und Paketdefinitionen nicht überein, schlägt der Build kontrolliert fehl, statt stillschweigend einen anderen Abhängigkeitsgraphen aufzulösen.

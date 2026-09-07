@@ -1,0 +1,87 @@
+---
+title: 업그레이드 가이드
+description: hs-sql-agent 2.0.3에서 2.0.4로 업그레이드하며 5개 내장 MCP 도구 계약과 재현 가능한 프런트엔드 빌드를 적용합니다.
+sidebar:
+  group: 참조
+  order: 144
+---
+
+import Callout from "@/components/docs/mdx/Callout.astro";
+
+## 2.0.4의 주요 변경점
+
+2.0.4는 공개 MCP 경계를 더 엄격하게 만들고 개발, CI, 배포 사이의 도구 체인 차이를 줄입니다. SQL 컴파일러 계약과 데이터베이스 스키마 계약은 이 변경으로 달라지지 않습니다.
+
+- 내장 MCP 도구는 서버의 단일 정식 목록으로 통일됩니다: `get_schemas`, `get_tables`, `get_columns`, `execute_query_sql`, `execute_dml_sql`.
+- 시작 시 reflection으로 발견한 MCP 도구와 정식 목록을 비교합니다. 예상하지 못한 내장 도구가 있거나 필수 도구가 빠져 있으면 fail closed로 시작을 거부합니다.
+- `update_semantic_layer`는 더 이상 MCP로 노출되지 않습니다. Semantic Layer 메타데이터는 기존 권한 경계를 사용하는 Admin UI 또는 Admin API에서 계속 편집할 수 있습니다.
+- Admin API의 도구 목록은 내장/사용자 정의 구분, Query/DML 유형, 표시 이름, 위험 수준, 안전 기본 선택 정보를 함께 반환합니다.
+- MCP 키 생성 및 편집 화면은 서버 도구 catalog를 직접 사용하므로 프런트엔드가 별도의 내장 도구 목록을 유지하지 않습니다.
+- 새 키는 `get_schemas`, `get_tables`, `get_columns`, `execute_query_sql`의 네 가지 읽기/조회 도구를 기본 선택합니다. `execute_dml_sql`은 사용할 수 있지만 **기본 선택되지 않습니다**.
+- MCP 키 생성/편집 화면에는 **Access Posture**가 표시되어 `Read/query only`, `DML enabled`, `Unrestricted tool access` 중 현재 상태와 데이터 범위가 `All tables`인지 제한된 테이블 수인지 확인할 수 있습니다.
+- **Issued Keys** 목록도 posture-first 방식으로 바뀌어 상태, 데이터베이스, Access Posture, 데이터 범위, 사용 여부, 만료, 실제 적용 rate limit을 원시 설정값보다 먼저 보여 줍니다. 기존 키는 연결된 데이터베이스의 현재 tool catalog를 사용하므로 게시된 Custom DML도 정확히 분류합니다. 저장된 예전 tool이 현재 catalog에 없다면 read-only로 단정하지 않고 `Review tool scope`를 표시합니다.
+- **Audit Logs**도 빠르게 훑어볼 수 있는 scan-first 형태로 정리되었습니다. 압축된 event row에서는 결과, 시간, 대상, actor, tool/database/key 문맥과 실행 신호를 먼저 보여 주고, 전체 내용은 오른쪽 detail sheet에서 Identity, Execution, Trace, Detail, Definition으로 나누어 확인합니다. Event/Request/Session ID는 바로 복사할 수 있고 JSON definition은 저장된 감사 데이터를 변경하지 않은 채 보기 좋게 정리됩니다.
+- **Operability**의 데이터베이스/MCP 키 필터는 raw numeric ID 입력 대신 검색 가능한 entity selector를 사용합니다. UI는 기존과 동일하게 runtime API에 `dbManagementId` / `accessKeyId`를 보내며, 선택지는 Operability가 이미 가진 health / key-usage 데이터에서 만들기 때문에 Database Management 또는 MCP Keys 관리 권한을 추가로 요구하지 않습니다.
+- Audit view 권한이 있는 운영자는 이제 Operability에서 일치하는 Audit Logs로 바로 drill down할 수 있습니다. 현재 날짜/데이터베이스/키/tool 필터를 그대로 넘기며, Database health와 Key usage 각 행에서도 해당 Audit으로 바로 이동할 수 있습니다. 잘못된 route query 값은 audit API에 전달되기 전에 무시됩니다.
+- **Security Policy**는 먼저 **Effective policy posture**를 보여 주어 compiler가 최종 적용하는 UPDATE/DELETE mutation 상태, DML/Query 제한, key rate limit, SQL concurrency, Saved/Unsaved 상태를 확인할 수 있습니다. 임의의 security score를 만들지 않으며, server policy를 불러오지 못한 경우 frontend fallback defaults를 effective state처럼 표시하지 않습니다.
+- Admin 홈은 최초 설정 중에만 **System Readiness** 경로를 표시합니다. 데이터베이스 추가 → 활성 MCP 키 발급 → agent가 키를 실제로 한 번 사용한 상태까지 안내하고, 완료되면 onboarding 카드가 자동으로 사라져 기존 운영 대시보드로 돌아갑니다.
+- Docker 프런트엔드 빌드는 CI와 맞춰 Node.js 22, pnpm 10.22.0, 고정 lockfile 설치를 사용합니다.
+- 실제 동작이 없던 Admin 사이드바의 “Search the docs...” 입력란을 제거하고 hs-sql-agent Admin Console이라는 제품 이름을 직접 표시합니다.
+
+<Callout type="warning" title="MCP에서 update_semantic_layer를 호출해 왔다면">
+이 메서드는 2.0.3 문서에 정의된 5개 내장 MCP 도구 계약에 포함되지 않았습니다. 업그레이드 전에 Semantic Layer 쓰기 작업을 **Runtime → DB Management → Semantic Layer** 또는 권한으로 보호되는 Admin API로 옮기십시오. 읽기 전용 스키마 탐색 도구는 허용된 semantic metadata를 계속 반환합니다.
+</Callout>
+
+## MCP 키 동작
+
+기존 MCP 키는 마이그레이션이 필요하지 않습니다. `AllowedTools`를 명시하면 지정한 내장 도구와 게시된 Custom Tool만 노출됩니다. 도구 allowlist가 없는 키는 정식 5개 내장 도구와 연결된 데이터베이스의 게시된 Custom Tool을 사용할 수 있지만, 문서화되지 않았던 Semantic Layer 쓰기 도구는 더 이상 포함되지 않습니다.
+
+새로 발급하는 키는 unrestricted 상태가 아니라 명시적인 네 가지 읽기/조회 도구 allowlist에서 시작합니다. `execute_dml_sql` 또는 게시된 Custom DML 도구를 활성화하려면 운영자가 직접 선택해야 하며, UI는 MCP Elicitation 승인 요구 사항을 계속 표시합니다. 모든 도구 선택을 해제하면 의미는 여전히 **unrestricted**이므로 해당 상태에 DML도 포함된다는 경고가 표시됩니다.
+
+Access Posture는 발급/저장 전뿐 아니라 이미 발급된 키 목록에서도 현재 유효한 선택을 보여 줍니다. 녹색은 읽기/조회 전용, 노란색은 하나 이상의 DML 도구가 활성화된 상태, 빨간색은 도구 범위가 unrestricted인 상태를 의미합니다. 또한 모든 테이블에 접근할 수 있는지 또는 현재 table whitelist 수로 제한되는지도 표시합니다. 기존 키의 분류는 해당 키가 연결된 데이터베이스의 현재 published catalog를 기준으로 하므로 Custom DML도 반영됩니다. 저장된 tool을 현재 catalog에서 더 이상 분류할 수 없다면 `Review tool scope`를 표시하며, 더 낮은 위험의 read-only 상태라고 표시하지 않습니다. 이는 설명용 UI이며 실제 권한 부여는 기존 key/tool/table policy pipeline이 계속 강제합니다.
+
+도구 표시 이름, Query/DML 분류, 위험 수준, 기본 선택은 서버 catalog가 source of truth입니다. catalog를 불러오지 못하면 Admin Console은 빈 프런트엔드 상태를 unrestricted로 해석하지 않고 새 키 발급을 차단합니다.
+
+DML 승인, 테이블 allowlist, 속도 제한, SQL 동시성, 컴파일러 검증, 감사 동작은 이번 계약 수정으로 변경되지 않습니다.
+
+## 감사 이벤트 확인
+
+감사 이벤트의 저장, 필터, 내보내기, retention 계약은 그대로입니다. 2.0.4에서는 Admin Console에서 이벤트를 보는 방식만 바뀌며, 목록은 빠른 triage에 집중하고 **View details**를 열면 전체 event context가 구조화된 오른쪽 패널에 표시됩니다.
+
+detail panel은 trace 식별자와 execution evidence를 목록 행에서 분리합니다. `definition`이 JSON이면 읽기 쉽게 포맷하고, JSON이 아니면 원문을 유지합니다. Event ID, Request ID, Session ID, Definition 복사는 저장된 원래 값을 사용합니다.
+
+## Operability 필터
+
+Operability 페이지는 DB ID / Key ID를 외워서 입력하는 대신 검색 가능한 이름 기반 selector를 사용합니다. 데이터베이스 후보는 `/runtime/operability`가 이미 제공하는 scheduled health data에서, 키 후보는 같은 페이지의 필터되지 않은 key-usage data에서 가져옵니다. 화면에는 읽기 쉬운 이름과 ID를 함께 보여 주지만 API 계약은 기존과 동일한 numeric `dbManagementId` / `accessKeyId`입니다.
+
+후보 데이터는 Operability 권한 경계 안에서만 가져옵니다. label을 표시하기 위해 Database Management나 MCP Keys 관리 endpoint를 호출하지 않으므로 Operability view 권한만 가진 role에 별도 관리 조회 권한이 필요하지 않습니다.
+
+## Operability에서 Audit으로 drill-down
+
+현재 운영자가 `/runtime/audit.view`도 가지고 있으면 Operability에 **View matching audit**가 표시되고, Database health와 Key usage 각 행에서도 해당 Audit을 열 수 있습니다. 이동할 때 현재 `from`, `to`, 데이터베이스, 키, tool 조건을 넘기므로 운영 신호를 같은 문맥의 감사 이벤트에서 바로 조사할 수 있습니다.
+
+Audit 페이지는 route query를 방어적으로 초기화합니다. 날짜는 `YYYY-MM-DD`, 데이터베이스/키 ID는 양의 정수, tool 이름은 비어 있지 않은 값만 허용합니다. 잘못된 값은 Audit API 요청을 만들기 전에 무시됩니다. 이 링크는 탐색 편의 기능일 뿐이며 Audit 페이지의 기존 권한 검사를 우회하지 않습니다.
+
+## Effective Security Policy posture
+
+Security Policy 페이지는 server에서 실제 policy를 성공적으로 불러온 뒤에만 summary와 편집 form을 표시합니다. summary에는 effective UPDATE/DELETE mutation behavior, DML row cap, Query rows/timeout, Key rate limit, SQL concurrency가 나오며 **Saved**와 **Unsaved changes**도 구분됩니다. enforcement 대상 field가 실제로 바뀐 경우에만 unsaved가 되며 `updatedAt`, `updatedBy` 같은 server audit metadata는 false dirty state를 만들지 않습니다.
+
+Mutation posture는 raw flag를 따로 추측하지 않고 SQL compiler의 `MutationSafety` 조합 규칙을 그대로 반영합니다. UPDATE가 `Full-table allowed`가 되는 경우는 `RequireWhereForUpdate=false` **그리고** `AllowFullTableUpdate=true`가 동시에 성립할 때뿐입니다. DELETE도 같은 두 조건을 사용합니다. 그 외 조합은 effective state가 `Predicate required`이므로 `Guarded mutation policy`는 두 mutation path 모두 predicate를 요구한다는 뜻이고, `Review mutation policy`는 하나 이상의 path가 실제로 full-table mutation을 허용할 때만 표시됩니다.
+
+Effective policy load에 실패하면 Admin Console은 명확한 오류와 **Retry**를 표시하고 frontend fallback defaults를 server effective state처럼 표시하거나 편집하게 하지 않습니다. 이는 presentation/DX 변경이며 Security Policy storage model, compiler enforcement, Admin Store schema, environment-variable contract는 그대로입니다.
+
+## 최초 readiness
+
+Database Management와 MCP Keys를 모두 볼 수 있는 운영자에게 홈 화면의 3단계 readiness check를 표시합니다. 완료 조건은 닫을 수 있는 tutorial이 아니라 실제 runtime state입니다. 데이터베이스 설정이 하나 이상 존재하고, 활성 MCP 키가 하나 이상 있으며, MCP client 요청 후 해당 활성 키에 `LastUsedAt` 값이 있어야 합니다.
+
+세 조건이 모두 충족되면 readiness 카드는 자동으로 숨겨집니다. 이 카드는 resource를 생성하거나 permission을 변경하지 않으며, 데이터베이스와 키 상태를 모두 확인할 수 없는 role의 readiness를 추정하지도 않습니다.
+
+## 데이터베이스 및 설정 마이그레이션
+
+이번 2.0.4 변경만을 위한 Admin Store 스키마 마이그레이션은 없으며 새 필수 환경 변수도 추가되지 않습니다.
+
+업그레이드 후 기본 설정으로 MCP 키 하나를 발급해 네 가지 읽기/조회 도구만 노출되고 DML이 포함되지 않는지 확인하십시오. DML을 사용하는 경우 전체 승인 흐름도 한 번 확인하고, `/runtime/db-management/semantic.edit` 권한이 있는 역할에서 Admin UI를 통해 Semantic Layer를 계속 편집할 수 있는지 확인하십시오.
+
+## 빌드 및 배포
+
+자체 이미지를 빌드한다면 저장소에 고정된 프런트엔드 도구 체인을 따르십시오. 공식 Dockerfile은 이제 `pnpm install --frozen-lockfile`을 사용하므로 lockfile과 package 선언이 맞지 않으면 다른 의존성 그래프를 조용히 해석하지 않고 빌드를 실패시킵니다.

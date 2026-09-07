@@ -1,0 +1,78 @@
+---
+title: MCP Tools Reference
+description: Built-in MCP tool contracts for hs-sql-agent 2.0.4, with the five-tool public surface enforced by the server.
+sidebar:
+  group: MCP
+  order: 35
+---
+
+The built-in MCP surface is intentionally small and is now enforced from one canonical server catalog. Version 2.0.4 exposes exactly five built-in tool names.
+
+| Tool | Public input | Purpose |
+| --- | --- | --- |
+| `get_schemas` | none | discover schemas |
+| `get_tables` | `schemaName: string` | discover visible tables |
+| `get_columns` | `schemaName: string`, `tableName: string` | discover visible columns and key metadata |
+| `execute_query_sql` | `sql: string` | execute one governed SELECT query |
+| `execute_dml_sql` | `sql: string` | execute one or more approved DML statements atomically |
+
+Published Custom Tools can extend the tool collection for their bound database, but they are not additional built-in tools.
+
+## The server catalog is authoritative
+
+MCP key validation and MCP runtime discovery share the same canonical built-in names. At startup, hs-sql-agent compares reflected MCP methods with that catalog and fails closed if an unexpected or missing built-in is detected.
+
+The Admin tool-catalog endpoint also returns descriptors for the same built-ins plus published Custom Tools, including Query/DML type and risk metadata. This prevents authorization and UI surfaces from silently developing different tool inventories.
+
+## Semantic metadata writes are administrative
+
+`update_semantic_layer` is not a built-in MCP tool in 2.0.4. Semantic metadata is a control-plane configuration surface and is edited through the Admin UI or permission-protected Admin API.
+
+The supported read-only discovery tools still enrich table and column discovery with Semantic Layer descriptions, synonyms, relationships, and metrics where configured and authorized.
+
+See [Semantic metadata](/en/docs/administration/semantic-metadata).
+
+## Authorization applies before discovery
+
+The MCP session is built after MCP-key authentication. An explicit `AllowedTools` list limits which built-in and published Custom Tool names are exposed. If the list is absent, the session can expose the five canonical built-ins plus published Custom Tools for the key's bound database.
+
+Database binding, table allowlists, rate limits, SQL concurrency, policy, and audit remain server-side controls. Metadata tools never accept a connection string from the model.
+
+## `execute_query_sql`
+
+```text
+execute_query_sql(sql: string)
+```
+
+Accepts one supported `SELECT` statement and sends it through the typed query pipeline: parse, bind, authorize tables, validate policy and source semantics, prove target capabilities, compile an immutable provider command, then execute.
+
+Unsupported SQL fails closed instead of falling back to raw provider execution.
+
+## `execute_dml_sql`
+
+```text
+execute_dml_sql(sql: string)
+```
+
+The tool accepts one or more supported DML statements separated by semicolons. Multiple statements are approved once and committed atomically in their original order; no separate batch MCP tool is required.
+
+Supported mutation classes are:
+
+| Statement | Status |
+| --- | --- |
+| `UPDATE` | supported when capability, policy, approval, and revalidation pass |
+| `DELETE` | supported when capability, policy, approval, and revalidation pass |
+| `INSERT ... VALUES` | supported with immutable-payload approval semantics |
+| `INSERT ... SELECT` | rejected fail closed until source-rowset approval semantics exist |
+
+For a multi-statement request, hs-sql-agent parses and validates the full batch, builds per-statement evidence, requests one approval, revalidates each statement inside one server-owned transaction, and commits only when every statement still matches its approved evidence. Any failure rolls the whole transaction back.
+
+Client-supplied transaction-control SQL is rejected.
+
+## Approval transport
+
+MCP Elicitation remains the default first-party path. Standard Hosting can select the official Webhook adapter, while modular hosts can register `HsSqlAgent.Approvals.Webhook` or another `IDmlApprovalProvider`.
+
+An asynchronous provider may return `Pending`. Durable completion remains server-owned and revalidates current authorization, configuration, policy, plan, row set, and affected-row evidence before any later commit.
+
+See [Safe DML](/en/docs/sql-compiler/safe-dml).

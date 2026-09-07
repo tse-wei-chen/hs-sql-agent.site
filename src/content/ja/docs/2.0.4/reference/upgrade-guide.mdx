@@ -1,0 +1,87 @@
+---
+title: アップグレードガイド
+description: hs-sql-agent 2.0.3 から 2.0.4 へ移行し、5 つの組み込み MCP tool 契約と build DX の改善を適用します。
+sidebar:
+  group: リファレンス
+  order: 144
+---
+
+import Callout from "@/components/docs/mdx/Callout.astro";
+
+## 2.0.4 の主な変更点
+
+2.0.4 は公開 MCP 境界をより厳密にし、開発・運用時の構成差異を減らします。SQL compiler と database schema の契約自体は変更しません。
+
+- 組み込み MCP tool は、サーバー側の単一 catalog で `get_schemas`、`get_tables`、`get_columns`、`execute_query_sql`、`execute_dml_sql` の 5 つに固定されます。
+- 起動時に reflection で検出した MCP tool と正式 catalog を照合し、余分な tool または不足があれば fail closed で起動を拒否します。
+- `update_semantic_layer` は MCP から公開されなくなります。Semantic Layer の編集は引き続き Admin UI または権限保護された Admin API から行えます。
+- Admin API の tool catalog は、組み込み／Custom Tool の区別、Query／DML 種別、表示名、risk、safe default 情報を返すようになります。
+- MCP key の新規作成・編集画面はこの server catalog を直接描画し、frontend 側に別の組み込み tool 一覧を持たなくなります。
+- 新しい key は `get_schemas`、`get_tables`、`get_columns`、`execute_query_sql` の 4 つの read/query tool を既定で選択します。`execute_dml_sql` は利用可能ですが、**既定では選択されません**。
+- MCP key の新規作成・編集画面には **Access Posture** が表示され、`Read/query only`、`DML enabled`、`Unrestricted tool access` のどれに当たるかと、data scope が `All tables` か制限された table 数かを確認できます。
+- **Issued Keys** 一覧も posture-first に変更され、status、database、Access Posture、data scope、usage、expiry、実効 rate limit を raw 設定より先に確認できます。既存 key は紐づく database の現在の tool catalog を使うため、公開済み Custom DML も正しく分類されます。保存済み tool が現在の catalog から消えている場合は read-only と決めつけず、`Review tool scope` を表示します。
+- **Audit Logs** は scan-first の表示に整理されました。compact な event row では result、time、target、actor、tool／database／key context、execution signal を優先し、完全な内容は右側の detail sheet で Identity、Execution、Trace、Detail、Definition ごとに確認できます。Event／Request／Session ID は直接 copy でき、JSON の definition は保存内容を変更せず読みやすく整形されます。
+- **Operability** の database／MCP key filter は raw numeric ID 入力から検索可能な entity selector に変わりました。UI は従来どおり runtime API に `dbManagementId` / `accessKeyId` を送信し、候補も Operability 自身の health / key-usage data から作るため、Database Management や MCP Keys の管理権限を新たに要求しません。
+- Audit view 権限を持つ operator は Operability から matching Audit Logs へ直接 drill down できるようになりました。現在の date／database／key／tool filter をそのまま引き継げるほか、Database health と Key usage の各 row から focused Audit を開けます。不正な route query は audit API に渡す前に無視されます。
+- **Security Policy** は最初に **Effective policy posture** を表示し、compiler が最終的に適用する UPDATE／DELETE mutation 状態、DML／Query 制限、key rate limit、SQL concurrency、Saved／Unsaved 状態を確認できます。任意の security score は作らず、server policy を取得できない場合に frontend fallback defaults を effective state として表示しません。
+- Admin home は初回セットアップ中だけ **System Readiness** を表示し、database の追加 → active MCP key の発行 → agent による key の実利用、という最短経路を示します。完了後は onboarding card が自動的に消え、通常の operational dashboard に戻ります。
+- Docker の frontend build を CI に合わせ、Node.js 22、pnpm 10.22.0、frozen lockfile を使用します。
+- 動作していなかった Admin sidebar の「Search the docs...」入力を削除し、hs-sql-agent Admin Console として表示を整理しました。
+
+<Callout type="warning" title="MCP から update_semantic_layer を呼び出していた場合">
+この method は、2.0.3 の公開ドキュメントで定義された 5 つの組み込み tool には含まれていませんでした。アップグレード前に Semantic Layer の書き込みを **Runtime → DB Management → Semantic Layer** または権限保護された Admin API へ移してください。read-only の schema discovery は、引き続き許可された semantic metadata を返します。
+</Callout>
+
+## MCP key の挙動
+
+既存の MCP key に migration は不要です。`AllowedTools` を明示した場合は指定した組み込み tool と公開済み Custom Tool のみに制限されます。allowlist がない key は、正式な 5 つの組み込み tool と、紐づく database の公開済み Custom Tool を利用できますが、未公開の Semantic Layer 更新 tool は含まれません。
+
+新規発行する key は unrestricted ではなく、明示的な 4-tool read/query allowlist から開始します。`execute_dml_sql` または公開済み Custom DML tool を有効にするには operator が明示的に選択する必要があり、UI は MCP Elicitation が必要であることを引き続き表示します。すべての tool 選択を外した場合の意味は従来どおり **unrestricted** なので、その状態には DML も含まれることを UI が警告します。
+
+Access Posture は発行／保存前だけでなく、発行済み key 一覧でも実効選択を可視化します。緑は read/query-only、黄は 1 つ以上の DML tool が有効、赤は tool scope が unrestricted であることを示します。さらに、全 table にアクセスできるか、現在の table whitelist 件数に制限されているかも表示します。既存 key の判定はその key が紐づく database の現在の published catalog を基準にするため Custom DML も反映されます。保存済み tool を現在の catalog で分類できない場合は `Review tool scope` とし、低リスクな read-only 状態だとは表示しません。これは説明用の UI であり、実際の authorization は既存の key／tool／table policy pipeline が引き続き強制します。
+
+表示名、Query／DML 分類、risk、既定選択は server catalog が source of truth です。catalog を取得できない場合、Admin Console は空の frontend state を unrestricted と解釈せず、key の発行を停止します。
+
+DML approval、table allowlist、rate limit、SQL concurrency、compiler validation、audit の挙動は今回の契約修正では変わりません。
+
+## Audit の確認
+
+Audit event の保存、filter、export、retention の契約は変更していません。2.0.4 では Admin Console での見方だけを整理し、一覧は素早い triage に使い、**View details** から完全な event context を構造化された side panel で確認します。
+
+detail panel では trace identifier と execution evidence を一覧行から分離して表示します。`definition` が JSON なら読みやすく整形し、JSON でない値はそのまま保持します。Event ID、Request ID、Session ID、Definition の copy は保存されている元の値を使用します。
+
+## Operability filter
+
+Operability page は DB ID / Key ID を覚えて入力する方式をやめ、検索可能な名称ベースの selector を使います。database 候補は `/runtime/operability` ですでに取得している scheduled health data、key 候補は同じ page の未 filter key-usage data から作成します。表示は名称 + ID ですが、API contract は従来と同じ numeric `dbManagementId` / `accessKeyId` です。
+
+候補取得は Operability の permission boundary 内で完結します。label を表示するためだけに Database Management や MCP Keys の管理 endpoint を呼ばないため、Operability view だけを持つ role に追加の管理閲覧 permission は必要ありません。
+
+## Operability から Audit への drill-down
+
+現在の operator が `/runtime/audit.view` も持つ場合、Operability には **View matching audit** が表示され、Database health と Key usage の各 row からも対応する Audit を開けます。navigation 時に現在の `from`、`to`、database、key、tool 条件を引き継ぐため、運用上の signal を同じ context の audit event へすぐ追跡できます。
+
+Audit page は route query を防御的に初期化します。date は `YYYY-MM-DD` のみ、database／key ID は正の整数のみ、tool name は空文字列以外のみ受け入れます。不正値は Audit API request を作る前に無視されます。これらは navigation の補助機能にすぎず、Audit page の既存 permission check を回避するものではありません。
+
+## Effective Security Policy posture
+
+Security Policy page は server から policy を正常に取得した場合だけ summary と編集 form を表示します。summary は effective UPDATE／DELETE mutation behavior、DML row cap、Query rows／timeout、Key rate limit、SQL concurrency を示し、**Saved** と **Unsaved changes** も区別します。enforcement 対象の field が実際に変わった場合だけ unsaved となり、`updatedAt` や `updatedBy` のような server audit metadata は false dirty state を作りません。
+
+Mutation posture は raw flag を個別に推測せず、SQL compiler の `MutationSafety` 組み合わせ規則をそのまま反映します。UPDATE が `Full-table allowed` になるのは `RequireWhereForUpdate=false` **かつ** `AllowFullTableUpdate=true` の場合だけです。DELETE も同じ二条件です。それ以外は effective state が `Predicate required` のままなので、`Guarded mutation policy` は両 mutation path が predicate を要求する状態、`Review mutation policy` は少なくとも一方が実際に full-table mutation を許す状態だけを意味します。
+
+Effective policy の load に失敗した場合、Admin Console は明確な error と **Retry** を表示し、frontend fallback defaults を server の effective state として表示・編集させません。これは presentation／DX の変更であり、Security Policy storage model、compiler enforcement、Admin Store schema、environment-variable contract は変更されません。
+
+## 初回 readiness
+
+Database Management と MCP Keys の両方を閲覧できる operator には、home page に 3 段階の readiness check が表示されます。完了条件は tutorial の dismiss 操作ではなく実際の runtime state です。database 設定が 1 件以上存在し、active MCP key が 1 件以上あり、その active key が MCP client の request 後に `LastUsedAt` を持つことを確認します。
+
+3 条件を満たすと readiness card は自動的に非表示になります。この card が resource を作成したり permission を変更したりすることはなく、database と key の両方を確認できない role に対して readiness を推測することもありません。
+
+## Database と設定の migration
+
+今回の 2.0.4 変更だけを理由とする Admin Store の schema migration や、新しい必須 environment variable はありません。
+
+アップグレード後は既定設定の MCP key を 1 つ発行し、4 つの read/query tool のみが公開され DML が含まれないことを確認してください。DML を有効にする場合は approval flow も 1 回確認し、`/runtime/db-management/semantic.edit` を持つ role から Semantic Layer を編集できることも確認してください。
+
+## Build と deployment
+
+独自 image を構築している場合は repository の固定 frontend toolchain に合わせてください。公式 Dockerfile は `pnpm install --frozen-lockfile` を使うため、lockfile と package 定義がずれている場合は異なる dependency graph を黙って解決せず build を失敗させます。

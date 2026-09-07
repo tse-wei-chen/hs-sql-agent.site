@@ -1,0 +1,87 @@
+---
+title: 升級指南
+description: 從 hs-sql-agent 2.0.3 升級至 2.0.4，包含固定的五項 MCP 內建工具契約與建置開發體驗改善。
+sidebar:
+  group: 參考
+  order: 144
+---
+
+import Callout from "@/components/docs/mdx/Callout.astro";
+
+## 2.0.4 有哪些變更
+
+2.0.4 主要收緊公開 MCP 邊界，並消除開發與操作流程中的設定漂移；SQL 編譯器與資料庫結構契約沒有因此改變。
+
+- MCP 內建工具現在由伺服器單一目錄統一定義：`get_schemas`、`get_tables`、`get_columns`、`execute_query_sql`、`execute_dml_sql`。
+- 啟動時會比對實際反射出的 MCP 工具與正式目錄；若多出或缺少內建工具，服務會直接拒絕啟動，避免未預期工具被「不限工具」的金鑰取得。
+- `update_semantic_layer` 不再透過 MCP 暴露。語意中繼資料仍可在管理介面與管理 API 中編輯，並沿用既有的語意管理權限。
+- 管理 API 的工具目錄現在會提供內建／自訂分類、Query／DML 類型、顯示名稱、風險與安全預設資訊，供 MCP 金鑰介面使用。
+- MCP 金鑰的新增與編輯介面現在都直接由伺服器工具目錄產生，不再在前端維護第二份內建工具清單。
+- 新金鑰預設勾選四個讀取／查詢工具：`get_schemas`、`get_tables`、`get_columns`、`execute_query_sql`；`execute_dml_sql` 仍可使用，但**預設不勾選**。
+- MCP 金鑰新增／編輯介面現在會顯示 **Access Posture**：`Read/query only`、`DML enabled` 或 `Unrestricted tool access`，並同時標示資料範圍是 `All tables` 或限制到幾張資料表。
+- **Issued Keys** 清單也改成以權限姿態為主：先顯示狀態、資料庫、Access Posture、資料範圍、使用狀況、到期時間與有效速率限制，再顯示原始設定細節。既有金鑰會使用自己綁定資料庫目前的工具目錄來辨識已發布 Custom DML；若儲存的舊工具已無法由目前可用目錄分類，介面會顯示 `Review tool scope`，不會誤標成唯讀。
+- **Audit Logs** 改成以快速掃描為主：事件列先顯示結果、時間、目標、操作者、工具／資料庫／金鑰脈絡與執行指標；完整的 Identity、Execution、Trace、Detail、Definition 則放到右側詳細資訊面板。Event／Request／Session ID 可直接複製，JSON 格式的 Definition 會自動美化顯示，但不會改動原始稽核資料。
+- **Operability** 的資料庫與 MCP 金鑰篩選改為可搜尋的實體選擇器，不再要求操作人員手動輸入 numeric ID。介面仍把原本的 `dbManagementId` / `accessKeyId` 傳給 runtime API，而且選項只取自 Operability 已有的健康與 key-usage 資料，因此不會新增對 Database Management 或 MCP Keys 管理權限的依賴。
+- 具備 Audit 檢視權限的操作人員現在可以從 Operability 直接 drill down 到對應的 Audit Logs。頁面會帶入目前的日期／資料庫／金鑰／工具篩選；Database health 與 Key usage 各列也提供對應稽核捷徑。異常 route query 會在送進 audit API 前被忽略。
+- **Security Policy** 現在先顯示 **Effective policy posture**：直接呈現 compiler 最終判定的 UPDATE／DELETE mutation 狀態、DML／Query 限制、金鑰速率限制、SQL 併發與 Saved／Unsaved 狀態；不使用主觀安全分數。若無法取得伺服器 policy，介面不會把前端 fallback defaults 冒充成有效設定。
+- Admin 首頁現在會在首次設定期間顯示 **System Readiness** 路徑：加入資料庫、發行有效 MCP 金鑰、讓 agent 實際使用一次金鑰。完成後這張 onboarding 卡會自動退場，不會長期佔用成熟環境的操作儀表板。
+- Docker 前端建置改為與 CI 對齊：Node.js 22、pnpm 10.22.0，並強制使用鎖定檔安裝。
+- 移除管理側欄中沒有實際功能的「Search the docs...」欄位，側欄品牌也直接顯示 hs-sql-agent Admin Console。
+
+<Callout type="warning" title="如果你曾透過 MCP 呼叫 update_semantic_layer">
+這個方法並不屬於 2.0.3 已公開文件所列的五項內建工具。升級前請把語意中繼資料寫入流程移到 **Runtime → DB Management → Semantic Layer** 或受權限保護的管理 API。唯讀結構探索工具仍會帶回已授權的語意描述。
+</Callout>
+
+## MCP 金鑰行為
+
+既有 MCP 金鑰不需要遷移。明確設定 `AllowedTools` 時，仍只會暴露指定的內建工具與已發布自訂工具；未設定工具白名單時，會提供五項正式內建工具，加上該金鑰綁定資料庫中已發布的自訂工具，但不再包含未公開的語意層寫入工具。
+
+新建立的金鑰會從明確的四工具讀取／查詢白名單開始，而不是「不限工具」。啟用 `execute_dml_sql` 或已發布的自訂 DML 工具，必須由管理者主動勾選，介面也會持續提示 MCP Elicitation 核准需求。若把所有工具都取消勾選，語意仍是 **不限工具**，因此介面會警告這個狀態也包含 DML。
+
+Access Posture 會在發行、儲存前，以及已發行金鑰清單中直接反映目前有效選擇：綠色代表只有讀取／查詢工具，黃色代表至少啟用一個 DML 工具，紅色代表工具範圍不限。摘要也會顯示資料存取是所有資料表，或限制到目前選取的資料表數量。既有金鑰的分類會依該金鑰綁定資料庫目前已發布的工具目錄判定，因此 Custom DML 也能正確顯示；若某個已儲存工具已無法從目前可用目錄分類，則顯示 `Review tool scope`，而不是宣稱它是較低風險的唯讀狀態。這些資訊只是權限狀態的可視化；實際授權仍由既有的金鑰／工具／資料表政策管線強制執行。
+
+工具顯示名稱、Query／DML 分類、風險與預設勾選狀態都以伺服器目錄為準。若目錄無法載入，管理介面會禁止發行新金鑰，不會把空白前端狀態誤解成不限工具。
+
+DML 核准、資料表白名單、速率限制、SQL 併發、編譯驗證與稽核行為皆未因這次契約修正而改變。
+
+## 稽核事件檢視
+
+稽核事件的儲存格式、篩選、匯出與 retention 契約沒有改變。2.0.4 只重新整理管理介面的閱讀方式：事件清單優先支援快速判讀，點選 **View details** 後再從側邊面板查看完整事件內容。
+
+詳細資訊會把身分、執行結果與 trace 證據分區呈現，避免所有欄位都塞在單一列表列中。JSON 型態的 `definition` 會格式化以利閱讀，非 JSON 值則維持原樣；Event ID、Request ID、Session ID 與 Definition 的複製動作都使用原始儲存值。
+
+## Operability 篩選
+
+Operability 頁現在用可搜尋名稱取代必須記住 DB ID / Key ID 的操作方式。資料庫選項直接來自 `/runtime/operability` 已取得的排程健康資料；金鑰選項則來自同一頁未篩選的 key-usage 資料。選擇器會顯示可讀名稱與 ID，但最後仍映射回 2.0.3 已有的 numeric `dbManagementId` / `accessKeyId` 篩選契約。
+
+選項來源刻意維持在 Operability 權限邊界內，不會為了顯示名稱而呼叫 Database Management 或 MCP Keys 管理端點，因此僅具有 Operability view 權限的角色不需要額外取得管理檢視權限。
+
+## Operability 到 Audit 的 drill-down
+
+若目前操作人員同時具備 `/runtime/audit.view`，Operability 會顯示 **View matching audit**，Database health 與 Key usage 各列也會提供對應的 Audit 動作。導頁時會帶入目前的 `from`、`to`、資料庫、金鑰與工具條件，讓運維異常可以直接進入同一脈絡的稽核事件，不必重新手動輸入。
+
+Audit 頁對 route query 採防禦式初始化：日期只接受 `YYYY-MM-DD`、資料庫／金鑰 ID 必須是正整數、工具名稱不得為空。無效值會在建立 Audit API 請求前被忽略。這些連結只是導覽便利性；Audit 頁仍會照既有權限要求檢查，沒有繞過任何 authorization 契約。
+
+## 有效 Security Policy posture
+
+Security Policy 頁現在會先確認從伺服器實際載入的 policy，再顯示摘要與個別欄位。摘要包含有效 UPDATE／DELETE mutation 行為、DML row cap、Query rows／timeout、Key rate limit 與 SQL concurrency，並顯示 **Saved** 或 **Unsaved changes**。只有實際 enforcement 欄位改變時才會進入 unsaved 狀態；`updatedAt`、`updatedBy` 等伺服器稽核中繼資料不會造成假 dirty state。
+
+Mutation posture 直接對齊 SQL compiler 的 `MutationSafety` 組合語意，而不是逐一解讀 raw flags。只有 `RequireWhereForUpdate=false` **且** `AllowFullTableUpdate=true` 同時成立時，UPDATE 才顯示 `Full-table allowed`；DELETE 也使用相同的雙條件規則，否則有效結果仍是 `Predicate required`。因此 `Guarded mutation policy` 代表兩條 mutation path 都仍需 predicate，而 `Review mutation policy` 只在至少一條路徑真的變成 full-table access 時出現。
+
+若有效 policy 載入失敗，Admin Console 會明確顯示失敗與 **Retry**，不會把前端 fallback defaults 顯示或允許編輯成伺服器有效狀態。這只是呈現／DX 改善；Security Policy 儲存模型、compiler enforcement、Admin Store schema 與環境變數契約沒有改變。
+
+## 首次啟用 readiness
+
+同時具有 Database Management 與 MCP Keys 檢視權限的操作人員，首頁會顯示三步 readiness 檢查。完成條件直接取自實際 runtime 狀態：至少存在一筆資料庫設定、至少有一把有效 MCP 金鑰，而且有效金鑰在 MCP client 發出請求後已有 `LastUsedAt`。
+
+三項都完成後 readiness 卡會自動隱藏。它不會建立任何資源、不會改權限，也不會對無法同時檢視資料庫與金鑰狀態的角色推測 readiness。
+
+## 資料庫與設定遷移
+
+這批 2.0.4 變更本身不需要新增 Admin Store 資料庫遷移，也沒有新增必填環境變數。
+
+升級後建議先發一把採用預設設定的 MCP 金鑰，確認只暴露四個讀取／查詢工具且不包含 DML；若有啟用 DML，再測一次完整核准流程。同時確認具備 `/runtime/db-management/semantic.edit` 權限的角色仍可從管理介面更新 Semantic Layer。
+
+## 建置與部署
+
+若你有自製映像，請跟隨儲存庫鎖定的前端工具鏈。第一方 Dockerfile 現在使用 `pnpm install --frozen-lockfile`；當鎖定檔與套件宣告不一致時會直接讓建置失敗，而不是悄悄解析出不同的依賴版本。

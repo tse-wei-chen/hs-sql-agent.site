@@ -1,0 +1,76 @@
+---
+title: MCP 工具參考
+description: hs-sql-agent 2.0.4 的內建 MCP 工具契約；伺服器會強制維持五項正式公開工具。
+sidebar:
+  group: MCP
+  order: 35
+---
+
+MCP 內建工具刻意維持精簡，2.0.4 起並由伺服器單一正式目錄強制約束。公開的內建工具固定為五項：
+
+| 工具 | 公開輸入 | 用途 |
+| --- | --- | --- |
+| `get_schemas` | 無 | 探索 schema |
+| `get_tables` | `schemaName: string` | 探索可見資料表 |
+| `get_columns` | `schemaName: string`、`tableName: string` | 探索可見欄位與鍵值中繼資料 |
+| `execute_query_sql` | `sql: string` | 執行一筆受治理的 SELECT 查詢 |
+| `execute_dml_sql` | `sql: string` | 原子執行一筆或多筆經核准的 DML |
+
+已發布的自訂工具可以擴充綁定資料庫的工具集合，但不屬於內建工具。
+
+## 伺服器目錄是唯一真相來源
+
+MCP 金鑰驗證與 MCP 執行階段探索共用同一組正式內建工具名稱。服務啟動時會把反射出的 MCP 方法與該目錄比對；若發現未預期或缺少的內建工具，就會拒絕啟動。
+
+管理 API 的工具目錄也會回傳同一批內建工具及已發布自訂工具，並附帶 Query／DML 類型與風險資訊，避免授權邊界與管理介面各自維護不同清單。
+
+## 語意中繼資料寫入屬於管理操作
+
+`update_semantic_layer` 在 2.0.4 並不是內建 MCP 工具。Semantic Layer 是控制平面的設定資料，應從管理介面或受權限保護的管理 API 編輯。
+
+唯讀探索工具仍會在權限允許時，把已設定的顯示名稱、描述、同義詞、關聯與指標加入資料表與欄位探索結果。
+
+請參閱[語意中繼資料](/zh-hant/docs/administration/semantic-metadata)。
+
+## 工具探索前先套用授權
+
+MCP session 會在金鑰驗證後建立。若設定明確的 `AllowedTools`，只會暴露指定的內建工具與已發布自訂工具；若未設定，則可暴露五項正式內建工具，加上該金鑰所綁定資料庫的已發布自訂工具。
+
+資料庫綁定、資料表白名單、速率限制、SQL 併發、政策與稽核仍由伺服器強制執行。中繼資料工具不會讓模型傳入連線字串。
+
+## `execute_query_sql`
+
+```text
+execute_query_sql(sql: string)
+```
+
+接受一筆受支援的 `SELECT`，並依序經過 typed query pipeline：解析、繫結、資料表授權、政策與來源語意驗證、目標能力證明、編譯成不可變 provider command，最後才執行。
+
+不支援的 SQL 會 fail closed，不會退回直接執行原始 SQL。
+
+## `execute_dml_sql`
+
+```text
+execute_dml_sql(sql: string)
+```
+
+可接受一筆或多筆以分號分隔的受支援 DML。多筆敘述只核准一次，並依原順序在同一個原子交易中提交，不需要另一個 batch MCP 工具。
+
+| 敘述 | 狀態 |
+| --- | --- |
+| `UPDATE` | 通過能力、政策、核准與重新驗證時支援 |
+| `DELETE` | 通過能力、政策、核准與重新驗證時支援 |
+| `INSERT ... VALUES` | 以不可變 payload 核准語意支援 |
+| `INSERT ... SELECT` | 在來源 row-set 核准語意定義完成前維持 fail closed |
+
+多敘述請求會先完整解析與驗證、建立逐敘述證據、要求一次核准，接著在伺服器管理的單一交易內逐筆重新驗證。只有所有敘述仍符合核准證據時才會 commit；任一失敗即整批 rollback。
+
+用戶端提供的交易控制 SQL 會被拒絕。
+
+## 核准傳輸方式
+
+MCP Elicitation 仍是第一方預設流程。Standard Hosting 可改用官方 Webhook adapter；模組化 host 則可註冊 `HsSqlAgent.Approvals.Webhook` 或其他 `IDmlApprovalProvider`。
+
+非同步 provider 可以回傳 `Pending`。後續 durable completion 仍由伺服器掌控，commit 前會重新驗證目前的授權、設定、政策、執行計畫、row set 與受影響列數證據。
+
+請參閱[安全 DML](/zh-hant/docs/sql-compiler/safe-dml)。

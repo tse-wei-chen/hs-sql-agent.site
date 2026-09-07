@@ -1,0 +1,76 @@
+---
+title: MCP 工具参考
+description: hs-sql-agent 2.0.4 的内置 MCP 工具契约；服务器会强制保持五项正式公开工具。
+sidebar:
+  group: MCP
+  order: 35
+---
+
+MCP 内置工具刻意保持精简，从 2.0.4 起由服务器单一正式目录强制约束。公开的内置工具固定为五项：
+
+| 工具 | 公开输入 | 用途 |
+| --- | --- | --- |
+| `get_schemas` | 无 | 发现 schema |
+| `get_tables` | `schemaName: string` | 发现可见数据表 |
+| `get_columns` | `schemaName: string`、`tableName: string` | 发现可见字段与键元数据 |
+| `execute_query_sql` | `sql: string` | 执行一条受治理的 SELECT 查询 |
+| `execute_dml_sql` | `sql: string` | 原子执行一条或多条经过审批的 DML |
+
+已发布的自定义工具可以扩展其绑定数据库的工具集合，但不属于内置工具。
+
+## 服务器目录是唯一事实来源
+
+MCP 密钥验证与 MCP 运行时发现共用同一组正式内置工具名称。服务启动时会把反射得到的 MCP 方法与该目录进行比对；如果出现未预期或缺失的内置工具，就会拒绝启动。
+
+管理 API 的工具目录也会返回同一批内置工具以及已发布自定义工具，并附带 Query／DML 类型和风险信息，避免授权边界与管理界面分别维护不同的工具清单。
+
+## 语义元数据写入属于管理操作
+
+`update_semantic_layer` 在 2.0.4 中不是内置 MCP 工具。Semantic Layer 属于控制平面配置，应通过管理界面或受权限保护的管理 API 编辑。
+
+只读发现工具仍会在权限允许时，把已配置的显示名称、描述、同义词、关系和指标加入数据表与字段发现结果。
+
+请参阅[语义元数据](/zh-hans/docs/administration/semantic-metadata)。
+
+## 工具发现前先应用授权
+
+MCP session 会在密钥验证后建立。明确设置 `AllowedTools` 时，只会暴露指定的内置工具和已发布自定义工具；未设置时，可暴露五项正式内置工具，以及该密钥绑定数据库中已发布的自定义工具。
+
+数据库绑定、数据表白名单、速率限制、SQL 并发、策略和审计仍由服务器强制执行。元数据工具不会允许模型传入连接字符串。
+
+## `execute_query_sql`
+
+```text
+execute_query_sql(sql: string)
+```
+
+接受一条受支持的 `SELECT`，依次经过 typed query pipeline：解析、绑定、数据表授权、策略与来源语义验证、目标能力证明、编译为不可变 provider command，最后才执行。
+
+不支持的 SQL 会 fail closed，不会退回直接执行原始 SQL。
+
+## `execute_dml_sql`
+
+```text
+execute_dml_sql(sql: string)
+```
+
+可接受一条或多条以分号分隔的受支持 DML。多条语句只审批一次，并按原顺序在同一个原子事务中提交，不需要单独的 batch MCP 工具。
+
+| 语句 | 状态 |
+| --- | --- |
+| `UPDATE` | 通过能力、策略、审批与重新验证时支持 |
+| `DELETE` | 通过能力、策略、审批与重新验证时支持 |
+| `INSERT ... VALUES` | 以不可变 payload 审批语义支持 |
+| `INSERT ... SELECT` | 在来源 row-set 审批语义定义完成前保持 fail closed |
+
+多语句请求会先完整解析与验证、建立逐语句证据、请求一次审批，然后在服务器管理的单一事务中逐条重新验证。只有全部语句仍符合已批准证据时才会 commit；任一失败都会整批 rollback。
+
+客户端提供的事务控制 SQL 会被拒绝。
+
+## 审批传输方式
+
+MCP Elicitation 仍是第一方默认流程。Standard Hosting 可选择官方 Webhook adapter；模块化 host 则可注册 `HsSqlAgent.Approvals.Webhook` 或其他 `IDmlApprovalProvider`。
+
+异步 provider 可以返回 `Pending`。后续 durable completion 仍由服务器掌控，commit 前会重新验证当前授权、配置、策略、执行计划、row set 与受影响行数证据。
+
+请参阅[安全 DML](/zh-hans/docs/sql-compiler/safe-dml)。

@@ -1,0 +1,87 @@
+---
+title: 升级指南
+description: 从 hs-sql-agent 2.0.3 升级到 2.0.4，包括强制执行的五项 MCP 内置工具契约与构建开发体验改进。
+sidebar:
+  group: 参考
+  order: 144
+---
+
+import Callout from "@/components/docs/mdx/Callout.astro";
+
+## 2.0.4 有哪些变化
+
+2.0.4 主要收紧公开 MCP 边界，并减少开发和运维流程中的配置漂移；SQL 编译器与数据库结构契约没有因此改变。
+
+- MCP 内置工具现在由服务器单一目录统一定义：`get_schemas`、`get_tables`、`get_columns`、`execute_query_sql`、`execute_dml_sql`。
+- 服务启动时会核对实际反射得到的 MCP 工具与正式目录；如果多出或缺少内置工具，服务会直接拒绝启动，避免意外工具被“不限制工具”的密钥获得。
+- `update_semantic_layer` 不再通过 MCP 暴露。语义元数据仍可在管理界面和管理 API 中编辑，并继续使用现有的语义管理权限边界。
+- 管理 API 的工具目录现在返回内置／自定义分类、Query／DML 类型、显示名称、风险和安全默认值，供 MCP 密钥界面使用。
+- MCP 密钥的新建与编辑界面现在直接使用服务器工具目录，不再在前端维护第二份内置工具清单。
+- 新密钥默认勾选四个读取／查询工具：`get_schemas`、`get_tables`、`get_columns`、`execute_query_sql`；`execute_dml_sql` 仍可启用，但**默认不勾选**。
+- MCP 密钥的新建／编辑界面现在会显示 **Access Posture**：`Read/query only`、`DML enabled` 或 `Unrestricted tool access`，并同时标明数据范围是 `All tables` 还是限制到若干张数据表。
+- **Issued Keys** 列表也改为优先呈现权限姿态：先显示状态、数据库、Access Posture、数据范围、使用情况、到期时间和实际生效的速率限制，再显示原始配置细节。现有密钥会使用自己绑定数据库当前的工具目录识别已发布 Custom DML；如果保存的旧工具已经不在当前目录中，界面会显示 `Review tool scope`，而不会误标成只读。
+- **Audit Logs** 改为适合快速排查的 scan-first 视图：紧凑事件行优先显示结果、时间、目标、操作者、tool／database／key 上下文与执行信号；完整事件内容则通过右侧详情面板按 Identity、Execution、Trace、Detail、Definition 分组查看。Event／Request／Session ID 可直接复制，JSON definition 会格式化展示，但不会改变已存储的审计数据。
+- **Operability** 的数据库和 MCP 密钥筛选改成可搜索的实体选择器，不再要求操作人员手动输入 numeric ID。界面仍向 runtime API 发送原有的 `dbManagementId` / `accessKeyId`，选项也只来自 Operability 已有的健康与 key-usage 数据，因此不会新增对 Database Management 或 MCP Keys 管理权限的依赖。
+- 具有 Audit 查看权限的操作人员现在可以从 Operability 直接 drill down 到匹配的 Audit Logs。当前日期／数据库／密钥／工具筛选可直接带过去，Database health 与 Key usage 行也提供聚焦的 Audit 快捷入口；异常 route query 会在进入 audit API 之前被忽略。
+- **Security Policy** 现在先显示 **Effective policy posture**：直接呈现 compiler 最终判定的 UPDATE／DELETE mutation 状态、DML／Query 限制、密钥速率限制、SQL 并发与 Saved／Unsaved 状态；不会生成主观的安全分数。如果无法加载服务器 policy，界面也不会把前端 fallback defaults 当成有效配置展示。
+- Admin 首页现在会在首次配置阶段显示 **System Readiness** 路径：添加数据库、签发有效 MCP 密钥、让 agent 实际使用一次密钥。完成后 onboarding 卡会自动消失，不会长期占用成熟环境的运营仪表盘。
+- Docker 前端构建改为与 CI 对齐：Node.js 22、pnpm 10.22.0，并强制按锁文件安装。
+- 移除了管理侧栏中没有实际功能的“Search the docs...”输入框，侧栏品牌也直接显示 hs-sql-agent Admin Console。
+
+<Callout type="warning" title="如果你曾通过 MCP 调用 update_semantic_layer">
+这个方法并不属于 2.0.3 已公开文档中的五项内置工具。升级前请把语义元数据写入迁移到 **Runtime → DB Management → Semantic Layer** 或受权限保护的管理 API。只读结构发现工具仍会返回已授权的语义描述。
+</Callout>
+
+## MCP 密钥行为
+
+现有 MCP 密钥无需迁移。明确配置 `AllowedTools` 时，仍只会暴露指定的内置工具和已发布自定义工具；未配置工具白名单时，会提供五项正式内置工具，以及该密钥绑定数据库中已发布的自定义工具，但不再包含未公开的语义层写入工具。
+
+新创建的密钥会从明确的四工具读取／查询白名单开始，而不是“不限制工具”。启用 `execute_dml_sql` 或已发布的自定义 DML 工具，需要管理员主动勾选，界面也会继续提示 MCP Elicitation 审批要求。如果取消全部工具选择，语义仍然是**不限制工具**，因此界面会警告该状态同样包含 DML。
+
+Access Posture 会在签发、保存前以及已签发密钥列表中直接反映当前有效选择：绿色表示只有读取／查询工具，黄色表示至少启用了一个 DML 工具，红色表示工具范围不受限制。摘要也会显示数据访问是全部数据表，还是限制到当前选中的数据表数量。现有密钥的分类会依据该密钥绑定数据库当前已发布的工具目录，因此 Custom DML 也能正确识别；如果某个已保存工具已无法从当前目录分类，则显示 `Review tool scope`，而不是宣称它处于风险更低的只读状态。这些信息只是把权限状态可视化；实际授权仍由现有的密钥／工具／数据表策略链路强制执行。
+
+工具显示名称、Query／DML 分类、风险和默认选择状态均以服务器目录为准。如果目录无法加载，管理界面会禁止签发新密钥，不会把空白的前端状态误解为不限制工具。
+
+DML 审批、数据表白名单、速率限制、SQL 并发、编译验证与审计行为不受本次契约修正影响。
+
+## 审计事件查看
+
+审计事件的存储、筛选、导出与保留策略契约没有变化。2.0.4 只调整 Admin Console 的查看方式：主列表用于快速判断事件，点击 **View details** 后再从右侧结构化面板查看完整上下文。
+
+详情面板把 trace 标识与执行证据从主列表中分离出来，避免每一行被大量工程字段撑满。`definition` 是 JSON 时会格式化展示，不是 JSON 时保持原样；Event ID、Request ID、Session ID 与 Definition 的复制动作都使用原始存储值。
+
+## Operability 筛选
+
+Operability 页面现在用可搜索名称替代需要记住 DB ID / Key ID 的操作方式。数据库选项直接来自 `/runtime/operability` 已获取的定时健康数据；密钥选项则来自同一页面未筛选的 key-usage 数据。选择器会显示可读名称和 ID，但最终仍映射回 2.0.3 已有的 numeric `dbManagementId` / `accessKeyId` 筛选契约。
+
+选项来源刻意维持在 Operability 权限边界内，不会为了显示名称而调用 Database Management 或 MCP Keys 管理端点，因此只有 Operability view 权限的角色不需要额外获得管理查看权限。
+
+## 从 Operability drill down 到 Audit
+
+如果当前操作人员同时拥有 `/runtime/audit.view`，Operability 会显示 **View matching audit**，Database health 与 Key usage 行也会提供对应的 Audit 操作。跳转时会携带当前 `from`、`to`、数据库、密钥和工具条件，让运维信号可以直接进入同一上下文的审计事件，而不必重新手动填写筛选。
+
+Audit 页面会防御性地解析 route query：日期只接受 `YYYY-MM-DD`，数据库／密钥 ID 必须是正整数，工具名不得为空。无效值会在构造 Audit API 请求前被忽略。这些链接只提供导航便利；Audit 页面仍执行现有权限检查，不会绕过任何 authorization 契约。
+
+## 有效 Security Policy posture
+
+Security Policy 页面现在只在成功取得服务器实际 policy 后显示摘要和编辑表单。摘要会列出有效的 UPDATE／DELETE mutation 行为、DML row cap、Query rows／timeout、Key rate limit 与 SQL concurrency，并显示 **Saved** 或 **Unsaved changes**。只有真正受 enforcement 的字段发生变化才会进入 unsaved 状态；`updatedAt`、`updatedBy` 等服务器审计元数据不会造成假的 dirty state。
+
+Mutation posture 与 SQL compiler 的 `MutationSafety` 组合语义保持一致，而不是分别解释 raw flags。只有 `RequireWhereForUpdate=false` **且** `AllowFullTableUpdate=true` 同时成立时，UPDATE 才显示 `Full-table allowed`；DELETE 使用同样的双条件规则。其他组合的有效结果仍是 `Predicate required`。因此 `Guarded mutation policy` 表示两条 mutation path 都必须带 predicate，`Review mutation policy` 只会在至少一条路径实际允许 full-table mutation 时出现。
+
+如果有效 policy 加载失败，Admin Console 会显示明确错误与 **Retry**，不会把前端 fallback defaults 展示或允许编辑成服务器有效状态。这是呈现／DX 改进；Security Policy 存储模型、compiler enforcement、Admin Store schema 与环境变量契约都没有变化。
+
+## 首次启用 readiness
+
+同时具有 Database Management 与 MCP Keys 查看权限的操作人员会在首页看到三步 readiness 检查。完成条件直接取自实际 runtime 状态：至少存在一个数据库配置、至少有一把有效 MCP 密钥，并且有效密钥在 MCP client 发出请求后已有 `LastUsedAt`。
+
+三项全部完成后 readiness 卡会自动隐藏。它不会创建资源、修改权限，也不会对无法同时查看数据库与密钥状态的角色推测 readiness。
+
+## 数据库与配置迁移
+
+这批 2.0.4 变化本身不要求新增 Admin Store 数据库迁移，也没有新增必填环境变量。
+
+升级后建议先签发一个采用默认设置的 MCP 密钥，确认只暴露四个读取／查询工具且不包含 DML；如果启用了 DML，再测试一次完整审批流程。同时确认具有 `/runtime/db-management/semantic.edit` 权限的角色仍可从管理界面更新 Semantic Layer。
+
+## 构建与部署
+
+如果你维护自定义镜像，请跟随仓库锁定的前端工具链。第一方 Dockerfile 现在使用 `pnpm install --frozen-lockfile`；当锁文件与包声明不一致时，镜像构建会直接失败，而不是静默解析出不同的依赖版本。

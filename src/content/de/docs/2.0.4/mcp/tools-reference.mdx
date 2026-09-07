@@ -1,0 +1,76 @@
+---
+title: MCP-Tool-Referenz
+description: Verträge der eingebauten MCP-Tools in hs-sql-agent 2.0.4; die öffentliche Oberfläche wird serverseitig auf fünf Tools festgelegt.
+sidebar:
+  group: MCP
+  order: 35
+---
+
+Die eingebaute MCP-Oberfläche bleibt bewusst klein. Ab 2.0.4 erzwingt ein einziger serverseitiger Katalog genau fünf öffentliche Tool-Namen.
+
+| Tool | Öffentliche Eingabe | Zweck |
+| --- | --- | --- |
+| `get_schemas` | keine | Schemas ermitteln |
+| `get_tables` | `schemaName: string` | sichtbare Tabellen ermitteln |
+| `get_columns` | `schemaName: string`, `tableName: string` | sichtbare Spalten und Schlüsselmetadaten ermitteln |
+| `execute_query_sql` | `sql: string` | eine kontrollierte SELECT-Abfrage ausführen |
+| `execute_dml_sql` | `sql: string` | eine oder mehrere freigegebene DML-Anweisungen atomar ausführen |
+
+Veröffentlichte Custom Tools können die Tool-Sammlung ihrer gebundenen Datenbank erweitern, sind aber keine zusätzlichen eingebauten Tools.
+
+## Der Serverkatalog ist maßgeblich
+
+MCP-Schlüsselprüfung und Laufzeit-Discovery verwenden dieselben kanonischen Namen. Beim Start vergleicht hs-sql-agent die per Reflection gefundenen MCP-Methoden mit dem Katalog und verweigert den Start, wenn ein eingebautes Tool unerwartet hinzukommt oder fehlt.
+
+Auch der Tool-Katalog der Admin-API liefert dieselben eingebauten Tools zusammen mit veröffentlichten Custom Tools und ergänzt Query-/DML-Typ sowie Risikometadaten. So können Autorisierung und Admin-Oberfläche nicht unbemerkt unterschiedliche Tool-Bestände entwickeln.
+
+## Schreibzugriffe auf semantische Metadaten sind Administration
+
+`update_semantic_layer` ist in 2.0.4 kein eingebautes MCP-Tool. Die Semantic Layer ist Konfiguration der Steuerungsebene und wird über die Admin-Oberfläche oder die berechtigungsgeschützte Admin-API gepflegt.
+
+Die schreibgeschützten Discovery-Tools reichern Tabellen- und Spalteninformationen weiterhin mit autorisierten Anzeigenamen, Beschreibungen, Synonymen, Beziehungen und Metriken an.
+
+Siehe [Semantische Metadaten](/de/docs/administration/semantic-metadata).
+
+## Autorisierung erfolgt vor der Discovery
+
+Die MCP-Sitzung wird erst nach erfolgreicher Schlüsselprüfung aufgebaut. Eine explizite `AllowedTools`-Liste begrenzt die eingebauten und veröffentlichten Custom Tools. Ohne Liste können die fünf kanonischen eingebauten Tools sowie veröffentlichte Custom Tools der gebundenen Datenbank sichtbar sein.
+
+Datenbankbindung, Tabellen-Whitelist, Rate Limits, SQL-Parallelität, Richtlinien und Audit bleiben serverseitig erzwungen. Metadaten-Tools akzeptieren keine Verbindungszeichenfolge vom Modell.
+
+## `execute_query_sql`
+
+```text
+execute_query_sql(sql: string)
+```
+
+Akzeptiert eine unterstützte `SELECT`-Anweisung und führt sie durch Parsing, Binding, Tabellenautorisierung, Richtlinien- und Quellsemantikprüfung, Ziel-Capability-Nachweis und Kompilierung in einen unveränderlichen Provider-Befehl, bevor ausgeführt wird.
+
+Nicht unterstütztes SQL wird fail closed abgelehnt; es gibt keinen Fallback auf rohe Provider-Ausführung.
+
+## `execute_dml_sql`
+
+```text
+execute_dml_sql(sql: string)
+```
+
+Akzeptiert eine oder mehrere unterstützte, durch Semikolon getrennte DML-Anweisungen. Mehrere Anweisungen werden einmal freigegeben und in Originalreihenfolge innerhalb einer atomaren Transaktion ausgeführt; ein separates Batch-MCP-Tool ist nicht erforderlich.
+
+| Anweisung | Status |
+| --- | --- |
+| `UPDATE` | unterstützt, wenn Capability, Richtlinie, Freigabe und Revalidierung bestehen |
+| `DELETE` | unterstützt, wenn Capability, Richtlinie, Freigabe und Revalidierung bestehen |
+| `INSERT ... VALUES` | unterstützt mit an unveränderlichen Payload gebundener Freigabe |
+| `INSERT ... SELECT` | fail closed, bis die Freigabesemantik für die Quell-Row-Set definiert ist |
+
+Bei mehreren Anweisungen wird der gesamte Batch zunächst geparst und validiert, pro Anweisung Evidenz erzeugt und eine gemeinsame Freigabe angefordert. Innerhalb einer serververwalteten Transaktion wird jede Anweisung unmittelbar vor der Mutation erneut validiert. Nur wenn alle Anweisungen weiterhin zur freigegebenen Evidenz passen, erfolgt der Commit; andernfalls wird die gesamte Transaktion zurückgerollt.
+
+Vom Client gelieferte Transaktionssteuerungs-SQL wird abgelehnt.
+
+## Freigabetransport
+
+MCP Elicitation bleibt der erste Standardpfad. Standard Hosting kann den offiziellen Webhook-Adapter wählen; modulare Hosts können `HsSqlAgent.Approvals.Webhook` oder einen anderen `IDmlApprovalProvider` registrieren.
+
+Ein asynchroner Provider kann `Pending` zurückgeben. Auch die dauerhafte spätere Ausführung bleibt serververwaltet und prüft vor dem Commit aktuelle Autorisierung, Konfiguration, Richtlinie, Plan, Row-Set und Evidenz der betroffenen Zeilen erneut.
+
+Siehe [Sicheres DML](/de/docs/sql-compiler/safe-dml).

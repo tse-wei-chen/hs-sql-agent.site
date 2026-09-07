@@ -1,0 +1,87 @@
+---
+title: Upgrade Guide
+description: Upgrade hs-sql-agent from 2.0.3 to 2.0.4, including the enforced five-tool MCP contract and build DX improvements.
+sidebar:
+  group: Reference
+  order: 144
+---
+
+import Callout from "@/components/docs/mdx/Callout.astro";
+
+## What changes in 2.0.4
+
+2.0.4 tightens the public MCP boundary and removes several sources of developer and operator drift without changing the SQL compiler or database schema contract.
+
+- The built-in MCP surface is now enforced from one canonical server catalog: `get_schemas`, `get_tables`, `get_columns`, `execute_query_sql`, and `execute_dml_sql`.
+- MCP startup fails closed if reflected built-in tools drift from that catalog, preventing an accidental extra tool from becoming reachable through unrestricted keys.
+- `update_semantic_layer` is no longer exposed through MCP. Semantic metadata remains editable through the Admin UI and Admin API, where the existing semantic-management permission boundary applies.
+- The Admin API tool catalog now returns built-in/custom classification, Query/DML type, display name, risk, and safe-default metadata for MCP-key experiences.
+- The MCP Key issue and edit forms now render that server catalog directly instead of maintaining a second built-in tool list in the frontend.
+- New keys select the four read/query tools by default: `get_schemas`, `get_tables`, `get_columns`, and `execute_query_sql`. `execute_dml_sql` remains available but is **not selected by default**.
+- MCP Key issue/edit forms now show an **Access Posture** summary: `Read/query only`, `DML enabled`, or `Unrestricted tool access`, plus the effective data scope (`All tables` or the number of restricted tables).
+- The Issued Keys list is now posture-first: status, database, access posture, data scope, usage, expiry, and effective rate limit are surfaced before raw configuration details. Existing keys use their database-scoped current tool catalog so published Custom DML is classified correctly; saved tools that cannot be classified from the currently available catalog show `Review tool scope` instead of being presented as read-only.
+- Audit Logs are now scan-first: compact event rows surface result, time, target, actor, tool/database/key context, and execution signals, while a right-side detail sheet organizes Identity, Execution, Trace, Detail, and Definition fields. Event/request/session IDs can be copied directly, and JSON definitions are pretty-printed without changing stored audit data.
+- Operability database and MCP-key filters are now searchable entity selectors instead of raw numeric ID inputs. They still submit the existing numeric filter IDs to the runtime APIs and intentionally derive their choices from Operability data, so viewing the page does not gain a new dependency on Database Management or MCP Keys permissions.
+- Operators with Audit view permission can now drill directly from Operability into matching Audit Logs. The current date/database/key/tool filters can be carried across, and database-health or key-usage rows provide focused Audit shortcuts; malformed route-query values are ignored before they reach the audit API.
+- Security Policy now opens with an **Effective policy posture** summary showing compiler-resolved UPDATE/DELETE mutation behavior, DML/query limits, key rate limits, SQL concurrency, and saved/unsaved state. It does not invent a numeric security score, and it refuses to present frontend fallback values as the effective policy if the server policy cannot be loaded.
+- The Admin home page now shows a first-run **System Readiness** path—add a database, issue an active key, then connect an agent—until an active key has actually been used. Established environments return to the normal operational dashboard without a permanent onboarding panel.
+- The Docker frontend build now matches CI more closely by using Node.js 22, pnpm 10.22.0, and a frozen lockfile.
+- The inert Admin sidebar “Search the docs...” field was removed and the sidebar branding now identifies the hs-sql-agent Admin Console directly.
+
+<Callout type="warning" title="If you called update_semantic_layer through MCP">
+That method was not part of the documented 2.0.3 five-tool contract. Move semantic metadata writes to **Runtime → DB Management → Semantic Layer** or the permission-protected Admin API before upgrading. Schema discovery still includes semantic metadata through the supported read-only metadata tools.
+</Callout>
+
+## MCP key behavior
+
+Existing MCP keys do not require migration. An explicit `AllowedTools` list continues to limit the exposed built-in and published Custom Tool names. A key with no tool allowlist can still discover the five canonical built-ins plus published Custom Tools for its bound database, but it no longer receives an undocumented semantic-layer mutation tool.
+
+For newly issued keys, the Admin Console now starts from an explicit four-tool read/query allowlist instead of an unrestricted list. Enabling `execute_dml_sql` or a published Custom DML tool is an explicit operator action and continues to surface the Elicitation requirement. Clearing all tool selections still means **unrestricted**, so the UI warns that DML is included in that state.
+
+The Access Posture summary mirrors the effective selection before issue/save and on already-issued keys. Green means read/query-only, amber means at least one DML tool is enabled, and red means the tool list is unrestricted. The same summary also shows whether the key can access all tables or a restricted table count. Existing-key classification uses the current published catalog for that key's database, including Custom DML. If a saved tool cannot be classified because it is absent from the currently available catalog—for example after a tool is unpublished or that database-specific catalog cannot be loaded—the UI shows `Review tool scope` rather than making a lower-risk claim. These summaries are explanatory only; authorization remains enforced by the existing key/tool/table policy pipeline.
+
+The server is the source of truth for tool display names, Query/DML classification, risk, and default selection. If the catalog cannot be loaded, the Admin Console blocks key issuance rather than treating an empty frontend state as unrestricted access.
+
+DML approval, table allowlists, rate limits, SQL concurrency, compiler validation, and audit behavior are unchanged by this contract correction.
+
+## Audit inspection
+
+Audit event storage, filtering, export, and retention contracts are unchanged. The 2.0.4 Admin Console changes how operators inspect those records: the list favors fast triage, and **View details** opens a structured side panel for the complete event context.
+
+The detail panel keeps trace identifiers and execution evidence visible without filling every list row. JSON-shaped `definition` values are formatted for readability, non-JSON values are preserved as-is, and copy actions use the original stored values for Event ID, Request ID, Session ID, and Definition.
+
+## Operability filtering
+
+The Operability page no longer expects operators to memorize database and MCP-key IDs. Database choices are built from the scheduled health data already available to `/runtime/operability`, while key choices come from the page's unfiltered key-usage data. The selectors show readable names plus IDs, support search, and map the selected label back to the same numeric `dbManagementId` / `accessKeyId` filter contract used by 2.0.3.
+
+The selector catalog intentionally stays inside the Operability permission boundary. It does not call Database Management or MCP-key management endpoints just to populate labels, so a role with Operability view access is not forced to gain unrelated management-view permissions.
+
+## Operability to Audit drill-down
+
+If the current operator also has `/runtime/audit.view`, Operability exposes **View matching audit** and focused Audit actions on database-health and key-usage rows. Navigation carries the current `from`, `to`, database, key, and tool filters into the Audit page, so an operational signal can be investigated without manually recreating context.
+
+Audit route-query initialization is defensive: only `YYYY-MM-DD` dates, positive numeric database/key IDs, and non-empty tool names are accepted. Invalid values are ignored before building the Audit API request. These links are navigation only; the Audit page still enforces its existing permission requirement and no authorization contract is bypassed.
+
+## Effective Security Policy posture
+
+The Security Policy page now summarizes the policy that was actually loaded from the server before presenting the individual fields. The summary shows effective UPDATE/DELETE mutation behavior, the DML row cap, query row/timeout limits, key rate limit, and SQL concurrency. It also distinguishes **Saved** from **Unsaved changes**, and the save action remains disabled when no enforced policy field changed. Server audit metadata such as `updatedAt` and `updatedBy` does not create a false dirty state.
+
+Mutation posture mirrors the SQL compiler's effective `MutationSafety` semantics rather than interpreting either raw flag by itself. A full-table UPDATE is reported as allowed only when `RequireWhereForUpdate` is false **and** `AllowFullTableUpdate` is true; DELETE follows the same two-flag rule. Otherwise the effective state remains `Predicate required`. `Guarded mutation policy` therefore means both mutation paths still require predicates, while `Review mutation policy` appears only when at least one path actually resolves to full-table access.
+
+If the effective policy cannot be loaded, the Admin Console does not display or allow editing of frontend fallback defaults as though they were server state. It shows an explicit load failure with a Retry action instead. This is a presentation/DX change only: the stored Security Policy model, compiler enforcement, Admin Store schema, and environment-variable contracts are unchanged.
+
+## First-run readiness
+
+Operators who can view both Database Management and MCP Keys now get a three-step readiness checklist on the home page. Completion is based on real runtime state rather than a dismissible tutorial: at least one database exists, at least one MCP key is active, and an active key has a non-empty `LastUsedAt` after an MCP client request.
+
+The readiness card disappears automatically after all three checks pass. It does not alter permissions, create resources, or infer readiness for users who cannot inspect both database and key state.
+
+## Database and configuration migration
+
+There is no Admin Store schema migration required specifically for these 2.0.4 changes, and no new mandatory environment variable is introduced.
+
+After upgrading, smoke-test one default MCP key and confirm that it exposes the four read/query tools without DML. If you enable DML, also test one approval flow. Verify that Semantic Layer edits still work through the Admin UI for roles with `/runtime/db-management/semantic.edit`.
+
+## Build and deployment review
+
+Custom image builders should respect the repository's pinned frontend toolchain. The first-party Dockerfile now installs with `pnpm install --frozen-lockfile`, so an out-of-date lockfile fails the image build instead of silently resolving a different dependency graph.

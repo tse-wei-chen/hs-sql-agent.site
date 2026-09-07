@@ -12,9 +12,14 @@ function extract(pattern, label) {
   return match[1];
 }
 
+function extractOptional(pattern) {
+  return releaseSource.match(pattern)?.[1];
+}
+
 const repository = extract(/repository:\s*"([^"]+)"/, "repository");
 const version = extract(/version:\s*"([^"]+)"/, "version");
 const tag = extract(/tag:\s*"([^"]+)"/, "tag");
+const sourceRef = extractOptional(/sourceRef:\s*"([^"]+)"/) ?? tag;
 const historicalTagsSource = extract(
   /historicalTags:\s*\[([^\]]*)\]/,
   "historical tags"
@@ -35,6 +40,11 @@ const sourceEntries = [
 
 if (tag !== `v${version}`) {
   throw new Error(`Release tag ${tag} does not match product version ${version}.`);
+}
+if (sourceRef !== tag && !/^[0-9a-f]{40}$/i.test(sourceRef)) {
+  throw new Error(
+    `Prerelease sourceRef must be the release tag or an immutable 40-character commit SHA, got ${sourceRef}.`
+  );
 }
 if (historicalTags.includes(tag)) {
   throw new Error(`Current release tag ${tag} must not also be historical.`);
@@ -198,11 +208,11 @@ for (const path of latestCopyPaths) await checkLatestCopy(path);
 
 const fetchedSources = new Map();
 for (const { key, path } of sourceEntries) {
-  const sourceUrl = `https://raw.githubusercontent.com/${repository}/${tag}/${path}`;
+  const sourceUrl = `https://raw.githubusercontent.com/${repository}/${sourceRef}/${path}`;
   const response = await fetch(sourceUrl);
   if (!response.ok) {
     errors.push(
-      `Pinned product source ${key} is unavailable: ${repository}@${tag}/${path} (${response.status}).`
+      `Pinned product source ${key} is unavailable: ${repository}@${sourceRef}/${path} (${response.status}).`
     );
     continue;
   }
@@ -221,7 +231,7 @@ if (!productVersionSource) {
   );
   if (!productVersionPattern.test(productVersionSource)) {
     errors.push(
-      `Pinned product version source ${repository}@${tag} does not declare VersionPrefix ${version}.`
+      `Pinned product version source ${repository}@${sourceRef} does not declare VersionPrefix ${version}.`
     );
   }
 }
@@ -248,5 +258,5 @@ if (errors.length > 0) {
 }
 
 process.stdout.write(
-  `Content source of truth verified: ${repository}@${tag}, version ${version}, ${historicalTags.length} historical release tag(s), ${sourceEntries.length} pinned source files, ${currentDocsCount} current overlay docs.\n`
+  `Content source of truth verified: ${repository}@${sourceRef} for ${tag}, version ${version}, ${historicalTags.length} historical release tag(s), ${sourceEntries.length} pinned source files, ${currentDocsCount} current overlay docs.\n`
 );

@@ -1,0 +1,76 @@
+---
+title: Référence des outils MCP
+description: Contrats des outils MCP intégrés de hs-sql-agent 2.0.4 ; la surface publique est imposée à cinq outils par le serveur.
+sidebar:
+  group: MCP
+  order: 35
+---
+
+La surface MCP intégrée reste volontairement réduite. À partir de 2.0.4, un catalogue serveur unique impose exactement cinq noms d'outils publics.
+
+| Outil | Entrée publique | Rôle |
+| --- | --- | --- |
+| `get_schemas` | aucune | découvrir les schémas |
+| `get_tables` | `schemaName: string` | découvrir les tables visibles |
+| `get_columns` | `schemaName: string`, `tableName: string` | découvrir les colonnes visibles et les métadonnées de clés |
+| `execute_query_sql` | `sql: string` | exécuter une requête SELECT gouvernée |
+| `execute_dml_sql` | `sql: string` | exécuter atomiquement une ou plusieurs instructions DML approuvées |
+
+Les Custom Tools publiés peuvent étendre la collection d'outils de leur base liée, mais ne sont pas des outils intégrés supplémentaires.
+
+## Le catalogue serveur fait autorité
+
+La validation des clés MCP et la découverte à l'exécution utilisent les mêmes noms canoniques. Au démarrage, hs-sql-agent compare les méthodes MCP découvertes par réflexion avec ce catalogue et refuse de démarrer si un outil intégré inattendu apparaît ou si l'un des cinq manque.
+
+Le catalogue de l'API d'administration expose les mêmes outils intégrés ainsi que les Custom Tools publiés, avec leur type Query/DML et leur niveau de risque. L'autorisation et l'interface d'administration ne peuvent ainsi pas dériver silencieusement vers des inventaires différents.
+
+## L'écriture des métadonnées sémantiques relève de l'administration
+
+`update_semantic_layer` n'est pas un outil MCP intégré en 2.0.4. La Semantic Layer appartient au plan de contrôle et se modifie via l'interface d'administration ou l'API d'administration protégée par permissions.
+
+Les outils de découverte en lecture seule continuent d'enrichir les tables et colonnes avec les noms d'affichage, descriptions, synonymes, relations et métriques autorisés.
+
+Voir [Métadonnées sémantiques](/fr/docs/administration/semantic-metadata).
+
+## L'autorisation précède la découverte
+
+La session MCP est construite après l'authentification de la clé. Une liste `AllowedTools` explicite limite les outils intégrés et Custom Tools publiés qui sont exposés. En l'absence de liste, la session peut exposer les cinq outils intégrés canoniques ainsi que les Custom Tools publiés de la base liée à la clé.
+
+La liaison à la base, les listes blanches de tables, les limites de débit, la concurrence SQL, les politiques et l'audit restent imposés côté serveur. Les outils de métadonnées n'acceptent jamais de chaîne de connexion fournie par le modèle.
+
+## `execute_query_sql`
+
+```text
+execute_query_sql(sql: string)
+```
+
+Accepte une instruction `SELECT` prise en charge puis la fait passer par l'analyse, la liaison, l'autorisation des tables, la validation des politiques et de la sémantique source, la preuve des capacités de la cible et la compilation en commande provider immuable avant exécution.
+
+Un SQL non pris en charge est rejeté en fail closed ; il n'existe aucun fallback vers une exécution brute par le provider.
+
+## `execute_dml_sql`
+
+```text
+execute_dml_sql(sql: string)
+```
+
+Accepte une ou plusieurs instructions DML prises en charge et séparées par des points-virgules. Plusieurs instructions sont approuvées une seule fois puis exécutées dans leur ordre d'origine au sein d'une transaction atomique ; aucun outil MCP batch séparé n'est nécessaire.
+
+| Instruction | État |
+| --- | --- |
+| `UPDATE` | prise en charge si capacité, politique, approbation et revalidation réussissent |
+| `DELETE` | prise en charge si capacité, politique, approbation et revalidation réussissent |
+| `INSERT ... VALUES` | prise en charge avec une approbation liée à un payload immuable |
+| `INSERT ... SELECT` | rejetée en fail closed tant que la sémantique d'approbation du jeu de lignes source n'est pas définie |
+
+Pour plusieurs instructions, le batch complet est d'abord analysé et validé, une preuve est produite pour chaque instruction et une seule approbation est demandée. Dans une transaction gérée par le serveur, chaque instruction est revalidée immédiatement avant sa mutation. Le commit n'a lieu que si toutes les instructions correspondent toujours à la preuve approuvée ; sinon toute la transaction est annulée.
+
+Le SQL de contrôle transactionnel fourni par le client est refusé.
+
+## Transport d'approbation
+
+MCP Elicitation reste le chemin par défaut de première partie. Standard Hosting peut sélectionner l'adaptateur Webhook officiel ; un hôte modulaire peut enregistrer `HsSqlAgent.Approvals.Webhook` ou un autre `IDmlApprovalProvider`.
+
+Un provider asynchrone peut retourner `Pending`. La finalisation durable reste sous le contrôle du serveur et revalide avant commit l'autorisation, la configuration, la politique, le plan, le jeu de lignes et la preuve du nombre de lignes affectées.
+
+Voir [DML sécurisé](/fr/docs/sql-compiler/safe-dml).
