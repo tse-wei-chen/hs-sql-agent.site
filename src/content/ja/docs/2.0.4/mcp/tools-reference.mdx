@@ -1,0 +1,76 @@
+---
+title: MCP ツールリファレンス
+description: hs-sql-agent 2.0.4 の組み込み MCP ツール契約。公開面はサーバー側で 5 ツールに固定されます。
+sidebar:
+  group: MCP
+  order: 35
+---
+
+組み込み MCP ツールは意図的に小さく保たれ、2.0.4 からはサーバー側の単一 catalog で強制されます。公開される組み込みツールは次の 5 つです。
+
+| ツール | 公開入力 | 用途 |
+| --- | --- | --- |
+| `get_schemas` | なし | schema の一覧取得 |
+| `get_tables` | `schemaName: string` | 参照可能な table の一覧取得 |
+| `get_columns` | `schemaName: string`, `tableName: string` | 参照可能な column と key metadata の取得 |
+| `execute_query_sql` | `sql: string` | ガバナンス下で SELECT を 1 件実行 |
+| `execute_dml_sql` | `sql: string` | 承認済み DML を 1 件以上、原子的に実行 |
+
+公開済み Custom Tool は、紐づく database の tool collection を拡張できますが、組み込みツールには含まれません。
+
+## サーバー catalog が唯一の基準
+
+MCP key の検証と MCP runtime の discovery は同じ正式な組み込みツール名を共有します。起動時には reflection で得た MCP method と catalog を比較し、想定外または不足する組み込みツールがあれば起動を拒否します。
+
+Admin API の tool catalog も同じ組み込みツールと公開済み Custom Tool を返し、Query／DML 種別と risk 情報を含みます。これにより authorization と Admin UI が別々の tool inventory を持つことを防ぎます。
+
+## Semantic metadata の書き込みは管理操作
+
+`update_semantic_layer` は 2.0.4 の組み込み MCP ツールではありません。Semantic Layer は control plane の設定であり、Admin UI または権限保護された Admin API から編集します。
+
+read-only の discovery ツールは、許可されている範囲で display name、description、synonym、relationship、metric を table／column の discovery 結果に引き続き反映します。
+
+[Semantic metadata](/ja/docs/administration/semantic-metadata) も参照してください。
+
+## Discovery より先に authorization を適用
+
+MCP session は key 認証後に構築されます。`AllowedTools` を明示すると、指定された組み込みツールと公開済み Custom Tool のみが公開されます。指定がない場合は、5 つの正式な組み込みツールと、key に紐づく database の公開済み Custom Tool を公開できます。
+
+Database binding、table allowlist、rate limit、SQL concurrency、policy、audit は引き続きサーバー側で強制されます。metadata ツールから model が connection string を指定することはできません。
+
+## `execute_query_sql`
+
+```text
+execute_query_sql(sql: string)
+```
+
+サポート対象の `SELECT` を 1 文受け取り、parse、bind、table authorization、policy／source semantics validation、target capability proof、immutable provider command への compile を経てから実行します。
+
+未対応 SQL は fail closed となり、生 SQL を provider に直接流す fallback はありません。
+
+## `execute_dml_sql`
+
+```text
+execute_dml_sql(sql: string)
+```
+
+セミコロンで区切った複数の対応 DML を受け取れます。複数文は 1 回だけ承認され、元の順序のまま 1 つの原子的 transaction で commit されます。別の batch MCP ツールは不要です。
+
+| 文 | 状態 |
+| --- | --- |
+| `UPDATE` | capability、policy、approval、再検証を通過した場合に対応 |
+| `DELETE` | capability、policy、approval、再検証を通過した場合に対応 |
+| `INSERT ... VALUES` | immutable payload に束縛した approval semantics で対応 |
+| `INSERT ... SELECT` | source row-set の approval semantics が定義されるまで fail closed |
+
+複数文では batch 全体を parse／validate し、文ごとの evidence を作り、1 回の approval を要求します。その後 server-owned transaction 内で各文を直前に再検証し、すべてが承認済み evidence と一致する場合のみ commit します。1 文でも失敗すれば transaction 全体を rollback します。
+
+client 側から transaction-control SQL を送ることはできません。
+
+## Approval transport
+
+MCP Elicitation は引き続き第一方の既定経路です。Standard Hosting は公式 Webhook adapter を選択でき、モジュール構成では `HsSqlAgent.Approvals.Webhook` または別の `IDmlApprovalProvider` を登録できます。
+
+非同期 provider は `Pending` を返せます。その後の durable completion も server-owned であり、commit 前に現在の authorization、configuration、policy、plan、row set、affected-row evidence を再検証します。
+
+[Safe DML](/ja/docs/sql-compiler/safe-dml) も参照してください。
