@@ -23,6 +23,7 @@ import Callout from "@/components/docs/mdx/Callout.astro";
 - Audit Logs are now scan-first: compact event rows surface result, time, target, actor, tool/database/key context, and execution signals, while a right-side detail sheet organizes Identity, Execution, Trace, Detail, and Definition fields. Event/request/session IDs can be copied directly, and JSON definitions are pretty-printed without changing stored audit data.
 - Operability database and MCP-key filters are now searchable entity selectors instead of raw numeric ID inputs. They still submit the existing numeric filter IDs to the runtime APIs and intentionally derive their choices from Operability data, so viewing the page does not gain a new dependency on Database Management or MCP Keys permissions.
 - Operators with Audit view permission can now drill directly from Operability into matching Audit Logs. The current date/database/key/tool filters can be carried across, and database-health or key-usage rows provide focused Audit shortcuts; malformed route-query values are ignored before they reach the audit API.
+- Security Policy now opens with an **Effective policy posture** summary showing compiler-resolved UPDATE/DELETE mutation behavior, DML/query limits, key rate limits, SQL concurrency, and saved/unsaved state. It does not invent a numeric security score, and it refuses to present frontend fallback values as the effective policy if the server policy cannot be loaded.
 - The Admin home page now shows a first-run **System Readiness** path—add a database, issue an active key, then connect an agent—until an active key has actually been used. Established environments return to the normal operational dashboard without a permanent onboarding panel.
 - The Docker frontend build now matches CI more closely by using Node.js 22, pnpm 10.22.0, and a frozen lockfile.
 - The inert Admin sidebar “Search the docs...” field was removed and the sidebar branding now identifies the hs-sql-agent Admin Console directly.
@@ -60,6 +61,14 @@ The selector catalog intentionally stays inside the Operability permission bound
 If the current operator also has `/runtime/audit.view`, Operability exposes **View matching audit** and focused Audit actions on database-health and key-usage rows. Navigation carries the current `from`, `to`, database, key, and tool filters into the Audit page, so an operational signal can be investigated without manually recreating context.
 
 Audit route-query initialization is defensive: only `YYYY-MM-DD` dates, positive numeric database/key IDs, and non-empty tool names are accepted. Invalid values are ignored before building the Audit API request. These links are navigation only; the Audit page still enforces its existing permission requirement and no authorization contract is bypassed.
+
+## Effective Security Policy posture
+
+The Security Policy page now summarizes the policy that was actually loaded from the server before presenting the individual fields. The summary shows effective UPDATE/DELETE mutation behavior, the DML row cap, query row/timeout limits, key rate limit, and SQL concurrency. It also distinguishes **Saved** from **Unsaved changes**, and the save action remains disabled when no enforced policy field changed. Server audit metadata such as `updatedAt` and `updatedBy` does not create a false dirty state.
+
+Mutation posture mirrors the SQL compiler's effective `MutationSafety` semantics rather than interpreting either raw flag by itself. A full-table UPDATE is reported as allowed only when `RequireWhereForUpdate` is false **and** `AllowFullTableUpdate` is true; DELETE follows the same two-flag rule. Otherwise the effective state remains `Predicate required`. `Guarded mutation policy` therefore means both mutation paths still require predicates, while `Review mutation policy` appears only when at least one path actually resolves to full-table access.
+
+If the effective policy cannot be loaded, the Admin Console does not display or allow editing of frontend fallback defaults as though they were server state. It shows an explicit load failure with a Retry action instead. This is a presentation/DX change only: the stored Security Policy model, compiler enforcement, Admin Store schema, and environment-variable contracts are unchanged.
 
 ## First-run readiness
 
