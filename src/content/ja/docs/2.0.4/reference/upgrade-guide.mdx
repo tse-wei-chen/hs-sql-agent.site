@@ -22,6 +22,7 @@ import Callout from "@/components/docs/mdx/Callout.astro";
 - **Issued Keys** 一覧も posture-first に変更され、status、database、Access Posture、data scope、usage、expiry、実効 rate limit を raw 設定より先に確認できます。既存 key は紐づく database の現在の tool catalog を使うため、公開済み Custom DML も正しく分類されます。保存済み tool が現在の catalog から消えている場合は read-only と決めつけず、`Review tool scope` を表示します。
 - **Audit Logs** は scan-first の表示に整理されました。compact な event row では result、time、target、actor、tool／database／key context、execution signal を優先し、完全な内容は右側の detail sheet で Identity、Execution、Trace、Detail、Definition ごとに確認できます。Event／Request／Session ID は直接 copy でき、JSON の definition は保存内容を変更せず読みやすく整形されます。
 - **Operability** の database／MCP key filter は raw numeric ID 入力から検索可能な entity selector に変わりました。UI は従来どおり runtime API に `dbManagementId` / `accessKeyId` を送信し、候補も Operability 自身の health / key-usage data から作るため、Database Management や MCP Keys の管理権限を新たに要求しません。
+- Audit view 権限を持つ operator は Operability から matching Audit Logs へ直接 drill down できるようになりました。現在の date／database／key／tool filter をそのまま引き継げるほか、Database health と Key usage の各 row から focused Audit を開けます。不正な route query は audit API に渡す前に無視されます。
 - Admin home は初回セットアップ中だけ **System Readiness** を表示し、database の追加 → active MCP key の発行 → agent による key の実利用、という最短経路を示します。完了後は onboarding card が自動的に消え、通常の operational dashboard に戻ります。
 - Docker の frontend build を CI に合わせ、Node.js 22、pnpm 10.22.0、frozen lockfile を使用します。
 - 動作していなかった Admin sidebar の「Search the docs...」入力を削除し、hs-sql-agent Admin Console として表示を整理しました。
@@ -53,6 +54,12 @@ detail panel では trace identifier と execution evidence を一覧行から�
 Operability page は DB ID / Key ID を覚えて入力する方式をやめ、検索可能な名称ベースの selector を使います。database 候補は `/runtime/operability` ですでに取得している scheduled health data、key 候補は同じ page の未 filter key-usage data から作成します。表示は名称 + ID ですが、API contract は従来と同じ numeric `dbManagementId` / `accessKeyId` です。
 
 候補取得は Operability の permission boundary 内で完結します。label を表示するためだけに Database Management や MCP Keys の管理 endpoint を呼ばないため、Operability view だけを持つ role に追加の管理閲覧 permission は必要ありません。
+
+## Operability から Audit への drill-down
+
+現在の operator が `/runtime/audit.view` も持つ場合、Operability には **View matching audit** が表示され、Database health と Key usage の各 row からも対応する Audit を開けます。navigation 時に現在の `from`、`to`、database、key、tool 条件を引き継ぐため、運用上の signal を同じ context の audit event へすぐ追跡できます。
+
+Audit page は route query を防御的に初期化します。date は `YYYY-MM-DD` のみ、database／key ID は正の整数のみ、tool name は空文字列以外のみ受け入れます。不正値は Audit API request を作る前に無視されます。これらは navigation の補助機能にすぎず、Audit page の既存 permission check を回避するものではありません。
 
 ## 初回 readiness
 
