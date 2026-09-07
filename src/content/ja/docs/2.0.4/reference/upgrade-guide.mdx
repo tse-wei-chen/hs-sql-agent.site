@@ -23,6 +23,7 @@ import Callout from "@/components/docs/mdx/Callout.astro";
 - **Audit Logs** は scan-first の表示に整理されました。compact な event row では result、time、target、actor、tool／database／key context、execution signal を優先し、完全な内容は右側の detail sheet で Identity、Execution、Trace、Detail、Definition ごとに確認できます。Event／Request／Session ID は直接 copy でき、JSON の definition は保存内容を変更せず読みやすく整形されます。
 - **Operability** の database／MCP key filter は raw numeric ID 入力から検索可能な entity selector に変わりました。UI は従来どおり runtime API に `dbManagementId` / `accessKeyId` を送信し、候補も Operability 自身の health / key-usage data から作るため、Database Management や MCP Keys の管理権限を新たに要求しません。
 - Audit view 権限を持つ operator は Operability から matching Audit Logs へ直接 drill down できるようになりました。現在の date／database／key／tool filter をそのまま引き継げるほか、Database health と Key usage の各 row から focused Audit を開けます。不正な route query は audit API に渡す前に無視されます。
+- **Security Policy** は最初に **Effective policy posture** を表示し、compiler が最終的に適用する UPDATE／DELETE mutation 状態、DML／Query 制限、key rate limit、SQL concurrency、Saved／Unsaved 状態を確認できます。任意の security score は作らず、server policy を取得できない場合に frontend fallback defaults を effective state として表示しません。
 - Admin home は初回セットアップ中だけ **System Readiness** を表示し、database の追加 → active MCP key の発行 → agent による key の実利用、という最短経路を示します。完了後は onboarding card が自動的に消え、通常の operational dashboard に戻ります。
 - Docker の frontend build を CI に合わせ、Node.js 22、pnpm 10.22.0、frozen lockfile を使用します。
 - 動作していなかった Admin sidebar の「Search the docs...」入力を削除し、hs-sql-agent Admin Console として表示を整理しました。
@@ -60,6 +61,14 @@ Operability page は DB ID / Key ID を覚えて入力する方式をやめ、�
 現在の operator が `/runtime/audit.view` も持つ場合、Operability には **View matching audit** が表示され、Database health と Key usage の各 row からも対応する Audit を開けます。navigation 時に現在の `from`、`to`、database、key、tool 条件を引き継ぐため、運用上の signal を同じ context の audit event へすぐ追跡できます。
 
 Audit page は route query を防御的に初期化します。date は `YYYY-MM-DD` のみ、database／key ID は正の整数のみ、tool name は空文字列以外のみ受け入れます。不正値は Audit API request を作る前に無視されます。これらは navigation の補助機能にすぎず、Audit page の既存 permission check を回避するものではありません。
+
+## Effective Security Policy posture
+
+Security Policy page は server から policy を正常に取得した場合だけ summary と編集 form を表示します。summary は effective UPDATE／DELETE mutation behavior、DML row cap、Query rows／timeout、Key rate limit、SQL concurrency を示し、**Saved** と **Unsaved changes** も区別します。enforcement 対象の field が実際に変わった場合だけ unsaved となり、`updatedAt` や `updatedBy` のような server audit metadata は false dirty state を作りません。
+
+Mutation posture は raw flag を個別に推測せず、SQL compiler の `MutationSafety` 組み合わせ規則をそのまま反映します。UPDATE が `Full-table allowed` になるのは `RequireWhereForUpdate=false` **かつ** `AllowFullTableUpdate=true` の場合だけです。DELETE も同じ二条件です。それ以外は effective state が `Predicate required` のままなので、`Guarded mutation policy` は両 mutation path が predicate を要求する状態、`Review mutation policy` は少なくとも一方が実際に full-table mutation を許す状態だけを意味します。
+
+Effective policy の load に失敗した場合、Admin Console は明確な error と **Retry** を表示し、frontend fallback defaults を server の effective state として表示・編集させません。これは presentation／DX の変更であり、Security Policy storage model、compiler enforcement、Admin Store schema、environment-variable contract は変更されません。
 
 ## 初回 readiness
 
