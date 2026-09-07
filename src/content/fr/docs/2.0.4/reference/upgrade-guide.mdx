@@ -20,6 +20,7 @@ import Callout from "@/components/docs/mdx/Callout.astro";
 - Une nouvelle clé sélectionne par défaut les quatre outils de lecture/requête `get_schemas`, `get_tables`, `get_columns` et `execute_query_sql`. `execute_dml_sql` reste disponible mais **n'est pas sélectionné par défaut**.
 - Les formulaires de création et de modification affichent maintenant un résumé **Access Posture** : `Read/query only`, `DML enabled` ou `Unrestricted tool access`, avec la portée de données effective (`All tables` ou le nombre de tables restreintes).
 - La liste **Issued Keys** devient elle aussi posture-first : état, base liée, Access Posture, portée de données, utilisation, expiration et limite de débit effective apparaissent avant les valeurs de configuration brutes. Les clés existantes sont classées à partir du catalogue courant de leur base, ce qui inclut correctement les Custom Tools DML publiés. Si un ancien outil enregistré n'existe plus dans le catalogue courant, l'interface affiche `Review tool scope` au lieu de le présenter à tort comme read-only.
+- Les **Audit Logs** adoptent une présentation scan-first : les lignes compactes montrent d'abord le résultat, l'heure, la cible, l'acteur, le contexte tool/base/key et les signaux d'exécution ; le contexte complet s'ouvre dans un panneau de détail à droite, organisé en Identity, Execution, Trace, Detail et Definition. Les Event/Request/Session ID sont copiables directement et les definitions JSON sont mises en forme sans modifier les données d'audit stockées.
 - La page d'accueil Admin affiche pendant la première configuration un parcours **System Readiness** : ajouter une base, émettre une clé MCP active, puis faire réellement utiliser cette clé par un agent. Une fois terminé, le panneau d'onboarding disparaît automatiquement afin que les environnements établis reviennent au tableau de bord opérationnel normal.
 - Le build frontend Docker est aligné sur la CI : Node.js 22, pnpm 10.22.0 et installation avec lockfile figé.
 - Le champ « Search the docs... » sans comportement réel a été retiré de la barre latérale d'administration, dont l'identité affiche désormais directement hs-sql-agent Admin Console.
@@ -39,6 +40,12 @@ Access Posture reflète la sélection effective avant émission/enregistrement e
 Le nom d'affichage, la classification Query/DML, le risque et la sélection par défaut proviennent entièrement du catalogue serveur. Si ce catalogue ne peut pas être chargé, l'Admin Console bloque l'émission d'une nouvelle clé au lieu d'interpréter un état frontend vide comme unrestricted.
 
 Les approbations DML, listes blanches de tables, limites de débit, concurrence SQL, validations du compilateur et règles d'audit ne changent pas avec cette correction de contrat.
+
+## Inspection des audits
+
+Les contrats de stockage, filtrage, export et rétention des événements d'audit restent inchangés. En 2.0.4, seule l'expérience d'inspection évolue : la liste sert au triage rapide et **View details** ouvre tout le contexte de l'événement dans un panneau latéral structuré.
+
+Les identifiants de trace et les preuves d'exécution quittent ainsi les lignes principales. Si `definition` contient du JSON, il est formaté pour la lecture ; les autres valeurs sont conservées telles quelles. Les actions de copie pour Event ID, Request ID, Session ID et Definition utilisent toujours la valeur originale stockée.
 
 ## Readiness de première utilisation
 
