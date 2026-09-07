@@ -15,7 +15,9 @@ import Callout from "@/components/docs/mdx/Callout.astro";
 - The built-in MCP surface is now enforced from one canonical server catalog: `get_schemas`, `get_tables`, `get_columns`, `execute_query_sql`, and `execute_dml_sql`.
 - MCP startup fails closed if reflected built-in tools drift from that catalog, preventing an accidental extra tool from becoming reachable through unrestricted keys.
 - `update_semantic_layer` is no longer exposed through MCP. Semantic metadata remains editable through the Admin UI and Admin API, where the existing semantic-management permission boundary applies.
-- The Admin API tool catalog now returns built-in/custom classification, Query/DML type, display name, and risk metadata for MCP-key experiences.
+- The Admin API tool catalog now returns built-in/custom classification, Query/DML type, display name, risk, and safe-default metadata for MCP-key experiences.
+- The MCP Key issue and edit forms now render that server catalog directly instead of maintaining a second built-in tool list in the frontend.
+- New keys select the four read/query tools by default: `get_schemas`, `get_tables`, `get_columns`, and `execute_query_sql`. `execute_dml_sql` remains available but is **not selected by default**.
 - The Docker frontend build now matches CI more closely by using Node.js 22, pnpm 10.22.0, and a frozen lockfile.
 - The inert Admin sidebar “Search the docs...” field was removed and the sidebar branding now identifies the hs-sql-agent Admin Console directly.
 
@@ -27,13 +29,17 @@ That method was not part of the documented 2.0.3 five-tool contract. Move semant
 
 Existing MCP keys do not require migration. An explicit `AllowedTools` list continues to limit the exposed built-in and published Custom Tool names. A key with no tool allowlist can still discover the five canonical built-ins plus published Custom Tools for its bound database, but it no longer receives an undocumented semantic-layer mutation tool.
 
+For newly issued keys, the Admin Console now starts from an explicit four-tool read/query allowlist instead of an unrestricted list. Enabling `execute_dml_sql` or a published Custom DML tool is an explicit operator action and continues to surface the Elicitation requirement. Clearing all tool selections still means **unrestricted**, so the UI warns that DML is included in that state.
+
+The server is the source of truth for tool display names, Query/DML classification, risk, and default selection. If the catalog cannot be loaded, the Admin Console blocks key issuance rather than treating an empty frontend state as unrestricted access.
+
 DML approval, table allowlists, rate limits, SQL concurrency, compiler validation, and audit behavior are unchanged by this contract correction.
 
 ## Database and configuration migration
 
 There is no Admin Store schema migration required specifically for these 2.0.4 changes, and no new mandatory environment variable is introduced.
 
-After upgrading, smoke-test one read-only MCP key and—if you enable DML—one approval flow. Also verify that Semantic Layer edits still work through the Admin UI for roles with `/runtime/db-management/semantic.edit`.
+After upgrading, smoke-test one default MCP key and confirm that it exposes the four read/query tools without DML. If you enable DML, also test one approval flow. Verify that Semantic Layer edits still work through the Admin UI for roles with `/runtime/db-management/semantic.edit`.
 
 ## Build and deployment review
 
