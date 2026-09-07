@@ -18,6 +18,7 @@ import Callout from "@/components/docs/mdx/Callout.astro";
 - Le catalogue d'outils de l'API d'administration fournit maintenant la distinction intégré/personnalisé, le type Query/DML, le nom d'affichage, le niveau de risque et les valeurs sûres sélectionnées par défaut.
 - Les formulaires de création et de modification des clés MCP sont désormais rendus directement depuis ce catalogue serveur ; le frontend ne maintient plus une seconde liste d'outils intégrés.
 - Une nouvelle clé sélectionne par défaut les quatre outils de lecture/requête `get_schemas`, `get_tables`, `get_columns` et `execute_query_sql`. `execute_dml_sql` reste disponible mais **n'est pas sélectionné par défaut**.
+- Les formulaires de création et de modification affichent maintenant un résumé **Access Posture** : `Read/query only`, `DML enabled` ou `Unrestricted tool access`, avec la portée de données effective (`All tables` ou le nombre de tables restreintes).
 - La page d'accueil Admin affiche pendant la première configuration un parcours **System Readiness** : ajouter une base, émettre une clé MCP active, puis faire réellement utiliser cette clé par un agent. Une fois terminé, le panneau d'onboarding disparaît automatiquement afin que les environnements établis reviennent au tableau de bord opérationnel normal.
 - Le build frontend Docker est aligné sur la CI : Node.js 22, pnpm 10.22.0 et installation avec lockfile figé.
 - Le champ « Search the docs... » sans comportement réel a été retiré de la barre latérale d'administration, dont l'identité affiche désormais directement hs-sql-agent Admin Console.
@@ -31,6 +32,8 @@ Cette méthode ne faisait pas partie du contrat documenté à cinq outils intég
 Les clés MCP existantes ne nécessitent aucune migration. Une liste `AllowedTools` explicite continue de limiter les outils intégrés et les Custom Tools publiés. Sans liste d'autorisation, une session peut exposer les cinq outils intégrés canoniques ainsi que les Custom Tools publiés de la base liée, mais elle ne reçoit plus l'outil d'écriture sémantique non documenté.
 
 Les nouvelles clés démarrent avec une liste explicite de quatre outils de lecture/requête plutôt qu'en mode unrestricted. L'activation de `execute_dml_sql` ou d'un Custom Tool DML publié nécessite une sélection explicite de l'opérateur, et l'interface continue d'indiquer l'exigence d'approbation via MCP Elicitation. Si toutes les sélections sont supprimées, la signification reste **unrestricted** ; l'interface avertit donc que cet état inclut aussi le DML.
+
+Access Posture reflète la sélection effective avant émission ou enregistrement. Le vert signifie lecture/requête uniquement, l'ambre indique qu'au moins un outil DML est activé et le rouge signifie que la portée des outils est unrestricted. Le résumé indique aussi si toutes les tables sont accessibles ou si l'accès est limité au nombre actuel de tables sélectionnées. Cet affichage est explicatif uniquement ; l'autorisation réelle reste imposée par la chaîne de politiques existante key/tool/table.
 
 Le nom d'affichage, la classification Query/DML, le risque et la sélection par défaut proviennent entièrement du catalogue serveur. Si ce catalogue ne peut pas être chargé, l'Admin Console bloque l'émission d'une nouvelle clé au lieu d'interpréter un état frontend vide comme unrestricted.
 
