@@ -20,6 +20,7 @@ import Callout from "@/components/docs/mdx/Callout.astro";
 - Neue Schlüssel wählen standardmäßig die vier Lese-/Query-Tools `get_schemas`, `get_tables`, `get_columns` und `execute_query_sql`. `execute_dml_sql` bleibt verfügbar, ist aber **standardmäßig nicht ausgewählt**.
 - Die Ansichten zum Erstellen und Bearbeiten von MCP-Schlüsseln zeigen nun eine **Access Posture**-Zusammenfassung: `Read/query only`, `DML enabled` oder `Unrestricted tool access`, zusammen mit dem effektiven Datenumfang (`All tables` oder der Anzahl eingeschränkter Tabellen).
 - Auch die Liste **Issued Keys** ist jetzt posture-first aufgebaut: Status, Datenbank, Access Posture, Datenumfang, Nutzung, Ablauf und effektives Rate Limit erscheinen vor den Rohkonfigurationswerten. Bestehende Schlüssel werden gegen den aktuellen Tool-Katalog ihrer gebundenen Datenbank ausgewertet, sodass veröffentlichte Custom-DML-Tools korrekt erkannt werden. Ist ein gespeichertes älteres Tool im aktuellen Katalog nicht mehr vorhanden, zeigt die Oberfläche `Review tool scope`, statt den Schlüssel fälschlich als read-only darzustellen.
+- **Audit Logs** sind jetzt scan-first aufgebaut: Kompakte Ereigniszeilen zeigen Ergebnis, Zeit, Ziel, Actor, Tool-/Datenbank-/Key-Kontext und Ausführungssignale zuerst; der vollständige Datensatz erscheint in einem rechten Detail-Panel, gegliedert nach Identity, Execution, Trace, Detail und Definition. Event-/Request-/Session-ID lassen sich direkt kopieren, und JSON-Definitionen werden lesbar formatiert, ohne gespeicherte Audit-Daten zu verändern.
 - Die Admin-Startseite zeigt während der Ersteinrichtung einen **System Readiness**-Pfad: Datenbank hinzufügen, aktiven MCP-Schlüssel ausgeben und den Schlüssel einmal tatsächlich durch einen Agent verwenden. Nach Abschluss verschwindet die Onboarding-Karte automatisch, damit etablierte Umgebungen beim normalen Operations-Dashboard bleiben.
 - Der Frontend-Build im Dockerfile wird an CI angeglichen: Node.js 22, pnpm 10.22.0 und Installation mit unverändertem Lockfile.
 - Das funktionslose Suchfeld „Search the docs...“ wurde aus der Admin-Seitenleiste entfernt; die Navigation kennzeichnet die Oberfläche nun direkt als hs-sql-agent Admin Console.
@@ -39,6 +40,12 @@ Die Access Posture spiegelt die tatsächlich wirksame Auswahl sowohl vor Ausgabe
 Anzeigename, Query-/DML-Klassifizierung, Risiko und Standardauswahl stammen vollständig aus dem Server-Katalog. Kann der Katalog nicht geladen werden, blockiert die Admin Console die Ausgabe eines neuen Schlüssels, statt einen leeren Frontend-Zustand als unrestricted zu interpretieren.
 
 DML-Freigaben, Tabellen-Whitelist, Rate Limits, SQL-Parallelität, Compiler-Validierung und Audit-Verhalten ändern sich durch diese Vertragskorrektur nicht.
+
+## Audit-Prüfung
+
+Die Verträge für Speicherung, Filterung, Export und Aufbewahrung von Audit-Ereignissen bleiben unverändert. In 2.0.4 ändert sich nur die Inspektionsoberfläche: Die Liste ist auf schnelle Triage ausgelegt, und **View details** öffnet den vollständigen Ereigniskontext in einem strukturierten Seitenpanel.
+
+Trace-IDs und Ausführungsnachweise werden dort aus der Hauptliste herausgehalten. Ist `definition` JSON, wird es für die Anzeige formatiert; andere Werte bleiben unverändert. Kopieraktionen für Event ID, Request ID, Session ID und Definition verwenden jeweils den original gespeicherten Wert.
 
 ## First-Run Readiness
 
