@@ -1,0 +1,40 @@
+---
+title: Upgrade-Leitfaden
+description: hs-sql-agent von 2.0.3 auf 2.0.4 aktualisieren – mit verbindlichem Fünf-Tool-MCP-Vertrag und reproduzierbarerem Frontend-Build.
+sidebar:
+  group: Referenz
+  order: 144
+---
+
+import Callout from "@/components/docs/mdx/Callout.astro";
+
+## Wesentliche Änderungen in 2.0.4
+
+2.0.4 schärft die öffentliche MCP-Grenze und reduziert Abweichungen zwischen Entwicklung, CI und Deployment. Der SQL-Compiler-Vertrag und das Datenbankschema ändern sich dadurch nicht.
+
+- Die eingebauten MCP-Tools werden nun aus einem einzigen serverseitigen Katalog erzwungen: `get_schemas`, `get_tables`, `get_columns`, `execute_query_sql` und `execute_dml_sql`.
+- Beim Start wird die per Reflection gefundene MCP-Oberfläche mit diesem Katalog verglichen. Unerwartete oder fehlende eingebaute Tools führen zu einem Fail-Closed-Startfehler.
+- `update_semantic_layer` wird nicht mehr über MCP veröffentlicht. Semantische Metadaten bleiben über die Admin-Oberfläche und die berechtigungsgeschützte Admin-API bearbeitbar.
+- Der Tool-Katalog der Admin-API liefert nun Kennzeichnung als eingebautes bzw. benutzerdefiniertes Tool, Query-/DML-Typ, Anzeigename und Risikoeinstufung.
+- Der Frontend-Build im Dockerfile wird an CI angeglichen: Node.js 22, pnpm 10.22.0 und Installation mit unverändertem Lockfile.
+- Das funktionslose Suchfeld „Search the docs...“ wurde aus der Admin-Seitenleiste entfernt; die Navigation kennzeichnet die Oberfläche nun direkt als hs-sql-agent Admin Console.
+
+<Callout type="warning" title="Falls update_semantic_layer bisher über MCP aufgerufen wurde">
+Diese Methode gehörte nicht zum dokumentierten Fünf-Tool-Vertrag von 2.0.3. Verschieben Sie Schreibzugriffe auf semantische Metadaten vor dem Upgrade zu **Runtime → DB Management → Semantic Layer** oder zur berechtigungsgeschützten Admin-API. Die schreibgeschützten Metadaten-Tools liefern autorisierte semantische Informationen weiterhin aus.
+</Callout>
+
+## Verhalten bestehender MCP-Schlüssel
+
+Bestehende MCP-Schlüssel benötigen keine Migration. Eine explizite `AllowedTools`-Liste begrenzt weiterhin die veröffentlichten eingebauten und Custom Tools. Ohne Tool-Allowlist kann eine Sitzung die fünf kanonischen eingebauten Tools sowie veröffentlichte Custom Tools der gebundenen Datenbank erhalten; das undokumentierte Schreib-Tool für die Semantic Layer gehört nicht mehr dazu.
+
+DML-Freigaben, Tabellen-Whitelist, Rate Limits, SQL-Parallelität, Compiler-Validierung und Audit-Verhalten ändern sich durch diese Vertragskorrektur nicht.
+
+## Datenbank- und Konfigurationsmigration
+
+Für diese Änderungen ist keine zusätzliche Admin-Store-Schemamigration erforderlich und es kommt keine neue verpflichtende Umgebungsvariable hinzu.
+
+Testen Sie nach dem Upgrade mindestens einen schreibgeschützten MCP-Schlüssel. Wenn DML aktiviert ist, testen Sie zusätzlich einen vollständigen Freigabeablauf. Prüfen Sie außerdem, dass Rollen mit `/runtime/db-management/semantic.edit` die Semantic Layer weiterhin über die Admin-Oberfläche bearbeiten können.
+
+## Build und Deployment
+
+Eigene Images sollten dieselbe festgelegte Frontend-Toolchain verwenden. Das offizielle Dockerfile führt nun `pnpm install --frozen-lockfile` aus. Stimmen Lockfile und Paketdefinitionen nicht überein, schlägt der Build kontrolliert fehl, statt stillschweigend einen anderen Abhängigkeitsgraphen aufzulösen.
