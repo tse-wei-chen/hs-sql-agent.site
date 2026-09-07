@@ -22,6 +22,7 @@ import Callout from "@/components/docs/mdx/Callout.astro";
 - The Issued Keys list is now posture-first: status, database, access posture, data scope, usage, expiry, and effective rate limit are surfaced before raw configuration details. Existing keys use their database-scoped current tool catalog so published Custom DML is classified correctly; saved tools that cannot be classified from the currently available catalog show `Review tool scope` instead of being presented as read-only.
 - Audit Logs are now scan-first: compact event rows surface result, time, target, actor, tool/database/key context, and execution signals, while a right-side detail sheet organizes Identity, Execution, Trace, Detail, and Definition fields. Event/request/session IDs can be copied directly, and JSON definitions are pretty-printed without changing stored audit data.
 - Operability database and MCP-key filters are now searchable entity selectors instead of raw numeric ID inputs. They still submit the existing numeric filter IDs to the runtime APIs and intentionally derive their choices from Operability data, so viewing the page does not gain a new dependency on Database Management or MCP Keys permissions.
+- Operators with Audit view permission can now drill directly from Operability into matching Audit Logs. The current date/database/key/tool filters can be carried across, and database-health or key-usage rows provide focused Audit shortcuts; malformed route-query values are ignored before they reach the audit API.
 - The Admin home page now shows a first-run **System Readiness** path—add a database, issue an active key, then connect an agent—until an active key has actually been used. Established environments return to the normal operational dashboard without a permanent onboarding panel.
 - The Docker frontend build now matches CI more closely by using Node.js 22, pnpm 10.22.0, and a frozen lockfile.
 - The inert Admin sidebar “Search the docs...” field was removed and the sidebar branding now identifies the hs-sql-agent Admin Console directly.
@@ -53,6 +54,12 @@ The detail panel keeps trace identifiers and execution evidence visible without 
 The Operability page no longer expects operators to memorize database and MCP-key IDs. Database choices are built from the scheduled health data already available to `/runtime/operability`, while key choices come from the page's unfiltered key-usage data. The selectors show readable names plus IDs, support search, and map the selected label back to the same numeric `dbManagementId` / `accessKeyId` filter contract used by 2.0.3.
 
 The selector catalog intentionally stays inside the Operability permission boundary. It does not call Database Management or MCP-key management endpoints just to populate labels, so a role with Operability view access is not forced to gain unrelated management-view permissions.
+
+## Operability to Audit drill-down
+
+If the current operator also has `/runtime/audit.view`, Operability exposes **View matching audit** and focused Audit actions on database-health and key-usage rows. Navigation carries the current `from`, `to`, database, key, and tool filters into the Audit page, so an operational signal can be investigated without manually recreating context.
+
+Audit route-query initialization is defensive: only `YYYY-MM-DD` dates, positive numeric database/key IDs, and non-empty tool names are accepted. Invalid values are ignored before building the Audit API request. These links are navigation only; the Audit page still enforces its existing permission requirement and no authorization contract is bypassed.
 
 ## First-run readiness
 
