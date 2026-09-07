@@ -18,6 +18,7 @@ import Callout from "@/components/docs/mdx/Callout.astro";
 - Admin API의 도구 목록은 내장/사용자 정의 구분, Query/DML 유형, 표시 이름, 위험 수준, 안전 기본 선택 정보를 함께 반환합니다.
 - MCP 키 생성 및 편집 화면은 서버 도구 catalog를 직접 사용하므로 프런트엔드가 별도의 내장 도구 목록을 유지하지 않습니다.
 - 새 키는 `get_schemas`, `get_tables`, `get_columns`, `execute_query_sql`의 네 가지 읽기/조회 도구를 기본 선택합니다. `execute_dml_sql`은 사용할 수 있지만 **기본 선택되지 않습니다**.
+- Admin 홈은 최초 설정 중에만 **System Readiness** 경로를 표시합니다. 데이터베이스 추가 → 활성 MCP 키 발급 → agent가 키를 실제로 한 번 사용한 상태까지 안내하고, 완료되면 onboarding 카드가 자동으로 사라져 기존 운영 대시보드로 돌아갑니다.
 - Docker 프런트엔드 빌드는 CI와 맞춰 Node.js 22, pnpm 10.22.0, 고정 lockfile 설치를 사용합니다.
 - 실제 동작이 없던 Admin 사이드바의 “Search the docs...” 입력란을 제거하고 hs-sql-agent Admin Console이라는 제품 이름을 직접 표시합니다.
 
@@ -34,6 +35,12 @@ import Callout from "@/components/docs/mdx/Callout.astro";
 도구 표시 이름, Query/DML 분류, 위험 수준, 기본 선택은 서버 catalog가 source of truth입니다. catalog를 불러오지 못하면 Admin Console은 빈 프런트엔드 상태를 unrestricted로 해석하지 않고 새 키 발급을 차단합니다.
 
 DML 승인, 테이블 allowlist, 속도 제한, SQL 동시성, 컴파일러 검증, 감사 동작은 이번 계약 수정으로 변경되지 않습니다.
+
+## 최초 readiness
+
+Database Management와 MCP Keys를 모두 볼 수 있는 운영자에게 홈 화면의 3단계 readiness check를 표시합니다. 완료 조건은 닫을 수 있는 tutorial이 아니라 실제 runtime state입니다. 데이터베이스 설정이 하나 이상 존재하고, 활성 MCP 키가 하나 이상 있으며, MCP client 요청 후 해당 활성 키에 `LastUsedAt` 값이 있어야 합니다.
+
+세 조건이 모두 충족되면 readiness 카드는 자동으로 숨겨집니다. 이 카드는 resource를 생성하거나 permission을 변경하지 않으며, 데이터베이스와 키 상태를 모두 확인할 수 없는 role의 readiness를 추정하지도 않습니다.
 
 ## 데이터베이스 및 설정 마이그레이션
 
