@@ -15,7 +15,9 @@ import Callout from "@/components/docs/mdx/Callout.astro";
 - 組み込み MCP tool は、サーバー側の単一 catalog で `get_schemas`、`get_tables`、`get_columns`、`execute_query_sql`、`execute_dml_sql` の 5 つに固定されます。
 - 起動時に reflection で検出した MCP tool と正式 catalog を照合し、余分な tool または不足があれば fail closed で起動を拒否します。
 - `update_semantic_layer` は MCP から公開されなくなります。Semantic Layer の編集は引き続き Admin UI または権限保護された Admin API から行えます。
-- Admin API の tool catalog は、組み込み／Custom Tool の区別、Query／DML 種別、表示名、risk 情報を返すようになります。
+- Admin API の tool catalog は、組み込み／Custom Tool の区別、Query／DML 種別、表示名、risk、safe default 情報を返すようになります。
+- MCP key の新規作成・編集画面はこの server catalog を直接描画し、frontend 側に別の組み込み tool 一覧を持たなくなります。
+- 新しい key は `get_schemas`、`get_tables`、`get_columns`、`execute_query_sql` の 4 つの read/query tool を既定で選択します。`execute_dml_sql` は利用可能ですが、**既定では選択されません**。
 - Docker の frontend build を CI に合わせ、Node.js 22、pnpm 10.22.0、frozen lockfile を使用します。
 - 動作していなかった Admin sidebar の「Search the docs...」入力を削除し、hs-sql-agent Admin Console として表示を整理しました。
 
@@ -27,13 +29,17 @@ import Callout from "@/components/docs/mdx/Callout.astro";
 
 既存の MCP key に migration は不要です。`AllowedTools` を明示した場合は指定した組み込み tool と公開済み Custom Tool のみに制限されます。allowlist がない key は、正式な 5 つの組み込み tool と、紐づく database の公開済み Custom Tool を利用できますが、未公開の Semantic Layer 更新 tool は含まれません。
 
+新規発行する key は unrestricted ではなく、明示的な 4-tool read/query allowlist から開始します。`execute_dml_sql` または公開済み Custom DML tool を有効にするには operator が明示的に選択する必要があり、UI は MCP Elicitation が必要であることを引き続き表示します。すべての tool 選択を外した場合の意味は従来どおり **unrestricted** なので、その状態には DML も含まれることを UI が警告します。
+
+表示名、Query／DML 分類、risk、既定選択は server catalog が source of truth です。catalog を取得できない場合、Admin Console は空の frontend state を unrestricted と解釈せず、key の発行を停止します。
+
 DML approval、table allowlist、rate limit、SQL concurrency、compiler validation、audit の挙動は今回の契約修正では変わりません。
 
 ## Database と設定の migration
 
 今回の 2.0.4 変更だけを理由とする Admin Store の schema migration や、新しい必須 environment variable はありません。
 
-アップグレード後は read-only MCP key を 1 つ smoke test してください。DML を有効にしている場合は approval flow も 1 回確認し、`/runtime/db-management/semantic.edit` を持つ role から Semantic Layer を編集できることも確認してください。
+アップグレード後は既定設定の MCP key を 1 つ発行し、4 つの read/query tool のみが公開され DML が含まれないことを確認してください。DML を有効にする場合は approval flow も 1 回確認し、`/runtime/db-management/semantic.edit` を持つ role から Semantic Layer を編集できることも確認してください。
 
 ## Build と deployment
 
