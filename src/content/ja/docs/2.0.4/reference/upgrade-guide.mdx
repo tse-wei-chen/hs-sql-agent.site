@@ -21,6 +21,7 @@ import Callout from "@/components/docs/mdx/Callout.astro";
 - MCP key の新規作成・編集画面には **Access Posture** が表示され、`Read/query only`、`DML enabled`、`Unrestricted tool access` のどれに当たるかと、data scope が `All tables` か制限された table 数かを確認できます。
 - **Issued Keys** 一覧も posture-first に変更され、status、database、Access Posture、data scope、usage、expiry、実効 rate limit を raw 設定より先に確認できます。既存 key は紐づく database の現在の tool catalog を使うため、公開済み Custom DML も正しく分類されます。保存済み tool が現在の catalog から消えている場合は read-only と決めつけず、`Review tool scope` を表示します。
 - **Audit Logs** は scan-first の表示に整理されました。compact な event row では result、time、target、actor、tool／database／key context、execution signal を優先し、完全な内容は右側の detail sheet で Identity、Execution、Trace、Detail、Definition ごとに確認できます。Event／Request／Session ID は直接 copy でき、JSON の definition は保存内容を変更せず読みやすく整形されます。
+- **Operability** の database／MCP key filter は raw numeric ID 入力から検索可能な entity selector に変わりました。UI は従来どおり runtime API に `dbManagementId` / `accessKeyId` を送信し、候補も Operability 自身の health / key-usage data から作るため、Database Management や MCP Keys の管理権限を新たに要求しません。
 - Admin home は初回セットアップ中だけ **System Readiness** を表示し、database の追加 → active MCP key の発行 → agent による key の実利用、という最短経路を示します。完了後は onboarding card が自動的に消え、通常の operational dashboard に戻ります。
 - Docker の frontend build を CI に合わせ、Node.js 22、pnpm 10.22.0、frozen lockfile を使用します。
 - 動作していなかった Admin sidebar の「Search the docs...」入力を削除し、hs-sql-agent Admin Console として表示を整理しました。
@@ -46,6 +47,12 @@ DML approval、table allowlist、rate limit、SQL concurrency、compiler validat
 Audit event の保存、filter、export、retention の契約は変更していません。2.0.4 では Admin Console での見方だけを整理し、一覧は素早い triage に使い、**View details** から完全な event context を構造化された side panel で確認します。
 
 detail panel では trace identifier と execution evidence を一覧行から分離して表示します。`definition` が JSON なら読みやすく整形し、JSON でない値はそのまま保持します。Event ID、Request ID、Session ID、Definition の copy は保存されている元の値を使用します。
+
+## Operability filter
+
+Operability page は DB ID / Key ID を覚えて入力する方式をやめ、検索可能な名称ベースの selector を使います。database 候補は `/runtime/operability` ですでに取得している scheduled health data、key 候補は同じ page の未 filter key-usage data から作成します。表示は名称 + ID ですが、API contract は従来と同じ numeric `dbManagementId` / `accessKeyId` です。
+
+候補取得は Operability の permission boundary 内で完結します。label を表示するためだけに Database Management や MCP Keys の管理 endpoint を呼ばないため、Operability view だけを持つ role に追加の管理閲覧 permission は必要ありません。
 
 ## 初回 readiness
 
