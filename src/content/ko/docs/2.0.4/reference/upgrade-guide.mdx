@@ -1,0 +1,40 @@
+---
+title: 업그레이드 가이드
+description: hs-sql-agent 2.0.3에서 2.0.4로 업그레이드하며 5개 내장 MCP 도구 계약과 재현 가능한 프런트엔드 빌드를 적용합니다.
+sidebar:
+  group: 참조
+  order: 144
+---
+
+import Callout from "@/components/docs/mdx/Callout.astro";
+
+## 2.0.4의 주요 변경점
+
+2.0.4는 공개 MCP 경계를 더 엄격하게 만들고 개발, CI, 배포 사이의 도구 체인 차이를 줄입니다. SQL 컴파일러 계약과 데이터베이스 스키마 계약은 이 변경으로 달라지지 않습니다.
+
+- 내장 MCP 도구는 서버의 단일 정식 목록으로 통일됩니다: `get_schemas`, `get_tables`, `get_columns`, `execute_query_sql`, `execute_dml_sql`.
+- 시작 시 reflection으로 발견한 MCP 도구와 정식 목록을 비교합니다. 예상하지 못한 내장 도구가 있거나 필수 도구가 빠져 있으면 fail closed로 시작을 거부합니다.
+- `update_semantic_layer`는 더 이상 MCP로 노출되지 않습니다. Semantic Layer 메타데이터는 기존 권한 경계를 사용하는 Admin UI 또는 Admin API에서 계속 편집할 수 있습니다.
+- Admin API의 도구 목록은 내장/사용자 정의 구분, Query/DML 유형, 표시 이름, 위험 수준을 함께 반환합니다.
+- Docker 프런트엔드 빌드는 CI와 맞춰 Node.js 22, pnpm 10.22.0, 고정 lockfile 설치를 사용합니다.
+- 실제 동작이 없던 Admin 사이드바의 “Search the docs...” 입력란을 제거하고 hs-sql-agent Admin Console이라는 제품 이름을 직접 표시합니다.
+
+<Callout type="warning" title="MCP에서 update_semantic_layer를 호출해 왔다면">
+이 메서드는 2.0.3 문서에 정의된 5개 내장 MCP 도구 계약에 포함되지 않았습니다. 업그레이드 전에 Semantic Layer 쓰기 작업을 **Runtime → DB Management → Semantic Layer** 또는 권한으로 보호되는 Admin API로 옮기십시오. 읽기 전용 스키마 탐색 도구는 허용된 semantic metadata를 계속 반환합니다.
+</Callout>
+
+## MCP 키 동작
+
+기존 MCP 키는 마이그레이션이 필요하지 않습니다. `AllowedTools`를 명시하면 지정한 내장 도구와 게시된 Custom Tool만 노출됩니다. 도구 allowlist가 없는 키는 정식 5개 내장 도구와 연결된 데이터베이스의 게시된 Custom Tool을 사용할 수 있지만, 문서화되지 않았던 Semantic Layer 쓰기 도구는 더 이상 포함되지 않습니다.
+
+DML 승인, 테이블 allowlist, 속도 제한, SQL 동시성, 컴파일러 검증, 감사 동작은 이번 계약 수정으로 변경되지 않습니다.
+
+## 데이터베이스 및 설정 마이그레이션
+
+이번 2.0.4 변경만을 위한 Admin Store 스키마 마이그레이션은 없으며 새 필수 환경 변수도 추가되지 않습니다.
+
+업그레이드 후 최소한 읽기 전용 MCP 키 하나를 점검하십시오. DML을 사용하는 경우 전체 승인 흐름도 한 번 확인하고, `/runtime/db-management/semantic.edit` 권한이 있는 역할에서 Admin UI를 통해 Semantic Layer를 계속 편집할 수 있는지 확인하십시오.
+
+## 빌드 및 배포
+
+자체 이미지를 빌드한다면 저장소에 고정된 프런트엔드 도구 체인을 따르십시오. 공식 Dockerfile은 이제 `pnpm install --frozen-lockfile`을 사용하므로 lockfile과 package 선언이 맞지 않으면 다른 의존성 그래프를 조용히 해석하지 않고 빌드를 실패시킵니다.
