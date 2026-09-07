@@ -21,6 +21,7 @@ import Callout from "@/components/docs/mdx/Callout.astro";
 - Les formulaires de création et de modification affichent maintenant un résumé **Access Posture** : `Read/query only`, `DML enabled` ou `Unrestricted tool access`, avec la portée de données effective (`All tables` ou le nombre de tables restreintes).
 - La liste **Issued Keys** devient elle aussi posture-first : état, base liée, Access Posture, portée de données, utilisation, expiration et limite de débit effective apparaissent avant les valeurs de configuration brutes. Les clés existantes sont classées à partir du catalogue courant de leur base, ce qui inclut correctement les Custom Tools DML publiés. Si un ancien outil enregistré n'existe plus dans le catalogue courant, l'interface affiche `Review tool scope` au lieu de le présenter à tort comme read-only.
 - Les **Audit Logs** adoptent une présentation scan-first : les lignes compactes montrent d'abord le résultat, l'heure, la cible, l'acteur, le contexte tool/base/key et les signaux d'exécution ; le contexte complet s'ouvre dans un panneau de détail à droite, organisé en Identity, Execution, Trace, Detail et Definition. Les Event/Request/Session ID sont copiables directement et les definitions JSON sont mises en forme sans modifier les données d'audit stockées.
+- Les filtres base de données / clé MCP d'**Operability** deviennent des sélecteurs d'entités recherchables au lieu de champs d'ID numériques bruts. L'interface continue d'envoyer les `dbManagementId` / `accessKeyId` existants aux API runtime et construit les choix uniquement à partir des données health / key-usage déjà disponibles dans Operability, sans exiger de permissions supplémentaires sur Database Management ou MCP Keys.
 - La page d'accueil Admin affiche pendant la première configuration un parcours **System Readiness** : ajouter une base, émettre une clé MCP active, puis faire réellement utiliser cette clé par un agent. Une fois terminé, le panneau d'onboarding disparaît automatiquement afin que les environnements établis reviennent au tableau de bord opérationnel normal.
 - Le build frontend Docker est aligné sur la CI : Node.js 22, pnpm 10.22.0 et installation avec lockfile figé.
 - Le champ « Search the docs... » sans comportement réel a été retiré de la barre latérale d'administration, dont l'identité affiche désormais directement hs-sql-agent Admin Console.
@@ -46,6 +47,12 @@ Les approbations DML, listes blanches de tables, limites de débit, concurrence 
 Les contrats de stockage, filtrage, export et rétention des événements d'audit restent inchangés. En 2.0.4, seule l'expérience d'inspection évolue : la liste sert au triage rapide et **View details** ouvre tout le contexte de l'événement dans un panneau latéral structuré.
 
 Les identifiants de trace et les preuves d'exécution quittent ainsi les lignes principales. Si `definition` contient du JSON, il est formaté pour la lecture ; les autres valeurs sont conservées telles quelles. Les actions de copie pour Event ID, Request ID, Session ID et Definition utilisent toujours la valeur originale stockée.
+
+## Filtres Operability
+
+La page Operability ne demande plus de mémoriser les ID de base et de clé. Les choix de base proviennent des données de health planifiées déjà disponibles dans `/runtime/operability`, et les choix de clé des données key-usage non filtrées de la même page. Les sélecteurs affichent des noms lisibles avec l'ID, puis reviennent au même contrat numérique `dbManagementId` / `accessKeyId` qu'en 2.0.3.
+
+Les options restent volontairement dans la frontière de permission Operability. Aucun endpoint de gestion Database Management ou MCP Keys n'est appelé uniquement pour afficher les libellés ; un rôle disposant de l'accès Operability view n'a donc pas besoin de permissions supplémentaires de consultation d'administration.
 
 ## Readiness de première utilisation
 
