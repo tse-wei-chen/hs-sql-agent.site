@@ -18,6 +18,7 @@ import Callout from "@/components/docs/mdx/Callout.astro";
 - Admin API の tool catalog は、組み込み／Custom Tool の区別、Query／DML 種別、表示名、risk、safe default 情報を返すようになります。
 - MCP key の新規作成・編集画面はこの server catalog を直接描画し、frontend 側に別の組み込み tool 一覧を持たなくなります。
 - 新しい key は `get_schemas`、`get_tables`、`get_columns`、`execute_query_sql` の 4 つの read/query tool を既定で選択します。`execute_dml_sql` は利用可能ですが、**既定では選択されません**。
+- Admin home は初回セットアップ中だけ **System Readiness** を表示し、database の追加 → active MCP key の発行 → agent による key の実利用、という最短経路を示します。完了後は onboarding card が自動的に消え、通常の operational dashboard に戻ります。
 - Docker の frontend build を CI に合わせ、Node.js 22、pnpm 10.22.0、frozen lockfile を使用します。
 - 動作していなかった Admin sidebar の「Search the docs...」入力を削除し、hs-sql-agent Admin Console として表示を整理しました。
 
@@ -34,6 +35,12 @@ import Callout from "@/components/docs/mdx/Callout.astro";
 表示名、Query／DML 分類、risk、既定選択は server catalog が source of truth です。catalog を取得できない場合、Admin Console は空の frontend state を unrestricted と解釈せず、key の発行を停止します。
 
 DML approval、table allowlist、rate limit、SQL concurrency、compiler validation、audit の挙動は今回の契約修正では変わりません。
+
+## 初回 readiness
+
+Database Management と MCP Keys の両方を閲覧できる operator には、home page に 3 段階の readiness check が表示されます。完了条件は tutorial の dismiss 操作ではなく実際の runtime state です。database 設定が 1 件以上存在し、active MCP key が 1 件以上あり、その active key が MCP client の request 後に `LastUsedAt` を持つことを確認します。
+
+3 条件を満たすと readiness card は自動的に非表示になります。この card が resource を作成したり permission を変更したりすることはなく、database と key の両方を確認できない role に対して readiness を推測することもありません。
 
 ## Database と設定の migration
 
