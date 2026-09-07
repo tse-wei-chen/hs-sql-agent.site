@@ -18,6 +18,7 @@ import Callout from "@/components/docs/mdx/Callout.astro";
 - Der Tool-Katalog der Admin-API liefert nun Kennzeichnung als eingebautes bzw. benutzerdefiniertes Tool, Query-/DML-Typ, Anzeigename, Risikoeinstufung und sichere Standardauswahl.
 - Die Ansichten zum Erstellen und Bearbeiten von MCP-Schlüsseln werden direkt aus diesem Server-Katalog erzeugt; das Frontend pflegt keine zweite Liste eingebauter Tools mehr.
 - Neue Schlüssel wählen standardmäßig die vier Lese-/Query-Tools `get_schemas`, `get_tables`, `get_columns` und `execute_query_sql`. `execute_dml_sql` bleibt verfügbar, ist aber **standardmäßig nicht ausgewählt**.
+- Die Ansichten zum Erstellen und Bearbeiten von MCP-Schlüsseln zeigen nun eine **Access Posture**-Zusammenfassung: `Read/query only`, `DML enabled` oder `Unrestricted tool access`, zusammen mit dem effektiven Datenumfang (`All tables` oder der Anzahl eingeschränkter Tabellen).
 - Die Admin-Startseite zeigt während der Ersteinrichtung einen **System Readiness**-Pfad: Datenbank hinzufügen, aktiven MCP-Schlüssel ausgeben und den Schlüssel einmal tatsächlich durch einen Agent verwenden. Nach Abschluss verschwindet die Onboarding-Karte automatisch, damit etablierte Umgebungen beim normalen Operations-Dashboard bleiben.
 - Der Frontend-Build im Dockerfile wird an CI angeglichen: Node.js 22, pnpm 10.22.0 und Installation mit unverändertem Lockfile.
 - Das funktionslose Suchfeld „Search the docs...“ wurde aus der Admin-Seitenleiste entfernt; die Navigation kennzeichnet die Oberfläche nun direkt als hs-sql-agent Admin Console.
@@ -31,6 +32,8 @@ Diese Methode gehörte nicht zum dokumentierten Fünf-Tool-Vertrag von 2.0.3. Ve
 Bestehende MCP-Schlüssel benötigen keine Migration. Eine explizite `AllowedTools`-Liste begrenzt weiterhin die veröffentlichten eingebauten und Custom Tools. Ohne Tool-Allowlist kann eine Sitzung die fünf kanonischen eingebauten Tools sowie veröffentlichte Custom Tools der gebundenen Datenbank erhalten; das undokumentierte Schreib-Tool für die Semantic Layer gehört nicht mehr dazu.
 
 Neu ausgegebene Schlüssel starten nicht unrestricted, sondern mit einer expliziten Allowlist aus vier Lese-/Query-Tools. `execute_dml_sql` oder ein veröffentlichtes Custom-DML-Tool muss durch einen Operator ausdrücklich ausgewählt werden; die Oberfläche weist weiterhin auf die erforderliche MCP-Elicitation-Freigabe hin. Werden alle Tool-Auswahlen entfernt, bedeutet dies weiterhin **unrestricted** – die Oberfläche warnt daher, dass dieser Zustand auch DML einschließt.
+
+Die Access Posture spiegelt vor dem Ausgeben oder Speichern die tatsächlich gewählte Berechtigungsstufe wider. Grün bedeutet nur Lese-/Query-Zugriff, Gelb mindestens ein aktiviertes DML-Tool und Rot einen unrestricted Tool-Umfang. Zusätzlich wird angezeigt, ob alle Tabellen zugänglich sind oder der Zugriff auf die aktuelle Anzahl ausgewählter Tabellen begrenzt ist. Diese Anzeige ist rein erklärend; die tatsächliche Autorisierung bleibt durch die bestehende Key-/Tool-/Table-Policy-Pipeline erzwungen.
 
 Anzeigename, Query-/DML-Klassifizierung, Risiko und Standardauswahl stammen vollständig aus dem Server-Katalog. Kann der Katalog nicht geladen werden, blockiert die Admin Console die Ausgabe eines neuen Schlüssels, statt einen leeren Frontend-Zustand als unrestricted zu interpretieren.
 
