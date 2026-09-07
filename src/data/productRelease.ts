@@ -1,8 +1,8 @@
 export const productRelease = {
   repository: "tse-wei-chen/hs-sql-agent",
-  version: "2.0.3",
-  tag: "v2.0.3",
-  historicalTags: ["v2.0.2", "v2.0.1"],
+  version: "2.0.4",
+  tag: "v2.0.4",
+  historicalTags: ["v2.0.3", "v2.0.2", "v2.0.1"],
   sources: {
     version: "backend/Directory.Build.props",
     overview: "README.md",
@@ -13,6 +13,7 @@ export const productRelease = {
     webhookApprovals:
       "backend/src/Modules/HsSqlAgent.Approvals.Webhook/README.md",
     dmlTool: "backend/src/Modules/HsSqlAgent.Server/Tools/SqlAgentTool.Dml.cs",
+    mcpBuiltInCatalog: "backend/src/Common/Models/McpBuiltInTools.cs",
     permissions:
       "backend/src/Modules/Auth.Service/Authorization/PermissionCanonicalPaths.cs",
     mcpBuiltIns:
