@@ -15,7 +15,9 @@ import Callout from "@/components/docs/mdx/Callout.astro";
 - MCP 内置工具现在由服务器单一目录统一定义：`get_schemas`、`get_tables`、`get_columns`、`execute_query_sql`、`execute_dml_sql`。
 - 服务启动时会核对实际反射得到的 MCP 工具与正式目录；如果多出或缺少内置工具，服务会直接拒绝启动，避免意外工具被“不限制工具”的密钥获得。
 - `update_semantic_layer` 不再通过 MCP 暴露。语义元数据仍可在管理界面和管理 API 中编辑，并继续使用现有的语义管理权限边界。
-- 管理 API 的工具目录现在返回内置／自定义分类、Query／DML 类型、显示名称与风险信息，供 MCP 密钥体验使用。
+- 管理 API 的工具目录现在返回内置／自定义分类、Query／DML 类型、显示名称、风险和安全默认值，供 MCP 密钥界面使用。
+- MCP 密钥的新建与编辑界面现在直接使用服务器工具目录，不再在前端维护第二份内置工具清单。
+- 新密钥默认勾选四个读取／查询工具：`get_schemas`、`get_tables`、`get_columns`、`execute_query_sql`；`execute_dml_sql` 仍可启用，但**默认不勾选**。
 - Docker 前端构建改为与 CI 对齐：Node.js 22、pnpm 10.22.0，并强制按锁文件安装。
 - 移除了管理侧栏中没有实际功能的“Search the docs...”输入框，侧栏品牌也直接显示 hs-sql-agent Admin Console。
 
@@ -27,13 +29,17 @@ import Callout from "@/components/docs/mdx/Callout.astro";
 
 现有 MCP 密钥无需迁移。明确配置 `AllowedTools` 时，仍只会暴露指定的内置工具和已发布自定义工具；未配置工具白名单时，会提供五项正式内置工具，以及该密钥绑定数据库中已发布的自定义工具，但不再包含未公开的语义层写入工具。
 
+新创建的密钥会从明确的四工具读取／查询白名单开始，而不是“不限制工具”。启用 `execute_dml_sql` 或已发布的自定义 DML 工具，需要管理员主动勾选，界面也会继续提示 MCP Elicitation 审批要求。如果取消全部工具选择，语义仍然是**不限制工具**，因此界面会警告该状态同样包含 DML。
+
+工具显示名称、Query／DML 分类、风险和默认选择状态均以服务器目录为准。如果目录无法加载，管理界面会禁止签发新密钥，不会把空白的前端状态误解为不限制工具。
+
 DML 审批、数据表白名单、速率限制、SQL 并发、编译验证与审计行为不受本次契约修正影响。
 
 ## 数据库与配置迁移
 
 这批 2.0.4 变化本身不要求新增 Admin Store 数据库迁移，也没有新增必填环境变量。
 
-升级后建议至少测试一个只读 MCP 密钥；如果启用了 DML，再测试一次完整审批流程。同时确认具有 `/runtime/db-management/semantic.edit` 权限的角色仍可从管理界面更新 Semantic Layer。
+升级后建议先签发一个采用默认设置的 MCP 密钥，确认只暴露四个读取／查询工具且不包含 DML；如果启用了 DML，再测试一次完整审批流程。同时确认具有 `/runtime/db-management/semantic.edit` 权限的角色仍可从管理界面更新 Semantic Layer。
 
 ## 构建与部署
 
