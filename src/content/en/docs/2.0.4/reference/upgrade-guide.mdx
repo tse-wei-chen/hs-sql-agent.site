@@ -1,0 +1,40 @@
+---
+title: Upgrade Guide
+description: Upgrade hs-sql-agent from 2.0.3 to 2.0.4, including the enforced five-tool MCP contract and build DX improvements.
+sidebar:
+  group: Reference
+  order: 144
+---
+
+import Callout from "@/components/docs/mdx/Callout.astro";
+
+## What changes in 2.0.4
+
+2.0.4 tightens the public MCP boundary and removes several sources of developer and operator drift without changing the SQL compiler or database schema contract.
+
+- The built-in MCP surface is now enforced from one canonical server catalog: `get_schemas`, `get_tables`, `get_columns`, `execute_query_sql`, and `execute_dml_sql`.
+- MCP startup fails closed if reflected built-in tools drift from that catalog, preventing an accidental extra tool from becoming reachable through unrestricted keys.
+- `update_semantic_layer` is no longer exposed through MCP. Semantic metadata remains editable through the Admin UI and Admin API, where the existing semantic-management permission boundary applies.
+- The Admin API tool catalog now returns built-in/custom classification, Query/DML type, display name, and risk metadata for MCP-key experiences.
+- The Docker frontend build now matches CI more closely by using Node.js 22, pnpm 10.22.0, and a frozen lockfile.
+- The inert Admin sidebar “Search the docs...” field was removed and the sidebar branding now identifies the hs-sql-agent Admin Console directly.
+
+<Callout type="warning" title="If you called update_semantic_layer through MCP">
+That method was not part of the documented 2.0.3 five-tool contract. Move semantic metadata writes to **Runtime → DB Management → Semantic Layer** or the permission-protected Admin API before upgrading. Schema discovery still includes semantic metadata through the supported read-only metadata tools.
+</Callout>
+
+## MCP key behavior
+
+Existing MCP keys do not require migration. An explicit `AllowedTools` list continues to limit the exposed built-in and published Custom Tool names. A key with no tool allowlist can still discover the five canonical built-ins plus published Custom Tools for its bound database, but it no longer receives an undocumented semantic-layer mutation tool.
+
+DML approval, table allowlists, rate limits, SQL concurrency, compiler validation, and audit behavior are unchanged by this contract correction.
+
+## Database and configuration migration
+
+There is no Admin Store schema migration required specifically for these 2.0.4 changes, and no new mandatory environment variable is introduced.
+
+After upgrading, smoke-test one read-only MCP key and—if you enable DML—one approval flow. Also verify that Semantic Layer edits still work through the Admin UI for roles with `/runtime/db-management/semantic.edit`.
+
+## Build and deployment review
+
+Custom image builders should respect the repository's pinned frontend toolchain. The first-party Dockerfile now installs with `pnpm install --frozen-lockfile`, so an out-of-date lockfile fails the image build instead of silently resolving a different dependency graph.
