@@ -2,7 +2,7 @@ export const productRelease = {
   repository: "tse-wei-chen/hs-sql-agent",
   version: "2.0.4",
   tag: "v2.0.4",
-  sourceRef: "50ec681827c4530288889b11057e8f6fd4d39689",
+  sourceRef: "d1f05c75899d2ba4d1d59dfc3313a8e1832e7e76",
   historicalTags: ["v2.0.3", "v2.0.2", "v2.0.1"],
   sources: {
     version: "backend/Directory.Build.props",
