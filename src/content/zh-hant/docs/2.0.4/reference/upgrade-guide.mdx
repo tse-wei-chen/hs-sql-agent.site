@@ -23,6 +23,7 @@ import Callout from "@/components/docs/mdx/Callout.astro";
 - **Audit Logs** 改成以快速掃描為主：事件列先顯示結果、時間、目標、操作者、工具／資料庫／金鑰脈絡與執行指標；完整的 Identity、Execution、Trace、Detail、Definition 則放到右側詳細資訊面板。Event／Request／Session ID 可直接複製，JSON 格式的 Definition 會自動美化顯示，但不會改動原始稽核資料。
 - **Operability** 的資料庫與 MCP 金鑰篩選改為可搜尋的實體選擇器，不再要求操作人員手動輸入 numeric ID。介面仍把原本的 `dbManagementId` / `accessKeyId` 傳給 runtime API，而且選項只取自 Operability 已有的健康與 key-usage 資料，因此不會新增對 Database Management 或 MCP Keys 管理權限的依賴。
 - 具備 Audit 檢視權限的操作人員現在可以從 Operability 直接 drill down 到對應的 Audit Logs。頁面會帶入目前的日期／資料庫／金鑰／工具篩選；Database health 與 Key usage 各列也提供對應稽核捷徑。異常 route query 會在送進 audit API 前被忽略。
+- **Security Policy** 現在先顯示 **Effective policy posture**：直接呈現 compiler 最終判定的 UPDATE／DELETE mutation 狀態、DML／Query 限制、金鑰速率限制、SQL 併發與 Saved／Unsaved 狀態；不使用主觀安全分數。若無法取得伺服器 policy，介面不會把前端 fallback defaults 冒充成有效設定。
 - Admin 首頁現在會在首次設定期間顯示 **System Readiness** 路徑：加入資料庫、發行有效 MCP 金鑰、讓 agent 實際使用一次金鑰。完成後這張 onboarding 卡會自動退場，不會長期佔用成熟環境的操作儀表板。
 - Docker 前端建置改為與 CI 對齊：Node.js 22、pnpm 10.22.0，並強制使用鎖定檔安裝。
 - 移除管理側欄中沒有實際功能的「Search the docs...」欄位，側欄品牌也直接顯示 hs-sql-agent Admin Console。
@@ -60,6 +61,14 @@ Operability 頁現在用可搜尋名稱取代必須記住 DB ID / Key ID 的操�
 若目前操作人員同時具備 `/runtime/audit.view`，Operability 會顯示 **View matching audit**，Database health 與 Key usage 各列也會提供對應的 Audit 動作。導頁時會帶入目前的 `from`、`to`、資料庫、金鑰與工具條件，讓運維異常可以直接進入同一脈絡的稽核事件，不必重新手動輸入。
 
 Audit 頁對 route query 採防禦式初始化：日期只接受 `YYYY-MM-DD`、資料庫／金鑰 ID 必須是正整數、工具名稱不得為空。無效值會在建立 Audit API 請求前被忽略。這些連結只是導覽便利性；Audit 頁仍會照既有權限要求檢查，沒有繞過任何 authorization 契約。
+
+## 有效 Security Policy posture
+
+Security Policy 頁現在會先確認從伺服器實際載入的 policy，再顯示摘要與個別欄位。摘要包含有效 UPDATE／DELETE mutation 行為、DML row cap、Query rows／timeout、Key rate limit 與 SQL concurrency，並顯示 **Saved** 或 **Unsaved changes**。只有實際 enforcement 欄位改變時才會進入 unsaved 狀態；`updatedAt`、`updatedBy` 等伺服器稽核中繼資料不會造成假 dirty state。
+
+Mutation posture 直接對齊 SQL compiler 的 `MutationSafety` 組合語意，而不是逐一解讀 raw flags。只有 `RequireWhereForUpdate=false` **且** `AllowFullTableUpdate=true` 同時成立時，UPDATE 才顯示 `Full-table allowed`；DELETE 也使用相同的雙條件規則，否則有效結果仍是 `Predicate required`。因此 `Guarded mutation policy` 代表兩條 mutation path 都仍需 predicate，而 `Review mutation policy` 只在至少一條路徑真的變成 full-table access 時出現。
+
+若有效 policy 載入失敗，Admin Console 會明確顯示失敗與 **Retry**，不會把前端 fallback defaults 顯示或允許編輯成伺服器有效狀態。這只是呈現／DX 改善；Security Policy 儲存模型、compiler enforcement、Admin Store schema 與環境變數契約沒有改變。
 
 ## 首次啟用 readiness
 
