@@ -23,6 +23,7 @@ import Callout from "@/components/docs/mdx/Callout.astro";
 - **Audit Logs**도 빠르게 훑어볼 수 있는 scan-first 형태로 정리되었습니다. 압축된 event row에서는 결과, 시간, 대상, actor, tool/database/key 문맥과 실행 신호를 먼저 보여 주고, 전체 내용은 오른쪽 detail sheet에서 Identity, Execution, Trace, Detail, Definition으로 나누어 확인합니다. Event/Request/Session ID는 바로 복사할 수 있고 JSON definition은 저장된 감사 데이터를 변경하지 않은 채 보기 좋게 정리됩니다.
 - **Operability**의 데이터베이스/MCP 키 필터는 raw numeric ID 입력 대신 검색 가능한 entity selector를 사용합니다. UI는 기존과 동일하게 runtime API에 `dbManagementId` / `accessKeyId`를 보내며, 선택지는 Operability가 이미 가진 health / key-usage 데이터에서 만들기 때문에 Database Management 또는 MCP Keys 관리 권한을 추가로 요구하지 않습니다.
 - Audit view 권한이 있는 운영자는 이제 Operability에서 일치하는 Audit Logs로 바로 drill down할 수 있습니다. 현재 날짜/데이터베이스/키/tool 필터를 그대로 넘기며, Database health와 Key usage 각 행에서도 해당 Audit으로 바로 이동할 수 있습니다. 잘못된 route query 값은 audit API에 전달되기 전에 무시됩니다.
+- **Security Policy**는 먼저 **Effective policy posture**를 보여 주어 compiler가 최종 적용하는 UPDATE/DELETE mutation 상태, DML/Query 제한, key rate limit, SQL concurrency, Saved/Unsaved 상태를 확인할 수 있습니다. 임의의 security score를 만들지 않으며, server policy를 불러오지 못한 경우 frontend fallback defaults를 effective state처럼 표시하지 않습니다.
 - Admin 홈은 최초 설정 중에만 **System Readiness** 경로를 표시합니다. 데이터베이스 추가 → 활성 MCP 키 발급 → agent가 키를 실제로 한 번 사용한 상태까지 안내하고, 완료되면 onboarding 카드가 자동으로 사라져 기존 운영 대시보드로 돌아갑니다.
 - Docker 프런트엔드 빌드는 CI와 맞춰 Node.js 22, pnpm 10.22.0, 고정 lockfile 설치를 사용합니다.
 - 실제 동작이 없던 Admin 사이드바의 “Search the docs...” 입력란을 제거하고 hs-sql-agent Admin Console이라는 제품 이름을 직접 표시합니다.
@@ -60,6 +61,14 @@ Operability 페이지는 DB ID / Key ID를 외워서 입력하는 대신 검색 
 현재 운영자가 `/runtime/audit.view`도 가지고 있으면 Operability에 **View matching audit**가 표시되고, Database health와 Key usage 각 행에서도 해당 Audit을 열 수 있습니다. 이동할 때 현재 `from`, `to`, 데이터베이스, 키, tool 조건을 넘기므로 운영 신호를 같은 문맥의 감사 이벤트에서 바로 조사할 수 있습니다.
 
 Audit 페이지는 route query를 방어적으로 초기화합니다. 날짜는 `YYYY-MM-DD`, 데이터베이스/키 ID는 양의 정수, tool 이름은 비어 있지 않은 값만 허용합니다. 잘못된 값은 Audit API 요청을 만들기 전에 무시됩니다. 이 링크는 탐색 편의 기능일 뿐이며 Audit 페이지의 기존 권한 검사를 우회하지 않습니다.
+
+## Effective Security Policy posture
+
+Security Policy 페이지는 server에서 실제 policy를 성공적으로 불러온 뒤에만 summary와 편집 form을 표시합니다. summary에는 effective UPDATE/DELETE mutation behavior, DML row cap, Query rows/timeout, Key rate limit, SQL concurrency가 나오며 **Saved**와 **Unsaved changes**도 구분됩니다. enforcement 대상 field가 실제로 바뀐 경우에만 unsaved가 되며 `updatedAt`, `updatedBy` 같은 server audit metadata는 false dirty state를 만들지 않습니다.
+
+Mutation posture는 raw flag를 따로 추측하지 않고 SQL compiler의 `MutationSafety` 조합 규칙을 그대로 반영합니다. UPDATE가 `Full-table allowed`가 되는 경우는 `RequireWhereForUpdate=false` **그리고** `AllowFullTableUpdate=true`가 동시에 성립할 때뿐입니다. DELETE도 같은 두 조건을 사용합니다. 그 외 조합은 effective state가 `Predicate required`이므로 `Guarded mutation policy`는 두 mutation path 모두 predicate를 요구한다는 뜻이고, `Review mutation policy`는 하나 이상의 path가 실제로 full-table mutation을 허용할 때만 표시됩니다.
+
+Effective policy load에 실패하면 Admin Console은 명확한 오류와 **Retry**를 표시하고 frontend fallback defaults를 server effective state처럼 표시하거나 편집하게 하지 않습니다. 이는 presentation/DX 변경이며 Security Policy storage model, compiler enforcement, Admin Store schema, environment-variable contract는 그대로입니다.
 
 ## 최초 readiness
 
