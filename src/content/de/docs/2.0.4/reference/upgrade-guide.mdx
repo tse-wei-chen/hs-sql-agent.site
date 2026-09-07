@@ -22,6 +22,7 @@ import Callout from "@/components/docs/mdx/Callout.astro";
 - Auch die Liste **Issued Keys** ist jetzt posture-first aufgebaut: Status, Datenbank, Access Posture, Datenumfang, Nutzung, Ablauf und effektives Rate Limit erscheinen vor den Rohkonfigurationswerten. Bestehende Schlüssel werden gegen den aktuellen Tool-Katalog ihrer gebundenen Datenbank ausgewertet, sodass veröffentlichte Custom-DML-Tools korrekt erkannt werden. Ist ein gespeichertes älteres Tool im aktuellen Katalog nicht mehr vorhanden, zeigt die Oberfläche `Review tool scope`, statt den Schlüssel fälschlich als read-only darzustellen.
 - **Audit Logs** sind jetzt scan-first aufgebaut: Kompakte Ereigniszeilen zeigen Ergebnis, Zeit, Ziel, Actor, Tool-/Datenbank-/Key-Kontext und Ausführungssignale zuerst; der vollständige Datensatz erscheint in einem rechten Detail-Panel, gegliedert nach Identity, Execution, Trace, Detail und Definition. Event-/Request-/Session-ID lassen sich direkt kopieren, und JSON-Definitionen werden lesbar formatiert, ohne gespeicherte Audit-Daten zu verändern.
 - Die Datenbank- und MCP-Key-Filter unter **Operability** sind jetzt durchsuchbare Entity-Selector statt roher numerischer ID-Felder. Die Oberfläche sendet weiterhin die bestehenden `dbManagementId`-/`accessKeyId`-Filter an die Runtime-API und erzeugt die Auswahl ausschließlich aus bereits vorhandenen Operability-Daten, sodass keine zusätzliche Abhängigkeit von Database-Management- oder MCP-Key-Verwaltungsrechten entsteht.
+- Operatoren mit Audit-Leserechten können jetzt direkt von Operability zu den passenden Audit Logs wechseln. Aktuelle Datums-, Datenbank-, Key- und Tool-Filter werden übernommen; Database-Health- und Key-Usage-Zeilen bieten zusätzlich fokussierte Audit-Aktionen. Ungültige Route-Query-Werte werden verworfen, bevor sie die Audit-API erreichen.
 - Die Admin-Startseite zeigt während der Ersteinrichtung einen **System Readiness**-Pfad: Datenbank hinzufügen, aktiven MCP-Schlüssel ausgeben und den Schlüssel einmal tatsächlich durch einen Agent verwenden. Nach Abschluss verschwindet die Onboarding-Karte automatisch, damit etablierte Umgebungen beim normalen Operations-Dashboard bleiben.
 - Der Frontend-Build im Dockerfile wird an CI angeglichen: Node.js 22, pnpm 10.22.0 und Installation mit unverändertem Lockfile.
 - Das funktionslose Suchfeld „Search the docs...“ wurde aus der Admin-Seitenleiste entfernt; die Navigation kennzeichnet die Oberfläche nun direkt als hs-sql-agent Admin Console.
@@ -53,6 +54,12 @@ Trace-IDs und Ausführungsnachweise werden dort aus der Hauptliste herausgehalte
 Die Operability-Seite verlangt nicht mehr, dass Operatoren DB- und Key-IDs auswendig kennen. Datenbankoptionen stammen aus den bereits für `/runtime/operability` verfügbaren geplanten Health-Daten; Key-Optionen aus den ungefilterten Key-Usage-Daten derselben Seite. Die Selector zeigen lesbare Namen plus ID und werden anschließend wieder auf den bestehenden numerischen `dbManagementId`-/`accessKeyId`-Filtervertrag abgebildet.
 
 Die Optionen bleiben bewusst innerhalb der Operability-Berechtigungsgrenze. Nur für Labels werden keine Database-Management- oder MCP-Key-Verwaltungsendpunkte aufgerufen; eine Rolle mit Operability-view benötigt daher keine zusätzlichen Verwaltungs-Leserechte.
+
+## Drill-down von Operability zu Audit
+
+Besitzt der aktuelle Operator zusätzlich `/runtime/audit.view`, zeigt Operability **View matching audit** sowie passende Audit-Aktionen in Database-Health- und Key-Usage-Zeilen. Beim Wechsel werden die aktuellen `from`-, `to`-, Datenbank-, Key- und Tool-Filter übernommen, sodass ein Betriebssignal ohne erneutes Eingeben des Kontexts untersucht werden kann.
+
+Die Audit-Seite initialisiert Route-Queries defensiv: Datumswerte werden nur im Format `YYYY-MM-DD` akzeptiert, Datenbank-/Key-IDs müssen positive Ganzzahlen sein und Tool-Namen dürfen nicht leer sein. Ungültige Werte werden vor dem Aufbau der Audit-API-Anfrage ignoriert. Die Links sind reine Navigation; die vorhandene Audit-Berechtigungsprüfung bleibt vollständig wirksam.
 
 ## First-Run Readiness
 
