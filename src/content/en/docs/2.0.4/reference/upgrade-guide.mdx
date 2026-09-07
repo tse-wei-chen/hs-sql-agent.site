@@ -18,6 +18,7 @@ import Callout from "@/components/docs/mdx/Callout.astro";
 - The Admin API tool catalog now returns built-in/custom classification, Query/DML type, display name, risk, and safe-default metadata for MCP-key experiences.
 - The MCP Key issue and edit forms now render that server catalog directly instead of maintaining a second built-in tool list in the frontend.
 - New keys select the four read/query tools by default: `get_schemas`, `get_tables`, `get_columns`, and `execute_query_sql`. `execute_dml_sql` remains available but is **not selected by default**.
+- The Admin home page now shows a first-run **System Readiness** path—add a database, issue an active key, then connect an agent—until an active key has actually been used. Established environments return to the normal operational dashboard without a permanent onboarding panel.
 - The Docker frontend build now matches CI more closely by using Node.js 22, pnpm 10.22.0, and a frozen lockfile.
 - The inert Admin sidebar “Search the docs...” field was removed and the sidebar branding now identifies the hs-sql-agent Admin Console directly.
 
@@ -34,6 +35,12 @@ For newly issued keys, the Admin Console now starts from an explicit four-tool r
 The server is the source of truth for tool display names, Query/DML classification, risk, and default selection. If the catalog cannot be loaded, the Admin Console blocks key issuance rather than treating an empty frontend state as unrestricted access.
 
 DML approval, table allowlists, rate limits, SQL concurrency, compiler validation, and audit behavior are unchanged by this contract correction.
+
+## First-run readiness
+
+Operators who can view both Database Management and MCP Keys now get a three-step readiness checklist on the home page. Completion is based on real runtime state rather than a dismissible tutorial: at least one database exists, at least one MCP key is active, and an active key has a non-empty `LastUsedAt` after an MCP client request.
+
+The readiness card disappears automatically after all three checks pass. It does not alter permissions, create resources, or infer readiness for users who cannot inspect both database and key state.
 
 ## Database and configuration migration
 
