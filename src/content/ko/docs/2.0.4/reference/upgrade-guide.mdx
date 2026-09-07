@@ -18,6 +18,7 @@ import Callout from "@/components/docs/mdx/Callout.astro";
 - Admin API의 도구 목록은 내장/사용자 정의 구분, Query/DML 유형, 표시 이름, 위험 수준, 안전 기본 선택 정보를 함께 반환합니다.
 - MCP 키 생성 및 편집 화면은 서버 도구 catalog를 직접 사용하므로 프런트엔드가 별도의 내장 도구 목록을 유지하지 않습니다.
 - 새 키는 `get_schemas`, `get_tables`, `get_columns`, `execute_query_sql`의 네 가지 읽기/조회 도구를 기본 선택합니다. `execute_dml_sql`은 사용할 수 있지만 **기본 선택되지 않습니다**.
+- MCP 키 생성/편집 화면에는 **Access Posture**가 표시되어 `Read/query only`, `DML enabled`, `Unrestricted tool access` 중 현재 상태와 데이터 범위가 `All tables`인지 제한된 테이블 수인지 확인할 수 있습니다.
 - Admin 홈은 최초 설정 중에만 **System Readiness** 경로를 표시합니다. 데이터베이스 추가 → 활성 MCP 키 발급 → agent가 키를 실제로 한 번 사용한 상태까지 안내하고, 완료되면 onboarding 카드가 자동으로 사라져 기존 운영 대시보드로 돌아갑니다.
 - Docker 프런트엔드 빌드는 CI와 맞춰 Node.js 22, pnpm 10.22.0, 고정 lockfile 설치를 사용합니다.
 - 실제 동작이 없던 Admin 사이드바의 “Search the docs...” 입력란을 제거하고 hs-sql-agent Admin Console이라는 제품 이름을 직접 표시합니다.
@@ -31,6 +32,8 @@ import Callout from "@/components/docs/mdx/Callout.astro";
 기존 MCP 키는 마이그레이션이 필요하지 않습니다. `AllowedTools`를 명시하면 지정한 내장 도구와 게시된 Custom Tool만 노출됩니다. 도구 allowlist가 없는 키는 정식 5개 내장 도구와 연결된 데이터베이스의 게시된 Custom Tool을 사용할 수 있지만, 문서화되지 않았던 Semantic Layer 쓰기 도구는 더 이상 포함되지 않습니다.
 
 새로 발급하는 키는 unrestricted 상태가 아니라 명시적인 네 가지 읽기/조회 도구 allowlist에서 시작합니다. `execute_dml_sql` 또는 게시된 Custom DML 도구를 활성화하려면 운영자가 직접 선택해야 하며, UI는 MCP Elicitation 승인 요구 사항을 계속 표시합니다. 모든 도구 선택을 해제하면 의미는 여전히 **unrestricted**이므로 해당 상태에 DML도 포함된다는 경고가 표시됩니다.
+
+Access Posture는 발급 또는 저장 전에 현재 유효한 선택을 그대로 보여 줍니다. 녹색은 읽기/조회 전용, 노란색은 하나 이상의 DML 도구가 활성화된 상태, 빨간색은 도구 범위가 unrestricted인 상태를 의미합니다. 또한 모든 테이블에 접근할 수 있는지 또는 현재 table whitelist 수로 제한되는지도 표시합니다. 이는 설명용 UI이며 실제 권한 부여는 기존 key/tool/table policy pipeline이 계속 강제합니다.
 
 도구 표시 이름, Query/DML 분류, 위험 수준, 기본 선택은 서버 catalog가 source of truth입니다. catalog를 불러오지 못하면 Admin Console은 빈 프런트엔드 상태를 unrestricted로 해석하지 않고 새 키 발급을 차단합니다.
 
