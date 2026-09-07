@@ -18,6 +18,7 @@ import Callout from "@/components/docs/mdx/Callout.astro";
 - 管理 API 的工具目錄現在會提供內建／自訂分類、Query／DML 類型、顯示名稱、風險與安全預設資訊，供 MCP 金鑰介面使用。
 - MCP 金鑰的新增與編輯介面現在都直接由伺服器工具目錄產生，不再在前端維護第二份內建工具清單。
 - 新金鑰預設勾選四個讀取／查詢工具：`get_schemas`、`get_tables`、`get_columns`、`execute_query_sql`；`execute_dml_sql` 仍可使用，但**預設不勾選**。
+- Admin 首頁現在會在首次設定期間顯示 **System Readiness** 路徑：加入資料庫、發行有效 MCP 金鑰、讓 agent 實際使用一次金鑰。完成後這張 onboarding 卡會自動退場，不會長期佔用成熟環境的操作儀表板。
 - Docker 前端建置改為與 CI 對齊：Node.js 22、pnpm 10.22.0，並強制使用鎖定檔安裝。
 - 移除管理側欄中沒有實際功能的「Search the docs...」欄位，側欄品牌也直接顯示 hs-sql-agent Admin Console。
 
@@ -34,6 +35,12 @@ import Callout from "@/components/docs/mdx/Callout.astro";
 工具顯示名稱、Query／DML 分類、風險與預設勾選狀態都以伺服器目錄為準。若目錄無法載入，管理介面會禁止發行新金鑰，不會把空白前端狀態誤解成不限工具。
 
 DML 核准、資料表白名單、速率限制、SQL 併發、編譯驗證與稽核行為皆未因這次契約修正而改變。
+
+## 首次啟用 readiness
+
+同時具有 Database Management 與 MCP Keys 檢視權限的操作人員，首頁會顯示三步 readiness 檢查。完成條件直接取自實際 runtime 狀態：至少存在一筆資料庫設定、至少有一把有效 MCP 金鑰，而且有效金鑰在 MCP client 發出請求後已有 `LastUsedAt`。
+
+三項都完成後 readiness 卡會自動隱藏。它不會建立任何資源、不會改權限，也不會對無法同時檢視資料庫與金鑰狀態的角色推測 readiness。
 
 ## 資料庫與設定遷移
 
