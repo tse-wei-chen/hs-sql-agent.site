@@ -22,6 +22,7 @@ import Callout from "@/components/docs/mdx/Callout.astro";
 - **Issued Keys** 목록도 posture-first 방식으로 바뀌어 상태, 데이터베이스, Access Posture, 데이터 범위, 사용 여부, 만료, 실제 적용 rate limit을 원시 설정값보다 먼저 보여 줍니다. 기존 키는 연결된 데이터베이스의 현재 tool catalog를 사용하므로 게시된 Custom DML도 정확히 분류합니다. 저장된 예전 tool이 현재 catalog에 없다면 read-only로 단정하지 않고 `Review tool scope`를 표시합니다.
 - **Audit Logs**도 빠르게 훑어볼 수 있는 scan-first 형태로 정리되었습니다. 압축된 event row에서는 결과, 시간, 대상, actor, tool/database/key 문맥과 실행 신호를 먼저 보여 주고, 전체 내용은 오른쪽 detail sheet에서 Identity, Execution, Trace, Detail, Definition으로 나누어 확인합니다. Event/Request/Session ID는 바로 복사할 수 있고 JSON definition은 저장된 감사 데이터를 변경하지 않은 채 보기 좋게 정리됩니다.
 - **Operability**의 데이터베이스/MCP 키 필터는 raw numeric ID 입력 대신 검색 가능한 entity selector를 사용합니다. UI는 기존과 동일하게 runtime API에 `dbManagementId` / `accessKeyId`를 보내며, 선택지는 Operability가 이미 가진 health / key-usage 데이터에서 만들기 때문에 Database Management 또는 MCP Keys 관리 권한을 추가로 요구하지 않습니다.
+- Audit view 권한이 있는 운영자는 이제 Operability에서 일치하는 Audit Logs로 바로 drill down할 수 있습니다. 현재 날짜/데이터베이스/키/tool 필터를 그대로 넘기며, Database health와 Key usage 각 행에서도 해당 Audit으로 바로 이동할 수 있습니다. 잘못된 route query 값은 audit API에 전달되기 전에 무시됩니다.
 - Admin 홈은 최초 설정 중에만 **System Readiness** 경로를 표시합니다. 데이터베이스 추가 → 활성 MCP 키 발급 → agent가 키를 실제로 한 번 사용한 상태까지 안내하고, 완료되면 onboarding 카드가 자동으로 사라져 기존 운영 대시보드로 돌아갑니다.
 - Docker 프런트엔드 빌드는 CI와 맞춰 Node.js 22, pnpm 10.22.0, 고정 lockfile 설치를 사용합니다.
 - 실제 동작이 없던 Admin 사이드바의 “Search the docs...” 입력란을 제거하고 hs-sql-agent Admin Console이라는 제품 이름을 직접 표시합니다.
@@ -53,6 +54,12 @@ detail panel은 trace 식별자와 execution evidence를 목록 행에서 분리
 Operability 페이지는 DB ID / Key ID를 외워서 입력하는 대신 검색 가능한 이름 기반 selector를 사용합니다. 데이터베이스 후보는 `/runtime/operability`가 이미 제공하는 scheduled health data에서, 키 후보는 같은 페이지의 필터되지 않은 key-usage data에서 가져옵니다. 화면에는 읽기 쉬운 이름과 ID를 함께 보여 주지만 API 계약은 기존과 동일한 numeric `dbManagementId` / `accessKeyId`입니다.
 
 후보 데이터는 Operability 권한 경계 안에서만 가져옵니다. label을 표시하기 위해 Database Management나 MCP Keys 관리 endpoint를 호출하지 않으므로 Operability view 권한만 가진 role에 별도 관리 조회 권한이 필요하지 않습니다.
+
+## Operability에서 Audit으로 drill-down
+
+현재 운영자가 `/runtime/audit.view`도 가지고 있으면 Operability에 **View matching audit**가 표시되고, Database health와 Key usage 각 행에서도 해당 Audit을 열 수 있습니다. 이동할 때 현재 `from`, `to`, 데이터베이스, 키, tool 조건을 넘기므로 운영 신호를 같은 문맥의 감사 이벤트에서 바로 조사할 수 있습니다.
+
+Audit 페이지는 route query를 방어적으로 초기화합니다. 날짜는 `YYYY-MM-DD`, 데이터베이스/키 ID는 양의 정수, tool 이름은 비어 있지 않은 값만 허용합니다. 잘못된 값은 Audit API 요청을 만들기 전에 무시됩니다. 이 링크는 탐색 편의 기능일 뿐이며 Audit 페이지의 기존 권한 검사를 우회하지 않습니다.
 
 ## 최초 readiness
 
