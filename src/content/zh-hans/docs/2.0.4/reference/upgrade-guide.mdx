@@ -18,6 +18,7 @@ import Callout from "@/components/docs/mdx/Callout.astro";
 - 管理 API 的工具目录现在返回内置／自定义分类、Query／DML 类型、显示名称、风险和安全默认值，供 MCP 密钥界面使用。
 - MCP 密钥的新建与编辑界面现在直接使用服务器工具目录，不再在前端维护第二份内置工具清单。
 - 新密钥默认勾选四个读取／查询工具：`get_schemas`、`get_tables`、`get_columns`、`execute_query_sql`；`execute_dml_sql` 仍可启用，但**默认不勾选**。
+- MCP 密钥的新建／编辑界面现在会显示 **Access Posture**：`Read/query only`、`DML enabled` 或 `Unrestricted tool access`，并同时标明数据范围是 `All tables` 还是限制到若干张数据表。
 - Admin 首页现在会在首次配置阶段显示 **System Readiness** 路径：添加数据库、签发有效 MCP 密钥、让 agent 实际使用一次密钥。完成后 onboarding 卡会自动消失，不会长期占用成熟环境的运营仪表盘。
 - Docker 前端构建改为与 CI 对齐：Node.js 22、pnpm 10.22.0，并强制按锁文件安装。
 - 移除了管理侧栏中没有实际功能的“Search the docs...”输入框，侧栏品牌也直接显示 hs-sql-agent Admin Console。
@@ -31,6 +32,8 @@ import Callout from "@/components/docs/mdx/Callout.astro";
 现有 MCP 密钥无需迁移。明确配置 `AllowedTools` 时，仍只会暴露指定的内置工具和已发布自定义工具；未配置工具白名单时，会提供五项正式内置工具，以及该密钥绑定数据库中已发布的自定义工具，但不再包含未公开的语义层写入工具。
 
 新创建的密钥会从明确的四工具读取／查询白名单开始，而不是“不限制工具”。启用 `execute_dml_sql` 或已发布的自定义 DML 工具，需要管理员主动勾选，界面也会继续提示 MCP Elicitation 审批要求。如果取消全部工具选择，语义仍然是**不限制工具**，因此界面会警告该状态同样包含 DML。
+
+Access Posture 会在签发或保存前直接反映当前有效选择：绿色表示只有读取／查询工具，黄色表示至少启用了一个 DML 工具，红色表示工具范围不受限制。摘要也会显示数据访问是全部数据表，还是限制到当前选中的数据表数量。它只是把权限状态可视化；实际授权仍由现有的密钥／工具／数据表策略链路强制执行。
 
 工具显示名称、Query／DML 分类、风险和默认选择状态均以服务器目录为准。如果目录无法加载，管理界面会禁止签发新密钥，不会把空白的前端状态误解为不限制工具。
 
