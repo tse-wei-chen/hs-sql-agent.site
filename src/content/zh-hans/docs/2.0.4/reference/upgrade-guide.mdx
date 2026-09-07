@@ -20,6 +20,7 @@ import Callout from "@/components/docs/mdx/Callout.astro";
 - 新密钥默认勾选四个读取／查询工具：`get_schemas`、`get_tables`、`get_columns`、`execute_query_sql`；`execute_dml_sql` 仍可启用，但**默认不勾选**。
 - MCP 密钥的新建／编辑界面现在会显示 **Access Posture**：`Read/query only`、`DML enabled` 或 `Unrestricted tool access`，并同时标明数据范围是 `All tables` 还是限制到若干张数据表。
 - **Issued Keys** 列表也改为优先呈现权限姿态：先显示状态、数据库、Access Posture、数据范围、使用情况、到期时间和实际生效的速率限制，再显示原始配置细节。现有密钥会使用自己绑定数据库当前的工具目录识别已发布 Custom DML；如果保存的旧工具已经不在当前目录中，界面会显示 `Review tool scope`，而不会误标成只读。
+- **Audit Logs** 改为适合快速排查的 scan-first 视图：紧凑事件行优先显示结果、时间、目标、操作者、tool／database／key 上下文与执行信号；完整事件内容则通过右侧详情面板按 Identity、Execution、Trace、Detail、Definition 分组查看。Event／Request／Session ID 可直接复制，JSON definition 会格式化展示，但不会改变已存储的审计数据。
 - Admin 首页现在会在首次配置阶段显示 **System Readiness** 路径：添加数据库、签发有效 MCP 密钥、让 agent 实际使用一次密钥。完成后 onboarding 卡会自动消失，不会长期占用成熟环境的运营仪表盘。
 - Docker 前端构建改为与 CI 对齐：Node.js 22、pnpm 10.22.0，并强制按锁文件安装。
 - 移除了管理侧栏中没有实际功能的“Search the docs...”输入框，侧栏品牌也直接显示 hs-sql-agent Admin Console。
@@ -39,6 +40,12 @@ Access Posture 会在签发、保存前以及已签发密钥列表中直接反�
 工具显示名称、Query／DML 分类、风险和默认选择状态均以服务器目录为准。如果目录无法加载，管理界面会禁止签发新密钥，不会把空白的前端状态误解为不限制工具。
 
 DML 审批、数据表白名单、速率限制、SQL 并发、编译验证与审计行为不受本次契约修正影响。
+
+## 审计事件查看
+
+审计事件的存储、筛选、导出与保留策略契约没有变化。2.0.4 只调整 Admin Console 的查看方式：主列表用于快速判断事件，点击 **View details** 后再从右侧结构化面板查看完整上下文。
+
+详情面板把 trace 标识与执行证据从主列表中分离出来，避免每一行被大量工程字段撑满。`definition` 是 JSON 时会格式化展示，不是 JSON 时保持原样；Event ID、Request ID、Session ID 与 Definition 的复制动作都使用原始存储值。
 
 ## 首次启用 readiness
 
