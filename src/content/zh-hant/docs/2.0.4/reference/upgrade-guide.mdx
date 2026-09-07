@@ -19,6 +19,7 @@ import Callout from "@/components/docs/mdx/Callout.astro";
 - MCP 金鑰的新增與編輯介面現在都直接由伺服器工具目錄產生，不再在前端維護第二份內建工具清單。
 - 新金鑰預設勾選四個讀取／查詢工具：`get_schemas`、`get_tables`、`get_columns`、`execute_query_sql`；`execute_dml_sql` 仍可使用，但**預設不勾選**。
 - MCP 金鑰新增／編輯介面現在會顯示 **Access Posture**：`Read/query only`、`DML enabled` 或 `Unrestricted tool access`，並同時標示資料範圍是 `All tables` 或限制到幾張資料表。
+- **Issued Keys** 清單也改成以權限姿態為主：先顯示狀態、資料庫、Access Posture、資料範圍、使用狀況、到期時間與有效速率限制，再顯示原始設定細節。既有金鑰會使用自己綁定資料庫目前的工具目錄來辨識已發布 Custom DML；若儲存的舊工具已不在現行目錄中，介面會顯示 `Review tool scope`，不會誤標成唯讀。
 - Admin 首頁現在會在首次設定期間顯示 **System Readiness** 路徑：加入資料庫、發行有效 MCP 金鑰、讓 agent 實際使用一次金鑰。完成後這張 onboarding 卡會自動退場，不會長期佔用成熟環境的操作儀表板。
 - Docker 前端建置改為與 CI 對齊：Node.js 22、pnpm 10.22.0，並強制使用鎖定檔安裝。
 - 移除管理側欄中沒有實際功能的「Search the docs...」欄位，側欄品牌也直接顯示 hs-sql-agent Admin Console。
@@ -33,7 +34,7 @@ import Callout from "@/components/docs/mdx/Callout.astro";
 
 新建立的金鑰會從明確的四工具讀取／查詢白名單開始，而不是「不限工具」。啟用 `execute_dml_sql` 或已發布的自訂 DML 工具，必須由管理者主動勾選，介面也會持續提示 MCP Elicitation 核准需求。若把所有工具都取消勾選，語意仍是 **不限工具**，因此介面會警告這個狀態也包含 DML。
 
-Access Posture 會在發行或儲存前直接反映目前有效選擇：綠色代表只有讀取／查詢工具，黃色代表至少啟用一個 DML 工具，紅色代表工具範圍不限。摘要也會顯示資料存取是所有資料表，或限制到目前選取的資料表數量。這只是權限狀態的可視化；實際授權仍由既有的金鑰／工具／資料表政策管線強制執行。
+Access Posture 會在發行、儲存前，以及已發行金鑰清單中直接反映目前有效選擇：綠色代表只有讀取／查詢工具，黃色代表至少啟用一個 DML 工具，紅色代表工具範圍不限。摘要也會顯示資料存取是所有資料表，或限制到目前選取的資料表數量。既有金鑰的分類會依該金鑰綁定資料庫目前已發布的工具目錄判定，因此 Custom DML 也能正確顯示；若某個已儲存工具已無法從現行目錄分類，則顯示 `Review tool scope`，而不是宣稱它是較低風險的唯讀狀態。這些資訊只是權限狀態的可視化；實際授權仍由既有的金鑰／工具／資料表政策管線強制執行。
 
 工具顯示名稱、Query／DML 分類、風險與預設勾選狀態都以伺服器目錄為準。若目錄無法載入，管理介面會禁止發行新金鑰，不會把空白前端狀態誤解成不限工具。
 
