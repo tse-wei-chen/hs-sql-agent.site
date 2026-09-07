@@ -1,0 +1,40 @@
+---
+title: Guide de mise à niveau
+description: Migrer hs-sql-agent de 2.0.3 vers 2.0.4 avec un contrat MCP à cinq outils intégrés et un build frontend plus reproductible.
+sidebar:
+  group: Référence
+  order: 144
+---
+
+import Callout from "@/components/docs/mdx/Callout.astro";
+
+## Principaux changements de 2.0.4
+
+2.0.4 resserre la frontière MCP publique et réduit les écarts entre développement, CI et déploiement. Le contrat du compilateur SQL et le schéma de base de données ne changent pas pour autant.
+
+- Les outils MCP intégrés sont désormais imposés depuis un catalogue serveur unique : `get_schemas`, `get_tables`, `get_columns`, `execute_query_sql` et `execute_dml_sql`.
+- Au démarrage, la surface MCP découverte par réflexion est comparée à ce catalogue. Tout outil intégré inattendu ou manquant provoque un refus de démarrage en fail closed.
+- `update_semantic_layer` n'est plus exposé via MCP. Les métadonnées sémantiques restent modifiables dans l'interface d'administration ou via l'API d'administration protégée par permissions.
+- Le catalogue d'outils de l'API d'administration fournit maintenant la distinction intégré/personnalisé, le type Query/DML, le nom d'affichage et le niveau de risque.
+- Le build frontend Docker est aligné sur la CI : Node.js 22, pnpm 10.22.0 et installation avec lockfile figé.
+- Le champ « Search the docs... » sans comportement réel a été retiré de la barre latérale d'administration, dont l'identité affiche désormais directement hs-sql-agent Admin Console.
+
+<Callout type="warning" title="Si vous appeliez update_semantic_layer via MCP">
+Cette méthode ne faisait pas partie du contrat documenté à cinq outils intégrés de la version 2.0.3. Avant la mise à niveau, déplacez les écritures de métadonnées sémantiques vers **Runtime → DB Management → Semantic Layer** ou vers l'API d'administration protégée par permissions. Les outils de découverte en lecture seule continuent d'inclure les métadonnées sémantiques autorisées.
+</Callout>
+
+## Comportement des clés MCP
+
+Les clés MCP existantes ne nécessitent aucune migration. Une liste `AllowedTools` explicite continue de limiter les outils intégrés et les Custom Tools publiés. Sans liste d'autorisation, une session peut exposer les cinq outils intégrés canoniques ainsi que les Custom Tools publiés de la base liée, mais elle ne reçoit plus l'outil d'écriture sémantique non documenté.
+
+Les approbations DML, listes blanches de tables, limites de débit, concurrence SQL, validations du compilateur et règles d'audit ne changent pas avec cette correction de contrat.
+
+## Migration de base et de configuration
+
+Ces changements 2.0.4 n'imposent aucune migration supplémentaire du schéma de l'Admin Store et n'ajoutent aucune variable d'environnement obligatoire.
+
+Après la mise à niveau, testez au minimum une clé MCP en lecture seule. Si le DML est activé, vérifiez également un flux complet d'approbation. Confirmez enfin qu'un rôle disposant de `/runtime/db-management/semantic.edit` peut toujours modifier la Semantic Layer dans l'interface d'administration.
+
+## Build et déploiement
+
+Les images personnalisées devraient suivre la chaîne d'outils frontend épinglée par le dépôt. Le Dockerfile officiel utilise désormais `pnpm install --frozen-lockfile` : si le lockfile ne correspond pas aux déclarations de packages, le build échoue explicitement au lieu de résoudre silencieusement un graphe de dépendances différent.
