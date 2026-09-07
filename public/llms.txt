@@ -2,7 +2,7 @@
 
 > hs-sql-agent provides governed SQL access for AI agents through MCP, with fail-closed typed SQL compilation, scoped access policies, approval-gated DML, and support for PostgreSQL, MySQL, SQL Server, Oracle, SQLite, and Firebird.
 
-Current documented release: **2.0.3**. Product behavior is pinned to the immutable product tag `v2.0.3`.
+Current documented release: **2.0.4**. Product behavior is pinned by `src/data/productRelease.ts`; prerelease documentation may pin an immutable product commit until the matching release tag exists.
 
 The documentation site is localized in English, Traditional Chinese, Simplified Chinese, Japanese, Korean, French, and German. Prefer stable unversioned documentation URLs for the current release. Versioned Docs inherit unchanged pages from the immediate parent release and override only pages whose product behavior changed.
 
@@ -21,7 +21,7 @@ The documentation site is localized in English, Traditional Chinese, Simplified 
 
 ## Built-in MCP tools
 
-The built-in surface remains intentionally small:
+The built-in surface is intentionally limited to exactly five names and is enforced from one server-side catalog:
 
 - `get_schemas`
 - `get_tables`
@@ -29,7 +29,9 @@ The built-in surface remains intentionally small:
 - `execute_query_sql`
 - `execute_dml_sql`
 
-`execute_dml_sql` itself accepts one or more supported semicolon-separated DML statements. There is no separate `execute_dml_sql_batch` tool. A multi-statement request is approved once, executed in original order, and committed atomically inside one server-owned transaction. Client-supplied transaction-control SQL is rejected.
+`update_semantic_layer` is not a built-in MCP tool. Semantic metadata is an administrative control-plane surface and remains editable through the permission-protected Admin UI/API. Read-only metadata discovery can still include authorized semantic descriptions, synonyms, relationships, and metrics.
+
+`execute_dml_sql` accepts one or more supported semicolon-separated DML statements. There is no separate `execute_dml_sql_batch` tool. A multi-statement request is approved once, executed in original order, and committed atomically inside one server-owned transaction. Client-supplied transaction-control SQL is rejected.
 
 Published Custom Tools can extend a database's tool collection but are not additional built-in tools.
 
@@ -112,21 +114,16 @@ Marketing pages are latest-only and describe the current product model rather th
 
 ## Source of truth
 
-- [Product release v2.0.3](https://github.com/tse-wei-chen/hs-sql-agent/tree/v2.0.3): Immutable product source for the current documented release.
+- [Pinned 2.0.4 product source](https://github.com/tse-wei-chen/hs-sql-agent/tree/00acbb15c9868c1b87415bf5e4c64fff687f4d4f): Immutable product source used while the 2.0.4 release is being prepared.
 - [Product repository](https://github.com/tse-wei-chen/hs-sql-agent): Active development; `main` may contain behavior newer than the documented release.
 - [Documentation repository](https://github.com/tse-wei-chen/hs-sql-agent.site): Website and versioned documentation source.
-- [Content source policy](https://github.com/tse-wei-chen/hs-sql-agent.site/blob/main/CONTENT_SOURCES.md): Claim hierarchy, version inheritance, and release-diff audit process.
+- [Content source policy](https://github.com/tse-wei-chen/hs-sql-agent.site/blob/main/CONTENT_SOURCES.md): Claim hierarchy, version inheritance, prerelease pinning, and release-diff audit process.
 
-## Current 2.0.3 overlay source
+## Current 2.0.4 overlay source
 
-- [Introduction](https://raw.githubusercontent.com/tse-wei-chen/hs-sql-agent.site/main/src/content/en/docs/2.0.3/getting-started/introduction.mdx)
-- [Quick start](https://raw.githubusercontent.com/tse-wei-chen/hs-sql-agent.site/main/src/content/en/docs/2.0.3/getting-started/quick-start.mdx)
-- [MCP tools](https://raw.githubusercontent.com/tse-wei-chen/hs-sql-agent.site/main/src/content/en/docs/2.0.3/mcp/tools-reference.mdx)
-- [Safe DML](https://raw.githubusercontent.com/tse-wei-chen/hs-sql-agent.site/main/src/content/en/docs/2.0.3/sql-compiler/safe-dml.mdx)
-- [ASP.NET Core integration](https://raw.githubusercontent.com/tse-wei-chen/hs-sql-agent.site/main/src/content/en/docs/2.0.3/integration/aspnet-core.mdx)
-- [Configuration](https://raw.githubusercontent.com/tse-wei-chen/hs-sql-agent.site/main/src/content/en/docs/2.0.3/operations/configuration.mdx)
-- [Deployment](https://raw.githubusercontent.com/tse-wei-chen/hs-sql-agent.site/main/src/content/en/docs/2.0.3/operations/deployment.mdx)
-- [Architecture](https://raw.githubusercontent.com/tse-wei-chen/hs-sql-agent.site/main/src/content/en/docs/2.0.3/development/architecture.mdx)
-- [Upgrade guide](https://raw.githubusercontent.com/tse-wei-chen/hs-sql-agent.site/main/src/content/en/docs/2.0.3/reference/upgrade-guide.mdx)
+Only behavior changed by this release is duplicated into the current overlay. Unchanged pages are inherited from the immediate parent version.
+
+- [MCP tools](https://raw.githubusercontent.com/tse-wei-chen/hs-sql-agent.site/main/src/content/en/docs/2.0.4/mcp/tools-reference.mdx)
+- [Upgrade guide](https://raw.githubusercontent.com/tse-wei-chen/hs-sql-agent.site/main/src/content/en/docs/2.0.4/reference/upgrade-guide.mdx)
 
 Unchanged current documentation is inherited from the immediate parent version by the site routing layer rather than copied into the overlay.
