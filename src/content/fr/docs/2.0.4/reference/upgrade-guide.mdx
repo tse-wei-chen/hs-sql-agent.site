@@ -18,6 +18,7 @@ import Callout from "@/components/docs/mdx/Callout.astro";
 - Le catalogue d'outils de l'API d'administration fournit maintenant la distinction intégré/personnalisé, le type Query/DML, le nom d'affichage, le niveau de risque et les valeurs sûres sélectionnées par défaut.
 - Les formulaires de création et de modification des clés MCP sont désormais rendus directement depuis ce catalogue serveur ; le frontend ne maintient plus une seconde liste d'outils intégrés.
 - Une nouvelle clé sélectionne par défaut les quatre outils de lecture/requête `get_schemas`, `get_tables`, `get_columns` et `execute_query_sql`. `execute_dml_sql` reste disponible mais **n'est pas sélectionné par défaut**.
+- La page d'accueil Admin affiche pendant la première configuration un parcours **System Readiness** : ajouter une base, émettre une clé MCP active, puis faire réellement utiliser cette clé par un agent. Une fois terminé, le panneau d'onboarding disparaît automatiquement afin que les environnements établis reviennent au tableau de bord opérationnel normal.
 - Le build frontend Docker est aligné sur la CI : Node.js 22, pnpm 10.22.0 et installation avec lockfile figé.
 - Le champ « Search the docs... » sans comportement réel a été retiré de la barre latérale d'administration, dont l'identité affiche désormais directement hs-sql-agent Admin Console.
 
@@ -34,6 +35,12 @@ Les nouvelles clés démarrent avec une liste explicite de quatre outils de lect
 Le nom d'affichage, la classification Query/DML, le risque et la sélection par défaut proviennent entièrement du catalogue serveur. Si ce catalogue ne peut pas être chargé, l'Admin Console bloque l'émission d'une nouvelle clé au lieu d'interpréter un état frontend vide comme unrestricted.
 
 Les approbations DML, listes blanches de tables, limites de débit, concurrence SQL, validations du compilateur et règles d'audit ne changent pas avec cette correction de contrat.
+
+## Readiness de première utilisation
+
+Les opérateurs pouvant consulter à la fois Database Management et MCP Keys voient une vérification readiness en trois étapes sur la page d'accueil. La réussite repose sur l'état runtime réel plutôt que sur un tutoriel à fermer : au moins une configuration de base existe, au moins une clé MCP est active et une clé active possède un `LastUsedAt` après une requête d'un client MCP.
+
+Le panneau readiness disparaît automatiquement dès que les trois conditions sont remplies. Il ne crée aucune ressource, ne modifie aucune permission et n'infère pas l'état readiness pour les rôles qui ne peuvent pas consulter à la fois les bases et les clés.
 
 ## Migration de base et de configuration
 
