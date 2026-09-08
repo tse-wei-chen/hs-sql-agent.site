@@ -1,0 +1,86 @@
+---
+title: MCP-Tool-Referenz
+description: Verträge der eingebauten MCP-Tools in hs-sql-agent 2.0.5 mit strukturierten Ergebnissen für Abfragen, Metadaten und freigabepflichtiges DML.
+sidebar:
+  group: MCP
+  order: 35
+---
+
+hs-sql-agent hält die eingebaute MCP-Oberfläche bewusst klein: genau fünf Tools. In 2.0.5 liefern alle fünf über MCP `structuredContent` maschinenlesbare strukturierte Ergebnisse; das Ausgabeschema wird daraus abgeleitet.
+
+| Tool | Öffentliche Eingabe | Standard bei neuen Schlüsseln | Ergebnis |
+| --- | --- | --- | --- |
+| `get_schemas` | keine | aktiviert | strukturierte Schemaliste |
+| `get_tables` | `schemaName: string` | aktiviert | strukturierte Tabellen und semantische Metadaten |
+| `get_columns` | `schemaName: string`, `tableName: string` | aktiviert | strukturierte Spalten und Beziehungen |
+| `execute_query_sql` | `sql: string` | aktiviert | strukturierte Abfragezeilen und Fehler |
+| `execute_dml_sql` | `sql: string` | **deaktiviert** | strukturierter Freigabe- und Commit-Status |
+
+Veröffentlichte Custom Tools können die Sammlung einer gebundenen Datenbank erweitern, zählen aber nicht zu den eingebauten Tools.
+
+## Gemeinsamer Fehlervertrag
+
+Fehler der Lese-/Abfragetools sowie echte DML-Fehler verwenden `McpToolError`.
+
+| Feld | Bedeutung |
+| --- | --- |
+| `Code` | stabiler maschinenlesbarer Fehlercode |
+| `Message` | lesbare Meldung, die dem MCP-Client angezeigt werden darf |
+| `Stage` | bekannte Pipeline- oder Ausführungsstufe des Fehlers |
+| `Retryable` | ob derselbe Aufruf später ohne geänderte Eingabe erfolgreich sein könnte |
+
+Clients sollten nach `Code`, `Stage` und DML-`Status` verzweigen, statt Darstellungstext zu parsen.
+
+## `get_schemas`
+
+Liefert `Success`, `Provider`, `Schemas` und `Error`. `Schemas` enthält nur Schemanamen, die für den aktuellen MCP-Schlüssel sichtbar sind.
+
+## `get_tables`
+
+Liefert `Success`, `Provider`, `Schema`, `Tables` und `Error`.
+
+Jede Tabelle enthält `Name`, `DisplayName`, `Description`, `Synonyms` und `Metrics`. Jede Metrik enthält `Name`, `DisplayName`, `Aggregation`, `Formula`, `Grain`, `Filter` und `Synonyms`.
+
+Semantische Metadaten werden nur zurückgegeben, wenn sie konfiguriert und autorisiert sind. Der physische Tabellenname bleibt die Ausführungsidentität.
+
+## `get_columns`
+
+Liefert `Success`, `Provider`, `Schema`, `Table`, `Columns` und `Error`.
+
+Jede Spalte enthält `Name`, `Type`, `IsPrimaryKey`, `PrimaryKeyOrdinal`, `DisplayName`, `Description`, `Synonyms` und `Relationships`. Jede Beziehung enthält `Name`, `Source`, `Target`, `Cardinality` und `Direction`.
+
+## `execute_query_sql`
+
+```text
+execute_query_sql(sql: string)
+```
+
+Liefert `Success`, `Provider`, `RowCount`, `DurationMs`, `Rows` und `Error`. `Rows` ist eine Liste von JSON-Objekten mit Spaltennamen als Schlüsseln.
+
+Nicht unterstütztes SQL, Autorisierungs- oder Policy-Ablehnungen, Timeouts, Serverüberlastung und Ausführungsfehler bleiben fail closed. Wenn die Abfrage nicht abgeschlossen wird, stehen maschinenlesbare Fehlerdetails bereit.
+
+Die strukturierte Ausgabe ändert die SQL-Sicherheitsgrenze nicht: Parsen, Binden, Autorisieren, Policy- und Quelldialektprüfung, Fähigkeitsnachweis für das Ziel, Kompilieren eines unveränderlichen Befehls und erst danach Ausführen.
+
+## `execute_dml_sql`
+
+```text
+execute_dml_sql(sql: string)
+```
+
+DML bleibt für neu ausgestellte MCP-Schlüssel opt-in und ist standardmäßig nicht ausgewählt. Das Tool akzeptiert eine oder mehrere unterstützte, durch Semikolon getrennte Anweisungen und behält das bestehende Freigabemodell sowie die servergesteuerte atomare Transaktion bei.
+
+Das Ergebnis enthält `Status`, `Provider`, `Committed`, `StatementCount`, `AffectedRows`, `ApprovalWaitDurationMs`, `ApprovalDecision`, `ApprovalRequestId`, `ApprovalExternalReference`, `ReturnedRows`, `Message` und `Error`.
+
+`Status` ist genau `committed`, `pending`, `rejected` oder `failed`.
+
+`pending` und `rejected` sind gültige Freigabezustände und keine Ausführungsfehler. Deshalb ist `Error` dort null. `Error` wird nur gesetzt, wenn `Status` den Wert `failed` hat.
+
+Verwendet ein erfolgreich committetes DML eine unterstützte Ergebnisklausel wie `RETURNING`, enthält `ReturnedRows` die strukturierten Zeilen. Bei normalen Commits und allen nicht committeten Zuständen bleibt die Liste leer.
+
+Eine externe Freigabe im Zustand `pending` liefert eine stabile `ApprovalRequestId` und, falls vorhanden, `ApprovalExternalReference`. Zu diesem Zeitpunkt wurden noch keine Datenbankänderungen committet.
+
+## Sicherheitsgrenze
+
+Strukturierte Ergebnisse lockern weder SQL- noch Freigabegrenzen. Tabellenautorisierung, Compiler-Validierung, Policies, DML-Vorschau-Evidenz, Freigabebindung, Revalidierung, Transaktionshoheit und Rollback bleiben serverseitig erzwungen.
+
+Siehe [Sicheres DML](/de/docs/sql-compiler/safe-dml) und den [Upgrade-Leitfaden](/de/docs/reference/upgrade-guide).

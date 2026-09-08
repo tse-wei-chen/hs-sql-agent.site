@@ -1,0 +1,86 @@
+---
+title: Référence des outils MCP
+description: Contrats des outils MCP intégrés de hs-sql-agent 2.0.5, avec résultats structurés pour les requêtes, les métadonnées et les DML soumis à approbation.
+sidebar:
+  group: MCP
+  order: 35
+---
+
+hs-sql-agent limite volontairement sa surface MCP intégrée à cinq outils. En 2.0.5, les cinq renvoient un résultat exploitable directement par une machine via MCP `structuredContent`, avec un schéma de sortie déduit.
+
+| Outil | Entrée publique | Valeur par défaut d'une nouvelle clé | Résultat |
+| --- | --- | --- | --- |
+| `get_schemas` | aucune | activé | schémas visibles structurés |
+| `get_tables` | `schemaName: string` | activé | tables et métadonnées sémantiques structurées |
+| `get_columns` | `schemaName: string`, `tableName: string` | activé | colonnes et relations structurées |
+| `execute_query_sql` | `sql: string` | activé | lignes et erreurs structurées |
+| `execute_dml_sql` | `sql: string` | **désactivé** | état structuré d'approbation et de validation |
+
+Les Custom Tools publiés peuvent étendre la collection d'une base liée, mais ne deviennent pas des outils intégrés.
+
+## Contrat d'erreur commun
+
+Les échecs des outils de lecture/requête et les véritables échecs DML utilisent `McpToolError`.
+
+| Champ | Signification |
+| --- | --- |
+| `Code` | code d'erreur stable et exploitable par programme |
+| `Message` | détail lisible pouvant être présenté au client MCP |
+| `Stage` | étape du pipeline ou de l'exécution lorsqu'elle est connue |
+| `Retryable` | indique si la même requête peut réussir plus tard sans changer l'entrée |
+
+Les clients doivent se baser sur `Code`, `Stage` et le `Status` DML plutôt que d'analyser le texte de présentation.
+
+## `get_schemas`
+
+Renvoie `Success`, `Provider`, `Schemas` et `Error`. `Schemas` ne contient que les schémas visibles par la clé MCP courante.
+
+## `get_tables`
+
+Renvoie `Success`, `Provider`, `Schema`, `Tables` et `Error`.
+
+Chaque table contient `Name`, `DisplayName`, `Description`, `Synonyms` et `Metrics`. Chaque métrique contient `Name`, `DisplayName`, `Aggregation`, `Formula`, `Grain`, `Filter` et `Synonyms`.
+
+Les métadonnées sémantiques ne sont renvoyées que si elles sont configurées et autorisées. Le nom physique de la table reste l'identité d'exécution.
+
+## `get_columns`
+
+Renvoie `Success`, `Provider`, `Schema`, `Table`, `Columns` et `Error`.
+
+Chaque colonne contient `Name`, `Type`, `IsPrimaryKey`, `PrimaryKeyOrdinal`, `DisplayName`, `Description`, `Synonyms` et `Relationships`. Chaque relation contient `Name`, `Source`, `Target`, `Cardinality` et `Direction`.
+
+## `execute_query_sql`
+
+```text
+execute_query_sql(sql: string)
+```
+
+Renvoie `Success`, `Provider`, `RowCount`, `DurationMs`, `Rows` et `Error`. `Rows` est une liste d'objets JSON indexés par nom de colonne.
+
+SQL non pris en charge, refus d'autorisation ou de politique, délai dépassé, serveur saturé et échec d'exécution restent traités en fail closed. Une erreur exploitable par programme est renvoyée lorsque la requête n'aboutit pas.
+
+Le résultat structuré ne modifie pas la frontière SQL : analyse, liaison, autorisation, validation des politiques et du dialecte source, preuve des capacités de la cible, compilation d'une commande immuable, puis exécution.
+
+## `execute_dml_sql`
+
+```text
+execute_dml_sql(sql: string)
+```
+
+Le DML reste optionnel pour les nouvelles clés MCP et n'est pas activé par défaut. L'outil accepte une ou plusieurs instructions prises en charge séparées par des points-virgules et conserve l'approbation existante ainsi que la transaction atomique contrôlée par le serveur.
+
+Le résultat contient `Status`, `Provider`, `Committed`, `StatementCount`, `AffectedRows`, `ApprovalWaitDurationMs`, `ApprovalDecision`, `ApprovalRequestId`, `ApprovalExternalReference`, `ReturnedRows`, `Message` et `Error`.
+
+`Status` vaut exactement `committed`, `pending`, `rejected` ou `failed`.
+
+`pending` et `rejected` sont des états d'approbation valides, pas des erreurs d'exécution. `Error` est donc null dans ces deux cas et n'est renseigné que lorsque `Status` vaut `failed`.
+
+Lorsqu'un DML validé utilise une clause de résultat prise en charge telle que `RETURNING`, `ReturnedRows` contient directement les lignes structurées. Il reste vide pour un commit ordinaire et pour tout état non validé.
+
+Une approbation externe `pending` expose un `ApprovalRequestId` stable et, si le fournisseur en fournit une, la référence `ApprovalExternalReference`. Aucune modification de base n'est encore validée à ce stade.
+
+## Frontière de sécurité
+
+Les résultats structurés n'assouplissent ni SQL ni l'approbation. Autorisation des tables, validation du compilateur, politiques, preuves d'aperçu DML, liaison d'approbation, revalidation, propriété de transaction et rollback restent imposés côté serveur.
+
+Voir [DML sécurisé](/fr/docs/sql-compiler/safe-dml) et le [guide de mise à niveau](/fr/docs/reference/upgrade-guide).

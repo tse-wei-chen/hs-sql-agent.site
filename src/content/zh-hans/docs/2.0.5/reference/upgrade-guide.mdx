@@ -1,0 +1,98 @@
+---
+title: 升级指南
+description: 将 hs-sql-agent 从 2.0.4 升级到 2.0.5，涵盖结构化 MCP 结果、SQL Explain、Configuration Doctor 和统一的上线就绪流程。
+sidebar:
+  group: Reference
+  order: 144
+---
+
+## 2.0.5 有哪些变化
+
+2.0.5 聚焦 Agent DX、可解释性和部署就绪度。除了五个内置 MCP 工具改为机器可读的结构化返回契约，还新增 compile-only 的 SQL Explain / Policy Simulator、Configuration Doctor，以及从部署检查到第一条受治理 Agent 请求的统一流程。
+
+本版本**不会**放宽 fail-closed SQL 编译器、provider capability 检查、表/工具授权、DML 审批、row-set revalidation、rollback 行为或 server-owned transaction 边界。
+
+五个内置工具仍是 `get_schemas`、`get_tables`、`get_columns`、`execute_query_sql`、`execute_dml_sql`。
+
+## 结构化 MCP 结果迁移
+
+所有内置工具现在都通过 MCP `structuredContent` 和推导出的 output schema 提供类型化数据。面向人的文本仍保留，但自动化不应再解析 message 文本。
+
+`execute_query_sql` 请直接读取 `Success`、`Provider`、`RowCount`、`DurationMs`、`Rows`、`Error`。Metadata 工具请直接读取 `Schemas`、`Tables`、`Columns`；授权范围内的 Semantic Layer 信息会以嵌套结构化字段返回。
+
+错误处理应根据 `McpToolError.Code`、`Stage`、`Retryable` 分支，而不是匹配错误消息前缀。
+
+### DML 状态
+
+`execute_dml_sql` 的 `Status` 明确区分四种状态：
+
+| `Status` | 含义 | `Committed` | `Error` |
+| --- | --- | --- | --- |
+| `committed` | 已批准并提交 | `true` | null |
+| `pending` | 等待外部审批 | `false` | null |
+| `rejected` | 审批被拒绝 | `false` | null |
+| `failed` | policy、validation、concurrency、configuration 或 execution 失败 | `false` | 有值 |
+
+`pending` 和 `rejected` 是有效审批结果，不是执行异常。`pending` 表示数据库尚未提交任何变更。异步审批请保存 `ApprovalRequestId`；provider 提供时也可使用 `ApprovalExternalReference`。支持 `RETURNING` 等结果子句时，从 `ReturnedRows` 读取已提交结果。
+
+## SQL Explain / Policy Simulator
+
+Admin Console 的 Security 页面新增 SQL Explain / Policy Simulator。它使用真实 F# compiler pipeline、目标 provider 和已验证 runtime capability profile，但整个流程是 **compile-only**：不执行 SQL、不打开 transaction、不创建 DML approval request，也不能修改目标数据。
+
+支持 Query、DML 和 DML batch，也可以指定现有 MCP Key，从而按该 Key 的 tool access 和 table allowlist 模拟实际权限边界。
+
+结果包含 rendered target SQL、参数化值、referenced tables、QueryFacts、plan fingerprint、compiler decision boundary/code、带 source span 的 diagnostics、source/target capability evidence 和 effective policy evidence。
+
+DML affected-row 上限需要 runtime preview 才能获得真实 row-count evidence，因此 Simulator 不会把它伪装成 compile-time proof。
+
+## Configuration Doctor
+
+Runtime → Operability 新增 Configuration Doctor，API 为 `GET /api/runtime/operability/doctor`。
+
+Doctor 返回整体 `Healthy`、`Warning` 或 `Error`，并为每个检查项提供 `id`、`category`、`status`、`title`、`detail` 和可选 `action`。**不会返回 secret 实际值。**
+
+检查范围包括 MCP HMAC/JWT secret、`Mcp:PublicEndpoint`、Admin Store、Data Protection、Memory/Redis coordination、Redis connection string、fail-closed limiter/concurrency、DML Webhook approval、OIDC、OTLP、Alert/SIEM webhook，以及 database、active MCP Key、已观察 Agent traffic 等 readiness 状态。
+
+Coordination 会被分类为 `SingleNode`、`Distributed` 或 `Mixed`。`Error` 表示部署前提不完整或不安全；`Warning` 表示系统可能可用，但需要 operator 审查。
+
+## 统一的 System Readiness
+
+首页现有 System Readiness 在 2.0.5 中扩展为一条完整路径，而不是新增重复 wizard：
+
+1. 清除 Configuration Doctor blocker；
+2. 添加受治理 database connection；
+3. 验证公开 MCP endpoint；
+4. 发放 MCP access key；
+5. 完成第一条受治理 Agent request。
+
+Doctor `Warning` 不会阻塞 readiness，`Error` 才会。首页可显示公开 MCP endpoint 用于 onboarding，但不会显示 MCP Key secret。
+
+新 MCP Key 仍默认选择四个 read/query 工具，`execute_dml_sql` 仍需主动启用。
+
+## 升级检查清单
+
+部署后建议：
+
+1. 把解析工具文本的 MCP client 改为读取 structured fields；
+2. 在 Runtime → Operability 运行 Configuration Doctor；
+3. 修复全部 `Error`，并按实际 topology 审查 `Warning`；
+4. 在 Security Policy 使用 SQL Explain 验证代表性 Query/DML；
+5. 确认 `Mcp:PublicEndpoint` 是外部可访问的 `/mcp` URL；
+6. 确认 active key 的 database、tool set、table scope 正确；
+7. 连接客户端并完成一条受治理请求。
+
+## 不变的安全边界
+
+- 不支持的 SQL 仍 fail closed；
+- table allowlist 和 tool authorization 仍由服务端强制执行；
+- `execute_dml_sql` 对新 Key 仍为 opt-in；
+- multi-statement DML 仍只审批一次，并在 server-owned transaction 中原子提交；
+- durable pending approval 在提交前仍会重新验证 authorization、configuration、policy、plan、row-set 和 affected-row evidence；
+- client 提供的 transaction-control SQL 仍会被拒绝；
+- 这些 2.0.5 功能不要求 Admin Store schema migration。
+
+## 回滚注意事项
+
+回滚到 2.0.4 会恢复旧版 built-in MCP result shape，并移除 Explain、Doctor 和扩展版 readiness UI。如果 staged rollout 期间客户端必须同时支持 2.0.4 与 2.0.5，请让 structured-only 客户端具备版本兼容能力。
+
+完整字段请参阅 [MCP 工具参考](/zh-hans/docs/mcp/tools-reference)。

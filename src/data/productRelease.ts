@@ -1,9 +1,9 @@
 export const productRelease = {
   repository: "tse-wei-chen/hs-sql-agent",
-  version: "2.0.4",
-  tag: "v2.0.4",
-  sourceRef: "12e5e807ac2f492abc1ad46ba74a560cc28a29b2",
-  historicalTags: ["v2.0.3", "v2.0.2", "v2.0.1"],
+  version: "2.0.5",
+  tag: "v2.0.5",
+  sourceRef: "d9ed56b6c2339a6718d8a91a3de76752b1414d16",
+  historicalTags: ["v2.0.4", "v2.0.3", "v2.0.2", "v2.0.1"],
   sources: {
     version: "backend/Directory.Build.props",
     overview: "README.md",
@@ -14,7 +14,18 @@ export const productRelease = {
     webhookApprovals:
       "backend/src/Modules/HsSqlAgent.Approvals.Webhook/README.md",
     dmlTool: "backend/src/Modules/HsSqlAgent.Server/Tools/SqlAgentTool.Dml.cs",
+    mcpToolResults:
+      "backend/src/Modules/HsSqlAgent.Server/Models/McpToolResults.cs",
     mcpBuiltInCatalog: "backend/src/Common/Models/McpBuiltInTools.cs",
+    sqlExplainController:
+      "backend/src/Modules/HsSqlAgent.Server/Controllers/SqlExplainController.cs",
+    sqlExplainContextController:
+      "backend/src/Modules/HsSqlAgent.Server/Controllers/SqlExplainContextController.cs",
+    runtimeDoctorController:
+      "backend/src/Modules/HsSqlAgent.Server/Controllers/RuntimeDoctorController.cs",
+    runtimeDoctorAnalyzer:
+      "backend/src/Modules/HsSqlAgent.Server/Services/RuntimeDoctorAnalyzer.cs",
+    systemReadiness: "frontend/app/lib/systemReadiness.ts",
     permissions:
       "backend/src/Modules/Auth.Service/Authorization/PermissionCanonicalPaths.cs",
     mcpBuiltIns:

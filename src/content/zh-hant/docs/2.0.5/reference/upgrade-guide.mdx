@@ -1,0 +1,114 @@
+---
+title: 升級指南
+description: 將 hs-sql-agent 從 2.0.4 升級到 2.0.5，涵蓋結構化 MCP 結果、SQL Explain、Configuration Doctor 與整合後的上線就緒流程。
+sidebar:
+  group: Reference
+  order: 144
+---
+
+## 2.0.5 改了什麼
+
+2.0.5 是一個以 Agent DX、可解釋性與部署就緒度為主的版本。除了五項內建 MCP 工具改為機器可讀的結構化回傳契約，也加入 compile-only 的 SQL Explain / Policy Simulator、Configuration Doctor，以及從部署檢查一路走到第一筆受治理 Agent 請求的整合流程。
+
+這次版本**沒有**放寬 fail-closed SQL 編譯器、provider capability 檢查、資料表／工具授權、DML 核准、row-set revalidation、rollback 行為或 server-owned transaction 邊界。
+
+五項內建 MCP 工具仍是 `get_schemas`、`get_tables`、`get_columns`、`execute_query_sql`、`execute_dml_sql`。
+
+## 結構化 MCP 結果遷移
+
+五項內建工具現在都會透過 MCP `structuredContent` 與推導出的 output schema 提供具型別資料。人類可讀的呈現欄位仍保留，但自動化流程不應再解析 message 文字。
+
+`execute_query_sql` 請直接使用 `Success`、`Provider`、`RowCount`、`DurationMs`、`Rows`、`Error`。Metadata 工具請直接使用 `Schemas`、`Tables`、`Columns`；有權限看到的 Semantic Layer 資訊會以巢狀結構化欄位提供。
+
+錯誤處理請依 `McpToolError.Code`、`Stage`、`Retryable` 分支，不要再比對訊息前綴。
+
+### DML 回傳狀態
+
+`execute_dml_sql` 的 `Status` 有四種明確狀態：
+
+| `Status` | 意義 | `Committed` | `Error` |
+| --- | --- | --- | --- |
+| `committed` | 已核准並完成 commit | `true` | null |
+| `pending` | 等待外部核准 | `false` | null |
+| `rejected` | 核准被拒絕 | `false` | null |
+| `failed` | policy、validation、concurrency、configuration 或 execution 失敗 | `false` | 有值 |
+
+`pending` 與 `rejected` 是合法的核准結果，不是執行錯誤。`pending` 代表資料庫尚未 commit 任何變更。非同步核准流程請保存 `ApprovalRequestId`；provider 有提供時也可使用 `ApprovalExternalReference` 做關聯。支援 `RETURNING` 等結果子句時，commit 後的資料請從 `ReturnedRows` 讀取。
+
+## SQL Explain / Policy Simulator
+
+Admin Console 的 Security 頁新增 SQL Explain / Policy Simulator。它會以真正的 F# compiler pipeline，搭配所選資料庫 provider 與已驗證的 runtime capability profile 進行編譯，但整個功能是 **compile-only**：
+
+- 不執行 SQL；
+- 不開啟 database transaction；
+- 不建立 DML approval request；
+- Simulator 本身無法修改目標資料。
+
+支援 Query 與 DML，也支援 DML batch。你可以選擇既有 MCP Key，讓 tool access 與 table allowlist 依該 Key 的實際 scope 一起模擬。
+
+結果會顯示 rendered target SQL、參數化值、referenced tables、適用時的 QueryFacts、plan fingerprint、compiler decision boundary/code、帶 source span 的 diagnostics、source/target capability evidence，以及 effective policy evidence。
+
+DML affected-row 上限需要 runtime preview 才能取得真實 row-count evidence，因此 Simulator 不會把它假裝成 compile-time proof。需要影響筆數證據時，仍應走正常 DML execution / approval 流程。
+
+## Configuration Doctor
+
+Runtime → Operability 現在提供 Configuration Doctor，API 為 `GET /api/runtime/operability/doctor`，需要 Operability view 權限。
+
+Doctor 會回傳整體 `Healthy`、`Warning` 或 `Error`，每個檢查項目包含 `id`、`category`、`status`、`title`、`detail` 與可選的 `action`。**不會回傳 secret 實際內容。**
+
+檢查範圍包含：
+
+- MCP HMAC 與 JWT signing secret 是否存在、長度是否足夠、是否仍為常見範例值；
+- `Mcp:PublicEndpoint` URL posture；
+- Admin Store 設定，以及 distributed + SQLite 不一致問題；
+- Data Protection key 是否有持久化；
+- `CacheConfig`、`RateLimiter`、`SecurityPolicySync`、`OutboundDeliverySync`、`SqlConcurrency` coordination provider；
+- Redis 缺 connection string、Memory / Redis 混用，以及 limiter / concurrency 是否維持 fail-closed；
+- DML approval provider 與 Webhook 必要設定；
+- OIDC 必要設定與 Production HTTPS metadata posture；
+- OTLP、Alert webhook、SIEM webhook；
+- database、active MCP Key 與已觀測 Agent traffic 的 readiness。
+
+Doctor 會把 coordination 判定為 `SingleNode`、`Distributed` 或 `Mixed`。`Error` 代表部署前提不完整或不安全；`Warning` 代表可以運作，但該設定值得 operator 進一步確認。
+
+## 整合後的 System Readiness
+
+首頁原本就有 System Readiness，2.0.5 不再另外造一套 wizard，而是把它擴充成單一路徑：
+
+1. 清除 Configuration Doctor blocker；
+2. 建立受治理的 database connection；
+3. 確認公開 MCP endpoint；
+4. 發行 MCP access key；
+5. 完成第一筆受治理的 Agent request。
+
+Doctor 的 `Warning` 不會阻擋 readiness；`Error` 才會。首頁可以顯示已設定的公開 MCP endpoint 協助 onboarding，但**不會顯示 MCP Key secret**。
+
+新建 MCP Key 仍預設勾選四個 read/query 工具，`execute_dml_sql` 仍然是 opt-in。
+
+## 升級檢查清單
+
+部署 2.0.5 後建議依序確認：
+
+1. 若 MCP client 有解析工具文字，改讀 structured fields；
+2. 到 Runtime → Operability 執行 Configuration Doctor；
+3. 在視為 deployment ready 前先修掉所有 `Error`，並依實際 topology 檢查 `Warning`；
+4. 到 Security Policy 使用 SQL Explain，以實際 provider / policy 邊界驗證代表性的 Query 與 DML；
+5. 確認 `Mcp:PublicEndpoint` 是外部真正可連線的 `/mcp` URL；
+6. 確認至少一把 active key 指向正確 database、tool set 與 table scope；
+7. 連接 MCP client，完成一筆受治理請求。
+
+## 不變的安全邊界
+
+- 不支援的 SQL 仍 fail closed；
+- table allowlist 與 tool authorization 仍由 server 強制執行；
+- 新 Key 的 `execute_dml_sql` 仍是 opt-in；
+- multi-statement DML 仍只核准一次，並以 server-owned transaction 按順序 atomic commit；
+- durable pending approval 在後續 commit 前仍會重新驗證 authorization、configuration、policy、plan、row-set 與 affected-row evidence；
+- client 自帶 transaction-control SQL 仍會被拒絕；
+- 以上 2.0.5 功能不需要 Admin Store schema migration。
+
+## 回滾考量
+
+回滾到 2.0.4 會恢復舊版 built-in MCP result shape，並移除 2.0.5 的 Explain、Doctor 與擴充版 readiness UI。若 staged rollout 期間 client 必須同時支援兩個 server 版本，已改成 structured-only 欄位存取的 client 需要自行做版本相容處理。
+
+完整欄位請參考 [MCP 工具參考](/zh-hant/docs/mcp/tools-reference)。

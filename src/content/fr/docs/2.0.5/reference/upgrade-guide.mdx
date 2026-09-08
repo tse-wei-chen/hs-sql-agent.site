@@ -1,0 +1,101 @@
+---
+title: Guide de mise à niveau
+description: Mettre hs-sql-agent à niveau de 2.0.4 vers 2.0.5 avec les résultats MCP structurés, SQL Explain, Configuration Doctor et un parcours de readiness unifié.
+sidebar:
+  group: Reference
+  order: 144
+---
+
+## Ce qui change en 2.0.5
+
+La version 2.0.5 est centrée sur l’Agent DX, l’explicabilité et la préparation au déploiement. Les cinq outils MCP intégrés renvoient désormais des résultats structurés lisibles par machine. La version ajoute aussi SQL Explain / Policy Simulator en mode compile-only, Configuration Doctor et un parcours unifié jusqu’à la première governed agent request.
+
+Les limites fail-closed ne sont **pas** assouplies : SQL compiler, contrôles de provider capability, table/tool authorization, DML approval, row-set revalidation, rollback et server-owned transaction restent des frontières imposées côté serveur.
+
+Les cinq outils intégrés restent `get_schemas`, `get_tables`, `get_columns`, `execute_query_sql` et `execute_dml_sql`.
+
+## Migration vers les résultats MCP structurés
+
+Tous les built-ins exposent maintenant des données typées via MCP `structuredContent` et un output schema inféré. Les champs de présentation lisibles par une personne restent disponibles, mais les automatisations ne devraient plus analyser le texte de `Message`.
+
+Pour `execute_query_sql`, utilisez directement `Success`, `Provider`, `RowCount`, `DurationMs`, `Rows` et `Error`. Les outils de metadata exposent `Schemas`, `Tables` et `Columns`; les informations autorisées du Semantic Layer sont renvoyées sous forme de champs structurés imbriqués.
+
+Pour les erreurs, branchez la logique sur `McpToolError.Code`, `Stage` et `Retryable` plutôt que sur des préfixes de message.
+
+### États DML
+
+`execute_dml_sql` distingue quatre valeurs de `Status` :
+
+| `Status` | Signification | `Committed` | `Error` |
+| --- | --- | --- | --- |
+| `committed` | approuvé et committed | `true` | null |
+| `pending` | en attente d’une approbation externe | `false` | null |
+| `rejected` | approbation refusée | `false` | null |
+| `failed` | échec policy, validation, concurrency, configuration ou execution | `false` | renseigné |
+
+`pending` et `rejected` sont des résultats d’approbation valides, pas des erreurs d’exécution. Avec `pending`, aucune modification n’a encore été committed. Pour les approbations asynchrones, conservez `ApprovalRequestId` et utilisez `ApprovalExternalReference` lorsque le provider le fournit. Les résultats d’une clause comme `RETURNING` sont disponibles dans `ReturnedRows` après commit.
+
+## SQL Explain / Policy Simulator
+
+La page Security de l’Admin Console inclut maintenant SQL Explain / Policy Simulator. Il utilise le vrai F# compiler pipeline, le target provider sélectionné et son runtime capability profile vérifié, tout en restant entièrement **compile-only** :
+
+- aucun SQL n’est exécuté ;
+- aucune database transaction n’est ouverte ;
+- aucune DML approval request n’est créée ;
+- le simulateur ne peut modifier aucune donnée cible.
+
+Query, DML et les DML batches sont pris en charge. Un MCP Key existant peut être sélectionné pour simuler son tool access et sa table allowlist effectifs.
+
+Le résultat expose le rendered target SQL, les valeurs paramétrées, les referenced tables, QueryFacts, le plan fingerprint, le compiler decision boundary/code, les diagnostics avec source spans, le source/target capability evidence et l’effective policy evidence.
+
+La limite DML affected-row dépend du row-count evidence obtenu au runtime preview ; elle n’est donc pas présentée à tort comme une preuve compile-time.
+
+## Configuration Doctor
+
+Runtime → Operability propose maintenant Configuration Doctor. L’API est `GET /api/runtime/operability/doctor`.
+
+Doctor renvoie un état global `Healthy`, `Warning` ou `Error` et des contrôles contenant `id`, `category`, `status`, `title`, `detail` et éventuellement `action`. **Les valeurs des secrets ne sont jamais renvoyées.**
+
+Les contrôles couvrent notamment les secrets MCP HMAC/JWT, `Mcp:PublicEndpoint`, l’Admin Store, Data Protection, la coordination Memory/Redis, les Redis connection strings manquantes, le comportement fail-closed du limiter/concurrency, DML Webhook approval, OIDC, OTLP, les webhooks Alert/SIEM ainsi que la readiness database, active MCP Key et agent traffic observé.
+
+La coordination est classée `SingleNode`, `Distributed` ou `Mixed`. `Error` signifie qu’un prérequis nécessaire ou lié à la sécurité n’est pas satisfait. `Warning` signifie que la configuration peut fonctionner mais mérite une revue opérateur.
+
+## System Readiness unifié
+
+Le System Readiness existant sur la page Home est étendu au lieu d’introduire un second wizard :
+
+1. corriger les blockers de Configuration Doctor ;
+2. ajouter une governed database connection ;
+3. vérifier le public MCP endpoint ;
+4. émettre un MCP access key ;
+5. terminer la première governed agent request.
+
+Les `Warning` de Doctor ne bloquent pas la readiness ; les `Error` la bloquent. Le public MCP endpoint peut être affiché pour l’onboarding, mais jamais le secret du MCP Key.
+
+Les nouveaux MCP Keys continuent de sélectionner par défaut les quatre outils read/query ; `execute_dml_sql` reste opt-in.
+
+## Checklist après mise à niveau
+
+1. Migrer les MCP clients qui analysent le texte vers les structured fields.
+2. Exécuter Configuration Doctor dans Runtime → Operability.
+3. Corriger tous les `Error` et revoir les `Warning` selon la topologie réelle.
+4. Utiliser SQL Explain dans Security Policy pour vérifier des Query/DML représentatifs.
+5. Vérifier que `Mcp:PublicEndpoint` correspond à l’URL `/mcp` réellement accessible de l’extérieur.
+6. Vérifier database, tool set et table scope d’au moins une clé active.
+7. Connecter le client et terminer une governed request.
+
+## Frontières de sécurité inchangées
+
+- le SQL non pris en charge continue d’échouer en mode fail closed ;
+- les table allowlists et tool authorization restent imposées côté serveur ;
+- `execute_dml_sql` reste opt-in pour les nouvelles clés ;
+- le DML multi-statement reste approuvé une fois puis committed atomiquement dans une server-owned transaction ;
+- une durable pending approval revalide authorization, configuration, policy, plan, row-set et affected-row evidence avant commit ;
+- le transaction-control SQL fourni par le client reste rejeté ;
+- ces fonctionnalités 2.0.5 ne nécessitent pas de migration du schéma Admin Store.
+
+## Retour arrière
+
+Un retour vers 2.0.4 restaure l’ancien built-in MCP result shape et retire Explain, Doctor et la readiness UI étendue. Lors d’un déploiement progressif, les clients utilisant uniquement les structured fields doivent être conscients de la version du serveur.
+
+Consultez la [Référence des outils MCP](/fr/docs/mcp/tools-reference) pour les champs exacts.

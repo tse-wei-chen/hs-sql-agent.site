@@ -1,0 +1,86 @@
+---
+title: MCP ツールリファレンス
+description: hs-sql-agent 2.0.5 の組み込み MCP ツール契約。クエリ、メタデータ探索、承認付き DML の構造化結果を説明します。
+sidebar:
+  group: MCP
+  order: 35
+---
+
+hs-sql-agent の組み込み MCP ツールは意図的に 5 個だけに限定されています。2.0.5 では、5 個すべてが MCP `structuredContent` を通じて機械判読可能な構造化結果を返し、出力スキーマも推論されます。
+
+| ツール | 公開入力 | 新規キーの既定値 | 結果 |
+| --- | --- | --- | --- |
+| `get_schemas` | なし | 有効 | スキーマ一覧 |
+| `get_tables` | `schemaName: string` | 有効 | テーブルとセマンティックメタデータ |
+| `get_columns` | `schemaName: string`, `tableName: string` | 有効 | カラムとリレーション |
+| `execute_query_sql` | `sql: string` | 有効 | クエリ行とエラー情報 |
+| `execute_dml_sql` | `sql: string` | **無効** | 承認状態とコミット状態 |
+
+公開済み Custom Tool は対象データベースのツール集合を拡張できますが、組み込みツールには含まれません。
+
+## 共通エラー契約
+
+読み取り／クエリ系ツールの失敗と、実際に失敗した DML は `McpToolError` を返します。
+
+| フィールド | 意味 |
+| --- | --- |
+| `Code` | 安定した機械判読用エラーコード |
+| `Message` | MCP クライアントに安全に表示できる説明 |
+| `Stage` | 判明している場合の拒否・失敗段階 |
+| `Retryable` | 入力を変えずに後で再試行して成功する可能性があるか |
+
+クライアントは表示文字列を解析せず、`Code`、`Stage`、DML の `Status` で分岐してください。
+
+## `get_schemas`
+
+`Success`、`Provider`、`Schemas`、`Error` を返します。`Schemas` には現在の MCP キーから見えるスキーマ名だけが含まれます。
+
+## `get_tables`
+
+`Success`、`Provider`、`Schema`、`Tables`、`Error` を返します。
+
+各テーブルは `Name`、`DisplayName`、`Description`、`Synonyms`、`Metrics` を持ちます。各メトリクスは `Name`、`DisplayName`、`Aggregation`、`Formula`、`Grain`、`Filter`、`Synonyms` を持ちます。
+
+セマンティックメタデータは設定済みかつ許可されている場合だけ返されます。実テーブル名は引き続き実行時の識別子です。
+
+## `get_columns`
+
+`Success`、`Provider`、`Schema`、`Table`、`Columns`、`Error` を返します。
+
+各カラムは `Name`、`Type`、`IsPrimaryKey`、`PrimaryKeyOrdinal`、`DisplayName`、`Description`、`Synonyms`、`Relationships` を持ちます。各リレーションは `Name`、`Source`、`Target`、`Cardinality`、`Direction` を持ちます。
+
+## `execute_query_sql`
+
+```text
+execute_query_sql(sql: string)
+```
+
+`Success`、`Provider`、`RowCount`、`DurationMs`、`Rows`、`Error` を返します。`Rows` はカラム名をキーにした JSON オブジェクトの配列です。
+
+未対応 SQL、認可拒否、ポリシー拒否、タイムアウト、サーバー混雑、実行失敗は引き続き fail closed です。クエリが完了しなかった場合は機械判読可能なエラー情報が返ります。
+
+構造化結果になっても SQL の安全境界は変わりません。解析、バインド、認可、ポリシーと入力方言の検証、対象 DB の能力証明、不変コマンドへのコンパイルを経てから実行されます。
+
+## `execute_dml_sql`
+
+```text
+execute_dml_sql(sql: string)
+```
+
+DML は新規 MCP キーでは引き続きオプトインで、既定では選択されません。1 文またはセミコロン区切りの複数 DML を受け取り、既存の承認フローとサーバー所有の原子トランザクションを維持します。
+
+結果には `Status`、`Provider`、`Committed`、`StatementCount`、`AffectedRows`、`ApprovalWaitDurationMs`、`ApprovalDecision`、`ApprovalRequestId`、`ApprovalExternalReference`、`ReturnedRows`、`Message`、`Error` が含まれます。
+
+`Status` は `committed`、`pending`、`rejected`、`failed` のいずれかです。
+
+`pending` と `rejected` は正常な承認状態であり、実行エラーではありません。そのため `Error` は null です。`Error` が設定されるのは `Status` が `failed` の場合だけです。
+
+コミット済み DML が `RETURNING` など対応済みの結果句を使った場合、`ReturnedRows` に構造化された行が入ります。通常のコミットと未コミット状態では空配列です。
+
+外部承認が `pending` の場合は安定した `ApprovalRequestId` が返り、承認プロバイダーが外部参照を返した場合は `ApprovalExternalReference` も含まれます。この時点では DB 変更はコミットされていません。
+
+## 安全境界
+
+構造化結果は SQL や承認の安全境界を緩めません。テーブル認可、コンパイラ検証、ポリシー、DML プレビュー証拠、承認の拘束、再検証、トランザクション所有、ロールバックは引き続きサーバー側で強制されます。
+
+[Safe DML](/ja/docs/sql-compiler/safe-dml) と[アップグレードガイド](/ja/docs/reference/upgrade-guide)も参照してください。

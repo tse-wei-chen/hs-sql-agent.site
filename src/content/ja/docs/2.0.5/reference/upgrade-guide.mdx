@@ -1,0 +1,101 @@
+---
+title: アップグレードガイド
+description: hs-sql-agent を 2.0.4 から 2.0.5 へ更新し、構造化 MCP 結果、SQL Explain、Configuration Doctor、統合された readiness フローへ移行します。
+sidebar:
+  group: Reference
+  order: 144
+---
+
+## 2.0.5 の変更点
+
+2.0.5 は Agent DX、説明可能性、デプロイ readiness を中心としたリリースです。5 つの組み込み MCP ツールが機械可読な構造化結果を返すようになり、compile-only の SQL Explain / Policy Simulator、Configuration Doctor、最初の governed agent request までをつなぐ System Readiness が追加・拡張されました。
+
+このリリースで fail-closed SQL compiler、provider capability 検証、table/tool authorization、DML approval、row-set revalidation、rollback、server-owned transaction の境界が緩和されることはありません。
+
+組み込みツールは引き続き `get_schemas`、`get_tables`、`get_columns`、`execute_query_sql`、`execute_dml_sql` の 5 つです。
+
+## 構造化 MCP 結果への移行
+
+すべての組み込みツールは MCP `structuredContent` と推論された output schema を通じて型付きデータを公開します。人向けの表示テキストは残りますが、自動処理では message 文字列を解析しないでください。
+
+`execute_query_sql` では `Success`、`Provider`、`RowCount`、`DurationMs`、`Rows`、`Error` を直接利用します。Metadata ツールでは `Schemas`、`Tables`、`Columns` を利用し、許可された Semantic Layer 情報もネストされた構造化フィールドとして返されます。
+
+エラー分岐はメッセージ文字列ではなく `McpToolError.Code`、`Stage`、`Retryable` に基づいてください。
+
+### DML の状態
+
+`execute_dml_sql` の `Status` は次の 4 状態です。
+
+| `Status` | 意味 | `Committed` | `Error` |
+| --- | --- | --- | --- |
+| `committed` | 承認済みで commit 完了 | `true` | null |
+| `pending` | 外部承認待ち | `false` | null |
+| `rejected` | 承認が拒否された | `false` | null |
+| `failed` | policy / validation / concurrency / configuration / execution の失敗 | `false` | 値あり |
+
+`pending` と `rejected` は正常な approval outcome であり、execution error ではありません。`pending` の時点ではデータベース変更は commit されていません。非同期承認では `ApprovalRequestId` を保持し、provider が返す場合は `ApprovalExternalReference` も利用できます。`RETURNING` などの結果は `ReturnedRows` から取得します。
+
+## SQL Explain / Policy Simulator
+
+Admin Console の Security ページに SQL Explain / Policy Simulator が追加されます。実際の F# compiler pipeline、選択した provider、検証済み runtime capability profile を利用しますが、処理は **compile-only** です。
+
+- SQL を実行しません。
+- database transaction を開始しません。
+- DML approval request を作成しません。
+- simulator から対象データを変更できません。
+
+Query、DML、DML batch をサポートし、既存の MCP Key を指定して tool access と table allowlist を実際の scope でシミュレートできます。
+
+結果には rendered target SQL、parameterized values、referenced tables、QueryFacts、plan fingerprint、compiler decision boundary/code、source span 付き diagnostics、source/target capability evidence、effective policy evidence が含まれます。
+
+DML affected-row 上限は runtime preview の row-count evidence が必要なため、compile-time proof としては表示されません。
+
+## Configuration Doctor
+
+Runtime → Operability に Configuration Doctor が追加されます。API は `GET /api/runtime/operability/doctor` です。
+
+Doctor は全体を `Healthy`、`Warning`、`Error` で評価し、各項目に `id`、`category`、`status`、`title`、`detail`、任意の `action` を返します。**secret の実値は返しません。**
+
+MCP HMAC/JWT secret、`Mcp:PublicEndpoint`、Admin Store、Data Protection、Memory/Redis coordination、Redis connection string、fail-closed limiter/concurrency、DML Webhook approval、OIDC、OTLP、Alert/SIEM webhook、database・active MCP Key・agent traffic readiness を確認します。
+
+Coordination は `SingleNode`、`Distributed`、`Mixed` に分類されます。`Error` は安全または必須条件が満たされていない状態、`Warning` は動作可能でも operator review が必要な状態です。
+
+## 統合された System Readiness
+
+既存の Home の System Readiness を別 wizard で置き換えるのではなく、2.0.5 では次の 1 本の launch path に拡張します。
+
+1. Configuration Doctor の blocker を解消する。
+2. governed database connection を追加する。
+3. public MCP endpoint を確認する。
+4. MCP access key を発行する。
+5. 最初の governed agent request を完了する。
+
+Doctor の `Warning` は readiness をブロックしませんが、`Error` はブロックします。Home は onboarding 用に public MCP endpoint を表示できますが、MCP Key secret は表示しません。
+
+新規 MCP Key は引き続き 4 つの read/query ツールがデフォルトで、`execute_dml_sql` は opt-in です。
+
+## アップグレード後の確認
+
+1. ツールテキストを解析している MCP client を structured fields 利用へ移行する。
+2. Runtime → Operability で Configuration Doctor を実行する。
+3. すべての `Error` を解消し、topology に応じて `Warning` を確認する。
+4. Security Policy の SQL Explain で代表的な Query/DML を検証する。
+5. `Mcp:PublicEndpoint` が外部から到達可能な `/mcp` URL であることを確認する。
+6. active key の database、tool set、table scope を確認する。
+7. client を接続し、governed request を 1 件完了する。
+
+## 変わらない安全境界
+
+- 未対応 SQL は引き続き fail closed です。
+- table allowlist と tool authorization は server-side で強制されます。
+- 新規 Key の `execute_dml_sql` は opt-in のままです。
+- multi-statement DML は 1 回の承認後、server-owned transaction で atomic commit されます。
+- durable pending approval は commit 前に authorization、configuration、policy、plan、row-set、affected-row evidence を再検証します。
+- client 指定の transaction-control SQL は拒否されます。
+- これらの 2.0.5 機能に Admin Store schema migration は不要です。
+
+## ロールバック
+
+2.0.4 に戻すと旧 built-in MCP result shape に戻り、Explain、Doctor、拡張 readiness UI はなくなります。段階的 rollout で両バージョンを扱う client は version-aware にしてください。
+
+正確なフィールド定義は [MCP ツールリファレンス](/ja/docs/mcp/tools-reference) を参照してください。

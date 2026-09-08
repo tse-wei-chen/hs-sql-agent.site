@@ -1,27 +1,29 @@
 # hs-sql-agent
 
-> hs-sql-agent provides governed SQL access for AI agents through MCP, with fail-closed typed SQL compilation, scoped access policies, approval-gated DML, and support for PostgreSQL, MySQL, SQL Server, Oracle, SQLite, and Firebird.
+> hs-sql-agent provides governed SQL access for AI agents through MCP, with fail-closed typed SQL compilation, scoped access policies, approval-gated DML, explainable compiler decisions, deployment diagnostics, and support for PostgreSQL, MySQL, SQL Server, Oracle, SQLite, and Firebird.
 
-Current documented release: **2.0.4**. Product behavior is pinned by `src/data/productRelease.ts`; prerelease documentation may pin an immutable product commit until the matching release tag exists.
+Current documented release: **2.0.5**. Product behavior is pinned by `src/data/productRelease.ts`; prerelease documentation pins an immutable product commit until the matching release tag exists.
 
-The documentation site is localized in English, Traditional Chinese, Simplified Chinese, Japanese, Korean, French, and German. Prefer stable unversioned documentation URLs for the current release. Versioned Docs inherit unchanged pages from the immediate parent release and override only pages whose product behavior changed.
+The documentation site is localized in English, Traditional Chinese, Simplified Chinese, Japanese, Korean, French, and German. Prefer stable unversioned documentation URLs for the current release.
 
 ## Product consumption paths
 
 - **Standalone service:** deploy the official Docker image / ToolBox composition.
-- **Complete embedded product:** use `HsSqlAgent.Hosting` for the same standard first-party composition and configuration contract as Docker.
+- **Complete embedded product:** use `HsSqlAgent.Hosting` for the standard first-party composition and configuration contract.
 - **Custom ASP.NET Core integration:** use `HsSqlAgent.Server` when the host must own authentication, authorization, middleware, UI, telemetry, or approval-provider composition.
 
 ## Start here
 
-- [Introduction](https://sql-agent.net/en/docs/getting-started/introduction): Security boundary, supported databases, and product consumption paths.
-- [Quick start](https://sql-agent.net/en/docs/getting-started/quick-start): Docker, `HsSqlAgent.Hosting`, and `HsSqlAgent.Server` startup paths.
-- [MCP client onboarding](https://sql-agent.net/en/docs/mcp/client-onboarding): Issue an MCP key and connect a client.
-- [MCP tools reference](https://sql-agent.net/en/docs/mcp/tools-reference): The five built-in MCP tool contracts.
+- [Introduction](https://sql-agent.net/en/docs/getting-started/introduction)
+- [Quick start](https://sql-agent.net/en/docs/getting-started/quick-start)
+- [MCP client onboarding](https://sql-agent.net/en/docs/mcp/client-onboarding)
+- [MCP tools reference](https://sql-agent.net/en/docs/mcp/tools-reference)
+- [Safe DML](https://sql-agent.net/en/docs/sql-compiler/safe-dml)
+- [Upgrade guide](https://sql-agent.net/en/docs/reference/upgrade-guide)
 
 ## Built-in MCP tools
 
-The built-in surface is intentionally limited to exactly five names and is enforced from one server-side catalog:
+The built-in surface is intentionally limited to exactly five names:
 
 - `get_schemas`
 - `get_tables`
@@ -29,78 +31,71 @@ The built-in surface is intentionally limited to exactly five names and is enfor
 - `execute_query_sql`
 - `execute_dml_sql`
 
-`update_semantic_layer` is not a built-in MCP tool. Semantic metadata is an administrative control-plane surface and remains editable through the permission-protected Admin UI/API. Read-only metadata discovery can still include authorized semantic descriptions, synonyms, relationships, and metrics.
+All five built-ins expose MCP structured results with inferred output schemas. Read/query tools return typed success/error payloads instead of requiring clients to parse presentation text.
 
-`execute_dml_sql` accepts one or more supported semicolon-separated DML statements. There is no separate `execute_dml_sql_batch` tool. A multi-statement request is approved once, executed in original order, and committed atomically inside one server-owned transaction. Client-supplied transaction-control SQL is rejected.
+`execute_query_sql` returns `Success`, `Provider`, `RowCount`, `DurationMs`, `Rows`, and `Error`.
+
+Metadata discovery is structured. Table and column results can include authorized Semantic Layer display names, descriptions, synonyms, relationships, and metrics.
+
+`execute_dml_sql` returns an explicit `Status` of `committed`, `pending`, `rejected`, or `failed`. It also exposes `Provider`, `Committed`, `StatementCount`, `AffectedRows`, `ApprovalWaitDurationMs`, `ApprovalDecision`, `ApprovalRequestId`, `ApprovalExternalReference`, `ReturnedRows`, `Message`, and `Error`. `pending` and `rejected` are approval states rather than execution errors; `Error` is populated only when `Status` is `failed`.
+
+DML remains opt-in for newly issued MCP keys. The default posture selects the four read/query tools and excludes `execute_dml_sql`.
 
 Published Custom Tools can extend a database's tool collection but are not additional built-in tools.
 
+## SQL Explain and policy simulation
+
+The Admin Console Security page includes SQL Explain / Policy Simulator. It uses the real F# compiler pipeline and the selected database's verified runtime capability profile, but the feature is compile-only: it does not execute SQL, open a database transaction, create a DML approval request, or mutate target data.
+
+Query, DML, and DML batches can be explained. An existing MCP key can be selected to simulate its effective tool and table scope.
+
+Explain results expose rendered target SQL, parameterized values, referenced tables, plan fingerprint, compiler decision boundary/code, diagnostics with source spans, source/target capability evidence, and policy evidence. DML affected-row limits require runtime preview evidence and are not represented as compile-time proof.
+
+## Configuration Doctor and readiness
+
+Runtime → Operability includes Configuration Doctor at `GET /api/runtime/operability/doctor`.
+
+Doctor returns overall and per-check `Healthy`, `Warning`, or `Error` states with operator-facing details/actions. Secret values are never returned. It checks MCP HMAC/JWT secret posture, `Mcp:PublicEndpoint`, Admin Store, Data Protection persistence, coordination providers, Redis completeness, fail-closed distributed limiter/concurrency posture, DML approval configuration, OIDC, OTLP, Alert/SIEM webhooks, and onboarding state.
+
+Runtime coordination is classified as `SingleNode`, `Distributed`, or `Mixed`.
+
+Home System Readiness uses one launch path:
+
+1. clear Configuration Doctor blockers;
+2. add a governed database connection;
+3. verify the public MCP endpoint;
+4. issue an MCP access key;
+5. complete the first governed agent request.
+
+Doctor `Warning` items deserve review but do not block readiness; Doctor `Error` items do. The dashboard can surface the configured public MCP endpoint but never the MCP key secret.
+
 ## SQL compiler and Safe DML
 
-- [Execution model](https://sql-agent.net/en/docs/sql-compiler/execution-model): Parse, bind, authorize, validate, prove, compile, and execute.
-- [SQL support](https://sql-agent.net/en/docs/sql-compiler/sql-support): Supported SQL surface and provider capability boundaries.
-- [Database dialects](https://sql-agent.net/en/docs/sql-compiler/database-dialects): Provider-specific behavior for all six supported databases.
-- [Safe DML](https://sql-agent.net/en/docs/sql-compiler/safe-dml): Atomic multi-statement approval, exact row-set evidence, revalidation, and rollback behavior.
+- [Execution model](https://sql-agent.net/en/docs/sql-compiler/execution-model)
+- [SQL support](https://sql-agent.net/en/docs/sql-compiler/sql-support)
+- [Database dialects](https://sql-agent.net/en/docs/sql-compiler/database-dialects)
+- [Safe DML](https://sql-agent.net/en/docs/sql-compiler/safe-dml)
 
-For `UPDATE` and `DELETE`, approval binds exact primary-key row sets and each statement is revalidated immediately before mutation. `INSERT ... VALUES` binds immutable literal payloads and compiled commands. `INSERT ... SELECT` remains unavailable until source-rowset approval semantics are defined.
+2.0.5 does not bypass or weaken the typed SQL pipeline. SQL still passes parse, bind, authorization, policy validation, target-capability proof, compilation, and provider execution boundaries.
+
+For `UPDATE` and `DELETE`, approval binds exact row-set evidence and revalidates before mutation. `INSERT ... VALUES` binds immutable payload evidence. Multi-statement DML remains one server-owned atomic transaction; client-supplied transaction-control SQL is rejected.
 
 ## DML approval providers
 
-MCP Elicitation remains the default first-party approval provider. DML approval is transport-neutral and can also use the official `HsSqlAgent.Approvals.Webhook` adapter or a custom `IDmlApprovalProvider` in a modular host.
+MCP Elicitation remains the default first-party approval provider. The official Webhook adapter and custom `IDmlApprovalProvider` implementations remain available for modular hosting.
 
-An asynchronous provider may return `Pending`. With Admin Store persistence, hs-sql-agent stores protected resume intent and approval fingerprints. Completion reloads current authorization and database configuration, reparses and previews the DML, compares evidence, and creates a fresh short-lived execution challenge. Approval systems never receive a database connection, transaction, validated execution plan, or commit primitive.
+An asynchronous provider may return `Pending`. Durable completion remains server-owned and revalidates current authorization, configuration, policy, plan, row-set, and affected-row evidence before commit.
 
-## ASP.NET Core integration
+## Administration and operations
 
-- [ASP.NET Core integration](https://sql-agent.net/en/docs/integration/aspnet-core): Standard Hosting versus modular Server composition.
-- [ASP.NET Core product page](https://sql-agent.net/en/integrations/aspnet-core): Latest product positioning and representative configuration.
-
-Use `HsSqlAgent.Hosting` for the batteries-included first-party composition. Use `HsSqlAgent.Server` when the application needs to replace or omit individual capabilities.
-
-## Operations
-
-- [Configuration](https://sql-agent.net/en/docs/operations/configuration): Docker environment, standard Hosting configuration, modular options, DML approval provider settings, telemetry, and distributed providers.
-- [Deployment](https://sql-agent.net/en/docs/operations/deployment): Standalone, embedded, Webhook approval, persistence, and production guidance.
-- [Distributed deployment](https://sql-agent.net/en/docs/operations/distributed-deployment): Shared Admin Store and Redis-backed coordination.
-- [Observability](https://sql-agent.net/en/docs/operations/observability): Health, metrics, tracing, and operational visibility.
-- [Upgrade guide](https://sql-agent.net/en/docs/reference/upgrade-guide): Release transition and rollback considerations.
-
-The standalone / Docker environment includes these DML approval keys:
-
-- `DML_APPROVAL_PROVIDER`
-- `DML_APPROVAL_WEBHOOK_ENDPOINT`
-- `DML_APPROVAL_WEBHOOK_CALLBACK_URL`
-- `DML_APPROVAL_WEBHOOK_SIGNING_SECRET`
-
-`DML_APPROVAL_PROVIDER` accepts `McpElicitation` or `Webhook`. The Webhook signing secret must contain at least 32 UTF-8 bytes.
-
-## Administration and security
-
-- [Security overview](https://sql-agent.net/en/docs/security/overview)
+- [Configuration](https://sql-agent.net/en/docs/operations/configuration)
+- [Deployment](https://sql-agent.net/en/docs/operations/deployment)
+- [Distributed deployment](https://sql-agent.net/en/docs/operations/distributed-deployment)
+- [Observability](https://sql-agent.net/en/docs/operations/observability)
 - [MCP keys](https://sql-agent.net/en/docs/administration/mcp-keys)
 - [Permissions](https://sql-agent.net/en/docs/administration/permissions)
-- [Members and roles](https://sql-agent.net/en/docs/administration/members-roles)
-- [Security policies](https://sql-agent.net/en/docs/administration/security-policies)
-- [Database management](https://sql-agent.net/en/docs/administration/database-management)
 - [Semantic metadata](https://sql-agent.net/en/docs/administration/semantic-metadata)
 - [Audit](https://sql-agent.net/en/docs/administration/audit)
-
-## Marketing detail pages
-
-Marketing pages are latest-only and describe the current product model rather than a historical release route.
-
-- [SQL compiler](https://sql-agent.net/en/features/sql-compiler)
-- [Safe DML](https://sql-agent.net/en/features/safe-dml)
-- [Access control](https://sql-agent.net/en/features/access-control)
-- [PostgreSQL](https://sql-agent.net/en/databases/postgresql)
-- [MySQL](https://sql-agent.net/en/databases/mysql)
-- [SQL Server](https://sql-agent.net/en/databases/sql-server)
-- [Oracle](https://sql-agent.net/en/databases/oracle)
-- [SQLite](https://sql-agent.net/en/databases/sqlite)
-- [Firebird](https://sql-agent.net/en/databases/firebird)
-- [Claude Desktop](https://sql-agent.net/en/integrations/claude-desktop)
-- [Cursor](https://sql-agent.net/en/integrations/cursor)
-- [ASP.NET Core](https://sql-agent.net/en/integrations/aspnet-core)
 
 ## Localized documentation
 
@@ -114,16 +109,14 @@ Marketing pages are latest-only and describe the current product model rather th
 
 ## Source of truth
 
-- [Pinned 2.0.4 product source](https://github.com/tse-wei-chen/hs-sql-agent/tree/00acbb15c9868c1b87415bf5e4c64fff687f4d4f): Immutable product source used while the 2.0.4 release is being prepared.
-- [Product repository](https://github.com/tse-wei-chen/hs-sql-agent): Active development; `main` may contain behavior newer than the documented release.
-- [Documentation repository](https://github.com/tse-wei-chen/hs-sql-agent.site): Website and versioned documentation source.
-- [Content source policy](https://github.com/tse-wei-chen/hs-sql-agent.site/blob/main/CONTENT_SOURCES.md): Claim hierarchy, version inheritance, prerelease pinning, and release-diff audit process.
+- [Pinned 2.0.5 product source](https://github.com/tse-wei-chen/hs-sql-agent/tree/26f7da26ee1c718c440a834c45497a56e1442083)
+- [Product repository](https://github.com/tse-wei-chen/hs-sql-agent)
+- [Documentation repository](https://github.com/tse-wei-chen/hs-sql-agent.site)
+- [Content source policy](https://github.com/tse-wei-chen/hs-sql-agent.site/blob/main/CONTENT_SOURCES.md)
 
-## Current 2.0.4 overlay source
+## Current 2.0.5 overlay source
 
-Only behavior changed by this release is duplicated into the current overlay. Unchanged pages are inherited from the immediate parent version.
+Only behavior changed by this release is duplicated into the current overlay. Unchanged pages are inherited from the immediate parent release.
 
-- [MCP tools](https://raw.githubusercontent.com/tse-wei-chen/hs-sql-agent.site/main/src/content/en/docs/2.0.4/mcp/tools-reference.mdx)
-- [Upgrade guide](https://raw.githubusercontent.com/tse-wei-chen/hs-sql-agent.site/main/src/content/en/docs/2.0.4/reference/upgrade-guide.mdx)
-
-Unchanged current documentation is inherited from the immediate parent version by the site routing layer rather than copied into the overlay.
+- [MCP tools](https://raw.githubusercontent.com/tse-wei-chen/hs-sql-agent.site/main/src/content/en/docs/2.0.5/mcp/tools-reference.mdx)
+- [Upgrade guide](https://raw.githubusercontent.com/tse-wei-chen/hs-sql-agent.site/main/src/content/en/docs/2.0.5/reference/upgrade-guide.mdx)

@@ -1,0 +1,101 @@
+---
+title: 업그레이드 가이드
+description: hs-sql-agent를 2.0.4에서 2.0.5로 업그레이드하고 구조화 MCP 결과, SQL Explain, Configuration Doctor, 통합 readiness 흐름으로 전환합니다.
+sidebar:
+  group: Reference
+  order: 144
+---
+
+## 2.0.5의 주요 변경점
+
+2.0.5는 Agent DX, 설명 가능성, 배포 readiness에 초점을 둔 릴리스입니다. 다섯 개의 기본 MCP 도구가 기계가 읽을 수 있는 구조화 결과를 제공하며, compile-only SQL Explain / Policy Simulator, Configuration Doctor, 첫 governed agent request까지 이어지는 통합 System Readiness가 추가되었습니다.
+
+이번 릴리스는 fail-closed SQL compiler, provider capability 검사, table/tool authorization, DML approval, row-set revalidation, rollback 또는 server-owned transaction 경계를 완화하지 않습니다.
+
+기본 도구는 계속 `get_schemas`, `get_tables`, `get_columns`, `execute_query_sql`, `execute_dml_sql` 다섯 개입니다.
+
+## 구조화 MCP 결과로 마이그레이션
+
+모든 기본 도구는 MCP `structuredContent`와 추론된 output schema를 통해 타입이 있는 데이터를 제공합니다. 사람이 읽는 텍스트는 유지되지만 자동화에서는 message 텍스트를 파싱하지 않는 것이 좋습니다.
+
+`execute_query_sql`은 `Success`, `Provider`, `RowCount`, `DurationMs`, `Rows`, `Error`를 직접 사용하세요. Metadata 도구는 `Schemas`, `Tables`, `Columns`를 사용하며 권한이 허용된 Semantic Layer 정보도 중첩 구조 필드로 반환됩니다.
+
+오류 처리는 메시지 접두어가 아니라 `McpToolError.Code`, `Stage`, `Retryable`을 기준으로 분기하세요.
+
+### DML 상태
+
+`execute_dml_sql`의 `Status`는 다음 네 가지입니다.
+
+| `Status` | 의미 | `Committed` | `Error` |
+| --- | --- | --- | --- |
+| `committed` | 승인 후 commit 완료 | `true` | null |
+| `pending` | 외부 승인 대기 | `false` | null |
+| `rejected` | 승인 거부 | `false` | null |
+| `failed` | policy, validation, concurrency, configuration 또는 execution 실패 | `false` | 값 있음 |
+
+`pending`과 `rejected`는 정상적인 approval outcome이며 execution error가 아닙니다. `pending`일 때 데이터베이스 변경은 아직 commit되지 않았습니다. 비동기 승인에서는 `ApprovalRequestId`를 보관하고 provider가 제공하면 `ApprovalExternalReference`도 사용하세요. `RETURNING` 같은 결과는 `ReturnedRows`에서 읽습니다.
+
+## SQL Explain / Policy Simulator
+
+Admin Console의 Security 페이지에 SQL Explain / Policy Simulator가 추가됩니다. 실제 F# compiler pipeline, 선택한 target provider, 검증된 runtime capability profile을 사용하지만 전체 흐름은 **compile-only**입니다.
+
+- SQL을 실행하지 않습니다.
+- database transaction을 열지 않습니다.
+- DML approval request를 만들지 않습니다.
+- simulator가 target data를 변경할 수 없습니다.
+
+Query, DML, DML batch를 지원하며 기존 MCP Key를 선택해 실제 tool access와 table allowlist scope를 함께 시뮬레이션할 수 있습니다.
+
+결과에는 rendered target SQL, parameterized values, referenced tables, QueryFacts, plan fingerprint, compiler decision boundary/code, source span이 포함된 diagnostics, source/target capability evidence, effective policy evidence가 포함됩니다.
+
+DML affected-row 제한은 runtime preview의 row-count evidence가 필요하므로 compile-time proof로 표시하지 않습니다.
+
+## Configuration Doctor
+
+Runtime → Operability에서 Configuration Doctor를 사용할 수 있습니다. API는 `GET /api/runtime/operability/doctor`입니다.
+
+Doctor는 전체 상태를 `Healthy`, `Warning`, `Error`로 반환하고 각 검사에 `id`, `category`, `status`, `title`, `detail`, 선택적 `action`을 제공합니다. **secret 실제 값은 반환하지 않습니다.**
+
+MCP HMAC/JWT secret, `Mcp:PublicEndpoint`, Admin Store, Data Protection, Memory/Redis coordination, Redis connection string, fail-closed limiter/concurrency, DML Webhook approval, OIDC, OTLP, Alert/SIEM webhook, database·active MCP Key·agent traffic readiness를 검사합니다.
+
+Coordination은 `SingleNode`, `Distributed`, `Mixed`로 분류됩니다. `Error`는 안전하거나 필수인 배포 전제가 충족되지 않았음을 뜻하고, `Warning`은 동작 가능하지만 operator review가 필요함을 뜻합니다.
+
+## 통합 System Readiness
+
+기존 Home의 System Readiness를 별도 wizard로 복제하지 않고 다음 launch path로 확장했습니다.
+
+1. Configuration Doctor blocker 해소
+2. governed database connection 추가
+3. public MCP endpoint 확인
+4. MCP access key 발급
+5. 첫 governed agent request 완료
+
+Doctor의 `Warning`은 readiness를 막지 않지만 `Error`는 막습니다. Home은 onboarding을 위해 public MCP endpoint를 보여줄 수 있지만 MCP Key secret은 표시하지 않습니다.
+
+새 MCP Key는 계속 네 개의 read/query 도구가 기본 선택이며 `execute_dml_sql`은 opt-in입니다.
+
+## 업그레이드 체크리스트
+
+1. 도구 텍스트를 파싱하는 MCP client를 structured fields 사용으로 전환합니다.
+2. Runtime → Operability에서 Configuration Doctor를 실행합니다.
+3. 모든 `Error`를 해결하고 실제 topology에 맞춰 `Warning`을 검토합니다.
+4. Security Policy의 SQL Explain으로 대표 Query/DML을 검증합니다.
+5. `Mcp:PublicEndpoint`가 외부에서 접근 가능한 `/mcp` URL인지 확인합니다.
+6. active key의 database, tool set, table scope를 확인합니다.
+7. client를 연결하고 governed request를 한 번 완료합니다.
+
+## 변경되지 않는 안전 경계
+
+- 지원하지 않는 SQL은 계속 fail closed입니다.
+- table allowlist와 tool authorization은 server-side에서 강제됩니다.
+- 새 Key의 `execute_dml_sql`은 계속 opt-in입니다.
+- multi-statement DML은 한 번 승인된 뒤 server-owned transaction에서 atomic commit됩니다.
+- durable pending approval은 commit 전에 authorization, configuration, policy, plan, row-set, affected-row evidence를 다시 검증합니다.
+- client가 제공하는 transaction-control SQL은 계속 거부됩니다.
+- 이 2.0.5 기능에는 Admin Store schema migration이 필요하지 않습니다.
+
+## 롤백 시 고려사항
+
+2.0.4로 롤백하면 이전 built-in MCP result shape으로 돌아가며 Explain, Doctor, 확장 readiness UI가 제거됩니다. 단계적 rollout에서 두 버전을 모두 지원해야 하는 client는 version-aware 처리가 필요합니다.
+
+정확한 필드는 [MCP 도구 참조](/ko/docs/mcp/tools-reference)를 확인하세요.
