@@ -25,8 +25,7 @@ export const productRelease = {
       "backend/src/Modules/HsSqlAgent.Server/Controllers/RuntimeDoctorController.cs",
     runtimeDoctorAnalyzer:
       "backend/src/Modules/HsSqlAgent.Server/Services/RuntimeDoctorAnalyzer.cs",
-    systemReadiness:
-      "frontend/app/lib/systemReadiness.ts",
+    systemReadiness: "frontend/app/lib/systemReadiness.ts",
     permissions:
       "backend/src/Modules/Auth.Service/Authorization/PermissionCanonicalPaths.cs",
     mcpBuiltIns:
