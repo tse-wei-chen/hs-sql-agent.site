@@ -1,12 +1,12 @@
 ---
 title: MCP-Tool-Referenz
-description: Verträge der eingebauten MCP-Tools in hs-sql-agent 2.0.4; die öffentliche Oberfläche wird serverseitig auf fünf Tools festgelegt.
+description: Verträge der eingebauten MCP-Tools in hs-sql-agent; die öffentliche Oberfläche wird serverseitig auf fünf Tools festgelegt.
 sidebar:
   group: MCP
   order: 35
 ---
 
-Die eingebaute MCP-Oberfläche bleibt bewusst klein. Ab 2.0.4 erzwingt ein einziger serverseitiger Katalog genau fünf öffentliche Tool-Namen.
+Die eingebaute MCP-Oberfläche bleibt bewusst klein. Ein einziger serverseitiger Katalog erzwingt genau fünf öffentliche Tool-Namen.
 
 | Tool | Öffentliche Eingabe | Zweck |
 | --- | --- | --- |
@@ -26,7 +26,7 @@ Auch der Tool-Katalog der Admin-API liefert dieselben eingebauten Tools zusammen
 
 ## Schreibzugriffe auf semantische Metadaten sind Administration
 
-`update_semantic_layer` ist in 2.0.4 kein eingebautes MCP-Tool. Die Semantic Layer ist Konfiguration der Steuerungsebene und wird über die Admin-Oberfläche oder die berechtigungsgeschützte Admin-API gepflegt.
+`update_semantic_layer` ist in hs-sql-agent kein eingebautes MCP-Tool. Die Semantic Layer ist Konfiguration der Steuerungsebene und wird über die Admin-Oberfläche oder die berechtigungsgeschützte Admin-API gepflegt.
 
 Die schreibgeschützten Discovery-Tools reichern Tabellen- und Spalteninformationen weiterhin mit autorisierten Anzeigenamen, Beschreibungen, Synonymen, Beziehungen und Metriken an.
 

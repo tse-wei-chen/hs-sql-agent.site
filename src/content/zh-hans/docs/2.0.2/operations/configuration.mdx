@@ -1,6 +1,6 @@
 ---
 title: 配置参考
-description: hs-sql-agent 2.0.2 基于源码的环境变量与运行时配置参考。
+description: hs-sql-agent 基于源码的环境变量与运行时配置参考。
 sidebar:
   group: 运维
   order: 90
@@ -16,7 +16,7 @@ import DocCard from "@/components/docs/mdx/DocCard.astro";
   <DocCard title="嵌入式 .NET" icon=".NET" description="新集成配置 capability-specific options；HsSqlAgentServiceOptions 只作为旧聚合 API 的兼容入口保留。" />
 </CardGrid>
 
-仓库中的 **v2.0.2 `.env.example`** 是默认 Compose 部署面向运维的环境变量清单。本页的环境变量名称以该文件为准；如果示例注释与运行时代码校验不一致，则以 v2.0.2 可执行代码为准。
+仓库中的 **hs-sql-agent `.env.example`** 是默认 Compose 部署面向运维的环境变量清单。本页的环境变量名称以该文件为准；如果示例注释与运行时代码校验不一致，则以 hs-sql-agent 可执行代码为准。
 
 <Callout type="warning" title="生产启动前生成真实 secret">
 `HMAC_KEY` 和 `JWT_KEY` 都必须至少 32 字节，并且应使用彼此独立的唯一值。仓库中的值只是 placeholder。启用 Webhook URL 后，对应 Webhook secret 也必须至少 32 字节。
@@ -155,8 +155,8 @@ SMTP host 或 sender 为空时，密码重置邮件实际上处于禁用状态�
 | `AUDIT_FALLBACK_PATH` | `/app/data/audit-fallback.jsonl` | 审计 fallback 路径；启动校验要求存在 |
 | `AUDIT_RETENTION_RUN_HOUR_UTC` | `2` | 计划执行的 UTC 小时；运行时限制在 0–23 |
 
-<Callout type="warning" title="v2.0.2 示例注释写 Delete，但运行时代码要求 Purge">
-`AuditRetentionService` 只接受 `Archive` 和 `Purge`；其他非 Archive 值（包括 `Delete`）都会抛出 `AuditRetentionMode must be Purge or Archive.`。本参考以可执行 v2.0.2 代码为准，而不是过时示例注释。
+<Callout type="warning" title="hs-sql-agent 示例注释写 Delete，但运行时代码要求 Purge">
+`AuditRetentionService` 只接受 `Archive` 和 `Purge`；其他非 Archive 值（包括 `Delete`）都会抛出 `AuditRetentionMode must be Purge or Archive.`。本参考以可执行 hs-sql-agent 代码为准，而不是过时示例注释。
 </Callout>
 
 `Archive` 会先把过期审计行写入 JSONL 归档，再从 Admin 数据库删除。`Purge` 则不创建归档，直接删除匹配的过期记录。
@@ -215,7 +215,7 @@ metadata discovery、Query、DML planning/execution 以及健康相关 SQL 工�
 | `OTLP_ENDPOINT` | 空 | 绝对 HTTP(S) OTLP collector endpoint |
 | `OTEL_SERVICE_NAME` | `hs-sql-agent` | OpenTelemetry service name；不能为空 |
 
-Prometheus 刻意运行在与 Admin/MCP 应用端口**独立的 listener**上。配置 `OTLP_ENDPOINT` 后，v2.0.2 会导出包括 SQL compile-evidence tracing/log integration 在内的遥测。
+Prometheus 刻意运行在与 Admin/MCP 应用端口**独立的 listener**上。配置 `OTLP_ENDPOINT` 后，hs-sql-agent 会导出包括 SQL compile-evidence tracing/log integration 在内的遥测。
 
 详见 [可观测性与审计运维](/zh-hans/docs/operations/observability)。
 

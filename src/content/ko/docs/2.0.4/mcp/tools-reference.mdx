@@ -1,12 +1,12 @@
 ---
 title: MCP 도구 참조
-description: hs-sql-agent 2.0.4의 내장 MCP 도구 계약입니다. 서버가 공개 범위를 정확히 5개 도구로 강제합니다.
+description: hs-sql-agent의 내장 MCP 도구 계약입니다. 서버가 공개 범위를 정확히 5개 도구로 강제합니다.
 sidebar:
   group: MCP
   order: 35
 ---
 
-내장 MCP 도구 범위는 의도적으로 작게 유지되며, 2.0.4부터 서버의 단일 정식 목록으로 강제됩니다. 공개되는 내장 도구는 다음 5개입니다.
+내장 MCP 도구 범위는 의도적으로 작게 유지되며, 서버의 단일 정식 목록으로 강제됩니다. 공개되는 내장 도구는 다음 5개입니다.
 
 | 도구 | 공개 입력 | 용도 |
 | --- | --- | --- |
@@ -26,7 +26,7 @@ Admin API의 도구 목록도 같은 내장 도구와 게시된 Custom Tool을 �
 
 ## Semantic metadata 쓰기는 관리 작업입니다
 
-`update_semantic_layer`는 2.0.4의 내장 MCP 도구가 아닙니다. Semantic Layer는 제어 영역 설정이며 Admin UI 또는 권한으로 보호되는 Admin API에서 편집합니다.
+`update_semantic_layer`는 hs-sql-agent의 내장 MCP 도구가 아닙니다. Semantic Layer는 제어 영역 설정이며 Admin UI 또는 권한으로 보호되는 Admin API에서 편집합니다.
 
 읽기 전용 discovery 도구는 권한이 허용하는 범위에서 표시 이름, 설명, 동의어, 관계, 지표를 테이블과 컬럼 탐색 결과에 계속 반영합니다.
 

@@ -1,12 +1,12 @@
 ---
 title: Référence des outils MCP
-description: Contrats des outils MCP intégrés de hs-sql-agent 2.0.4 ; la surface publique est imposée à cinq outils par le serveur.
+description: Contrats des outils MCP intégrés de hs-sql-agent ; la surface publique est imposée à cinq outils par le serveur.
 sidebar:
   group: MCP
   order: 35
 ---
 
-La surface MCP intégrée reste volontairement réduite. À partir de 2.0.4, un catalogue serveur unique impose exactement cinq noms d'outils publics.
+La surface MCP intégrée reste volontairement réduite. Un catalogue serveur unique impose exactement cinq noms d'outils publics.
 
 | Outil | Entrée publique | Rôle |
 | --- | --- | --- |
@@ -26,7 +26,7 @@ Le catalogue de l'API d'administration expose les mêmes outils intégrés ainsi
 
 ## L'écriture des métadonnées sémantiques relève de l'administration
 
-`update_semantic_layer` n'est pas un outil MCP intégré en 2.0.4. La Semantic Layer appartient au plan de contrôle et se modifie via l'interface d'administration ou l'API d'administration protégée par permissions.
+`update_semantic_layer` n'est pas un outil MCP intégré en hs-sql-agent. La Semantic Layer appartient au plan de contrôle et se modifie via l'interface d'administration ou l'API d'administration protégée par permissions.
 
 Les outils de découverte en lecture seule continuent d'enrichir les tables et colonnes avec les noms d'affichage, descriptions, synonymes, relations et métriques autorisés.
 

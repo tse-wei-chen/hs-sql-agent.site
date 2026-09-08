@@ -1,12 +1,12 @@
 ---
 title: MCP ツールリファレンス
-description: hs-sql-agent 2.0.4 の組み込み MCP ツール契約。公開面はサーバー側で 5 ツールに固定されます。
+description: hs-sql-agent の組み込み MCP ツール契約。公開面はサーバー側で 5 ツールに固定されます。
 sidebar:
   group: MCP
   order: 35
 ---
 
-組み込み MCP ツールは意図的に小さく保たれ、2.0.4 からはサーバー側の単一 catalog で強制されます。公開される組み込みツールは次の 5 つです。
+組み込み MCP ツールは意図的に小さく保たれ、サーバー側の単一 catalog で強制されます。公開される組み込みツールは次の 5 つです。
 
 | ツール | 公開入力 | 用途 |
 | --- | --- | --- |
@@ -26,7 +26,7 @@ Admin API の tool catalog も同じ組み込みツールと公開済み Custom 
 
 ## Semantic metadata の書き込みは管理操作
 
-`update_semantic_layer` は 2.0.4 の組み込み MCP ツールではありません。Semantic Layer は control plane の設定であり、Admin UI または権限保護された Admin API から編集します。
+`update_semantic_layer` は hs-sql-agent の組み込み MCP ツールではありません。Semantic Layer は control plane の設定であり、Admin UI または権限保護された Admin API から編集します。
 
 read-only の discovery ツールは、許可されている範囲で display name、description、synonym、relationship、metric を table／column の discovery 結果に引き続き反映します。
 

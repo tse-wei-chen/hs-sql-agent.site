@@ -12,7 +12,7 @@ import DocCard from "@/components/docs/mdx/DocCard.astro";
 import Steps from "@/components/docs/mdx/Steps.astro";
 import Step from "@/components/docs/mdx/Step.astro";
 
-`HsSqlAgent.Server` ist ein einbettbares ASP.NET-Core-Klassenbibliothekspaket. Neue Integrationen in 2.0.2 beginnen mit einem Core ohne Options und wählen danach ausdrücklich die Capabilities, die der Host benötigt.
+`HsSqlAgent.Server` ist ein einbettbares ASP.NET-Core-Klassenbibliothekspaket. Neue Integrationen beginnen mit einem Core ohne Options und wählen danach ausdrücklich die Capabilities, die der Host benötigt.
 
 <CardGrid columns={3}>
   <DocCard title="Host-Auth + Admin API" icon="API" description="Vorhandenes Cookie-/JWT-/OIDC-Login und Berechtigungssystem der Anwendung beibehalten. Das hs-sql-agent-Frontend und sein Identity-Schema sind nicht erforderlich." />
@@ -180,7 +180,7 @@ Integrierte Authentifizierung benötigt ein JWT-Secret mit mindestens 32 Bytes. 
 | Admin-API-Präfix | `/api` |
 | Admin UI | `/` |
 
-Diese Mounts sind in 2.0.2 bewusst fest. Beliebige Relokation wird nicht als unterstützt beworben, solange Routing, Frontend-Basispfade/Assets, Callbacks und Sicherheitsgrenzen nicht gemeinsam verschoben werden können.
+Diese Mounts sind bewusst fest. Beliebige Relokation wird nicht als unterstützt beworben, solange Routing, Frontend-Basispfade/Assets, Callbacks und Sicherheitsgrenzen nicht gemeinsam verschoben werden können.
 
 ## Abwärtskompatibilität
 

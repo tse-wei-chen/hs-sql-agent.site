@@ -12,7 +12,7 @@ import DocCard from "@/components/docs/mdx/DocCard.astro";
 import Steps from "@/components/docs/mdx/Steps.astro";
 import Step from "@/components/docs/mdx/Step.astro";
 
-`HsSqlAgent.Server` est une bibliothèque ASP.NET Core intégrable. En 2.0.2, une nouvelle intégration part d’un core sans options puis sélectionne explicitement les capacités réellement nécessaires au host.
+`HsSqlAgent.Server` est une bibliothèque ASP.NET Core intégrable. Une nouvelle intégration part d’un core sans options puis sélectionne explicitement les capacités réellement nécessaires au host.
 
 <CardGrid columns={3}>
   <DocCard title="Auth du host + Admin API" icon="API" description="Conservez les mécanismes Cookie/JWT/OIDC et les permissions de l’application. Le frontend et le schéma d’identité hs-sql-agent ne sont pas obligatoires." />
@@ -180,7 +180,7 @@ L’authentification intégrée exige un secret JWT d’au moins 32 octets. MCP 
 | Préfixe Admin API | `/api` |
 | Admin UI | `/` |
 
-Ces montages sont volontairement fixes en 2.0.2. Le déplacement arbitraire n’est pas annoncé comme pris en charge tant que routing, chemins de base/assets frontend, callbacks et frontières de sécurité ne peuvent pas être déplacés ensemble.
+Ces montages sont volontairement fixes. Le déplacement arbitraire n’est pas annoncé comme pris en charge tant que routing, chemins de base/assets frontend, callbacks et frontières de sécurité ne peuvent pas être déplacés ensemble.
 
 ## Compatibilité historique
 

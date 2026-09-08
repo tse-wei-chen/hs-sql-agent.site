@@ -1,6 +1,6 @@
 ---
 title: Admin HTTP API 参考
-description: 基于 hs-sql-agent 2.0.2 源码整理内置管理界面实际使用的 HTTP controller 接口。
+description: 基于 hs-sql-agent 源码整理内置管理界面实际使用的 HTTP controller 接口。
 sidebar:
   group: 参考
   order: 142
@@ -16,10 +16,10 @@ import DocCard from "@/components/docs/mdx/DocCard.astro";
   <DocCard title="MCP 独立" icon="MCP" description="/mcp Streamable HTTP transport 不属于本 Admin REST 参考。" />
 </CardGrid>
 
-本页列出 **hs-sql-agent 2.0.2 源码中实际存在的 controller routes**，但 controller 是否公开取决于所选 capability。内置 Admin UI 通常使用内置身份组合；嵌入现有 ASP.NET Core host 时可以选择不同组合。
+本页列出 **hs-sql-agent 源码中实际存在的 controller routes**，但 controller 是否公开取决于所选 capability。内置 Admin UI 通常使用内置身份组合；嵌入现有 ASP.NET Core host 时可以选择不同组合。
 
-<Callout type="warning" title="这是 2.0.2 的源码契约，不是独立版本化的 REST 标准">
-2.0.2 server 没有把这些 controllers 放在 `/v1` 兼容 namespace 下。外部集成应固定 hs-sql-agent 版本，并在升级时重新确认实际选择的 capability surface。
+<Callout type="warning" title="这是 hs-sql-agent 的源码契约，不是独立版本化的 REST 标准">
+hs-sql-agent server 没有把这些 controllers 放在 `/v1` 兼容 namespace 下。外部集成应固定 hs-sql-agent 版本，并在升级时重新确认实际选择的 capability surface。
 </Callout>
 
 <Callout type="note" title="内置身份与 host authorization 的 identity API surface 不同">
@@ -170,10 +170,10 @@ client-config 端点返回用于生成客户端配置的 MCP public endpoint。
 
 ## Credential status
 
-2.0.2 中存在 `GET /api/Credential/status`，只返回简单的 Credential API 运行状态。该 controller 自身没有 `[Authorize]` attribute。应把它视为范围很窄的 status endpoint，而不是需要认证的 credential-management API。
+hs-sql-agent 中存在 `GET /api/Credential/status`，只返回简单的 Credential API 运行状态。该 controller 自身没有 `[Authorize]` attribute。应把它视为范围很窄的 status endpoint，而不是需要认证的 credential-management API。
 
 ## 错误与兼容性
 
 controller 使用常规 HTTP status code，例如 validation 400、authentication/authorization 401/403、资源不存在 404、tool/role state 冲突 409、审计导出过大 413，以及适用场景下受控 SQL 操作压力导致的 429。
 
-如果外部自动化依赖这些接口，应固定 2.0.2，并验证自己实际消费的 response model。本页刻意记录 route 和重要契约，但不会把每一个 Admin view model 假定为永久版本化的外部 SDK。
+如果外部自动化依赖这些接口，应固定 hs-sql-agent，并验证自己实际消费的 response model。本页刻意记录 route 和重要契约，但不会把每一个 Admin view model 假定为永久版本化的外部 SDK。

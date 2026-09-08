@@ -30,7 +30,7 @@ Die Administrationsoberfläche ist die **Steuerungsebene für Betreiber** von hs
   <DocCard title="Audit" icon="AUD" href="/de/docs/administration/audit" description="Runtime- und Sicherheitsereignisse suchen, zusammenfassen, exportieren und Aufbewahrung anwenden." />
   <DocCard title="Security Policies" icon="POL" href="/de/docs/administration/security-policies" description="Query-, DML-, Schlüssel-Limits und SQL-Parallelität verwalten." />
   <DocCard title="Operability" icon="P95" href="/de/docs/administration/operability" description="Ausführungsmetriken, Datenbankzustand, Schlüsselnutzung und ausgehende Zustellungen untersuchen." />
-  <DocCard title="Admin HTTP API" icon="API" href="/de/docs/reference/api-reference" description="Die quellcodebasierten 2.0.2/2.0.2-Controller-Routen und Autorisierungsoberfläche der mitgelieferten UI nachschlagen." />
+  <DocCard title="Admin HTTP API" icon="API" href="/de/docs/reference/api-reference" description="Die quellcodebasierten hs-sql-agent-Controller-Routen und Autorisierungsoberfläche der mitgelieferten UI nachschlagen." />
 </CardGrid>
 
 ## Empfohlener Betreiberablauf
@@ -59,4 +59,4 @@ Ein ASP.NET-Core-Host kann die HsSqlAgent Admin API bereitstellen, ohne die mitg
 
 Mit `AddHsSqlAgentHostAuthorization(...)` kann der Host außerdem sein bestehendes Login- und Berechtigungssystem beibehalten, statt HsSqlAgent-Members, Rollen, JWT, SMTP oder OIDC zu installieren. MCP wird unabhängig mit `AddHsSqlAgentMcp(...)` / `UseHsSqlAgentMcp()` ausgewählt und eingebunden.
 
-Das vollständige 2.0.2-Kompositionsmodell finden Sie unter [ASP.NET-Core-Integration](/de/docs/integration/aspnet-core).
+Das vollständige Kompositionsmodell finden Sie unter [ASP.NET-Core-Integration](/de/docs/integration/aspnet-core).

@@ -12,7 +12,7 @@ import DocCard from "@/components/docs/mdx/DocCard.astro";
 import Steps from "@/components/docs/mdx/Steps.astro";
 import Step from "@/components/docs/mdx/Step.astro";
 
-`HsSqlAgent.Server` は組み込み可能な ASP.NET Core クラスライブラリパッケージです。2.0.2 の新規統合では、オプションを持たない core から始め、ホストが必要とする capability を明示的に選択します。
+`HsSqlAgent.Server` は組み込み可能な ASP.NET Core クラスライブラリパッケージです。hs-sql-agent の新規統合では、オプションを持たない core から始め、ホストが必要とする capability を明示的に選択します。
 
 <CardGrid columns={3}>
   <DocCard title="ホスト認証 + Admin API" icon="API" description="既存アプリケーションの Cookie/JWT/OIDC ログインと権限システムを維持します。hs-sql-agent のフロントエンドや ID スキーマは不要です。" />
@@ -180,7 +180,7 @@ UI を使用しない場合でも、Admin API はホストアプリケーショ�
 | Admin API prefix | `/api` |
 | Admin UI | `/` |
 
-これらの mount は 2.0.2 では意図的に固定されています。routing、フロントエンドの base path／asset、callback、セキュリティ境界を一緒に移動できるようになるまでは、任意の場所への再配置をサポート対象として案内しません。
+これらの mount は hs-sql-agent では意図的に固定されています。routing、フロントエンドの base path／asset、callback、セキュリティ境界を一緒に移動できるようになるまでは、任意の場所への再配置をサポート対象として案内しません。
 
 ## 後方互換性
 

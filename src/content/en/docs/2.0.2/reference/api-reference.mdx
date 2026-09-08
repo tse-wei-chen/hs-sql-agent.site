@@ -1,6 +1,6 @@
 ---
 title: Admin HTTP API Reference
-description: Source-backed hs-sql-agent 2.0.2 HTTP controller surface used by the bundled Admin UI.
+description: Source-backed hs-sql-agent HTTP controller surface used by the bundled Admin UI.
 sidebar:
   group: Reference
   order: 142
@@ -16,10 +16,10 @@ import DocCard from "@/components/docs/mdx/DocCard.astro";
   <DocCard title="MCP is separate" icon="MCP" description="The /mcp Streamable HTTP transport is not part of this Admin REST reference." />
 </CardGrid>
 
-This page lists controller routes that exist in the **hs-sql-agent 2.0.2 source**, but controller availability is capability-dependent. The bundled Admin UI normally uses the built-in identity composition; an embedding host can select a different composition.
+This page lists controller routes that exist in the **hs-sql-agent source**, but controller availability is capability-dependent. The bundled Admin UI normally uses the built-in identity composition; an embedding host can select a different composition.
 
-<Callout type="warning" title="This is a 2.0.2 source contract, not a separately versioned REST standard">
-The 2.0.2 server does not expose these controllers under a `/v1` compatibility namespace. External integrations should pin the hs-sql-agent version and re-check the selected capability surface when upgrading.
+<Callout type="warning" title="This is a source contract, not a separately versioned REST standard">
+The server does not expose these controllers under a `/v1` compatibility namespace. External integrations should pin the hs-sql-agent version and re-check the selected capability surface when upgrading.
 </Callout>
 
 <Callout type="note" title="Built-in identity and host authorization expose different identity surfaces">
@@ -170,10 +170,10 @@ See [Audit](/en/docs/administration/audit) and [Operability](/en/docs/administra
 
 ## Credential status
 
-`GET /api/Credential/status` exists in 2.0.2 and returns a simple Credential API running status. The controller itself has no `[Authorize]` attribute. Treat it as a narrow status endpoint, not as an authenticated credential-management API.
+`GET /api/Credential/status` is available and returns a simple Credential API running status. The controller itself has no `[Authorize]` attribute. Treat it as a narrow status endpoint, not as an authenticated credential-management API.
 
 ## Errors and compatibility
 
 Controllers use ordinary HTTP status codes such as 400 for validation, 401/403 for authentication/authorization, 404 for missing resources, 409 for conflicting tool/role state, 413 for oversized audit export, and 429 for bounded SQL-operation pressure where applicable.
 
-For client automation, pin to 2.0.2 and validate the actual response model you consume. This page intentionally documents routes and important contracts without pretending that every Admin view model is a permanently versioned external SDK.
+For client automation, pin the release you deploy and validate the actual response model you consume. This page intentionally documents routes and important contracts without pretending that every Admin view model is a permanently versioned external SDK.

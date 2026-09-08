@@ -1,6 +1,6 @@
 ---
 title: 설정 레퍼런스
-description: hs-sql-agent 2.0.2의 source-backed 환경 변수 및 런타임 설정 레퍼런스입니다.
+description: hs-sql-agent의 source-backed 환경 변수 및 런타임 설정 레퍼런스입니다.
 sidebar:
   group: 운영
   order: 90
@@ -16,7 +16,7 @@ import DocCard from "@/components/docs/mdx/DocCard.astro";
   <DocCard title="임베디드 .NET" icon=".NET" description="새 통합은 capability별 option을 구성하며 HsSqlAgentServiceOptions는 legacy aggregate compatibility용으로만 유지됩니다." />
 </CardGrid>
 
-저장소에 포함된 **v2.0.2 `.env.example`**은 기본 Compose 경로에서 사용하는 배포용 환경 변수 목록입니다. 이 페이지는 환경 변수 이름은 해당 파일을 따르고, 주석과 validation이 충돌하면 v2.0.2 런타임 코드를 기준으로 합니다.
+저장소에 포함된 **hs-sql-agent `.env.example`**은 기본 Compose 경로에서 사용하는 배포용 환경 변수 목록입니다. 이 페이지는 환경 변수 이름은 해당 파일을 따르고, 주석과 validation이 충돌하면 hs-sql-agent 런타임 코드를 기준으로 합니다.
 
 <Callout type="warning" title="운영 환경 시작 전에 실제 secret을 생성하십시오">
 `HMAC_KEY`와 `JWT_KEY`는 각각 최소 32바이트여야 하며 서로 다른 고유 값을 사용해야 합니다. 저장소의 문자열은 placeholder입니다. Webhook URL을 활성화했다면 해당 webhook secret도 최소 32바이트가 필요합니다.
@@ -155,8 +155,8 @@ SMTP host 또는 sender가 비어 있으면 password-reset mail은 사실상 비
 | `AUDIT_FALLBACK_PATH` | `/app/data/audit-fallback.jsonl` | Audit fallback path; startup validation에서 요구 |
 | `AUDIT_RETENTION_RUN_HOUR_UTC` | `2` | 예정 UTC hour; 런타임에서 0–23 범위로 clamp |
 
-<Callout type="warning" title="v2.0.2 샘플 주석은 Delete라고 쓰지만 런타임 코드는 Purge를 요구합니다">
-`AuditRetentionService`는 `Archive`와 `Purge`만 허용합니다. `Delete`를 포함한 다른 non-Archive 값은 `AuditRetentionMode must be Purge or Archive.` 오류를 발생시킵니다. 이 레퍼런스는 오래된 샘플 주석이 아니라 실행 가능한 v2.0.2 코드를 따릅니다.
+<Callout type="warning" title="hs-sql-agent 샘플 주석은 Delete라고 쓰지만 런타임 코드는 Purge를 요구합니다">
+`AuditRetentionService`는 `Archive`와 `Purge`만 허용합니다. `Delete`를 포함한 다른 non-Archive 값은 `AuditRetentionMode must be Purge or Archive.` 오류를 발생시킵니다. 이 레퍼런스는 오래된 샘플 주석이 아니라 실행 가능한 hs-sql-agent 코드를 따릅니다.
 </Callout>
 
 `Archive`는 만료된 감사 행을 JSONL archive에 기록한 뒤 Admin database에서 삭제합니다. `Purge`는 archive를 만들지 않고 대상 만료 행을 삭제합니다.
@@ -215,7 +215,7 @@ Metadata discovery, Query, DML planning/execution, health 관련 SQL 작업은 b
 | `OTLP_ENDPOINT` | 비어 있음 | 절대 HTTP(S) OTLP collector endpoint |
 | `OTEL_SERVICE_NAME` | `hs-sql-agent` | OpenTelemetry service name; blank 불가 |
 
-Prometheus는 Admin/MCP application port와 **별도의 listener**에서 서비스됩니다. `OTLP_ENDPOINT`가 구성되면 v2.0.2는 SQL compile-evidence tracing/log integration을 포함한 telemetry를 export합니다.
+Prometheus는 Admin/MCP application port와 **별도의 listener**에서 서비스됩니다. `OTLP_ENDPOINT`가 구성되면 hs-sql-agent는 SQL compile-evidence tracing/log integration을 포함한 telemetry를 export합니다.
 
 [관측성과 감사 운영](/ko/docs/operations/observability)을 참고하십시오.
 

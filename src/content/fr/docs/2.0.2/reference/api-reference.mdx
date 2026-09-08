@@ -1,6 +1,6 @@
 ---
 title: Référence de l’API HTTP Admin
-description: Surface réelle des contrôleurs HTTP de hs-sql-agent 2.0.2, issue du code source et utilisée par l’interface Admin intégrée.
+description: Surface réelle des contrôleurs HTTP de hs-sql-agent, issue du code source et utilisée par l’interface Admin intégrée.
 sidebar:
   group: Référence
   order: 142
@@ -16,10 +16,10 @@ import DocCard from "@/components/docs/mdx/DocCard.astro";
   <DocCard title="MCP est séparé" icon="MCP" description="Le transport Streamable HTTP /mcp ne fait pas partie de cette référence REST Admin." />
 </CardGrid>
 
-Cette page répertorie les routes de contrôleurs qui existent dans le **code source hs-sql-agent 2.0.2**, mais leur disponibilité dépend des capabilities sélectionnées. L’interface Admin intégrée utilise normalement la composition avec identité intégrée ; un hôte ASP.NET Core peut choisir une autre composition.
+Cette page répertorie les routes de contrôleurs qui existent dans le **code source hs-sql-agent**, mais leur disponibilité dépend des capabilities sélectionnées. L’interface Admin intégrée utilise normalement la composition avec identité intégrée ; un hôte ASP.NET Core peut choisir une autre composition.
 
-<Callout type="warning" title="Il s’agit d’un contrat source 2.0.2, pas d’un standard REST versionné séparément">
-Le serveur 2.0.2 n’expose pas ces contrôleurs sous un namespace de compatibilité `/v1`. Les intégrations externes doivent fixer la version hs-sql-agent et revérifier la surface de capabilities sélectionnée lors d’une mise à niveau.
+<Callout type="warning" title="Il s’agit d’un contrat source, pas d’un standard REST versionné séparément">
+Le serveur n’expose pas ces contrôleurs sous un namespace de compatibilité `/v1`. Les intégrations externes doivent fixer la version hs-sql-agent et revérifier la surface de capabilities sélectionnée lors d’une mise à niveau.
 </Callout>
 
 <Callout type="note" title="L’identité intégrée et l’autorisation hôte n’exposent pas la même surface d’identité">
@@ -170,10 +170,10 @@ Consultez [Audit](/fr/docs/administration/audit) et [Opérabilité](/fr/docs/adm
 
 ## État Credential
 
-`GET /api/Credential/status` existe en 2.0.2 et retourne un simple état de fonctionnement de la Credential API. Le contrôleur lui-même ne possède pas d’attribut `[Authorize]`. Traitez-le comme un endpoint de statut étroit, pas comme une API authentifiée de gestion d’identifiants.
+`GET /api/Credential/status` est disponible et retourne un simple état de fonctionnement de la Credential API. Le contrôleur lui-même ne possède pas d’attribut `[Authorize]`. Traitez-le comme un endpoint de statut étroit, pas comme une API authentifiée de gestion d’identifiants.
 
 ## Erreurs et compatibilité
 
 Les contrôleurs utilisent des codes HTTP ordinaires : 400 pour validation, 401/403 pour authentification/autorisation, 404 pour les ressources absentes, 409 pour les états conflictuels d’outil/rôle, 413 pour un export d’audit trop volumineux et 429 lorsque la pression sur les opérations SQL bornées l’exige.
 
-Pour l’automatisation cliente, fixez la version 2.0.2 et validez le modèle de réponse réellement consommé. Cette page documente les routes et contrats importants sans prétendre que chaque modèle de vue Admin constitue un SDK externe versionné de façon permanente.
+Pour l’automatisation cliente, fixez explicitement la version de hs-sql-agent et validez le modèle de réponse réellement consommé. Cette page documente les routes et contrats importants sans prétendre que chaque modèle de vue Admin constitue un SDK externe versionné de façon permanente.

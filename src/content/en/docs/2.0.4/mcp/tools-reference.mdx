@@ -1,12 +1,12 @@
 ---
 title: MCP Tools Reference
-description: Built-in MCP tool contracts for hs-sql-agent 2.0.4, with the five-tool public surface enforced by the server.
+description: Built-in MCP tool contracts for hs-sql-agent, with the five-tool public surface enforced by the server.
 sidebar:
   group: MCP
   order: 35
 ---
 
-The built-in MCP surface is intentionally small and is now enforced from one canonical server catalog. Version 2.0.4 exposes exactly five built-in tool names.
+The built-in MCP surface is intentionally small and is now enforced from one canonical server catalog. hs-sql-agent exposes exactly five built-in tool names.
 
 | Tool | Public input | Purpose |
 | --- | --- | --- |
@@ -26,7 +26,7 @@ The Admin tool-catalog endpoint also returns descriptors for the same built-ins 
 
 ## Semantic metadata writes are administrative
 
-`update_semantic_layer` is not a built-in MCP tool in 2.0.4. Semantic metadata is a control-plane configuration surface and is edited through the Admin UI or permission-protected Admin API.
+`update_semantic_layer` is not a built-in MCP tool in hs-sql-agent. Semantic metadata is a control-plane configuration surface and is edited through the Admin UI or permission-protected Admin API.
 
 The supported read-only discovery tools still enrich table and column discovery with Semantic Layer descriptions, synonyms, relationships, and metrics where configured and authorized.
 

@@ -12,7 +12,7 @@ import DocCard from "@/components/docs/mdx/DocCard.astro";
 import Steps from "@/components/docs/mdx/Steps.astro";
 import Step from "@/components/docs/mdx/Step.astro";
 
-`HsSqlAgent.Server` is an embeddable ASP.NET Core class-library package. In 2.0.2, new integrations start with an optionless core and explicitly select the capabilities the host needs.
+`HsSqlAgent.Server` is an embeddable ASP.NET Core class-library package. New integrations start with an optionless core and explicitly select the capabilities the host needs.
 
 <CardGrid columns={3}>
   <DocCard title="Host auth + Admin API" icon="API" description="Keep the application's existing Cookie/JWT/OIDC login and permission system. No hs-sql-agent frontend or identity schema is required." />
@@ -180,7 +180,7 @@ Built-in authentication requires a JWT secret of at least 32 bytes. MCP requires
 | Admin API prefix | `/api` |
 | Admin UI | `/` |
 
-These mounts are intentionally fixed in 2.0.2. Arbitrary relocation is not advertised until routing, frontend base paths/assets, callbacks, and security boundaries can move together.
+These mounts are intentionally fixed. Arbitrary relocation is not advertised until routing, frontend base paths/assets, callbacks, and security boundaries can move together.
 
 ## Legacy compatibility
 

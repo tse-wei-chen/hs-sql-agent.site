@@ -12,7 +12,7 @@ import DocCard from "@/components/docs/mdx/DocCard.astro";
 import Steps from "@/components/docs/mdx/Steps.astro";
 import Step from "@/components/docs/mdx/Step.astro";
 
-`HsSqlAgent.Server` 是可以嵌入既有 ASP.NET Core host 的類別庫套件。2.0.2 的新整合方式從不帶選項的核心註冊開始，只明確加入 host 真正需要的 capability。
+`HsSqlAgent.Server` 是可以嵌入既有 ASP.NET Core host 的類別庫套件。hs-sql-agent 的新整合方式從不帶選項的核心註冊開始，只明確加入 host 真正需要的 capability。
 
 <CardGrid columns={3}>
   <DocCard title="沿用 Host 驗證 + Admin API" icon="API" description="沿用應用程式既有的 Cookie/JWT/OIDC 登入與權限系統，不需要 hs-sql-agent 前端或身分資料表。" />
@@ -180,7 +180,7 @@ BuiltInAuth 需要至少 32 bytes 的 JWT secret；MCP 需要至少 32 bytes 的
 | Admin API prefix | `/api` |
 | Admin UI | `/` |
 
-2.0.2 目前刻意固定這些掛載位置。在 routing、frontend base path/assets、callback 與安全邊界能一起搬移之前，不宣稱支援任意掛載路徑。
+hs-sql-agent 目前刻意固定這些掛載位置。在 routing、frontend base path/assets、callback 與安全邊界能一起搬移之前，不宣稱支援任意掛載路徑。
 
 ## 舊版相容介面
 

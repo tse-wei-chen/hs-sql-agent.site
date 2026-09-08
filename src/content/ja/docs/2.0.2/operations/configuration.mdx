@@ -1,6 +1,6 @@
 ---
 title: 設定リファレンス
-description: hs-sql-agent 2.0.2 のソースに基づく環境変数とランタイム設定のリファレンスです。
+description: hs-sql-agent のソースに基づく環境変数とランタイム設定のリファレンスです。
 sidebar:
   group: 運用
   order: 90
@@ -16,7 +16,7 @@ import DocCard from "@/components/docs/mdx/DocCard.astro";
   <DocCard title="組み込み .NET" icon=".NET" description="新規統合では capability ごとの options を設定します。HsSqlAgentServiceOptions は従来の aggregate API 互換用にのみ残されています。" />
 </CardGrid>
 
-リポジトリに含まれる **v2.0.2 `.env.example`** が、既定の Compose deployment で使用する環境変数一覧です。このページでは環境変数名についてそのファイルに従い、コメントと validation が食い違う場合は v2.0.2 の実行コードを基準にします。
+リポジトリに含まれる **hs-sql-agent `.env.example`** が、既定の Compose deployment で使用する環境変数一覧です。このページでは環境変数名についてそのファイルに従い、コメントと validation が食い違う場合は hs-sql-agent の実行コードを基準にします。
 
 <Callout type="warning" title="本番起動前に実際のシークレットを生成してください">
 `HMAC_KEY` と `JWT_KEY` はそれぞれ 32 バイト以上で、一意な値にしてください。リポジトリ内の値は placeholder です。Webhook URL を有効にする場合、その Webhook secret も 32 バイト以上必要です。
@@ -155,8 +155,8 @@ SMTP host または sender が空の場合、password-reset mail は実質的に
 | `AUDIT_FALLBACK_PATH` | `/app/data/audit-fallback.jsonl` | audit fallback path。起動 validation で必須 |
 | `AUDIT_RETENTION_RUN_HOUR_UTC` | `2` | scheduled UTC hour。runtime が 0–23 に clamp |
 
-<Callout type="warning" title="v2.0.2 の sample comment は Delete ですが、runtime code は Purge です">
-`AuditRetentionService` が受け付けるのは `Archive` と `Purge` だけです。`Delete` を含む Archive 以外の無効値では `AuditRetentionMode must be Purge or Archive.` が発生します。このリファレンスでは古い sample comment ではなく、実行される v2.0.2 code を基準にしています。
+<Callout type="warning" title="hs-sql-agent の sample comment は Delete ですが、runtime code は Purge です">
+`AuditRetentionService` が受け付けるのは `Archive` と `Purge` だけです。`Delete` を含む Archive 以外の無効値では `AuditRetentionMode must be Purge or Archive.` が発生します。このリファレンスでは古い sample comment ではなく、実行される hs-sql-agent code を基準にしています。
 </Callout>
 
 `Archive` は期限切れ audit row を JSONL archive へ書き出してから Admin database から削除します。`Purge` は archive を作らず、該当する期限切れ row を削除します。
@@ -215,7 +215,7 @@ metadata discovery、Query、DML planning/execution、health 関連の SQL work 
 | `OTLP_ENDPOINT` | 空 | 絶対 HTTP(S) OTLP collector endpoint |
 | `OTEL_SERVICE_NAME` | `hs-sql-agent` | OpenTelemetry service name。空白不可 |
 
-Prometheus は意図的に Admin/MCP application port とは**別の listener**で提供されます。`OTLP_ENDPOINT` を設定すると、v2.0.2 は SQL compile-evidence の tracing / log integration を含む telemetry を export します。
+Prometheus は意図的に Admin/MCP application port とは**別の listener**で提供されます。`OTLP_ENDPOINT` を設定すると、hs-sql-agent は SQL compile-evidence の tracing / log integration を含む telemetry を export します。
 
 詳しくは [オブザーバビリティと監査運用](/ja/docs/operations/observability) を参照してください。
 
