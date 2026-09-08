@@ -79,6 +79,9 @@ jobs:
       - name: Check content source of truth
         run: pnpm run content:check
 
+      - name: Check doc SVG animation contract
+        run: pnpm run visual:check
+
       - name: Lint
         run: pnpm run lint
 
