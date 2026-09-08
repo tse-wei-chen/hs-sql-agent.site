@@ -20,7 +20,7 @@ const kinds = [
 ];
 
 const fail = message => {
-  console.error(`[doc-visual-animation] ${message}`);
+  process.stderr.write(`[doc-visual-animation] ${message}\n`);
   process.exitCode = 1;
 };
 
@@ -102,7 +102,7 @@ if (!css.includes("@media (prefers-reduced-motion: reduce)")) {
 }
 
 if (!process.exitCode) {
-  console.log(
-    `[doc-visual-animation] OK: ${kinds.length} visual kinds, ${animateMotionCount} animateMotion elements, CSS motion bindings intact.`
+  process.stdout.write(
+    `[doc-visual-animation] OK: ${kinds.length} visual kinds, ${animateMotionCount} animateMotion elements, CSS motion bindings intact.\n`
   );
 }
