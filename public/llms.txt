@@ -1,8 +1,8 @@
 # hs-sql-agent
 
-> hs-sql-agent provides governed SQL access for AI agents through MCP, with fail-closed typed SQL compilation, scoped access policies, approval-gated DML, and support for PostgreSQL, MySQL, SQL Server, Oracle, SQLite, and Firebird.
+> hs-sql-agent provides governed SQL access for AI agents through MCP, with fail-closed typed SQL compilation, scoped access policies, approval-gated DML, explainable compiler decisions, deployment diagnostics, and support for PostgreSQL, MySQL, SQL Server, Oracle, SQLite, and Firebird.
 
-Current documented release: **2.0.5**. Product behavior is pinned by `src/data/productRelease.ts`; prerelease documentation may pin an immutable product commit until the matching release tag exists.
+Current documented release: **2.0.5**. Product behavior is pinned by `src/data/productRelease.ts`; prerelease documentation pins an immutable product commit until the matching release tag exists.
 
 The documentation site is localized in English, Traditional Chinese, Simplified Chinese, Japanese, Korean, French, and German. Prefer stable unversioned documentation URLs for the current release.
 
@@ -35,13 +35,39 @@ All five built-ins expose MCP structured results with inferred output schemas. R
 
 `execute_query_sql` returns `Success`, `Provider`, `RowCount`, `DurationMs`, `Rows`, and `Error`.
 
-Metadata discovery is also structured. Table and column results can include authorized Semantic Layer display names, descriptions, synonyms, relationships, and metrics.
+Metadata discovery is structured. Table and column results can include authorized Semantic Layer display names, descriptions, synonyms, relationships, and metrics.
 
 `execute_dml_sql` returns an explicit `Status` of `committed`, `pending`, `rejected`, or `failed`. It also exposes `Provider`, `Committed`, `StatementCount`, `AffectedRows`, `ApprovalWaitDurationMs`, `ApprovalDecision`, `ApprovalRequestId`, `ApprovalExternalReference`, `ReturnedRows`, `Message`, and `Error`. `pending` and `rejected` are approval states rather than execution errors; `Error` is populated only when `Status` is `failed`.
 
 DML remains opt-in for newly issued MCP keys. The default posture selects the four read/query tools and excludes `execute_dml_sql`.
 
 Published Custom Tools can extend a database's tool collection but are not additional built-in tools.
+
+## SQL Explain and policy simulation
+
+The Admin Console Security page includes SQL Explain / Policy Simulator. It uses the real F# compiler pipeline and the selected database's verified runtime capability profile, but the feature is compile-only: it does not execute SQL, open a database transaction, create a DML approval request, or mutate target data.
+
+Query, DML, and DML batches can be explained. An existing MCP key can be selected to simulate its effective tool and table scope.
+
+Explain results expose rendered target SQL, parameterized values, referenced tables, plan fingerprint, compiler decision boundary/code, diagnostics with source spans, source/target capability evidence, and policy evidence. DML affected-row limits require runtime preview evidence and are not represented as compile-time proof.
+
+## Configuration Doctor and readiness
+
+Runtime → Operability includes Configuration Doctor at `GET /api/runtime/operability/doctor`.
+
+Doctor returns overall and per-check `Healthy`, `Warning`, or `Error` states with operator-facing details/actions. Secret values are never returned. It checks MCP HMAC/JWT secret posture, `Mcp:PublicEndpoint`, Admin Store, Data Protection persistence, coordination providers, Redis completeness, fail-closed distributed limiter/concurrency posture, DML approval configuration, OIDC, OTLP, Alert/SIEM webhooks, and onboarding state.
+
+Runtime coordination is classified as `SingleNode`, `Distributed`, or `Mixed`.
+
+Home System Readiness uses one launch path:
+
+1. clear Configuration Doctor blockers;
+2. add a governed database connection;
+3. verify the public MCP endpoint;
+4. issue an MCP access key;
+5. complete the first governed agent request.
+
+Doctor `Warning` items deserve review but do not block readiness; Doctor `Error` items do. The dashboard can surface the configured public MCP endpoint but never the MCP key secret.
 
 ## SQL compiler and Safe DML
 
@@ -50,7 +76,7 @@ Published Custom Tools can extend a database's tool collection but are not addit
 - [Database dialects](https://sql-agent.net/en/docs/sql-compiler/database-dialects)
 - [Safe DML](https://sql-agent.net/en/docs/sql-compiler/safe-dml)
 
-The structured-result release does not bypass or weaken the typed SQL pipeline. SQL still passes parse, bind, authorization, policy validation, target-capability proof, compilation, and provider execution boundaries.
+2.0.5 does not bypass or weaken the typed SQL pipeline. SQL still passes parse, bind, authorization, policy validation, target-capability proof, compilation, and provider execution boundaries.
 
 For `UPDATE` and `DELETE`, approval binds exact row-set evidence and revalidates before mutation. `INSERT ... VALUES` binds immutable payload evidence. Multi-statement DML remains one server-owned atomic transaction; client-supplied transaction-control SQL is rejected.
 
@@ -83,7 +109,7 @@ An asynchronous provider may return `Pending`. Durable completion remains server
 
 ## Source of truth
 
-- [Pinned 2.0.5 product source](https://github.com/tse-wei-chen/hs-sql-agent/tree/24dc8b2fa6f061e0c2bdf9b30eb1e085aa1e686c)
+- [Pinned 2.0.5 product source](https://github.com/tse-wei-chen/hs-sql-agent/tree/26f7da26ee1c718c440a834c45497a56e1442083)
 - [Product repository](https://github.com/tse-wei-chen/hs-sql-agent)
 - [Documentation repository](https://github.com/tse-wei-chen/hs-sql-agent.site)
 - [Content source policy](https://github.com/tse-wei-chen/hs-sql-agent.site/blob/main/CONTENT_SOURCES.md)

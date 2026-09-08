@@ -9,12 +9,12 @@ The current documentation target is **hs-sql-agent 2.0.5**. Before the matching 
 - Site release manifest: `src/data/productRelease.ts`
 - Product repository: `tse-wei-chen/hs-sql-agent`
 - Intended product tag: `v2.0.5`
-- Current prerelease product source: commit `24dc8b2fa6f061e0c2bdf9b30eb1e085aa1e686c`
+- Current prerelease product source: commit `26f7da26ee1c718c440a834c45497a56e1442083`
 - Product version authority: `backend/Directory.Build.props` at the pinned source reference
 - Documentation routing: `src/data/docsVersions.ts`
 - Immediate documentation parent: `2.0.4`
 
-Product `main` is not a source of truth for immutable current-version documentation. A current page may only describe behavior supported by the pinned source reference.
+The pinned product commit passed the full product workflow before being selected as documentation truth. Product `main` and moving feature branches are not valid immutable current-version sources.
 
 CI runs `pnpm run content:check`. It verifies every file declared in `productRelease.sources`, confirms the pinned `Directory.Build.props` declares the expected `VersionPrefix`, verifies historical release tags, rejects moving prerelease refs, and rejects stale version numbers in current overlays and latest-only copy.
 
@@ -29,24 +29,34 @@ Use the narrowest authoritative product source for each claim.
 | Standard embedded composition | `HsSqlAgent.Hosting` README plus implementation/tests |
 | Modular ASP.NET Core integration | `HsSqlAgent.Server` README plus implementation/tests |
 | Structured MCP result contracts | `HsSqlAgent.Server/Models/McpToolResults.cs` plus built-in tool tests |
-| DML approval behavior | approval abstractions, DML flow, runtime, and tests |
 | Built-in MCP tool names | `McpBuiltInTools.cs` plus MCP runtime/tests |
+| SQL Explain / Policy Simulator | `SqlExplainController.cs`, `SqlExplainContextController.cs`, compiler/runtime code, and Server tests |
+| Configuration Doctor | `RuntimeDoctorController.cs`, `RuntimeDoctorAnalyzer.cs`, and Server tests |
+| Home launch readiness | `frontend/app/lib/systemReadiness.ts` plus frontend tests |
+| DML approval behavior | approval abstractions, DML flow, runtime, and tests |
 | SQL grammar and safety boundaries | `HsSqlAgent.SqlCore` implementation and tests |
 
 When prose and code disagree, code and tests at the pinned source win. If a claim cannot be proven from the pinned source, remove it or mark the limitation explicitly.
 
 ## Release-diff audit
 
-The 2.0.4 → 2.0.5 audit for this branch identifies the following public documentation changes:
+The 2.0.4 → 2.0.5 audit for this branch identifies these public documentation changes:
 
-1. all five built-in MCP tools now publish structured results through MCP `structuredContent` and inferred output schemas;
-2. `execute_query_sql` returns typed rows, row count, provider, duration, and machine-readable errors rather than requiring clients to parse text;
-3. `get_schemas`, `get_tables`, and `get_columns` return structured discovery payloads, including Semantic Layer metadata when authorized;
-4. `execute_dml_sql` exposes `committed`, `pending`, `rejected`, and `failed` as explicit states, with approval identifiers, affected rows, returned rows, human-readable detail, and a machine-readable error only for actual failure;
-5. default MCP-key posture is unchanged: the four read/query tools remain selected by default and `execute_dml_sql` remains opt-in;
-6. this release does not relax SQL compiler validation, table authorization, DML approval, revalidation, or transaction ownership.
+1. all five built-in MCP tools publish typed structured results through MCP `structuredContent` and inferred output schemas;
+2. `execute_query_sql` exposes provider, row count, duration, rows, and machine-readable errors without requiring text parsing;
+3. `get_schemas`, `get_tables`, and `get_columns` expose structured discovery payloads and authorized Semantic Layer metadata;
+4. `execute_dml_sql` exposes `committed`, `pending`, `rejected`, and `failed`, plus approval identifiers, affected rows, returned rows, human-readable detail, and machine-readable error information for actual failures;
+5. the Security page adds compile-only SQL Explain / Policy Simulator backed by the real compiler pipeline and verified target capability profile;
+6. SQL Explain can simulate an MCP Key's tool/table scope and returns rendered SQL, parameters, compiler decision/diagnostic data, capability evidence, and policy evidence without executing SQL;
+7. Runtime → Operability adds Configuration Doctor at `GET /api/runtime/operability/doctor`, returning `Healthy`, `Warning`, or `Error` checks without returning secret values;
+8. Doctor diagnoses security-secret posture, MCP public endpoint, storage, Data Protection, coordination topology, Redis completeness, DML approval, OIDC, telemetry/outbound webhook configuration, and onboarding state;
+9. coordination is classified as `SingleNode`, `Distributed`, or `Mixed`;
+10. Home System Readiness becomes one launch path: configuration blockers → database → public MCP endpoint → MCP key → first governed agent request;
+11. Doctor warnings remain reviewable while Doctor errors are launch blockers;
+12. default MCP-key posture is unchanged: the four read/query tools remain selected by default and `execute_dml_sql` remains opt-in;
+13. the release does not relax SQL compiler validation, table/tool authorization, DML approval, revalidation, rollback, or server-owned transaction ownership, and does not require an Admin Store schema migration.
 
-Only pages covering these changed surfaces are duplicated into the 2.0.5 overlay. Unchanged pages inherit from 2.0.4.
+Only pages covering changed public surfaces are duplicated into the 2.0.5 overlay. Unchanged pages inherit from 2.0.4.
 
 ## Current content versus history
 
@@ -65,7 +75,7 @@ A translation is not a source of truth for another translation.
 ## Release update procedure
 
 1. Set the target version and tag in `src/data/productRelease.ts`.
-2. Before a release tag exists, pin `sourceRef` to an immutable product commit containing every documented change.
+2. Before a release tag exists, pin `sourceRef` to an immutable product commit containing every documented change and a green full product workflow.
 3. Keep the previous release as the immediate historical tag and documentation parent.
 4. Compare the previous release with the pinned product source and inventory changed public surfaces.
 5. Add only changed pages to the new docs overlay.

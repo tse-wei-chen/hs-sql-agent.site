@@ -2,7 +2,7 @@ export const productRelease = {
   repository: "tse-wei-chen/hs-sql-agent",
   version: "2.0.5",
   tag: "v2.0.5",
-  sourceRef: "24dc8b2fa6f061e0c2bdf9b30eb1e085aa1e686c",
+  sourceRef: "26f7da26ee1c718c440a834c45497a56e1442083",
   historicalTags: ["v2.0.4", "v2.0.3", "v2.0.2", "v2.0.1"],
   sources: {
     version: "backend/Directory.Build.props",
@@ -17,6 +17,16 @@ export const productRelease = {
     mcpToolResults:
       "backend/src/Modules/HsSqlAgent.Server/Models/McpToolResults.cs",
     mcpBuiltInCatalog: "backend/src/Common/Models/McpBuiltInTools.cs",
+    sqlExplainController:
+      "backend/src/Modules/HsSqlAgent.Server/Controllers/SqlExplainController.cs",
+    sqlExplainContextController:
+      "backend/src/Modules/HsSqlAgent.Server/Controllers/SqlExplainContextController.cs",
+    runtimeDoctorController:
+      "backend/src/Modules/HsSqlAgent.Server/Controllers/RuntimeDoctorController.cs",
+    runtimeDoctorAnalyzer:
+      "backend/src/Modules/HsSqlAgent.Server/Services/RuntimeDoctorAnalyzer.cs",
+    systemReadiness:
+      "frontend/app/lib/systemReadiness.ts",
     permissions:
       "backend/src/Modules/Auth.Service/Authorization/PermissionCanonicalPaths.cs",
     mcpBuiltIns:
