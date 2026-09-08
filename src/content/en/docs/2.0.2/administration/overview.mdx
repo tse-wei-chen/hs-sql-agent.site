@@ -30,7 +30,7 @@ The Admin Panel is the **operator control plane** for hs-sql-agent. Operators de
   <DocCard title="Audit" icon="AUD" href="/en/docs/administration/audit" description="Search, summarize, export, and apply retention to runtime and security audit records." />
   <DocCard title="Security Policies" icon="POL" href="/en/docs/administration/security-policies" description="Manage query, DML, per-key rate-limit, and SQL concurrency enforcement." />
   <DocCard title="Operability" icon="P95" href="/en/docs/administration/operability" description="Inspect execution metrics, DB health, key usage, and outbound delivery state." />
-  <DocCard title="Admin HTTP API" icon="API" href="/en/docs/reference/api-reference" description="Source-backed 2.0.2 controller routes and authorization surface used by the bundled UI." />
+  <DocCard title="Admin HTTP API" icon="API" href="/en/docs/reference/api-reference" description="Source-backed hs-sql-agent controller routes and authorization surface used by the bundled UI." />
 </CardGrid>
 
 ## Recommended operator flow
@@ -59,4 +59,4 @@ An ASP.NET Core host can expose the HsSqlAgent Admin API without serving the pac
 
 The host can also use `AddHsSqlAgentHostAuthorization(...)` to keep its existing login and permission system instead of installing HsSqlAgent members, roles, JWT, SMTP, or OIDC. MCP is selected and mapped independently with `AddHsSqlAgentMcp(...)` / `UseHsSqlAgentMcp()`.
 
-See [ASP.NET Core integration](/en/docs/integration/aspnet-core) for the complete 2.0.2 composition model.
+See [ASP.NET Core integration](/en/docs/integration/aspnet-core) for the complete hs-sql-agent composition model.

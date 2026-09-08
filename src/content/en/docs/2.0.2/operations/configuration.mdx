@@ -1,6 +1,6 @@
 ---
 title: Configuration Reference
-description: Source-backed environment and runtime configuration reference for hs-sql-agent 2.0.2.
+description: Source-backed environment and runtime configuration reference for hs-sql-agent.
 sidebar:
   group: Operations
   order: 90
@@ -16,7 +16,7 @@ import DocCard from "@/components/docs/mdx/DocCard.astro";
   <DocCard title="Embedded .NET" icon=".NET" description="New integrations configure capability-specific options; HsSqlAgentServiceOptions is retained only for legacy aggregate compatibility." />
 </CardGrid>
 
-The checked-in **v2.0.2 `.env.example`** is the deployment-facing inventory for the default Compose path. This page follows that file for environment names and uses the v2.0.2 runtime code when comments and validation disagree.
+The checked-in **`.env.example`** is the deployment-facing inventory for the default Compose path. This page follows that file for environment names and uses the runtime code when comments and validation disagree.
 
 <Callout type="warning" title="Generate real secrets before starting production">
 `HMAC_KEY` and `JWT_KEY` must each contain at least 32 bytes and should be unique values. The checked-in strings are placeholders. Webhook secrets also require at least 32 bytes when their webhook URL is enabled.
@@ -155,8 +155,8 @@ See [OIDC and MFA](/en/docs/security/oidc-mfa).
 | `AUDIT_FALLBACK_PATH` | `/app/data/audit-fallback.jsonl` | Audit fallback path; required by startup validation |
 | `AUDIT_RETENTION_RUN_HOUR_UTC` | `2` | Scheduled UTC hour, runtime-clamped to 0–23 |
 
-<Callout type="warning" title="The v2.0.2 sample comment says Delete, but runtime code says Purge">
-`AuditRetentionService` accepts only `Archive` and `Purge`; any other non-Archive value, including `Delete`, raises `AuditRetentionMode must be Purge or Archive.` This reference follows executable v2.0.2 code rather than the stale sample comment.
+<Callout type="warning" title="The sample comment says Delete, but runtime code says Purge">
+`AuditRetentionService` accepts only `Archive` and `Purge`; any other non-Archive value, including `Delete`, raises `AuditRetentionMode must be Purge or Archive.` This reference follows executable runtime code rather than the stale sample comment.
 </Callout>
 
 `Archive` writes expired audit rows to a JSONL archive before deleting them from the Admin database. `Purge` deletes matching expired rows without creating that archive.
@@ -215,7 +215,7 @@ Metadata discovery, queries, DML planning/execution, and health-related SQL work
 | `OTLP_ENDPOINT` | empty | Absolute HTTP(S) OTLP collector endpoint |
 | `OTEL_SERVICE_NAME` | `hs-sql-agent` | OpenTelemetry service name; must not be blank |
 
-Prometheus is intentionally served on a **separate listener**, not the Admin/MCP application port. When `OTLP_ENDPOINT` is configured, v2.0.2 exports telemetry including SQL compile-evidence tracing/log integration.
+Prometheus is intentionally served on a **separate listener**, not the Admin/MCP application port. When `OTLP_ENDPOINT` is configured, hs-sql-agent exports telemetry including SQL compile-evidence tracing/log integration.
 
 See [Observability](/en/docs/operations/observability).
 

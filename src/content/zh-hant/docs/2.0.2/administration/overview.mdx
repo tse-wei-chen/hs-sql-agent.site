@@ -30,7 +30,7 @@ import Flow from "@/components/docs/mdx/Flow.astro";
   <DocCard title="稽核" icon="AUD" href="/zh-hant/docs/administration/audit" description="搜尋、彙總與匯出稽核紀錄，並管理執行階段與安全事件的保留政策。" />
   <DocCard title="安全政策" icon="POL" href="/zh-hant/docs/administration/security-policies" description="管理查詢、DML、每把金鑰的速率限制，以及 SQL 並行執行限制。" />
   <DocCard title="運作狀態" icon="P95" href="/zh-hant/docs/administration/operability" description="檢視執行指標、資料庫健康狀態、金鑰使用情形與外送結果。" />
-  <DocCard title="Admin HTTP API" icon="API" href="/zh-hant/docs/reference/api-reference" description="查看內建管理介面所使用的 2.0.2 控制器路由與授權邊界。" />
+  <DocCard title="Admin HTTP API" icon="API" href="/zh-hant/docs/reference/api-reference" description="查看內建管理介面所使用的 hs-sql-agent 控制器路由與授權邊界。" />
 </CardGrid>
 
 ## 建議的管理流程
@@ -59,4 +59,4 @@ ASP.NET Core host 可以只掛載 HsSqlAgent Admin API，而不提供隨套件�
 
 Host 也可以透過 `AddHsSqlAgentHostAuthorization(...)` 沿用既有的登入與權限系統，不必安裝 HsSqlAgent 內建的成員、角色、JWT、SMTP 或 OIDC。MCP 則可使用 `AddHsSqlAgentMcp(...)` / `UseHsSqlAgentMcp()` 獨立選擇與掛載。
 
-完整的 2.0.2 元件組裝方式請參考 [ASP.NET Core 整合](/zh-hant/docs/integration/aspnet-core)。
+完整的 hs-sql-agent 元件組裝方式請參考 [ASP.NET Core 整合](/zh-hant/docs/integration/aspnet-core)。

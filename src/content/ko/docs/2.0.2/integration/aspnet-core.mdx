@@ -12,7 +12,7 @@ import DocCard from "@/components/docs/mdx/DocCard.astro";
 import Steps from "@/components/docs/mdx/Steps.astro";
 import Step from "@/components/docs/mdx/Step.astro";
 
-`HsSqlAgent.Server`는 임베드 가능한 ASP.NET Core class-library package입니다. 2.0.2의 새 통합은 options 없는 core에서 시작해 호스트가 실제로 필요한 capability를 명시적으로 선택합니다.
+`HsSqlAgent.Server`는 임베드 가능한 ASP.NET Core class-library package입니다. hs-sql-agent의 새 통합은 options 없는 core에서 시작해 호스트가 실제로 필요한 capability를 명시적으로 선택합니다.
 
 <CardGrid columns={3}>
   <DocCard title="Host auth + Admin API" icon="API" description="애플리케이션의 기존 Cookie/JWT/OIDC 로그인과 권한 체계를 유지합니다. hs-sql-agent frontend 또는 identity schema가 필수는 아닙니다." />
@@ -180,7 +180,7 @@ Built-in authentication은 최소 32바이트 JWT secret을 요구하고 MCP는 
 | Admin API prefix | `/api` |
 | Admin UI | `/` |
 
-2.0.2에서는 이 mount를 의도적으로 고정합니다. Routing, frontend base path/assets, callback, security boundary를 함께 이동할 수 있기 전에는 임의 relocation을 지원한다고 문서화하지 않습니다.
+hs-sql-agent에서는 이 mount를 의도적으로 고정합니다. Routing, frontend base path/assets, callback, security boundary를 함께 이동할 수 있기 전에는 임의 relocation을 지원한다고 문서화하지 않습니다.
 
 ## Legacy compatibility
 

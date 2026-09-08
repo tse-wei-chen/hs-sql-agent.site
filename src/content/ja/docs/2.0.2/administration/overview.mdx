@@ -30,7 +30,7 @@ import Flow from "@/components/docs/mdx/Flow.astro";
   <DocCard title="監査" icon="AUD" href="/ja/docs/administration/audit" description="ランタイムおよびセキュリティ監査レコードの検索、集計、エクスポート、保持を行います。" />
   <DocCard title="セキュリティポリシー" icon="POL" href="/ja/docs/administration/security-policies" description="クエリ、DML、キー単位のレート制限、SQL 同時実行制御を管理します。" />
   <DocCard title="運用状態" icon="P95" href="/ja/docs/administration/operability" description="実行メトリクス、DB ヘルス、キー利用状況、外向き配信の状態を確認します。" />
-  <DocCard title="Admin HTTP API" icon="API" href="/ja/docs/reference/api-reference" description="同梱 UI が利用する、ソースに基づく 2.0.2 のコントローラールートと認可サーフェスを確認します。" />
+  <DocCard title="Admin HTTP API" icon="API" href="/ja/docs/reference/api-reference" description="同梱 UI が利用する、ソースに基づく hs-sql-agent のコントローラールートと認可サーフェスを確認します。" />
 </CardGrid>
 
 ## 推奨する運用フロー
@@ -59,4 +59,4 @@ ASP.NET Core のホストは、同梱の管理 UI を配信せずに HsSqlAgent 
 
 また、ホストは `AddHsSqlAgentHostAuthorization(...)` を使用し、HsSqlAgent のメンバー、ロール、JWT、SMTP、OIDC を導入せずに既存のログイン／権限システムを維持できます。MCP は `AddHsSqlAgentMcp(...)` / `UseHsSqlAgentMcp()` で独立して選択・マッピングします。
 
-2.0.2 の構成モデル全体については [ASP.NET Core 連携](/ja/docs/integration/aspnet-core) を参照してください。
+hs-sql-agent の構成モデル全体については [ASP.NET Core 連携](/ja/docs/integration/aspnet-core) を参照してください。

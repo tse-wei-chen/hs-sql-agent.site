@@ -1,6 +1,6 @@
 ---
 title: Berechtigungen
-description: Das Path-and-Action-Autorisierungsmodell für Admin-Operationen in hs-sql-agent 2.0.2 verstehen.
+description: Das Path-and-Action-Autorisierungsmodell für Admin-Operationen in hs-sql-agent verstehen.
 sidebar:
   group: Administration
   order: 79
@@ -16,10 +16,10 @@ import DocCard from "@/components/docs/mdx/DocCard.astro";
   <DocCard title="Rollenauswahl" icon="RBAC" description="Rollen speichern nur Permission/Action-Paare, die im Template-Bestand des Servers existieren." />
 </CardGrid>
 
-Die Admin-Autorisierung in 2.0.2 verwendet einen **canonical permission path + action code**. Der kanonische Pfad ist eine stabile Kennung für eine Autorisierungsressource; er ist weder eine Route der Admin UI noch ein HTTP-Mount-Pfad. `/runtime/db-management` und `/auth/role` bleiben beispielsweise dieselben Autorisierungskennungen, auch wenn Navigation oder Controller-URLs anders organisiert werden.
+Die Admin-Autorisierung verwendet einen **canonical permission path + action code**. Der kanonische Pfad ist eine stabile Kennung für eine Autorisierungsressource; er ist weder eine Route der Admin UI noch ein HTTP-Mount-Pfad. `/runtime/db-management` und `/auth/role` bleiben beispielsweise dieselben Autorisierungskennungen, auch wenn Navigation oder Controller-URLs anders organisiert werden.
 
 <Callout type="warning" title="Kanonische Berechtigungen sind keine Routen">
-Leiten Sie Autorisierung nicht aus `route.path` ab und behandeln Sie einen canonical permission path nicht als direkt aufrufbaren HTTP-Pfad. In 2.0.2 sind die öffentlichen Mounts getrennte Verträge: MCP liegt unter `/mcp`, die Administrations-API unter `/api` und die Administrationsoberfläche unter `/`.
+Leiten Sie Autorisierung nicht aus `route.path` ab und behandeln Sie einen canonical permission path nicht als direkt aufrufbaren HTTP-Pfad. In hs-sql-agent sind die öffentlichen Mounts getrennte Verträge: MCP liegt unter `/mcp`, die Administrations-API unter `/api` und die Administrationsoberfläche unter `/`.
 </Callout>
 
 Dieselben kanonischen Kennungen gelten in zwei gegenseitig ausschließenden Autorisierungsmodi. Mit integrierter Identität lösen HsSqlAgent-Mitglieder und -Rollen die Permission/Action-Templates auf. Mit `AddHsSqlAgentHostAuthorization()` übergibt HsSqlAgent die angeforderten kanonischen Permission Keys über `HsSqlAgentPermissionResource.Permissions`; die Host-Anwendung ordnet sie ihrem eigenen Policy-Modell zu. Sofern nicht anders angegeben, beschreiben die folgenden Rollen- und Template-Abschnitte den **Modus mit integrierter Identität**.
@@ -74,7 +74,7 @@ So soll verhindert werden, dass bereits authentifizierte Sitzungen mit veraltete
 
 ## Geschützte SuperUser-Rolle
 
-`SuperUser` ist in 2.0.2 eine integrierte geschützte Rolle. Sie kann über die normale Rollenverwaltung weder bearbeitet noch gelöscht werden. Damit kann die Bootstrap-/Vollzugriffsrolle nicht stillschweigend in eine andere Berechtigungsmenge umdefiniert werden.
+`SuperUser` ist eine integrierte geschützte Rolle. Sie kann über die normale Rollenverwaltung weder bearbeitet noch gelöscht werden. Damit kann die Bootstrap-/Vollzugriffsrolle nicht stillschweigend in eine andere Berechtigungsmenge umdefiniert werden.
 
 <Callout type="tip" title="Berechtigungen nach Verantwortung zuschneiden">
 Erstellen Sie Rollen anhand der tatsächlichen Aufgaben statt für jedes Konto `SuperUser` zu kopieren. Ein Laufzeit-Beobachter benötigt beispielsweise Audit/Operability `view`, aber nicht zwingend Database `edit`, Key `create` oder Security-Policy `edit`.

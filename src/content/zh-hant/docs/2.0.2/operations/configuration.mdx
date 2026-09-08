@@ -1,6 +1,6 @@
 ---
 title: 設定參考
-description: 根據 hs-sql-agent 2.0.2 原始碼整理的環境變數與執行階段設定參考。
+description: 根據 hs-sql-agent 原始碼整理的環境變數與執行階段設定參考。
 sidebar:
   group: 維運
   order: 90
@@ -16,7 +16,7 @@ import DocCard from "@/components/docs/mdx/DocCard.astro";
   <DocCard title="內嵌 .NET" icon=".NET" description="新的整合方式使用各 capability 自己的 options；HsSqlAgentServiceOptions 只保留給舊版整合 API 相容使用。" />
 </CardGrid>
 
-程式庫中的 **v2.0.2 `.env.example`** 是預設 Compose 部署方式的環境變數清單。本頁以該檔案的變數名稱為基準；如果範例註解和 v2.0.2 執行階段驗證邏輯不一致，則以實際可執行的程式碼為準。
+程式庫中的 **hs-sql-agent `.env.example`** 是預設 Compose 部署方式的環境變數清單。本頁以該檔案的變數名稱為基準；如果範例註解和 hs-sql-agent 執行階段驗證邏輯不一致，則以實際可執行的程式碼為準。
 
 <Callout type="warning" title="正式環境啟動前請先產生真正的密鑰">
 `HMAC_KEY` 與 `JWT_KEY` 都必須至少 32 bytes，而且應使用彼此獨立的值。程式庫中的字串只是 placeholder。若啟用 webhook URL，對應的 webhook secret 也必須至少 32 bytes。
@@ -155,8 +155,8 @@ ADMIN_DATABASE_CONNECTION_STRING=Host=postgres;Port=5432;Database=hsqlagent;User
 | `AUDIT_FALLBACK_PATH` | `/app/data/audit-fallback.jsonl` | 稽核備援路徑；啟動驗證要求有設定 |
 | `AUDIT_RETENTION_RUN_HOUR_UTC` | `2` | 排程執行的 UTC 小時；執行階段會限制在 0–23 |
 
-<Callout type="warning" title="v2.0.2 範例註解提到 Delete，但執行階段使用 Purge">
-`AuditRetentionService` 只接受 `Archive` 與 `Purge`。其他非 Archive 值（包含 `Delete`）會觸發 `AuditRetentionMode must be Purge or Archive.`。本參考頁以實際可執行的 v2.0.2 程式碼為準，不採用已過時的範例註解。
+<Callout type="warning" title="hs-sql-agent 範例註解提到 Delete，但執行階段使用 Purge">
+`AuditRetentionService` 只接受 `Archive` 與 `Purge`。其他非 Archive 值（包含 `Delete`）會觸發 `AuditRetentionMode must be Purge or Archive.`。本參考頁以實際可執行的 hs-sql-agent 程式碼為準，不採用已過時的範例註解。
 </Callout>
 
 `Archive` 會先把過期稽核資料列寫入 JSONL 封存檔，再從管理資料庫刪除；`Purge` 則直接刪除符合保留條件的紀錄，不建立封存檔。
@@ -215,7 +215,7 @@ MCP 金鑰還可以自行繼承、覆寫或停用每把金鑰的速率限制。�
 | `OTLP_ENDPOINT` | empty | HTTP(S) OTLP collector 的絕對端點 URL |
 | `OTEL_SERVICE_NAME` | `hs-sql-agent` | OpenTelemetry service name；不可為空白 |
 
-Prometheus 刻意使用**獨立 listener**，不和 Admin / MCP 應用程式連接埠共用。當 `OTLP_ENDPOINT` 有設定時，v2.0.2 會匯出遙測資料，包含 SQL compile-evidence 的 tracing / log 整合。
+Prometheus 刻意使用**獨立 listener**，不和 Admin / MCP 應用程式連接埠共用。當 `OTLP_ENDPOINT` 有設定時，hs-sql-agent 會匯出遙測資料，包含 SQL compile-evidence 的 tracing / log 整合。
 
 請參考 [可觀測性](/zh-hant/docs/operations/observability)。
 

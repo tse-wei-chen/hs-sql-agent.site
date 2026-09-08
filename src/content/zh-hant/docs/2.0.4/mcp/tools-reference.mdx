@@ -1,12 +1,12 @@
 ---
 title: MCP 工具參考
-description: hs-sql-agent 2.0.4 的內建 MCP 工具契約；伺服器會強制維持五項正式公開工具。
+description: hs-sql-agent 的內建 MCP 工具契約；伺服器會強制維持五項正式公開工具。
 sidebar:
   group: MCP
   order: 35
 ---
 
-MCP 內建工具刻意維持精簡，2.0.4 起並由伺服器單一正式目錄強制約束。公開的內建工具固定為五項：
+MCP 內建工具刻意維持精簡，並由伺服器單一正式目錄強制約束。公開的內建工具固定為五項：
 
 | 工具 | 公開輸入 | 用途 |
 | --- | --- | --- |
@@ -26,7 +26,7 @@ MCP 金鑰驗證與 MCP 執行階段探索共用同一組正式內建工具名�
 
 ## 語意中繼資料寫入屬於管理操作
 
-`update_semantic_layer` 在 2.0.4 並不是內建 MCP 工具。Semantic Layer 是控制平面的設定資料，應從管理介面或受權限保護的管理 API 編輯。
+`update_semantic_layer` 在 hs-sql-agent 並不是內建 MCP 工具。Semantic Layer 是控制平面的設定資料，應從管理介面或受權限保護的管理 API 編輯。
 
 唯讀探索工具仍會在權限允許時，把已設定的顯示名稱、描述、同義詞、關聯與指標加入資料表與欄位探索結果。
 

@@ -12,7 +12,7 @@ import DocCard from "@/components/docs/mdx/DocCard.astro";
 import Steps from "@/components/docs/mdx/Steps.astro";
 import Step from "@/components/docs/mdx/Step.astro";
 
-`HsSqlAgent.Server` 是可嵌入的 ASP.NET Core 类库包。2.0.2 的新集成从无 options 的 core 开始，再明确选择宿主真正需要的 capability。
+`HsSqlAgent.Server` 是可嵌入的 ASP.NET Core 类库包。hs-sql-agent 的新集成从无 options 的 core 开始，再明确选择宿主真正需要的 capability。
 
 <CardGrid columns={3}>
   <DocCard title="宿主认证 + Admin API" icon="API" description="保留现有 Cookie/JWT/OIDC 登录与权限体系，不要求 hs-sql-agent 前端或身份 schema。" />
@@ -180,7 +180,7 @@ app.UseHsSqlAgentAdminUi();
 | Admin API prefix | `/api` |
 | Admin UI | `/` |
 
-2.0.2 中这些 mount 是刻意固定的。在 routing、frontend base path/assets、callback 和安全边界能够一起迁移之前，不宣传支持任意重定位。
+hs-sql-agent 中这些 mount 是刻意固定的。在 routing、frontend base path/assets、callback 和安全边界能够一起迁移之前，不宣传支持任意重定位。
 
 ## 旧版兼容
 
