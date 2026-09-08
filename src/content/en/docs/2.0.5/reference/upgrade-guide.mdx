@@ -1,6 +1,6 @@
 ---
 title: Upgrade Guide
-description: Upgrade hs-sql-agent from 2.0.4 to 2.0.5 and migrate MCP clients from text parsing to structured built-in tool results.
+description: Upgrade hs-sql-agent from 2.0.4 to 2.0.5 for structured MCP results, SQL Explain, Configuration Doctor, and the unified launch-readiness path.
 sidebar:
   group: Reference
   order: 144
@@ -8,23 +8,23 @@ sidebar:
 
 ## What changes in 2.0.5
 
-2.0.5 changes the public result contract of all five built-in MCP tools from text-oriented responses to typed structured results. The SQL compiler, table authorization, DML approval model, transaction ownership, and default MCP-key posture are not relaxed by this release.
+2.0.5 is an Agent DX, explainability, and deployment-readiness release. It adds machine-readable MCP tool contracts, a compile-only SQL Explain / Policy Simulator, Configuration Doctor, and a unified path to the first governed agent request.
 
-The five built-ins remain `get_schemas`, `get_tables`, `get_columns`, `execute_query_sql`, and `execute_dml_sql`.
+The release does **not** relax the fail-closed SQL compiler, provider capability checks, table/tool authorization, DML approval, row-set revalidation, rollback behavior, or server-owned transaction boundary.
 
-## Client migration
+The five built-in MCP tools remain `get_schemas`, `get_tables`, `get_columns`, `execute_query_sql`, and `execute_dml_sql`.
 
-If a client only displays tool output, no special migration is usually required. If automation parses tool text, migrate it to the structured fields exposed through MCP `structuredContent` and the inferred output schema.
+## Structured MCP result migration
 
-For `execute_query_sql`, consume `Success`, `Provider`, `RowCount`, `DurationMs`, `Rows`, and `Error` directly. Do not extract row count or JSON rows from presentation text.
+All five built-ins now expose typed data through MCP `structuredContent` and an inferred output schema. Human-readable presentation fields remain available, but automation should stop parsing message text.
 
-For metadata tools, consume `Schemas`, `Tables`, and `Columns` directly. Table and column objects now carry authorized Semantic Layer metadata as explicit nested fields.
+For `execute_query_sql`, consume `Success`, `Provider`, `RowCount`, `DurationMs`, `Rows`, and `Error` directly. For metadata tools, consume `Schemas`, `Tables`, and `Columns`; authorized Semantic Layer fields are carried as structured nested data.
 
-For failures, branch on `McpToolError.Code`, `Stage`, and `Retryable` rather than matching message prefixes. `Message` remains available for people and logs but is not the stable control field.
+For failures, branch on `McpToolError.Code`, `Stage`, and `Retryable` rather than matching message prefixes.
 
-## DML state migration
+### DML result states
 
-`execute_dml_sql` now exposes four explicit states in `Status`:
+`execute_dml_sql` exposes four explicit values in `Status`:
 
 | `Status` | Meaning | `Committed` | `Error` |
 | --- | --- | --- | --- |
@@ -33,26 +33,82 @@ For failures, branch on `McpToolError.Code`, `Stage`, and `Retryable` rather tha
 | `rejected` | approval was declined | `false` | null |
 | `failed` | policy, validation, concurrency, configuration, or execution failure | `false` | populated |
 
-Do not treat `pending` or `rejected` as transport or execution errors. They are valid approval outcomes.
+`pending` and `rejected` are valid approval outcomes, not execution failures. A `pending` result means no database change has been committed. For asynchronous approval, persist `ApprovalRequestId`; use `ApprovalExternalReference` when the provider supplies one. For supported result clauses such as `RETURNING`, read committed rows from `ReturnedRows`.
 
-For asynchronous approval flows, persist or correlate `ApprovalRequestId`; when the approval provider supplies one, `ApprovalExternalReference` is also available. A `pending` result means no database change has been committed.
+## SQL Explain / Policy Simulator
 
-For supported DML result clauses such as `RETURNING`, read committed rows from `ReturnedRows` instead of parsing them from `Message`.
+The Admin Console Security page now includes SQL Explain / Policy Simulator. It runs the real F# compiler pipeline against the selected target provider and its verified runtime capability profile, but it is **compile-only**:
+
+- no SQL is executed;
+- no database transaction is opened;
+- no DML approval request is created;
+- no target data can be mutated by the simulator.
+
+The simulator supports Query and DML, including DML batches. It can optionally simulate an existing MCP key so tool access and table allowlists are evaluated with that key's effective scope.
+
+The result exposes rendered target SQL, parameterized values, referenced tables, QueryFacts where applicable, plan fingerprint, compiler decision boundary/code, diagnostics with source spans, source/target capability evidence, and effective policy evidence.
+
+DML affected-row limits depend on runtime preview evidence and are therefore not reported as compile-time proof. Use the normal DML execution/approval path when row-count evidence is required.
+
+## Configuration Doctor
+
+Runtime → Operability now includes Configuration Doctor. The endpoint is `GET /api/runtime/operability/doctor` and requires Operability view permission.
+
+Doctor returns an overall `Healthy`, `Warning`, or `Error` status and individual checks with `id`, `category`, `status`, `title`, `detail`, and an optional `action`. Secret values are never returned.
+
+Checks include:
+
+- MCP HMAC and JWT signing-secret presence, minimum length, and common placeholder values;
+- `Mcp:PublicEndpoint` URL posture;
+- Admin Store configuration and distributed/SQLite mismatch;
+- Data Protection key persistence;
+- runtime coordination providers (`CacheConfig`, `RateLimiter`, `SecurityPolicySync`, `OutboundDeliverySync`, `SqlConcurrency`);
+- Redis connection-string completeness, mixed Memory/Redis coordination, and fail-closed limiter/concurrency posture;
+- DML approval provider and Webhook prerequisites;
+- OIDC prerequisites and Production HTTPS metadata posture;
+- OTLP, alert webhook, and SIEM webhook configuration;
+- database, active MCP-key, and observed-agent-traffic readiness.
+
+Doctor classifies coordination as `SingleNode`, `Distributed`, or `Mixed`. `Error` means a deployment prerequisite is not safe/complete; `Warning` means the configuration can be usable but deserves operator review.
+
+## Unified System Readiness
+
+The Home dashboard keeps the existing System Readiness experience, but 2.0.5 expands it into one launch path instead of adding another wizard:
+
+1. clear Configuration Doctor blockers;
+2. add a governed database connection;
+3. verify the public MCP endpoint;
+4. issue an MCP access key;
+5. complete the first governed agent request.
+
+Doctor warnings do not block readiness; Doctor errors do. The dashboard may display the configured public MCP endpoint for onboarding, but it never displays the MCP key secret.
+
+New MCP keys still default to the four read/query tools. `execute_dml_sql` remains opt-in.
+
+## Upgrade checklist
+
+After deploying 2.0.5:
+
+1. update MCP clients that parse tool text to read structured fields;
+2. open Runtime → Operability and run Configuration Doctor;
+3. resolve every `Error` before treating the deployment as ready, and review `Warning` items for your topology;
+4. open Security Policy and use SQL Explain to verify representative Query and DML statements against the real provider/policy boundary;
+5. confirm `Mcp:PublicEndpoint` is the externally reachable `/mcp` URL;
+6. verify at least one active key uses the intended database, tool set, and table scope;
+7. connect the client and complete one governed request.
 
 ## What does not change
 
-- new MCP keys still select the four read/query tools by default;
-- `execute_dml_sql` remains opt-in;
 - unsupported SQL still fails closed;
-- table allowlists and tool authorization are still enforced server-side;
-- multi-statement DML is still approved once and committed atomically in server-owned transaction order;
-- pending durable approval still revalidates current authorization, configuration, policy, plan, row-set, and affected-row evidence before later commit;
-- client-supplied transaction-control SQL remains rejected.
+- table allowlists and tool authorization remain server-enforced;
+- `execute_dml_sql` remains opt-in for new keys;
+- multi-statement DML remains approved once and committed atomically in server-owned transaction order;
+- pending durable approval still revalidates current authorization, configuration, policy, plan, row-set, and affected-row evidence before commit;
+- client-supplied transaction-control SQL remains rejected;
+- these 2.0.5 features do not require an Admin Store schema migration.
 
 ## Rollback considerations
 
-A rollback to 2.0.4 restores the previous built-in result shape. Clients already migrated to structured-only field access should therefore be version-aware if they must support both server versions during a staged rollout.
+Rolling back to 2.0.4 restores the previous built-in MCP result shape and removes the 2.0.5 Explain, Doctor, and expanded readiness UI. Clients migrated to structured-only field access should be version-aware if they must support both versions during a staged rollout.
 
-The database schema and SQL definitions do not require a migration for the structured-result change itself.
-
-See [MCP Tools Reference](/en/docs/mcp/tools-reference) for the exact 2.0.5 fields.
+See [MCP Tools Reference](/en/docs/mcp/tools-reference) for the exact structured built-in result fields.
