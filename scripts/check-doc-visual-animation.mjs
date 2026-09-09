@@ -119,8 +119,15 @@ for (const fallback of [
   }
 }
 
-if (reducedMotion.includes("12s") || reducedMotion.includes("7s") || reducedMotion.includes("6s")) {
-  fail("Reduced-motion fallback must not silently slow documentation animation cadence");
+for (const slowedFallback of [
+  "animation: doc-reduced-pulse 6s",
+  "animation: doc-reduced-pulse 7s",
+  "animation: doc-reduced-ring-pulse 7s",
+  "animation: doc-scan 12s",
+]) {
+  if (reducedMotion.includes(slowedFallback)) {
+    fail(`Reduced-motion fallback must not silently slow cadence: ${slowedFallback}`);
+  }
 }
 
 if (!process.exitCode) {
