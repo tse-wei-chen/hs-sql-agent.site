@@ -1,0 +1,40 @@
+/*
+ * Reduced motion should reduce spatial movement, not make documentation diagrams
+ * look broken or completely static. Keep the normal visual cadence while replacing
+ * large translations/scales with opacity-based feedback.
+ *
+ * docs.css applies a broad animation:none fallback under prefers-reduced-motion.
+ * These more-specific rules opt the low-motion primitives back in without changing
+ * their normal timing.
+ */
+
+@media (prefers-reduced-motion: reduce) {
+  .doc-visual .doc-svg-stage,
+  .doc-visual .doc-svg-float,
+  .doc-visual .doc-svg-human,
+  .doc-visual .doc-svg-span {
+    animation: doc-pulse-opacity 2.2s ease-in-out infinite !important;
+    transform: none !important;
+  }
+
+  .doc-visual .doc-svg-gate {
+    animation: doc-gate-pulse 2.8s ease-in-out infinite !important;
+  }
+
+  .doc-visual .doc-svg-pulse,
+  .doc-visual .doc-svg-pulse-ring {
+    animation: doc-pulse-opacity 2.2s ease-in-out infinite !important;
+    transform: none !important;
+  }
+
+  .doc-visual .doc-svg-scan {
+    animation: doc-scan 4.6s linear infinite !important;
+  }
+
+  /* Continuous rotation remains suppressed; its parent still provides a pulse. */
+  .doc-visual .doc-svg-stage-ring,
+  .doc-visual .doc-svg-orbit {
+    animation: none !important;
+    transform: none !important;
+  }
+}
