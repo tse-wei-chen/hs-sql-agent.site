@@ -82,6 +82,9 @@ jobs:
       - name: Check evergreen docs are version-neutral
         run: pnpm run content:version-neutral
 
+      - name: Check doc SVG animation contract
+        run: pnpm run visual:check
+
       - name: Lint
         run: pnpm run lint
 
