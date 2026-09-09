@@ -4,9 +4,13 @@ import path from "node:path";
 const root = process.cwd();
 const visualPath = path.join(root, "src/components/docs/DocVisual.astro");
 const cssPath = path.join(root, "src/styles/docs.css");
+const reducedMotionPath = path.join(root, "src/styles/docs-reduced-motion.css");
+const layoutPath = path.join(root, "src/layouts/DocsLayout.astro");
 
 const visual = fs.readFileSync(visualPath, "utf8");
 const css = fs.readFileSync(cssPath, "utf8");
+const reducedMotion = fs.readFileSync(reducedMotionPath, "utf8");
+const layout = fs.readFileSync(layoutPath, "utf8");
 
 const kinds = [
   "overview",
@@ -101,8 +105,26 @@ if (!css.includes("@media (prefers-reduced-motion: reduce)")) {
   fail("Reduced-motion accessibility fallback must remain present");
 }
 
+if (!layout.includes('import "@/styles/docs-reduced-motion.css";')) {
+  fail("DocsLayout must load the reduced-motion SVG fallback after docs.css");
+}
+
+for (const fallback of [
+  "animation: doc-pulse-opacity 2.2s",
+  "animation: doc-gate-pulse 2.8s",
+  "animation: doc-scan 4.6s",
+]) {
+  if (!reducedMotion.includes(fallback)) {
+    fail(`Reduced-motion fallback lost normal cadence: ${fallback}`);
+  }
+}
+
+if (reducedMotion.includes("12s") || reducedMotion.includes("7s") || reducedMotion.includes("6s")) {
+  fail("Reduced-motion fallback must not silently slow documentation animation cadence");
+}
+
 if (!process.exitCode) {
   process.stdout.write(
-    `[doc-visual-animation] OK: ${kinds.length} visual kinds, ${animateMotionCount} animateMotion elements, CSS motion bindings intact.\n`
+    `[doc-visual-animation] OK: ${kinds.length} visual kinds, ${animateMotionCount} animateMotion elements, CSS motion bindings and reduced-motion fallback intact.\n`
   );
 }
