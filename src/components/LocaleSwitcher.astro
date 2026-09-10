@@ -125,6 +125,7 @@ function getLocaleHref(locale: string): string {
         return (
           <a
             href={active ? "#" : getLocaleHref(locale)}
+            data-locale-option={locale}
             role="menuitem"
             class:list={[
               "block rounded-sm px-3 py-1.5 text-sm no-underline transition",
@@ -143,7 +144,24 @@ function getLocaleHref(locale: string): string {
 </div>
 
 <script>
+  const localeStorageKey = "preferred-locale";
+
   document.addEventListener("click", function (e) {
+    const target = e.target;
+    if (target instanceof Element) {
+      const localeOption = target.closest("[data-locale-option]");
+      if (localeOption instanceof HTMLAnchorElement) {
+        const selectedLocale = localeOption.dataset.localeOption;
+        if (selectedLocale) {
+          try {
+            window.localStorage.setItem(localeStorageKey, selectedLocale);
+          } catch {
+            // localStorage can be unavailable in hardened/privacy browsing modes.
+          }
+        }
+      }
+    }
+
     const btn = document.getElementById("locale-btn");
     const menu = document.getElementById("locale-menu");
     if (!btn || !menu) return;

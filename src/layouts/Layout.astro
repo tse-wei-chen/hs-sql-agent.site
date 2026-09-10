@@ -1,8 +1,10 @@
 ---
 import { Font } from "astro:assets";
+import { getRelativeLocaleUrl } from "astro:i18n";
 import { ClientRouter } from "astro:transitions";
 import { resolveDefaultOgImagePath } from "@/utils/resolveDefaultOgImagePath";
 import { getAssetPath } from "@/utils/withBase";
+import { locales } from "@/utils/getPostsByLocale";
 import config from "@/config";
 import "@/styles/global.css";
 
@@ -28,7 +30,18 @@ const {
 } = Astro.props;
 
 const locale = Astro.currentLocale ?? site.lang;
-const socialImageURL = new URL(ogImage, Astro.site ?? Astro.url);
+const urlBase = Astro.site ?? Astro.url;
+const socialImageURL = new URL(ogImage, urlBase);
+const normalizePath = (value: string) => value.replace(/\/+$/, "") || "/";
+const localeHomePath = getRelativeLocaleUrl(locale);
+const isLocaleHome =
+  normalizePath(Astro.url.pathname) === normalizePath(localeHomePath);
+const localeHomeAlternates = isLocaleHome
+  ? locales.map(candidate => ({
+      locale: candidate,
+      href: getRelativeLocaleUrl(candidate),
+    }))
+  : [];
 ---
 
 <!doctype html>
@@ -48,6 +61,24 @@ const socialImageURL = new URL(ogImage, Astro.site ?? Astro.url);
     />
     <link rel="icon" type="image/svg+xml" href={getAssetPath("favicon.svg")} />
     <link rel="canonical" href={canonicalURL} />
+    {
+      localeHomeAlternates.map(alternate => (
+        <link
+          rel="alternate"
+          hreflang={alternate.locale}
+          href={new URL(alternate.href, urlBase)}
+        />
+      ))
+    }
+    {
+      isLocaleHome && (
+        <link
+          rel="alternate"
+          hreflang="x-default"
+          href={new URL("/", urlBase)}
+        />
+      )
+    }
     <meta name="generator" content={Astro.generator} />
 
     <meta data-pagefind-filter="locale[content]" content={locale} />
