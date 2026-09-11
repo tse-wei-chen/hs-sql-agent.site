@@ -34,7 +34,7 @@ In built-in identity mode, protected Admin routes use HsSqlAgent authentication 
 
 In host-authorization mode, the host owns authentication defaults and its authorization policy. Requested canonical permission keys arrive through `HsSqlAgentPermissionResource.Permissions`. In modular host mode `UseHsSqlAgentAdminApi()` deliberately does not call `MapControllers()`; the host owns controller endpoint mapping for the MVC application.
 
-See [Permissions](/en/docs/administration/permissions).
+See [Permissions](/docs/administration/permissions).
 
 The Auth, Member, and Role sections below apply only when the built-in identity capability is selected.
 
@@ -77,7 +77,7 @@ The Auth, Member, and Role sections below apply only when the built-in identity 
 | PUT | `/api/Member/{id}/password-change-required` | `/auth/user` → `edit` |
 | DELETE | `/api/Member/{id}` | `/auth/user` → `delete` |
 
-See [Members & Roles](/en/docs/administration/members-roles) for self-lockout and lifecycle guardrails.
+See [Members & Roles](/docs/administration/members-roles) for self-lockout and lifecycle guardrails.
 
 ## Roles — `/api/Role`
 
@@ -159,7 +159,7 @@ These routes use `/runtime/custom-tools` with `view`, `create`, `edit`, or `dele
 | Audit | `/audit`, `/audit/daily-summary`, `/audit/export`, `/audit/retention`, `/audit/retention/dry-run`, `/audit/retention/execute` |
 | Operability | `/operability/metrics`, `/operability/db-health`, `/operability/key-usage`, `/operability/deliveries`, `/operability/deliveries/{id}/retry` |
 
-See [Audit](/en/docs/administration/audit) and [Operability](/en/docs/administration/operability) for filters, response fields, and permissions.
+See [Audit](/docs/administration/audit) and [Operability](/docs/administration/operability) for filters, response fields, and permissions.
 
 ## Security Policy — `/api/runtime/security`
 

@@ -14,12 +14,12 @@ The documentation site is localized in English, Traditional Chinese, Simplified 
 
 ## Start here
 
-- [Introduction](https://sql-agent.net/en/docs/getting-started/introduction)
-- [Quick start](https://sql-agent.net/en/docs/getting-started/quick-start)
-- [MCP client onboarding](https://sql-agent.net/en/docs/mcp/client-onboarding)
-- [MCP tools reference](https://sql-agent.net/en/docs/mcp/tools-reference)
-- [Safe DML](https://sql-agent.net/en/docs/sql-compiler/safe-dml)
-- [Upgrade guide](https://sql-agent.net/en/docs/reference/upgrade-guide)
+- [Introduction](https://sql-agent.net/docs/getting-started/introduction)
+- [Quick start](https://sql-agent.net/docs/getting-started/quick-start)
+- [MCP client onboarding](https://sql-agent.net/docs/mcp/client-onboarding)
+- [MCP tools reference](https://sql-agent.net/docs/mcp/tools-reference)
+- [Safe DML](https://sql-agent.net/docs/sql-compiler/safe-dml)
+- [Upgrade guide](https://sql-agent.net/docs/reference/upgrade-guide)
 
 ## Built-in MCP tools
 
@@ -71,10 +71,10 @@ Doctor `Warning` items deserve review but do not block readiness; Doctor `Error`
 
 ## SQL compiler and Safe DML
 
-- [Execution model](https://sql-agent.net/en/docs/sql-compiler/execution-model)
-- [SQL support](https://sql-agent.net/en/docs/sql-compiler/sql-support)
-- [Database dialects](https://sql-agent.net/en/docs/sql-compiler/database-dialects)
-- [Safe DML](https://sql-agent.net/en/docs/sql-compiler/safe-dml)
+- [Execution model](https://sql-agent.net/docs/sql-compiler/execution-model)
+- [SQL support](https://sql-agent.net/docs/sql-compiler/sql-support)
+- [Database dialects](https://sql-agent.net/docs/sql-compiler/database-dialects)
+- [Safe DML](https://sql-agent.net/docs/sql-compiler/safe-dml)
 
 2.0.5 does not bypass or weaken the typed SQL pipeline. SQL still passes parse, bind, authorization, policy validation, target-capability proof, compilation, and provider execution boundaries.
 
@@ -88,18 +88,18 @@ An asynchronous provider may return `Pending`. Durable completion remains server
 
 ## Administration and operations
 
-- [Configuration](https://sql-agent.net/en/docs/operations/configuration)
-- [Deployment](https://sql-agent.net/en/docs/operations/deployment)
-- [Distributed deployment](https://sql-agent.net/en/docs/operations/distributed-deployment)
-- [Observability](https://sql-agent.net/en/docs/operations/observability)
-- [MCP keys](https://sql-agent.net/en/docs/administration/mcp-keys)
-- [Permissions](https://sql-agent.net/en/docs/administration/permissions)
-- [Semantic metadata](https://sql-agent.net/en/docs/administration/semantic-metadata)
-- [Audit](https://sql-agent.net/en/docs/administration/audit)
+- [Configuration](https://sql-agent.net/docs/operations/configuration)
+- [Deployment](https://sql-agent.net/docs/operations/deployment)
+- [Distributed deployment](https://sql-agent.net/docs/operations/distributed-deployment)
+- [Observability](https://sql-agent.net/docs/operations/observability)
+- [MCP keys](https://sql-agent.net/docs/administration/mcp-keys)
+- [Permissions](https://sql-agent.net/docs/administration/permissions)
+- [Semantic metadata](https://sql-agent.net/docs/administration/semantic-metadata)
+- [Audit](https://sql-agent.net/docs/administration/audit)
 
 ## Localized documentation
 
-- [English](https://sql-agent.net/en/docs/)
+- [English](https://sql-agent.net/docs/)
 - [繁體中文](https://sql-agent.net/zh-hant/docs/)
 - [简体中文](https://sql-agent.net/zh-hans/docs/)
 - [日本語](https://sql-agent.net/ja/docs/)

@@ -132,7 +132,7 @@ Password-reset mail is effectively disabled when the SMTP host or sender is empt
 If the data-protection key ring disappears across restarts, protected MFA secrets and external-login state can become unreadable. Mount `DATA_PROTECTION_KEY_PATH` on durable storage in production.
 </Callout>
 
-See [OIDC and MFA](/en/docs/security/oidc-mfa).
+See [OIDC and MFA](/docs/security/oidc-mfa).
 
 ## Health, slow queries, delivery, and audit retention
 
@@ -172,7 +172,7 @@ See [OIDC and MFA](/en/docs/security/oidc-mfa).
 | `RATE_LIMITER_FAILURE_MODE` | `FailClosed` | `FailClosed` | Behavior when distributed limiter is unavailable |
 | `RATE_LIMITER_KEY_PREFIX` | `hsqlagent:ratelimit:` | same | Redis key namespace |
 
-MCP keys can additionally inherit, override, or disable their per-key limit. See [MCP Keys](/en/docs/administration/mcp-keys).
+MCP keys can additionally inherit, override, or disable their per-key limit. See [MCP Keys](/docs/administration/mcp-keys).
 
 ## Runtime policy synchronization
 
@@ -217,7 +217,7 @@ Metadata discovery, queries, DML planning/execution, and health-related SQL work
 
 Prometheus is intentionally served on a **separate listener**, not the Admin/MCP application port. When `OTLP_ENDPOINT` is configured, hs-sql-agent exports telemetry including SQL compile-evidence tracing/log integration.
 
-See [Observability](/en/docs/operations/observability).
+See [Observability](/docs/operations/observability).
 
 ## Logging
 
@@ -245,4 +245,4 @@ For example:
 
 The modular API preserves the existing code defaults. `.env.example` remains a deployment example for the standalone ToolBox path and should not be treated as a declaration that every embedded host must configure every capability.
 
-See [ASP.NET Core integration](/en/docs/integration/aspnet-core).
+See [ASP.NET Core integration](/docs/integration/aspnet-core).

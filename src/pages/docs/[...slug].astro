@@ -16,13 +16,11 @@ import {
 
 export async function getStaticPaths() {
   const allDocs = await getCollection("docs", ({ data }) => !data.draft);
-  const supportedLocales = (locales as readonly string[]).filter(
-    locale => locale !== config.site.lang
-  );
+  const supportedLocales = [config.site.lang] as readonly string[];
 
   return supportedLocales.flatMap(locale => {
     const routes: Array<{
-      params: { locale: string; slug: string };
+      params: { slug: string };
       props: {
         locale: string;
         doc?: CollectionEntry<"docs">;
@@ -43,7 +41,7 @@ export async function getStaticPaths() {
       for (const doc of effectiveDocs) {
         const currentSlug = getLocalizedSlug(doc.id, "docs");
         routes.push({
-          params: { locale, slug: `${definition.version}/${currentSlug}` },
+          params: { slug: `${definition.version}/${currentSlug}` },
           props: {
             locale,
             doc,
@@ -55,7 +53,7 @@ export async function getStaticPaths() {
 
         if (definition.version === docsVersions.current) {
           routes.push({
-            params: { locale, slug: currentSlug },
+            params: { slug: currentSlug },
             props: {
               locale,
               doc,
@@ -71,7 +69,7 @@ export async function getStaticPaths() {
         definition.redirects ?? {}
       )) {
         routes.push({
-          params: { locale, slug: `${definition.version}/${sourceSlug}` },
+          params: { slug: `${definition.version}/${sourceSlug}` },
           props: {
             locale,
             currentSlug: sourceSlug,
@@ -83,7 +81,7 @@ export async function getStaticPaths() {
 
         if (definition.version === docsVersions.current) {
           routes.push({
-            params: { locale, slug: sourceSlug },
+            params: { slug: sourceSlug },
             props: {
               locale,
               currentSlug: sourceSlug,

@@ -57,7 +57,7 @@ Health probing is controlled by the `HEALTH_PROBE_*` settings. A disabled backgr
 
 Key-usage results report the key identity/name, last use time, request count, successes/failures, rate-limit count, and rate-limit rejection rate.
 
-Use this data to identify stale credentials, unexpectedly noisy agents, and keys that routinely hit their configured limit. Then inspect [MCP Keys](/en/docs/administration/mcp-keys) before changing scope or limits.
+Use this data to identify stale credentials, unexpectedly noisy agents, and keys that routinely hit their configured limit. Then inspect [MCP Keys](/docs/administration/mcp-keys) before changing scope or limits.
 
 ## Outbound deliveries
 
@@ -85,7 +85,7 @@ Before retrying, confirm the destination can tolerate duplicate or delayed deliv
 
 ## Where to investigate next
 
-- [Audit](/en/docs/administration/audit) — exact actors/actions/results and SQL execution context.
-- [Security Policies](/en/docs/administration/security-policies) — runtime limits that may explain rejections.
-- [Observability](/en/docs/operations/observability) — Prometheus, OTLP, traces, and external telemetry integration.
-- [Distributed Deployment](/en/docs/operations/distributed-deployment) — shared coordination when several nodes must agree on limits/state.
+- [Audit](/docs/administration/audit) — exact actors/actions/results and SQL execution context.
+- [Security Policies](/docs/administration/security-policies) — runtime limits that may explain rejections.
+- [Observability](/docs/operations/observability) — Prometheus, OTLP, traces, and external telemetry integration.
+- [Distributed Deployment](/docs/operations/distributed-deployment) — shared coordination when several nodes must agree on limits/state.

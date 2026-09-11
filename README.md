@@ -25,20 +25,28 @@ The production build runs `astro check`, generates the static site, and builds t
 
 ## Information architecture
 
-Public routes are locale-prefixed:
+The default English locale is completely unprefixed. Non-default locales remain locale-prefixed:
 
 ```text
-/en/
-/zh-hant/
+/                                  -> English homepage
+/features/*                        -> English product pages
+/databases/*                       -> English database pages
+/integrations/*                    -> English integration pages
+/docs/*                            -> English documentation
+/docs/<version>/*                  -> versioned English documentation
+/search                            -> English search
 
-/<locale>/features/*
-/<locale>/databases/*
-/<locale>/integrations/*
-/<locale>/docs/*
-/<locale>/docs/<version>/*
+/zh-hant/*                         -> Traditional Chinese
+/zh-hans/*                         -> Simplified Chinese
+/ja/*                              -> Japanese
+/ko/*                              -> Korean
+/fr/*                              -> French
+/de/*                              -> German
 ```
 
-The root route is handled by Astro i18n and redirects to the configured default locale.
+Legacy `/en` and `/en/*` URLs are permanently redirected with HTTP 308 to the equivalent unprefixed route. Astro uses `prefixDefaultLocale: false`, so generated links, canonicals, sitemap entries, and `hreflang="en"` targets all use the unprefixed English URLs. The root `/` is also the `x-default` homepage.
+
+A user who explicitly selects another locale gets a host-only `preferred-locale` cookie (`Path=/`, one-year lifetime, `SameSite=Lax`, and `Secure` on HTTPS). Cloudflare Single Redirect rules may use that cookie to send returning visits to `/` to the chosen non-default locale with a temporary 307; no Worker or browser-side locale store is required. Do not create an English preference redirect rule: an unmatched root request naturally serves English.
 
 ### Product / SEO pages
 
@@ -67,8 +75,10 @@ The **currently published documentation baseline is 2.0.2**, pinned to the immut
 The public routes deliberately separate stable latest URLs from immutable version URLs:
 
 ```text
-/<locale>/docs/*                 -> current effective documentation set
-/<locale>/docs/2.0.2/*           -> fixed 2.0.2 documentation set
+/docs/*                          -> current English documentation set
+/docs/2.0.2/*                    -> fixed English 2.0.2 documentation set
+/<locale>/docs/*                 -> current non-default locale set
+/<locale>/docs/2.0.2/*           -> fixed non-default locale set
 ```
 
 When the current version advances, `/docs/*` moves to the new effective set while `/docs/2.0.2/*` remains fixed.
@@ -101,8 +111,8 @@ src/content/zh-hant/docs/2.0.2/sql-compiler/safe-dml.mdx
 which is available through both the current alias and immutable version route while 2.0.2 is current:
 
 ```text
-/en/docs/sql-compiler/safe-dml
-/en/docs/2.0.2/sql-compiler/safe-dml
+/docs/sql-compiler/safe-dml
+/docs/2.0.2/sql-compiler/safe-dml
 
 /zh-hant/docs/sql-compiler/safe-dml
 /zh-hant/docs/2.0.2/sql-compiler/safe-dml

@@ -144,24 +144,31 @@ function getLocaleHref(locale: string): string {
 </div>
 
 <script>
-  const localeStorageKey = "preferred-locale";
+  const localeCookieName = "preferred-locale";
+
+  function persistLocaleChoice(event: Event) {
+    const target = event.target;
+    if (!(target instanceof Element)) return;
+
+    const localeOption = target.closest("[data-locale-option]");
+    if (!(localeOption instanceof HTMLAnchorElement)) return;
+
+    const selectedLocale = localeOption.dataset.localeOption;
+    if (!selectedLocale) return;
+
+    try {
+      const secure = window.location.protocol === "https:" ? "; Secure" : "";
+      document.cookie = `${localeCookieName}=${encodeURIComponent(selectedLocale)}; Path=/; Max-Age=31536000; SameSite=Lax${secure}`;
+    } catch {
+      // Cookie writes can be blocked by browser privacy settings.
+    }
+  }
+
+  // Persist before Astro's client-side router gets a chance to handle navigation.
+  document.addEventListener("pointerdown", persistLocaleChoice, true);
+  document.addEventListener("click", persistLocaleChoice, true);
 
   document.addEventListener("click", function (e) {
-    const target = e.target;
-    if (target instanceof Element) {
-      const localeOption = target.closest("[data-locale-option]");
-      if (localeOption instanceof HTMLAnchorElement) {
-        const selectedLocale = localeOption.dataset.localeOption;
-        if (selectedLocale) {
-          try {
-            window.localStorage.setItem(localeStorageKey, selectedLocale);
-          } catch {
-            // localStorage can be unavailable in hardened/privacy browsing modes.
-          }
-        }
-      }
-    }
-
     const btn = document.getElementById("locale-btn");
     const menu = document.getElementById("locale-menu");
     if (!btn || !menu) return;

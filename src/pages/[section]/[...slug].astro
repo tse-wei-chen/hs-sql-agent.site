@@ -13,7 +13,7 @@ import config from "@/config";
 
 export function getStaticPaths() {
   return getLocalizedMarketingRoutes()
-    .filter(route => route.locale !== config.site.lang)
+    .filter(route => route.locale === config.site.lang)
     .map(route => {
       const page = resolveMarketingPage(
         route.locale,
@@ -25,7 +25,10 @@ export function getStaticPaths() {
           `Missing marketing page: ${route.locale}/${route.section}/${route.slug}`
         );
       }
-      return { params: route, props: { page } };
+      return {
+        params: { section: route.section, slug: route.slug },
+        props: { page },
+      };
     });
 }
 
