@@ -74,12 +74,14 @@ function getLocaleHref(locale: string): string {
 }
 ---
 
-<div class="relative">
+<div class="relative w-full md:w-auto">
   <button
     id="locale-btn"
     type="button"
-    class="focus-outline hover:text-accent flex cursor-pointer items-center gap-1 px-2 py-1 text-sm font-medium transition"
+    class="focus-outline hover:bg-muted hover:text-accent flex min-h-11 w-full cursor-pointer items-center justify-between rounded px-3 py-2 text-base font-medium transition md:min-h-0 md:w-auto md:justify-start md:gap-1 md:px-2 md:py-1 md:text-sm"
     aria-label={switchLanguageLabel}
+    aria-expanded="false"
+    aria-controls="locale-menu"
   >
     <svg
       xmlns="http://www.w3.org/2000/svg"
@@ -116,7 +118,7 @@ function getLocaleHref(locale: string): string {
   </button>
   <div
     id="locale-menu"
-    class="bg-background border-border absolute end-0 z-50 mt-1 hidden min-w-32 rounded-md border p-1 shadow-lg"
+    class="bg-background border-border mt-1 hidden max-h-72 w-full overflow-y-auto rounded-md border p-1 md:absolute md:end-0 md:z-50 md:min-w-40 md:shadow-lg"
     role="menu"
   >
     {
@@ -128,7 +130,7 @@ function getLocaleHref(locale: string): string {
             data-locale-option={locale}
             role="menuitem"
             class:list={[
-              "block rounded-sm px-3 py-1.5 text-sm no-underline transition",
+              "flex min-h-11 items-center rounded-sm px-3 py-2 text-base no-underline transition md:min-h-0 md:py-1.5 md:text-sm",
               active
                 ? "bg-accent dark:text-accent-foreground pointer-events-none text-white"
                 : "text-foreground hover:bg-muted",
@@ -174,9 +176,12 @@ function getLocaleHref(locale: string): string {
     if (!btn || !menu) return;
     if (btn.contains(e.target as Node)) {
       e.stopPropagation();
+      const willOpen = menu.classList.contains("hidden");
       menu.classList.toggle("hidden");
+      btn.setAttribute("aria-expanded", String(willOpen));
     } else if (!menu.classList.contains("hidden")) {
       menu.classList.add("hidden");
+      btn.setAttribute("aria-expanded", "false");
     }
   });
 </script>
