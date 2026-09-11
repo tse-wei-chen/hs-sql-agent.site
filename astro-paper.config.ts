@@ -4,7 +4,7 @@ export default defineAstroPaperConfig({
   site: {
     url: "https://sql-agent.net/",
     title: "hs-sql-agent",
-    description: "Secure SQL access for AI agents through MCP, fail-closed SQL compilation, access policies, and safe DML workflows.",
+    description: "Open-source SQL MCP server for AI agents with fail-closed SQL validation, scoped database access, Safe DML approvals, and support for six SQL dialects.",
     author: "hs-sql-agent",
     profile: "https://github.com/tse-wei-chen/hs-sql-agent",
     ogImage: "",

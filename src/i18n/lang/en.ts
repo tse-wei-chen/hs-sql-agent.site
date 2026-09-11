@@ -33,10 +33,10 @@ export default {
     featured: "Featured",
     recentPosts: "Recent Posts",
     allPosts: "All Posts",
-    heroKicker: "MCP-native · fail-closed · six SQL dialects",
-    heroTitle: "Secure SQL execution for AI agents.",
+    heroKicker: "Open-source SQL MCP server · fail-closed · six SQL dialects",
+    heroTitle: "A secure SQL MCP server for AI agents.",
     heroDesc:
-      "Put a compiler and governance boundary between generated SQL and your databases. hs-sql-agent parses, validates, proves capabilities, applies access policy, and only then executes provider-specific SQL.",
+      "Let MCP clients use raw SQL without handing them unrestricted database access. hs-sql-agent validates generated SQL, enforces server-side policy, and gates DML before execution.",
     heroDescLinkBefore: "",
     heroDescLinkAfter: "",
     primaryCta: "Get started",
@@ -58,9 +58,10 @@ export default {
     governanceDesc:
       "Per-key database scope, table allowlists, tool restrictions, rate limits, security policy, and auditability stay outside the LLM.",
     capabilityKicker: "Compiler boundary",
-    capabilityTitle: "Treat generated SQL as untrusted input.",
+    capabilityTitle:
+      "Validate AI-generated SQL before it reaches your database.",
     capabilityDesc:
-      "The important part is not generating SQL. It is proving that the statement is inside the dialect, capability, and policy boundary you intended to expose.",
+      "Keep raw SQL flexibility without blindly executing model output. The compiler rejects statements that fall outside the supported dialect, capability, or server-side policy boundary.",
     dmlKicker: "Safe mutation path",
     dmlSectionTitle: "DML approval is a protocol, not a confirmation dialog.",
     dmlSectionDesc:
@@ -76,9 +77,9 @@ export default {
     dmlCommitDesc:
       "Execute only when the plan, policy, challenge, row count, and row set still match.",
     databaseKicker: "One surface, six dialects",
-    databaseSectionTitle: "Use the database you already run.",
+    databaseSectionTitle: "One SQL MCP server for six database dialects.",
     databaseSectionDesc:
-      "The compiler keeps provider-specific SQL semantics explicit while MCP clients interact through a single governed interface.",
+      "Connect PostgreSQL, MySQL, SQL Server, Oracle, SQLite, or Firebird while keeping provider-specific SQL semantics behind one governed MCP interface.",
     integrationKicker: "MCP and .NET integrations",
     integrationTitle: "Meet agents where they already work.",
     integrationDesc:

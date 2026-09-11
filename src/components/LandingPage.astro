@@ -7,6 +7,7 @@ import { useTranslations } from "@/i18n";
 import { useMarketingUi } from "@/i18n/marketing";
 import type { MarketingSection } from "@/data/marketing";
 import { getHomeConsumption } from "@/data/homeConsumption";
+import { getHomeSearchIntentSeo } from "@/data/searchIntentSeo";
 import config from "@/config";
 import "@/styles/landing.css";
 import "@/styles/landing-links.css";
@@ -19,6 +20,39 @@ const { locale } = Astro.props;
 const t = useTranslations(locale);
 const marketingUi = useMarketingUi(locale);
 const consumption = getHomeConsumption(locale);
+const seo = getHomeSearchIntentSeo(
+  locale,
+  `${config.site.title} — ${t.home.heroTitle}`,
+  t.home.heroDesc
+);
+const homeUrl = new URL(getRelativeLocaleUrl(locale), Astro.site ?? Astro.url)
+  .href;
+const structuredData = {
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "WebSite",
+      name: config.site.title,
+      url: homeUrl,
+      description: seo.description,
+      inLanguage: locale,
+    },
+    {
+      "@type": "SoftwareApplication",
+      name: config.site.title,
+      url: homeUrl,
+      sameAs: "https://github.com/tse-wei-chen/hs-sql-agent",
+      applicationCategory: "DeveloperApplication",
+      description: seo.description,
+      featureList: [
+        "SQL MCP server",
+        "Fail-closed SQL validation",
+        "Database access policy",
+        "Approval-gated DML",
+      ],
+    },
+  ],
+};
 const docsUrl = getRelativeLocaleUrl(
   locale,
   "docs/getting-started/introduction"
@@ -55,10 +89,14 @@ function getMarketingHref(section: MarketingSection, slug: string): string {
 }
 ---
 
-<Layout
-  title={`${config.site.title} — ${t.home.heroTitle}`}
-  description={t.home.heroDesc}
->
+<Layout title={seo.title} description={seo.description}>
+  <Fragment slot="head">
+    <script
+      type="application/ld+json"
+      is:inline
+      set:html={JSON.stringify(structuredData)}
+    />
+  </Fragment>
   <noscript>
     <style is:inline>
       .reveal {
