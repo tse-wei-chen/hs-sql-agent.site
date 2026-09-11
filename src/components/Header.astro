@@ -48,55 +48,118 @@ const navItems = [
 ];
 ---
 
-<a id="skip-to-content" href="#main-content" class="bg-background text-accent absolute inset-s-16 -top-full z-50 px-3 py-2 backdrop-blur-lg transition-all focus:top-4">
+<a
+  id="skip-to-content"
+  href="#main-content"
+  class="bg-background text-accent absolute inset-s-16 -top-full z-50 px-3 py-2 backdrop-blur-lg transition-all focus:top-4"
+>
   {t.a11y.skipToContent}
 </a>
 
-<header class="border-border bg-background/95 sticky top-0 z-40 border-b backdrop-blur">
+<header
+  class="border-border bg-background/95 sticky top-0 z-40 border-b backdrop-blur"
+>
   <div class="site-shell flex items-center justify-between px-4 py-3 sm:px-6">
-    <a href={getRelativeLocaleUrl(locale, "")} class="text-lg font-semibold whitespace-nowrap sm:text-xl">
+    <a
+      href={getRelativeLocaleUrl(locale, "")}
+      class="text-lg font-semibold whitespace-nowrap sm:text-xl"
+    >
       {site.title}
     </a>
 
     <nav id="nav-menu" class="flex items-center">
-      <button id="menu-btn" class="focus-outline p-2 md:hidden" aria-label={t.a11y.openMenu} aria-expanded="false" aria-controls="menu-items" data-label-open={t.a11y.openMenu} data-label-close={t.a11y.closeMenu}>
+      <button
+        id="menu-btn"
+        class="focus-outline flex min-h-11 min-w-11 items-center justify-center rounded p-2 md:hidden"
+        aria-label={t.a11y.openMenu}
+        aria-expanded="false"
+        aria-controls="menu-items"
+        data-label-open={t.a11y.openMenu}
+        data-label-close={t.a11y.closeMenu}
+      >
         <IconX id="close-icon" class="hidden" />
         <IconMenuDeep id="menu-icon" />
       </button>
 
-      <ul id="menu-items" class="bg-background border-border absolute top-full right-4 hidden min-w-52 flex-col rounded-md border p-2 shadow-lg md:static md:flex md:min-w-0 md:flex-row md:items-center md:gap-1 md:border-0 md:bg-transparent md:p-0 md:shadow-none">
-        {navItems.map(item => (
-          <li>
-            <a href={getRelativeLocaleUrl(locale, item.path.slice(1))} class:list={["block rounded px-2.5 py-2 text-sm font-medium hover:text-accent", { "active-nav": isActive(item.path) }]}>
-              {item.label}
-            </a>
-          </li>
-        ))}
+      <ul
+        id="menu-items"
+        class="bg-background border-border absolute top-full right-4 left-4 hidden max-h-[calc(100svh-5rem)] flex-col overflow-y-auto rounded-md border p-2 shadow-lg md:static md:flex md:max-h-none md:min-w-0 md:flex-row md:items-center md:gap-1 md:overflow-visible md:border-0 md:bg-transparent md:p-0 md:shadow-none"
+      >
+        {
+          navItems.map(item => (
+            <li>
+              <a
+                href={getRelativeLocaleUrl(locale, item.path.slice(1))}
+                class:list={[
+                  "hover:text-accent flex min-h-11 items-center rounded px-3 py-2 text-base font-medium md:min-h-0 md:px-2.5 md:text-sm",
+                  { "active-nav": isActive(item.path) },
+                ]}
+              >
+                {item.label}
+              </a>
+            </li>
+          ))
+        }
         <li>
-          <a href="https://github.com/tse-wei-chen/hs-sql-agent" class="block rounded px-2.5 py-2 text-sm font-medium hover:text-accent" rel="external">
+          <a
+            href="https://github.com/tse-wei-chen/hs-sql-agent"
+            class="hover:text-accent flex min-h-11 items-center rounded px-3 py-2 text-base font-medium md:min-h-0 md:px-2.5 md:text-sm"
+            rel="external"
+          >
             {t.nav.github}
           </a>
         </li>
-        {features.search !== false && (
-          <li class="flex items-center">
-            <LinkButton href={searchHref} class:list={["focus-outline relative size-9"]} title={t.nav.search} aria-label={t.nav.search}>
-              <IconSearch class="absolute top-1/2 left-1/2 size-5 -translate-x-1/2 -translate-y-1/2" />
-              <span class="sr-only">{t.nav.search}</span>
-              {isActive("/search") && <IconUnderline aria-hidden="true" class="absolute bottom-0 w-5 scale-125" />}
-            </LinkButton>
-          </li>
-        )}
-        {features.internationalization.enabled && (
-          <li class="flex items-center"><LocaleSwitcher /></li>
-        )}
-        {features.lightAndDarkMode && (
-          <li class="flex items-center">
-            <button id="theme-btn" class="focus-outline hover:[&>svg]:stroke-accent relative size-9" title={t.a11y.toggleTheme} aria-label="auto" aria-live="polite">
-              <IconMoon class="absolute top-1/2 left-1/2 size-5 -translate-x-1/2 -translate-y-1/2 scale-100 rotate-0 transition-all dark:scale-0 dark:-rotate-90" />
-              <IconSunHigh class="absolute top-1/2 left-1/2 size-5 -translate-x-1/2 -translate-y-1/2 scale-0 rotate-90 transition-all dark:scale-100 dark:rotate-0" />
-            </button>
-          </li>
-        )}
+        {
+          features.search !== false && (
+            <li class="w-full md:flex md:w-auto md:items-center">
+              <LinkButton
+                href={searchHref}
+                class:list={[
+                  "focus-outline hover:bg-muted relative min-h-11 w-full justify-start rounded px-3 py-2 text-base font-medium md:size-9 md:min-h-0 md:justify-center md:p-0",
+                ]}
+                title={t.nav.search}
+                aria-label={t.nav.search}
+              >
+                <span class="flex items-center gap-3 md:block">
+                  <IconSearch class="size-5 shrink-0" />
+                  <span class="md:sr-only">{t.nav.search}</span>
+                </span>
+                {isActive("/search") && (
+                  <IconUnderline
+                    aria-hidden="true"
+                    class="absolute bottom-0 hidden w-5 scale-125 md:block"
+                  />
+                )}
+              </LinkButton>
+            </li>
+          )
+        }
+        {
+          features.internationalization.enabled && (
+            <li class="w-full md:w-auto">
+              <LocaleSwitcher />
+            </li>
+          )
+        }
+        {
+          features.lightAndDarkMode && (
+            <li class="w-full md:flex md:w-auto md:items-center">
+              <button
+                id="theme-btn"
+                class="focus-outline hover:bg-muted hover:[&>span>svg]:stroke-accent flex min-h-11 w-full items-center gap-3 rounded px-3 py-2 text-base font-medium md:size-9 md:min-h-0 md:justify-center md:p-0"
+                title={t.a11y.toggleTheme}
+                aria-label={t.a11y.toggleTheme}
+                aria-pressed="false"
+              >
+                <span class="relative size-5 shrink-0">
+                  <IconMoon class="absolute inset-0 size-5 scale-100 rotate-0 transition-all dark:scale-0 dark:-rotate-90" />
+                  <IconSunHigh class="absolute inset-0 size-5 scale-0 rotate-90 transition-all dark:scale-100 dark:rotate-0" />
+                </span>
+                <span class="md:sr-only">{t.a11y.toggleTheme}</span>
+              </button>
+            </li>
+          )
+        }
       </ul>
     </nav>
   </div>
@@ -114,7 +177,9 @@ const navItems = [
     menuBtn.setAttribute("aria-expanded", String(!expanded));
     menuBtn.setAttribute(
       "aria-label",
-      expanded ? menuBtn.dataset.labelOpen ?? "Open menu" : menuBtn.dataset.labelClose ?? "Close menu"
+      expanded
+        ? (menuBtn.dataset.labelOpen ?? "Open menu")
+        : (menuBtn.dataset.labelClose ?? "Close menu")
     );
     menuItems.classList.toggle("hidden", expanded);
     menuItems.classList.toggle("flex", !expanded);
