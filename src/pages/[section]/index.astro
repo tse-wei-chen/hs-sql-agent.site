@@ -10,6 +10,7 @@ import {
   type MarketingSection,
 } from "@/data/marketingCatalog";
 import { useMarketingUi } from "@/i18n/marketing";
+import { getSectionSearchIntentSeo } from "@/data/searchIntentSeo";
 import config from "@/config";
 import "@/styles/marketing.css";
 
@@ -27,6 +28,12 @@ const section: MarketingSection = sectionParam;
 const pages = getLocalizedMarketingPages(locale, section);
 const marketingUi = useMarketingUi(locale);
 const [title, description] = marketingUi.sections[section];
+const seo = getSectionSearchIntentSeo(
+  locale,
+  section,
+  `${title} | ${config.site.title}`,
+  description
+);
 const urlBase = Astro.site ?? Astro.url;
 const alternates = locales.map(alternateLocale => ({
   locale: alternateLocale,
@@ -40,7 +47,7 @@ function getMarketingHref(pageSection: MarketingSection, slug: string): string {
 }
 ---
 
-<Layout title={`${title} | ${config.site.title}`} {description}>
+<Layout title={seo.title} description={seo.description}>
   <Fragment slot="head">
     {
       alternates.map(alternate => (
