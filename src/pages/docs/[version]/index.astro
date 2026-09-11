@@ -9,14 +9,10 @@ import { useTranslations } from "@/i18n";
 import config from "@/config";
 
 export async function getStaticPaths() {
-  return (locales as readonly string[])
-    .filter(locale => locale !== config.site.lang)
-    .flatMap(locale =>
-      docsVersions.versions.map(definition => ({
-        params: { locale, version: definition.version },
-        props: { locale, docsVersion: definition.version },
-      }))
-    );
+  return docsVersions.versions.map(definition => ({
+    params: { version: definition.version },
+    props: { locale: config.site.lang, docsVersion: definition.version },
+  }));
 }
 
 const { locale, docsVersion } = Astro.props as {

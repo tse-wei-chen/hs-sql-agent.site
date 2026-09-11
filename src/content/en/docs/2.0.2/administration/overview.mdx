@@ -14,23 +14,23 @@ import Flow from "@/components/docs/mdx/Flow.astro";
 The Admin Panel is the **operator control plane** for hs-sql-agent. Operators define what an MCP client can reach and how SQL is governed; MCP clients then use the separately authenticated `/mcp` endpoint.
 
 <CardGrid columns={2}>
-  <DocCard title="Database Management" icon="DB" href="/en/docs/administration/database-management" description="Register provider connections, test connectivity, and control which database an MCP key can bind to." />
-  <DocCard title="MCP Keys" icon="KEY" href="/en/docs/administration/mcp-keys" description="Issue, rotate, revoke, scope, and generate client configuration for MCP credentials." />
-  <DocCard title="Semantic Metadata" icon="AI" href="/en/docs/administration/semantic-metadata" description="Add human-readable names, descriptions, synonyms, relationships, and metrics to schema discovery." />
-  <DocCard title="Custom Tools" icon="SQL" href="/en/docs/administration/custom-tools" description="Publish governed SQL operations as named MCP tools without bypassing runtime policy." />
-  <DocCard title="Security" icon="SEC" href="/en/docs/security/overview" description="Understand authentication, authorization, table/tool scope, fail-closed SQL policy, and audit boundaries." />
-  <DocCard title="Operations" icon="OPS" href="/en/docs/operations/configuration" description="Configure deployment, shared state, observability, retention, limits, and production runtime behavior." />
+  <DocCard title="Database Management" icon="DB" href="/docs/administration/database-management" description="Register provider connections, test connectivity, and control which database an MCP key can bind to." />
+  <DocCard title="MCP Keys" icon="KEY" href="/docs/administration/mcp-keys" description="Issue, rotate, revoke, scope, and generate client configuration for MCP credentials." />
+  <DocCard title="Semantic Metadata" icon="AI" href="/docs/administration/semantic-metadata" description="Add human-readable names, descriptions, synonyms, relationships, and metrics to schema discovery." />
+  <DocCard title="Custom Tools" icon="SQL" href="/docs/administration/custom-tools" description="Publish governed SQL operations as named MCP tools without bypassing runtime policy." />
+  <DocCard title="Security" icon="SEC" href="/docs/security/overview" description="Understand authentication, authorization, table/tool scope, fail-closed SQL policy, and audit boundaries." />
+  <DocCard title="Operations" icon="OPS" href="/docs/operations/configuration" description="Configure deployment, shared state, observability, retention, limits, and production runtime behavior." />
 </CardGrid>
 
 ## Identity, governance, and operations
 
 <CardGrid columns={3}>
-  <DocCard title="Members & Roles" icon="USR" href="/en/docs/administration/members-roles" description="Create Admin members, assign roles, revoke sessions, and manage role lifecycle safely." />
-  <DocCard title="Permissions" icon="RBAC" href="/en/docs/administration/permissions" description="Understand the permission-path plus action model enforced by Admin controllers." />
-  <DocCard title="Audit" icon="AUD" href="/en/docs/administration/audit" description="Search, summarize, export, and apply retention to runtime and security audit records." />
-  <DocCard title="Security Policies" icon="POL" href="/en/docs/administration/security-policies" description="Manage query, DML, per-key rate-limit, and SQL concurrency enforcement." />
-  <DocCard title="Operability" icon="P95" href="/en/docs/administration/operability" description="Inspect execution metrics, DB health, key usage, and outbound delivery state." />
-  <DocCard title="Admin HTTP API" icon="API" href="/en/docs/reference/api-reference" description="Source-backed hs-sql-agent controller routes and authorization surface used by the bundled UI." />
+  <DocCard title="Members & Roles" icon="USR" href="/docs/administration/members-roles" description="Create Admin members, assign roles, revoke sessions, and manage role lifecycle safely." />
+  <DocCard title="Permissions" icon="RBAC" href="/docs/administration/permissions" description="Understand the permission-path plus action model enforced by Admin controllers." />
+  <DocCard title="Audit" icon="AUD" href="/docs/administration/audit" description="Search, summarize, export, and apply retention to runtime and security audit records." />
+  <DocCard title="Security Policies" icon="POL" href="/docs/administration/security-policies" description="Manage query, DML, per-key rate-limit, and SQL concurrency enforcement." />
+  <DocCard title="Operability" icon="P95" href="/docs/administration/operability" description="Inspect execution metrics, DB health, key usage, and outbound delivery state." />
+  <DocCard title="Admin HTTP API" icon="API" href="/docs/reference/api-reference" description="Source-backed hs-sql-agent controller routes and authorization surface used by the bundled UI." />
 </CardGrid>
 
 ## Recommended operator flow
@@ -59,4 +59,4 @@ An ASP.NET Core host can expose the HsSqlAgent Admin API without serving the pac
 
 The host can also use `AddHsSqlAgentHostAuthorization(...)` to keep its existing login and permission system instead of installing HsSqlAgent members, roles, JWT, SMTP, or OIDC. MCP is selected and mapped independently with `AddHsSqlAgentMcp(...)` / `UseHsSqlAgentMcp()`.
 
-See [ASP.NET Core integration](/en/docs/integration/aspnet-core) for the complete hs-sql-agent composition model.
+See [ASP.NET Core integration](/docs/integration/aspnet-core) for the complete hs-sql-agent composition model.

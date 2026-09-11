@@ -128,7 +128,7 @@ The request is executed through the F# typed-query runtime. Depending on runtime
 - source/target SQL capability checks;
 - audit event `mcp.query.executed` with operation, duration, returned rows, and compiler-derived definition facts.
 
-See [SQL Support Reference](/en/docs/sql-compiler/sql-support) for the human-readable capability summary.
+See [SQL Support Reference](/docs/sql-compiler/sql-support) for the human-readable capability summary.
 
 ## `execute_dml_sql`
 
@@ -157,7 +157,7 @@ If the human declines, or validation cannot complete, the mutation is not commit
 Tool-call support alone is insufficient. The client must be able to present and return the interactive approval form used by the Safe DML flow.
 </Callout>
 
-Read [Safe DML](/en/docs/sql-compiler/safe-dml) for the full protocol.
+Read [Safe DML](/docs/sql-compiler/safe-dml) for the full protocol.
 
 ## Errors shared by built-in tools
 
@@ -177,10 +177,10 @@ The tools deliberately return bounded error information rather than falling back
 
 Published Custom Tools are loaded for the MCP key's bound Database Management entry and can be included in the same `AllowedTools` set by name. Their invocation still goes through the runtime database binding, table whitelist, security policy, concurrency controls, audit path, and—when the custom tool is DML—the approval pipeline.
 
-See [Custom Tools](/en/docs/administration/custom-tools).
+See [Custom Tools](/docs/administration/custom-tools).
 
 ## Semantic metadata is not documented as a sixth built-in
 
 The repository contains semantic-management implementation details, but the formal MCP key built-in registry and Admin key-management surface recognize the five tools listed on this page. Official documentation therefore treats semantic metadata as an **Admin/control-plane capability consumed by schema discovery**, not as an additional formal built-in MCP contract.
 
-See [Semantic Metadata](/en/docs/administration/semantic-metadata).
+See [Semantic Metadata](/docs/administration/semantic-metadata).

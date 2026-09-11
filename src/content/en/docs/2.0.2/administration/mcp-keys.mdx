@@ -32,7 +32,7 @@ The key-management service recognizes five built-in tools:
 | `execute_query_sql` | governed `SELECT` execution |
 | `execute_dml_sql` | governed Safe DML |
 
-Published Custom Tools for the same database can also be selected by name. See [Custom Tools](/en/docs/administration/custom-tools).
+Published Custom Tools for the same database can also be selected by name. See [Custom Tools](/docs/administration/custom-tools).
 
 <Callout type="info" title="Empty tool scope means unrestricted, not no tools">
 The runtime treats an empty `AllowedTools` value as no tool-name restriction. For production agents, explicitly select the smallest tool set the client needs instead of relying on the unrestricted form.
@@ -101,4 +101,4 @@ For multi-instance deployments, use the distributed rate-limiter configuration w
 
 Selecting `execute_dml_sql` changes the client compatibility requirement. The MCP client must support the form-Elicitation flow used for interactive mutation approval.
 
-Read [MCP client onboarding](/en/docs/mcp/client-onboarding) before granting DML to a new client.
+Read [MCP client onboarding](/docs/mcp/client-onboarding) before granting DML to a new client.

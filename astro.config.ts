@@ -20,7 +20,6 @@ import { transformerFileName } from "./src/utils/transformers/fileName";
 import config from "./astro-paper.config";
 
 const i18n = config.features?.internationalization;
-const i18nEnabled = i18n && typeof i18n === "object" ? i18n.enabled : false;
 const defaultLocale = config.site.lang ?? "en";
 const i18nLocales = i18n?.enabled ? i18n.locales : [defaultLocale];
 
@@ -31,7 +30,7 @@ export default defineConfig({
     locales: [...i18nLocales],
     defaultLocale,
     routing: {
-      prefixDefaultLocale: i18nEnabled,
+      prefixDefaultLocale: false,
       redirectToDefaultLocale: false,
     },
   },

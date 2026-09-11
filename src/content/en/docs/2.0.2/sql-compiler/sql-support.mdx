@@ -38,7 +38,7 @@ Nested expressions, functions, window expressions, casts, operators, temporal va
 | `INSERT ... VALUES` | Supported when the parsed/provider capabilities are valid | Bind approval to the immutable literal payload and compiled command, verify approved payload row count at commit |
 | `INSERT ... SELECT` | Rejected | Source-rowset approval semantics are not defined, so the runtime fails closed |
 
-See [Safe DML](/en/docs/sql-compiler/safe-dml) for the complete approval protocol.
+See [Safe DML](/docs/sql-compiler/safe-dml) for the complete approval protocol.
 
 ## Six provider model
 
@@ -112,4 +112,4 @@ Operationally, treat these errors as a request to change the SQL shape or use a 
 
 This page does not promise every function name, operator spelling, cast target, JSON path form, window frame, or vendor extension. The capability matrix is significantly more detailed than a single documentation table and includes runtime-version gates.
 
-For MCP clients, use [MCP Tools Reference](/en/docs/mcp/tools-reference) for the public tool contract, and treat actual compiler acceptance as the final bounded SQL contract.
+For MCP clients, use [MCP Tools Reference](/docs/mcp/tools-reference) for the public tool contract, and treat actual compiler acceptance as the final bounded SQL contract.
