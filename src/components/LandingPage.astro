@@ -25,10 +25,8 @@ const seo = getHomeSearchIntentSeo(
   `${config.site.title} — ${t.home.heroTitle}`,
   t.home.heroDesc
 );
-const homeUrl = new URL(
-  getRelativeLocaleUrl(locale),
-  Astro.site ?? Astro.url
-).href;
+const homeUrl = new URL(getRelativeLocaleUrl(locale), Astro.site ?? Astro.url)
+  .href;
 const structuredData = {
   "@context": "https://schema.org",
   "@graph": [

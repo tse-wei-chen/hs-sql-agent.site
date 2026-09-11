@@ -58,7 +58,8 @@ export default {
     governanceDesc:
       "Per-key database scope, table allowlists, tool restrictions, rate limits, security policy, and auditability stay outside the LLM.",
     capabilityKicker: "Compiler boundary",
-    capabilityTitle: "Validate AI-generated SQL before it reaches your database.",
+    capabilityTitle:
+      "Validate AI-generated SQL before it reaches your database.",
     capabilityDesc:
       "Keep raw SQL flexibility without blindly executing model output. The compiler rejects statements that fall outside the supported dialect, capability, or server-side policy boundary.",
     dmlKicker: "Safe mutation path",
