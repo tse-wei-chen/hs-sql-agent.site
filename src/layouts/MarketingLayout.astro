@@ -129,17 +129,51 @@ const orbitCore =
           ? "POLICY"
           : "SQL";
 
+const pageUrl = new URL(Astro.url.pathname, urlBase).href;
+const homeUrl = new URL(getRelativeLocaleUrl(locale, ""), urlBase).href;
+const sectionAbsoluteUrl = new URL(sectionUrl, urlBase).href;
 const structuredData = {
   "@context": "https://schema.org",
-  "@type": "WebPage",
-  name: page.title,
-  description: seo.description,
-  inLanguage: locale,
-  about: {
-    "@type": "SoftwareApplication",
-    name: config.site.title,
-    applicationCategory: "DeveloperApplication",
-  },
+  "@graph": [
+    {
+      "@type": "WebPage",
+      "@id": `${pageUrl}#webpage`,
+      url: pageUrl,
+      name: page.title,
+      description: seo.description,
+      inLanguage: locale,
+      breadcrumb: { "@id": `${pageUrl}#breadcrumb` },
+      about: {
+        "@type": "SoftwareApplication",
+        name: config.site.title,
+        applicationCategory: "DeveloperApplication",
+      },
+    },
+    {
+      "@type": "BreadcrumbList",
+      "@id": `${pageUrl}#breadcrumb`,
+      itemListElement: [
+        {
+          "@type": "ListItem",
+          position: 1,
+          name: marketingUi.homeLabel,
+          item: homeUrl,
+        },
+        {
+          "@type": "ListItem",
+          position: 2,
+          name: sectionLabel,
+          item: sectionAbsoluteUrl,
+        },
+        {
+          "@type": "ListItem",
+          position: 3,
+          name: page.title,
+          item: pageUrl,
+        },
+      ],
+    },
+  ],
 };
 ---
 

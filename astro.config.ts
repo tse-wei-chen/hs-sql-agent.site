@@ -25,7 +25,16 @@ const i18nLocales = i18n?.enabled ? i18n.locales : [defaultLocale];
 
 export default defineConfig({
   site: config.site.url,
-  integrations: [mdx(), sitemap()],
+  integrations: [
+    mdx(),
+    sitemap({
+      // Historical/version-pinned docs remain available to users, but the
+      // evergreen routes are the search authority. Keep duplicate versioned
+      // URLs out of the sitemap so crawl budget and signals stay concentrated.
+      filter: page =>
+        !/\/docs\/\d+\.\d+\.\d+(?:\/|$)/.test(new URL(page).pathname),
+    }),
+  ],
   i18n: {
     locales: [...i18nLocales],
     defaultLocale,
