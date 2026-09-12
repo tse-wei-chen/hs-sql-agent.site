@@ -120,6 +120,11 @@ const versionedDocsPrefix = `${getDocsIndexUrl(locale, docsVersion).replace(/\/$
 >
   <Fragment slot="head">
     {
+      versioned && docsVersion !== docsVersions.current && (
+        <meta name="robots" content="noindex,follow" />
+      )
+    }
+    {
       alternates.map(alternate => (
         <link
           rel="alternate"

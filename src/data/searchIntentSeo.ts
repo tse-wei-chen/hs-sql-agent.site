@@ -133,3 +133,54 @@ export function getMarketingPageSearchIntentSeo(
     description: page.description,
   };
 }
+
+export type DatabaseSearchIntentContent = {
+  headline: string;
+  title: string;
+  paragraphs: string[];
+  bullets: string[];
+};
+
+export function getDatabaseSearchIntentContent(
+  page: LocalizedMarketingPage
+): DatabaseSearchIntentContent | undefined {
+  if (page.section !== "databases") return undefined;
+
+  const provider = page.title.replace(/\s+MCP Server$/, "");
+
+  if (page.locale === "en") {
+    return {
+      headline: `${provider} MCP Server for AI agents.`,
+      title: `Why use a ${provider} MCP server instead of direct database access?`,
+      paragraphs: [
+        `Direct database credentials make the model or MCP client responsible for everything the database account can do. hs-sql-agent keeps the real ${provider} connection server-side and evaluates SQL against the compiler, MCP-key scope, table policy, tool restrictions, and runtime limits before execution.`,
+        "That keeps raw SQL available as an expressive agent interface without turning generated SQL into unrestricted database authority.",
+      ],
+      bullets: [
+        "raw SQL remains available for supported statements",
+        "database credentials stay behind the server boundary",
+        "unsupported semantics fail closed before execution",
+        "DML can require explicit human approval",
+      ],
+    };
+  }
+
+  if (page.locale === "zh-hant") {
+    return {
+      headline: `給 AI Agent 使用的 ${provider} MCP Server。`,
+      title: `為什麼不直接把 ${provider} 帳號交給 AI？`,
+      paragraphs: [
+        `若 MCP 用戶端直接持有資料庫帳密，模型能做什麼往往只剩資料庫帳號權限這一道邊界。hs-sql-agent 把真正的 ${provider} 連線保留在伺服器端，SQL 執行前還會經過編譯器、MCP 金鑰範圍、資料表政策、工具限制與執行期限制。`,
+        "因此 Agent 仍可使用支援範圍內的原始 SQL，不必把「能產生 SQL」等同於「擁有不受限制的資料庫權限」。",
+      ],
+      bullets: [
+        "支援範圍內仍可使用原始 SQL",
+        "資料庫帳密保留在伺服器邊界內",
+        "無法證明安全語意時先拒絕再執行",
+        "資料修改可以要求真人明確核准",
+      ],
+    };
+  }
+
+  return undefined;
+}

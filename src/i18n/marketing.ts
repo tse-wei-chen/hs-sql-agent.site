@@ -31,16 +31,16 @@ const marketingUi: Record<string, MarketingUiStrings> = {
     },
     sections: {
       databases: [
-        "Database support",
-        "Secure MCP access for PostgreSQL, MySQL, SQL Server, Oracle, SQLite, and Firebird.",
+        "Database MCP Server for AI agents",
+        "Use one governed SQL MCP server with PostgreSQL, MySQL, SQL Server, Oracle, SQLite, or Firebird.",
       ],
       features: [
-        "Product capabilities",
-        "Explore the compiler, Safe DML, and governance boundaries behind hs-sql-agent.",
+        "SQL MCP security features",
+        "Validate AI-generated SQL, enforce server-side access policy, and gate database mutations before execution.",
       ],
       integrations: [
-        "Integrations",
-        "Connect MCP clients and embed hs-sql-agent into existing .NET applications.",
+        "SQL MCP integrations",
+        "Connect Claude Desktop, Cursor, or an ASP.NET Core application to the same governed SQL MCP server.",
       ],
     },
   },
@@ -59,16 +59,16 @@ const marketingUi: Record<string, MarketingUiStrings> = {
     },
     sections: {
       databases: [
-        "資料庫支援",
-        "安全連接 PostgreSQL、MySQL、SQL Server、Oracle、SQLite 與 Firebird。",
+        "AI Agent 的 SQL 資料庫 MCP Server",
+        "以同一個受治理的 SQL MCP Server 連接 PostgreSQL、MySQL、SQL Server、Oracle、SQLite 或 Firebird。",
       ],
       features: [
-        "產品功能",
-        "了解 hs-sql-agent 的 SQL 編譯器、Safe DML 與存取控制邊界。",
+        "SQL MCP 安全功能",
+        "在 SQL 執行前驗證 AI 產生的內容、套用伺服器端存取政策，並控管資料修改。",
       ],
       integrations: [
-        "整合",
-        "連接 MCP 用戶端，或把 hs-sql-agent 嵌入既有 .NET 應用程式。",
+        "SQL MCP 整合",
+        "讓 Claude Desktop、Cursor 或 ASP.NET Core 應用程式連到同一個受治理的 SQL MCP Server。",
       ],
     },
   },
