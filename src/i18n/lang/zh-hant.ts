@@ -33,10 +33,10 @@ export default {
     featured: "精選文章",
     recentPosts: "最新文章",
     allPosts: "所有文章",
-    heroKicker: "MCP 原生 · 失敗即拒絕 · 六種 SQL 方言",
-    heroTitle: "讓 AI Agent 安全執行 SQL。",
+    heroKicker: "開源 SQL MCP Server · 失敗即拒絕 · 六種 SQL 方言",
+    heroTitle: "給 AI Agent 安全的 SQL MCP Server。",
     heroDesc:
-      "在 AI 產生的 SQL 與資料庫之間建立 SQL 編譯器與存取控制邊界。hs-sql-agent 會先解析並驗證 SQL，確認目標資料庫能安全維持原始語意，同時檢查存取權限，最後才執行對應資料庫的 SQL。",
+      "讓 MCP 用戶端使用原始 SQL，同時不直接取得不受限制的資料庫權限。hs-sql-agent 會先驗證 AI 產生的 SQL、套用伺服器端存取政策，並在執行前控管 DML。",
     heroDescLinkBefore: "",
     heroDescLinkAfter: "",
     primaryCta: "開始使用",
@@ -58,9 +58,9 @@ export default {
     governanceDesc:
       "依 MCP 金鑰限制資料庫、資料表、工具與請求速率，並在伺服器端執行安全政策與稽核，不把這些責任交給 LLM。",
     capabilityKicker: "SQL 執行邊界",
-    capabilityTitle: "把 AI 產生的 SQL 當成不可信輸入。",
+    capabilityTitle: "在 SQL 到達資料庫前驗證 AI 產生的內容。",
     capabilityDesc:
-      "關鍵不是能不能產生 SQL，而是能不能確認這段語句在允許的 SQL 方言、功能支援範圍與存取政策內維持原始含義並安全執行。",
+      "保留原始 SQL 的彈性，但不盲目執行模型輸出。若語句超出支援的方言、能力或伺服器端存取政策，編譯器會直接拒絕。",
     dmlKicker: "安全的資料修改",
     dmlSectionTitle: "DML 核准是一套執行協定，不只是一個確認視窗。",
     dmlSectionDesc:
@@ -75,9 +75,9 @@ export default {
     dmlCommitDesc:
       "只有執行計畫、政策、核准挑戰值、資料列數與目標資料列集合全部保持一致時，才真正修改資料。",
     databaseKicker: "統一 MCP，六種 SQL 方言",
-    databaseSectionTitle: "繼續使用既有資料庫。",
+    databaseSectionTitle: "一個 SQL MCP Server，支援六種資料庫方言。",
     databaseSectionDesc:
-      "SQL 編譯器明確處理不同資料庫之間的語意差異，而 MCP 用戶端只需要面對統一、受控的介面。",
+      "連接 PostgreSQL、MySQL、SQL Server、Oracle、SQLite 或 Firebird，並在同一個受治理的 MCP 介面後保留各資料庫的 SQL 語意差異。",
     integrationKicker: "MCP 與 .NET 整合",
     integrationTitle: "直接接入 Agent 正在使用的環境。",
     integrationDesc:

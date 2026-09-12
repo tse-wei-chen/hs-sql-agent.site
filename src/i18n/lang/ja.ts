@@ -33,10 +33,11 @@ export default {
     featured: "注目",
     recentPosts: "最新記事",
     allPosts: "すべての記事",
-    heroKicker: "MCP 向けに設計 · フェイルクローズ · 6 種類の SQL 方言",
-    heroTitle: "AI エージェントから SQL を安全に実行。",
+    heroKicker:
+      "オープンソース SQL MCP サーバー · フェイルクローズ · 6 種類の SQL 方言",
+    heroTitle: "AI エージェント向けの安全な SQL MCP サーバー。",
     heroDesc:
-      "AI が生成した SQL とデータベースの間に、SQL コンパイラとアクセス制御の境界を設けます。hs-sql-agent は SQL を解析・検証し、接続先で意味を安全に保てることとアクセス権限を確認してから、データベースごとの SQL を実行します。",
+      "MCP クライアントから生の SQL を使いながら、データベースへの無制限アクセスは渡しません。hs-sql-agent が AI 生成 SQL を検証し、サーバー側のアクセスポリシーと DML 制御を適用してから実行します。",
     heroDescLinkBefore: "",
     heroDescLinkAfter: "",
     primaryCta: "はじめる",
@@ -58,9 +59,9 @@ export default {
     governanceDesc:
       "MCP キーごとにデータベース、テーブル、ツール、レート制限、セキュリティポリシー、監査をサーバー側で強制します。",
     capabilityKicker: "SQL 実行境界",
-    capabilityTitle: "AI が生成した SQL を、信頼できない入力として扱う。",
+    capabilityTitle: "AI が生成した SQL をデータベースへ送る前に検証する。",
     capabilityDesc:
-      "重要なのは SQL を生成できることではありません。その文の意味を、許可した SQL 方言・機能・アクセスポリシーの範囲内で安全に実行できると確認できることです。",
+      "生 SQL の柔軟性は残しつつ、モデル出力をそのまま実行しません。対応する方言・機能・サーバー側ポリシーの範囲を外れる文はコンパイラが拒否します。",
     dmlKicker: "安全なデータ更新",
     dmlSectionTitle: "DML の承認は、確認ダイアログではなく実行プロトコルです。",
     dmlSectionDesc:
@@ -77,9 +78,10 @@ export default {
     dmlCommitDesc:
       "実行計画、ポリシー、承認チャレンジ、行数、対象行集合がすべて一致する場合にだけ変更を確定します。",
     databaseKicker: "共通の MCP、6 種類の SQL 方言",
-    databaseSectionTitle: "既存のデータベースをそのまま使う。",
+    databaseSectionTitle:
+      "1 つの SQL MCP サーバーで 6 種類のデータベース方言に対応。",
     databaseSectionDesc:
-      "SQL コンパイラがデータベースごとの意味の違いを明示的に扱い、MCP クライアントには共通の統制されたインターフェースを提供します。",
+      "PostgreSQL、MySQL、SQL Server、Oracle、SQLite、Firebird を接続し、共通の統制された MCP インターフェースの背後で各データベース固有の SQL セマンティクスを維持します。",
     integrationKicker: "MCP と .NET 連携",
     integrationTitle: "エージェントが使う環境へそのまま接続。",
     integrationDesc:
