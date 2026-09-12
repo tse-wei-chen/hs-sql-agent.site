@@ -333,7 +333,8 @@ const pageSeo: Partial<Record<string, Record<string, SearchIntentSeo>>> = {
   },
   fr: {
     "features/sql-compiler": {
-      title: "Sécurité SQL pour l’IA et compilateur à refus par défaut | hs-sql-agent",
+      title:
+        "Sécurité SQL pour l’IA et compilateur à refus par défaut | hs-sql-agent",
       description:
         "Validez le SQL brut généré par l’IA avant exécution avec un compilateur typé qui refuse par défaut ce qui ne peut pas être prouvé : sémantique, capacités du moteur, politiques d’accès et rendu SQL.",
     },

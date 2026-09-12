@@ -58,7 +58,8 @@ export default {
     governanceDesc:
       "MCP 키별 데이터베이스, 테이블, 도구, 요청 속도 제한, 보안 정책, 감사를 서버에서 강제합니다.",
     capabilityKicker: "SQL 실행 경계",
-    capabilityTitle: "AI가 생성한 SQL이 데이터베이스에 도달하기 전에 검증합니다.",
+    capabilityTitle:
+      "AI가 생성한 SQL이 데이터베이스에 도달하기 전에 검증합니다.",
     capabilityDesc:
       "원시 SQL의 유연성은 유지하되 모델 출력을 그대로 실행하지 않습니다. 지원되는 방언, 기능 또는 서버 측 접근 정책을 벗어나는 문장은 컴파일러가 거부합니다.",
     dmlKicker: "안전한 데이터 변경",
@@ -77,7 +78,8 @@ export default {
     dmlCommitDesc:
       "실행 계획, 정책, 승인 챌린지, 행 수, 대상 행 집합이 모두 같을 때만 변경을 확정합니다.",
     databaseKicker: "공통 MCP, 6개 SQL 방언",
-    databaseSectionTitle: "하나의 SQL MCP 서버로 6개 데이터베이스 방언을 지원합니다.",
+    databaseSectionTitle:
+      "하나의 SQL MCP 서버로 6개 데이터베이스 방언을 지원합니다.",
     databaseSectionDesc:
       "PostgreSQL, MySQL, SQL Server, Oracle, SQLite, Firebird를 연결하고 하나의 통제된 MCP 인터페이스 뒤에서 각 데이터베이스의 SQL 의미를 유지합니다.",
     integrationKicker: "MCP 및 .NET 통합",

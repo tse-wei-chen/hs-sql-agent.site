@@ -79,8 +79,7 @@ export default {
     dmlCommitDesc:
       "Nur ausführen, wenn Plan, Richtlinie, Freigabenachweis, Zeilenanzahl und Zeilenmenge weiterhin übereinstimmen.",
     databaseKicker: "Eine Schnittstelle, sechs Dialekte",
-    databaseSectionTitle:
-      "Ein SQL-MCP-Server für sechs Datenbankdialekte.",
+    databaseSectionTitle: "Ein SQL-MCP-Server für sechs Datenbankdialekte.",
     databaseSectionDesc:
       "Verbinden Sie PostgreSQL, MySQL, SQL Server, Oracle, SQLite oder Firebird hinter einer gemeinsamen kontrollierten MCP-Schnittstelle und bewahren Sie die jeweilige SQL-Semantik.",
     integrationKicker: "MCP- und .NET-Integrationen",
