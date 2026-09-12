@@ -134,7 +134,6 @@ export function getMarketingPageSearchIntentSeo(
   };
 }
 
-
 export type DatabaseSearchIntentContent = {
   headline: string;
   title: string;
