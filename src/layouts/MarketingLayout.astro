@@ -5,7 +5,10 @@ import type {
   LocalizedMarketingLocale,
 } from "@/data/marketingCatalog";
 import { useMarketingUi } from "@/i18n/marketing";
-import { getMarketingPageSearchIntentSeo } from "@/data/searchIntentSeo";
+import {
+  getDatabaseSearchIntentContent,
+  getMarketingPageSearchIntentSeo,
+} from "@/data/searchIntentSeo";
 import Layout from "./Layout.astro";
 import Header from "@/components/Header.astro";
 import Footer from "@/components/Footer.astro";
@@ -107,13 +110,15 @@ const detailUi: Record<LocalizedMarketingLocale, DetailUi> = {
 const { page, alternates = [] } = Astro.props;
 const { locale, section } = page;
 const seo = getMarketingPageSearchIntentSeo(page, config.site.title);
+const databaseSearchIntentContent = getDatabaseSearchIntentContent(page);
 const marketingUi = useMarketingUi(locale);
 const localizedDetailUi = detailUi[locale];
 const urlBase = Astro.site ?? Astro.url;
 const defaultAlternate =
   alternates.find(alternate => alternate.locale === config.site.lang) ??
   alternates[0];
-const headline = page.headline ?? page.title;
+const headline =
+  databaseSearchIntentContent?.headline ?? page.headline ?? page.title;
 const sectionLabel = marketingUi.sections[section][0];
 const sectionUrl = getRelativeLocaleUrl(locale, section);
 const visualLabels = localizedDetailUi.visual[page.visual];
@@ -282,6 +287,21 @@ const structuredData = {
     <section class="marketing-shell marketing-content-grid">
       <article class="app-prose marketing-prose">
         <slot />
+        {
+          databaseSearchIntentContent && (
+            <section>
+              <h2>{databaseSearchIntentContent.title}</h2>
+              {databaseSearchIntentContent.paragraphs.map(paragraph => (
+                <p>{paragraph}</p>
+              ))}
+              <ul>
+                {databaseSearchIntentContent.bullets.map(item => (
+                  <li>{item}</li>
+                ))}
+              </ul>
+            </section>
+          )
+        }
       </article>
       <aside>
         <div class="marketing-related">
