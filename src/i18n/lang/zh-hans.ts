@@ -33,10 +33,10 @@ export default {
     featured: "精选",
     recentPosts: "最新文章",
     allPosts: "所有文章",
-    heroKicker: "MCP 原生 · 失败即拒绝 · 六种 SQL 方言",
-    heroTitle: "让 AI 智能体安全执行 SQL。",
+    heroKicker: "开源 SQL MCP Server · 失败即拒绝 · 六种 SQL 方言",
+    heroTitle: "面向 AI Agent 的安全 SQL MCP Server。",
     heroDesc:
-      "在 AI 生成的 SQL 与数据库之间建立 SQL 编译器和访问控制边界。hs-sql-agent 会先解析并验证 SQL，确认目标数据库能够安全保持原有语义，同时检查访问权限，最后才执行对应数据库的 SQL。",
+      "让 MCP 客户端使用原始 SQL，同时不直接获得不受限制的数据库权限。hs-sql-agent 会先验证 AI 生成的 SQL、执行服务器端访问策略，并在执行前控制 DML。",
     heroDescLinkBefore: "",
     heroDescLinkAfter: "",
     primaryCta: "开始使用",
@@ -57,9 +57,9 @@ export default {
     governanceDesc:
       "按 MCP 密钥限制数据库、表、工具和请求速率，并在服务器端执行安全策略与审计，不把这些职责交给 LLM。",
     capabilityKicker: "SQL 执行边界",
-    capabilityTitle: "把 AI 生成的 SQL 当作不可信输入。",
+    capabilityTitle: "在 SQL 到达数据库之前验证 AI 生成的内容。",
     capabilityDesc:
-      "关键不是能否生成 SQL，而是能否确认这条语句在允许的 SQL 方言、功能支持范围和访问策略内保持原有含义并安全执行。",
+      "保留原始 SQL 的灵活性，但不盲目执行模型输出。只要语句超出支持的方言、能力或服务器端访问策略，编译器就会直接拒绝。",
     dmlKicker: "安全的数据修改",
     dmlSectionTitle: "DML 审批是一套执行协议，而不只是确认弹窗。",
     dmlSectionDesc:
@@ -74,9 +74,9 @@ export default {
     dmlCommitDesc:
       "只有执行计划、策略、审批挑战、行数和目标行集全部保持一致时才真正修改数据。",
     databaseKicker: "统一 MCP，六种 SQL 方言",
-    databaseSectionTitle: "继续使用现有数据库。",
+    databaseSectionTitle: "一个 SQL MCP Server，支持六种数据库方言。",
     databaseSectionDesc:
-      "SQL 编译器明确处理不同数据库之间的语义差异，而 MCP 客户端只需要面对统一、受控的接口。",
+      "连接 PostgreSQL、MySQL、SQL Server、Oracle、SQLite 或 Firebird，并在同一个受治理的 MCP 接口后保留各数据库的 SQL 语义差异。",
     integrationKicker: "MCP 与 .NET 集成",
     integrationTitle: "直接接入智能体正在使用的环境。",
     integrationDesc:

@@ -33,10 +33,10 @@ export default {
     featured: "추천",
     recentPosts: "최근 게시물",
     allPosts: "모든 게시물",
-    heroKicker: "MCP에 맞게 설계 · 페일 클로즈 · 6개 SQL 방언",
-    heroTitle: "AI 에이전트의 SQL 실행을 안전하게.",
+    heroKicker: "오픈소스 SQL MCP 서버 · 실패 시 차단 · 6개 SQL 방언",
+    heroTitle: "AI 에이전트용 안전한 SQL MCP 서버.",
     heroDesc:
-      "AI가 생성한 SQL과 데이터베이스 사이에 SQL 컴파일러와 접근 제어 경계를 둡니다. hs-sql-agent는 SQL을 파싱하고 검증한 뒤 대상 데이터베이스에서 의미를 안전하게 보존할 수 있는지와 접근 권한을 확인하고, 그다음에 데이터베이스별 SQL을 실행합니다.",
+      "MCP 클라이언트가 원시 SQL을 사용하되 데이터베이스의 무제한 권한은 직접 받지 않도록 합니다. hs-sql-agent가 AI 생성 SQL을 검증하고 서버 측 접근 정책과 DML 제어를 적용한 뒤 실행합니다.",
     heroDescLinkBefore: "",
     heroDescLinkAfter: "",
     primaryCta: "시작하기",
@@ -58,9 +58,9 @@ export default {
     governanceDesc:
       "MCP 키별 데이터베이스, 테이블, 도구, 요청 속도 제한, 보안 정책, 감사를 서버에서 강제합니다.",
     capabilityKicker: "SQL 실행 경계",
-    capabilityTitle: "AI가 생성한 SQL을 신뢰할 수 없는 입력으로 취급합니다.",
+    capabilityTitle: "AI가 생성한 SQL이 데이터베이스에 도달하기 전에 검증합니다.",
     capabilityDesc:
-      "중요한 것은 SQL을 생성할 수 있는지가 아닙니다. 해당 문장의 의미를 허용된 SQL 방언, 지원 기능, 접근 정책 안에서 안전하게 실행할 수 있는지 확인하는 것이 중요합니다.",
+      "원시 SQL의 유연성은 유지하되 모델 출력을 그대로 실행하지 않습니다. 지원되는 방언, 기능 또는 서버 측 접근 정책을 벗어나는 문장은 컴파일러가 거부합니다.",
     dmlKicker: "안전한 데이터 변경",
     dmlSectionTitle: "DML 승인은 확인 대화상자가 아니라 실행 프로토콜입니다.",
     dmlSectionDesc:
@@ -77,9 +77,9 @@ export default {
     dmlCommitDesc:
       "실행 계획, 정책, 승인 챌린지, 행 수, 대상 행 집합이 모두 같을 때만 변경을 확정합니다.",
     databaseKicker: "공통 MCP, 6개 SQL 방언",
-    databaseSectionTitle: "이미 운영 중인 데이터베이스를 그대로 사용하세요.",
+    databaseSectionTitle: "하나의 SQL MCP 서버로 6개 데이터베이스 방언을 지원합니다.",
     databaseSectionDesc:
-      "SQL 컴파일러가 데이터베이스별 의미 차이를 명확하게 처리하고 MCP 클라이언트에는 공통으로 통제된 인터페이스를 제공합니다.",
+      "PostgreSQL, MySQL, SQL Server, Oracle, SQLite, Firebird를 연결하고 하나의 통제된 MCP 인터페이스 뒤에서 각 데이터베이스의 SQL 의미를 유지합니다.",
     integrationKicker: "MCP 및 .NET 통합",
     integrationTitle: "에이전트가 사용하는 환경에 바로 연결합니다.",
     integrationDesc:

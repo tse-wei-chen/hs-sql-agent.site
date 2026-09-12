@@ -33,10 +33,11 @@ export default {
     featured: "À la une",
     recentPosts: "Articles récents",
     allPosts: "Tous les articles",
-    heroKicker: "Conçu pour MCP · refus par défaut · six dialectes SQL",
-    heroTitle: "Exécution SQL sécurisée pour les agents IA.",
+    heroKicker:
+      "Serveur MCP SQL open source · refus par défaut · six dialectes SQL",
+    heroTitle: "Un serveur MCP SQL sécurisé pour les agents IA.",
     heroDesc:
-      "Placez un compilateur et une frontière de gouvernance entre le SQL généré et vos bases de données. hs-sql-agent analyse, valide, vérifie les capacités, applique les politiques d’accès, puis seulement exécute le SQL propre au moteur ciblé.",
+      "Conservez la souplesse du SQL brut sans donner aux clients MCP un accès illimité à la base. hs-sql-agent valide le SQL généré par l’IA, applique les politiques côté serveur et contrôle les DML avant exécution.",
     heroDescLinkBefore: "",
     heroDescLinkAfter: "",
     primaryCta: "Commencer",
@@ -58,9 +59,10 @@ export default {
     governanceDesc:
       "Le périmètre de base de données par clé, les tables autorisées, les outils disponibles, les limites de débit, les politiques de sécurité et l’audit sont imposés côté serveur, hors du LLM.",
     capabilityKicker: "Frontière du compilateur",
-    capabilityTitle: "Traitez le SQL généré comme une entrée non fiable.",
+    capabilityTitle:
+      "Validez le SQL généré par l’IA avant qu’il n’atteigne la base.",
     capabilityDesc:
-      "L’enjeu n’est pas de générer du SQL, mais de démontrer que l’instruction reste dans les limites de dialecte, de capacités et de politiques que vous avez choisi d’exposer.",
+      "Conservez la souplesse du SQL brut sans exécuter aveuglément la sortie du modèle. Le compilateur refuse toute instruction hors des dialectes, capacités ou politiques serveur pris en charge.",
     dmlKicker: "Chemin sûr pour les modifications",
     dmlSectionTitle:
       "L’approbation DML est un protocole, pas une simple boîte de dialogue.",
@@ -80,9 +82,9 @@ export default {
       "Exécuter uniquement si le plan, la politique, le défi, le nombre de lignes et l’ensemble de lignes correspondent toujours.",
     databaseKicker: "Une interface, six dialectes",
     databaseSectionTitle:
-      "Conservez la base de données que vous utilisez déjà.",
+      "Un serveur MCP SQL pour six dialectes de base de données.",
     databaseSectionDesc:
-      "Le compilateur rend explicites les différences sémantiques propres à chaque moteur SQL, tandis que les clients MCP utilisent la même interface avec les mêmes contrôles.",
+      "Connectez PostgreSQL, MySQL, SQL Server, Oracle, SQLite ou Firebird derrière une même interface MCP gouvernée tout en conservant la sémantique SQL propre à chaque moteur.",
     integrationKicker: "Intégrations MCP et .NET",
     integrationTitle: "Connectez les agents là où ils travaillent déjà.",
     integrationDesc:

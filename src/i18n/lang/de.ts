@@ -34,10 +34,10 @@ export default {
     recentPosts: "Neueste Beiträge",
     allPosts: "Alle Beiträge",
     heroKicker:
-      "Für MCP entwickelt · bei Unsicherheit ablehnen · sechs SQL-Dialekte",
-    heroTitle: "Sichere SQL-Ausführung für KI-Agenten.",
+      "Open-Source-SQL-MCP-Server · bei Unsicherheit ablehnen · sechs SQL-Dialekte",
+    heroTitle: "Ein sicherer SQL-MCP-Server für KI-Agenten.",
     heroDesc:
-      "Setzen Sie einen Compiler und eine Governance-Grenze zwischen generiertem SQL und Ihren Datenbanken. hs-sql-agent parst, validiert, prüft erforderliche Fähigkeiten, wendet Zugriffsrichtlinien an und führt erst danach datenbankspezifisches SQL aus.",
+      "Nutzen Sie Roh-SQL über MCP, ohne Clients uneingeschränkten Datenbankzugriff zu geben. hs-sql-agent prüft KI-generiertes SQL, erzwingt serverseitige Zugriffsrichtlinien und kontrolliert DML vor der Ausführung.",
     heroDescLinkBefore: "",
     heroDescLinkAfter: "",
     primaryCta: "Erste Schritte",
@@ -60,9 +60,9 @@ export default {
       "Datenbankumfang pro Schlüssel, zulässige Tabellen und Tools, Rate Limits, Sicherheitsrichtlinien und Auditierbarkeit werden serverseitig durchgesetzt und bleiben außerhalb des LLM.",
     capabilityKicker: "Compiler-Grenze",
     capabilityTitle:
-      "Behandeln Sie generiertes SQL als nicht vertrauenswürdige Eingabe.",
+      "Prüfen Sie KI-generiertes SQL, bevor es die Datenbank erreicht.",
     capabilityDesc:
-      "Entscheidend ist nicht das Erzeugen von SQL, sondern der Nachweis, dass die Anweisung innerhalb der vorgesehenen Dialekt-, Fähigkeits- und Richtliniengrenzen liegt.",
+      "Roh-SQL bleibt flexibel, aber Modellausgaben werden nicht blind ausgeführt. Der Compiler lehnt Anweisungen ab, die außerhalb unterstützter Dialekte, Fähigkeiten oder serverseitiger Richtlinien liegen.",
     dmlKicker: "Sicherer Änderungspfad",
     dmlSectionTitle: "DML-Freigabe ist ein Protokoll, kein Bestätigungsdialog.",
     dmlSectionDesc:
@@ -80,9 +80,9 @@ export default {
       "Nur ausführen, wenn Plan, Richtlinie, Freigabenachweis, Zeilenanzahl und Zeilenmenge weiterhin übereinstimmen.",
     databaseKicker: "Eine Schnittstelle, sechs Dialekte",
     databaseSectionTitle:
-      "Nutzen Sie die Datenbank weiter, die bereits im Einsatz ist.",
+      "Ein SQL-MCP-Server für sechs Datenbankdialekte.",
     databaseSectionDesc:
-      "Der Compiler hält datenbankspezifische SQL-Semantik explizit, während MCP-Clients über eine einheitliche kontrollierte Schnittstelle arbeiten.",
+      "Verbinden Sie PostgreSQL, MySQL, SQL Server, Oracle, SQLite oder Firebird hinter einer gemeinsamen kontrollierten MCP-Schnittstelle und bewahren Sie die jeweilige SQL-Semantik.",
     integrationKicker: "MCP- und .NET-Integrationen",
     integrationTitle: "Binden Sie Agenten dort an, wo sie bereits arbeiten.",
     integrationDesc:
