@@ -141,11 +141,14 @@ for (const file of sitemapFiles) {
 }
 
 if (errors.length > 0) {
-  console.error("SEO output contract failed:");
-  for (const error of errors) console.error(`- ${error}`);
+  process.stderr.write(
+    ["SEO output contract failed:", ...errors.map(error => `- ${error}`), ""].join(
+      "\n"
+    )
+  );
   process.exit(1);
 }
 
-console.log(
-  `SEO output contract passed for ${htmlFiles.length} HTML files and ${sitemapFiles.length} sitemap files.`
+process.stdout.write(
+  `SEO output contract passed for ${htmlFiles.length} HTML files and ${sitemapFiles.length} sitemap files.\n`
 );
