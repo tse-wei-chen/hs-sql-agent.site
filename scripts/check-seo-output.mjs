@@ -77,7 +77,7 @@ function assertCanonicalUrl(value, source, errors) {
 
 const files = await walk(distDir);
 const htmlFiles = files.filter(file => file.endsWith(".html"));
-const sitemapFiles = files.filter(file => /(?:^|\\/)sitemap-\d+\.xml$/.test(file));
+const sitemapFiles = files.filter(file => /sitemap-\d+\.xml$/.test(file));
 const errors = [];
 
 for (const file of htmlFiles) {

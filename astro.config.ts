@@ -36,15 +36,12 @@ export default defineConfig({
       filter: page => {
         const pathname = new URL(page).pathname;
         const normalizedPath = pathname.replace(/\/+$/, "") || "/";
-        const isVersionedDocs = /\/docs\/\d+\.\d+\.\d+(?:\/|$)/.test(
-          pathname
-        );
+        const isVersionedDocs = /\/docs\/\d+\.\d+\.\d+(?:\/|$)/.test(pathname);
         const isSearchPage =
           normalizedPath === "/search" ||
           i18nLocales.some(
             locale =>
-              locale !== defaultLocale &&
-              normalizedPath === `/${locale}/search`
+              locale !== defaultLocale && normalizedPath === `/${locale}/search`
           );
 
         return !isVersionedDocs && !isSearchPage;

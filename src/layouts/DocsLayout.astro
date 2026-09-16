@@ -119,9 +119,7 @@ const versionedDocsPrefix = `${getDocsIndexUrl(locale, docsVersion).replace(/\/$
   pagefindDocsVersion={docsVersion}
 >
   <Fragment slot="head">
-    {
-      versioned && <meta name="robots" content="noindex,follow" />
-    }
+    {versioned && <meta name="robots" content="noindex,follow" />}
     {
       alternates.map(alternate => (
         <link
