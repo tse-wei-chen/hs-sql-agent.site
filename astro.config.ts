@@ -25,14 +25,30 @@ const i18nLocales = i18n?.enabled ? i18n.locales : [defaultLocale];
 
 export default defineConfig({
   site: config.site.url,
+  trailingSlash: "always",
+  build: { format: "directory" },
   integrations: [
     mdx(),
     sitemap({
       // Historical/version-pinned docs remain available to users, but the
       // evergreen routes are the search authority. Keep duplicate versioned
       // URLs out of the sitemap so crawl budget and signals stay concentrated.
-      filter: page =>
-        !/\/docs\/\d+\.\d+\.\d+(?:\/|$)/.test(new URL(page).pathname),
+      filter: page => {
+        const pathname = new URL(page).pathname;
+        const normalizedPath = pathname.replace(/\/+$/, "") || "/";
+        const isVersionedDocs = /\/docs\/\d+\.\d+\.\d+(?:\/|$)/.test(
+          pathname
+        );
+        const isSearchPage =
+          normalizedPath === "/search" ||
+          i18nLocales.some(
+            locale =>
+              locale !== defaultLocale &&
+              normalizedPath === `/${locale}/search`
+          );
+
+        return !isVersionedDocs && !isSearchPage;
+      },
     }),
   ],
   i18n: {

@@ -31,6 +31,10 @@ const t = useTranslations(locale);
 ---
 
 <Layout title={`${t.pages.searchTitle} | ${config.site.title}`}>
+  <Fragment slot="head">
+    <meta name="robots" content="noindex,follow" />
+  </Fragment>
+
   <Header />
 
   <Breadcrumb />
