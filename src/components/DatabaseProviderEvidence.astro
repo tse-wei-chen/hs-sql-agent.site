@@ -1,0 +1,201 @@
+---
+import { getRelativeLocaleUrl } from "astro:i18n";
+import type { LocalizedMarketingPage } from "@/data/marketingCatalog";
+
+type Props = {
+  page: LocalizedMarketingPage;
+};
+
+type EvidenceCase = {
+  sql: string;
+  result: string;
+};
+
+type ProviderEvidence = {
+  title: string;
+  intro: string;
+  detail: string;
+  cases: EvidenceCase[];
+};
+
+const { page } = Astro.props;
+
+const evidenceBySlug: Record<string, ProviderEvidence> = {
+  postgresql: {
+    title: "PostgreSQL-specific SQL stays explicit",
+    intro:
+      "PostgreSQL is not treated as generic SQL with a different connection string. Provider-specific semantics stay inside the compiler capability model, and cross-database lowering is rejected when equivalent behavior has not been proven.",
+    detail:
+      "For example, the compiler has an explicit regression contract for PostgreSQL DISTINCT ON: targeting MySQL fails closed rather than inventing a first-row-per-group rewrite with different semantics.",
+    cases: [
+      {
+        sql: "SELECT DISTINCT ON (customer_id) ...",
+        result:
+          "Accepted only where the declared source/target capability contract can preserve PostgreSQL DISTINCT ON semantics.",
+      },
+      {
+        sql: "PostgreSQL → MySQL DISTINCT ON",
+        result:
+          "Rejected at target capability when semantic equivalence is not proven.",
+      },
+    ],
+  },
+  mysql: {
+    title: "MySQL capabilities are version- and dialect-aware",
+    intro:
+      "MySQL syntax is validated against MySQL rules rather than accepted as interchangeable SQL. Version-sensitive features can be gated by the declared server version, and provider-specific coercion semantics are not silently exported to another database.",
+    detail:
+      "Current compiler contracts require MySQL 8.0.1+ for recursive CTE support. MySQL DATE(expr) semantics also remain fail-closed for cross-dialect lowering when the operand meaning cannot be proven equivalent.",
+    cases: [
+      {
+        sql: "WITH RECURSIVE ...",
+        result:
+          "Requires MySQL 8.0.1+ when server-version capability checks are enabled.",
+      },
+      {
+        sql: "SELECT DATE(created_at) ... → PostgreSQL",
+        result:
+          "Rejected when MySQL DATE(expr) coercion semantics cannot be proven equivalent on the target.",
+      },
+    ],
+  },
+  "sql-server": {
+    title: "SQL Server is validated as T-SQL, not generic SQL",
+    intro:
+      "Declaring SQL Server changes the accepted source grammar. Syntax that belongs to another SQL family is rejected before execution instead of being passed through to the database driver and left for runtime failure.",
+    detail:
+      "The negative grammar contract explicitly rejects LIMIT and JOIN ... USING for SQL Server source SQL. This keeps T-SQL boundaries visible to the agent and to operators reviewing compiler diagnostics.",
+    cases: [
+      {
+        sql: "SELECT id FROM users LIMIT 5",
+        result: "Rejected as non-T-SQL source syntax.",
+      },
+      {
+        sql: "SELECT id FROM users JOIN orders USING (id)",
+        result:
+          "Rejected because SQL Server does not provide the same native JOIN ... USING form.",
+      },
+    ],
+  },
+  oracle: {
+    title: "Oracle row-limiting semantics stay version-aware",
+    intro:
+      "Oracle support is tied to Oracle source and target capabilities instead of assuming every row-limiting form is portable. The declared provider and version participate in validation before SQL is rendered.",
+    detail:
+      "The compiler contract requires Oracle 12.1+ for FETCH ... PERCENT and rejects LIMIT as non-Oracle source syntax. That gives agents a deterministic boundary instead of relying on trial-and-error execution.",
+    cases: [
+      {
+        sql: "FETCH FIRST 10 PERCENT ROWS ONLY",
+        result: "Requires Oracle 12.1+ in the source capability profile.",
+      },
+      {
+        sql: "SELECT id FROM users LIMIT 5",
+        result: "Rejected as non-Oracle source syntax.",
+      },
+    ],
+  },
+  sqlite: {
+    title: "SQLite keeps its own grammar and version floor",
+    intro:
+      "SQLite has a smaller, distinct SQL surface and its own version-dependent capabilities. hs-sql-agent validates the declared SQLite source rather than assuming server-database syntax applies unchanged.",
+    detail:
+      "Recursive CTE support is guarded by a SQLite 3.8.3+ capability floor, while typed temporal literal syntax such as DATE '2026-08-24' is rejected for SQLite source SQL.",
+    cases: [
+      {
+        sql: "WITH RECURSIVE ...",
+        result:
+          "Requires SQLite 3.8.3+ when the declared server version is evaluated.",
+      },
+      {
+        sql: "SELECT DATE '2026-08-24'",
+        result: "Rejected as unsupported SQLite source-dialect syntax.",
+      },
+    ],
+  },
+  firebird: {
+    title: "Firebird is a first-class dialect boundary",
+    intro:
+      "Firebird does not share a permissive generic-SQL fallback with the other providers. Its syntax and capability checks remain explicit so unsupported forms are rejected before provider execution.",
+    detail:
+      "The compiler contract requires Firebird 2.1+ for recursive CTE support and rejects LIMIT as non-Firebird source syntax. Provider-specific rules therefore remain observable instead of disappearing behind a common MCP tool name.",
+    cases: [
+      {
+        sql: "WITH RECURSIVE ... FROM RDB$DATABASE",
+        result:
+          "Requires Firebird 2.1+ when the declared server version is evaluated.",
+      },
+      {
+        sql: "SELECT id FROM users LIMIT 5",
+        result: "Rejected as non-Firebird source syntax.",
+      },
+    ],
+  },
+};
+
+const providers = [
+  ["postgresql", "PostgreSQL"],
+  ["mysql", "MySQL"],
+  ["sql-server", "SQL Server"],
+  ["oracle", "Oracle"],
+  ["sqlite", "SQLite"],
+  ["firebird", "Firebird"],
+] as const;
+
+const evidence =
+  page.locale === "en" && page.section === "databases"
+    ? evidenceBySlug[page.slug]
+    : undefined;
+const siblings = providers.filter(([slug]) => slug !== page.slug);
+---
+
+{
+  evidence && (
+    <>
+      <section data-seo-provider-evidence={page.slug}>
+        <h2>{evidence.title}</h2>
+        <p>{evidence.intro}</p>
+        <p>{evidence.detail}</p>
+        <div class="overflow-x-auto">
+          <table>
+            <thead>
+              <tr>
+                <th>Compiler contract example</th>
+                <th>Behavior</th>
+              </tr>
+            </thead>
+            <tbody>
+              {evidence.cases.map(item => (
+                <tr>
+                  <td><code>{item.sql}</code></td>
+                  <td>{item.result}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <p>
+          These examples are a search-oriented summary of the compiler boundary,
+          not a complete SQL compatibility matrix. Unsupported or unproven
+          semantics continue to fail closed.
+        </p>
+      </section>
+
+      <section>
+        <h2>Compare database MCP targets</h2>
+        <p>
+          The MCP tool surface is shared, but each database keeps its own source
+          grammar, capability checks, and provider-specific rendering rules.
+        </p>
+        <ul>
+          {siblings.map(([slug, name]) => (
+            <li>
+              <a href={getRelativeLocaleUrl(page.locale, `databases/${slug}`)}>
+                {name} MCP Server
+              </a>
+            </li>
+          ))}
+        </ul>
+      </section>
+    </>
+  )
+}
