@@ -166,7 +166,9 @@ const siblings = providers.filter(([slug]) => slug !== page.slug);
             <tbody>
               {evidence.cases.map(item => (
                 <tr>
-                  <td><code>{item.sql}</code></td>
+                  <td>
+                    <code>{item.sql}</code>
+                  </td>
                   <td>{item.result}</td>
                 </tr>
               ))}
