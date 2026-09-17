@@ -1,0 +1,72 @@
+---
+import type { MarketingSection } from "@/data/marketingCatalog";
+
+type Props = {
+  locale: string;
+  section: MarketingSection;
+};
+
+const { locale, section } = Astro.props;
+const visible = locale === "en" && section === "databases";
+---
+
+{
+  visible && (
+    <section class="marketing-shell" style="padding-block:3rem 0">
+      <div class="app-prose marketing-prose" data-seo-database-mcp-guide>
+        <h2>What is a database MCP server?</h2>
+        <p>
+          A database MCP server is a server-side Model Context Protocol endpoint
+          that exposes database discovery and SQL operations as tools for AI
+          clients. Instead of giving the model a database password and letting
+          it connect directly, the MCP server owns the connection and decides
+          which operations are allowed.
+        </p>
+        <p>
+          hs-sql-agent is a SQL MCP server built around that boundary. MCP
+          clients can discover schemas, tables, and columns, run validated
+          queries, and—if policy allows it—request DML that stays behind
+          server-side approval and revalidation.
+        </p>
+
+        <h2>What should you compare in a SQL MCP server?</h2>
+        <ul>
+          <li>
+            <strong>SQL validation:</strong> whether generated SQL is parsed and
+            validated before it reaches the database driver.
+          </li>
+          <li>
+            <strong>Credential boundary:</strong> whether database credentials
+            stay on the server instead of being distributed to every AI client.
+          </li>
+          <li>
+            <strong>Authorization:</strong> whether database, table, and tool
+            scope are enforced outside the prompt.
+          </li>
+          <li>
+            <strong>Write controls:</strong> whether UPDATE, DELETE, and INSERT
+            can require explicit approval and transaction-time revalidation.
+          </li>
+          <li>
+            <strong>Dialect behavior:</strong> whether PostgreSQL, MySQL, SQL
+            Server, Oracle, SQLite, and Firebird semantics are treated as
+            distinct capability contracts rather than generic SQL.
+          </li>
+        </ul>
+
+        <h2>SQL MCP server vs. direct database access</h2>
+        <p>
+          Direct database access makes the database account the primary security
+          boundary. A governed MCP server adds a second application boundary
+          where identity, tool scope, SQL semantics, mutation approval, rate
+          limits, and audit policy can be evaluated before execution.
+        </p>
+        <p>
+          That distinction matters for agentic workloads: the model can still
+          use expressive raw SQL, but generating a statement is not the same
+          thing as having unrestricted authority to execute it.
+        </p>
+      </div>
+    </section>
+  )
+}

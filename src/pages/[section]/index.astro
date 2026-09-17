@@ -3,6 +3,7 @@ import { getRelativeLocaleUrl } from "astro:i18n";
 import Layout from "@/layouts/Layout.astro";
 import Header from "@/components/Header.astro";
 import Footer from "@/components/Footer.astro";
+import DatabaseMcpGuide from "@/components/DatabaseMcpGuide.astro";
 import { locales } from "@/utils/getPostsByLocale";
 import {
   getLocalizedMarketingPages,
@@ -85,6 +86,9 @@ function getMarketingHref(pageSection: MarketingSection, slug: string): string {
         <p class="marketing-lead">{description}</p>
       </div>
     </section>
+
+    <DatabaseMcpGuide {locale} {section} />
+
     <section class="marketing-shell" style="padding-block:4rem 7rem">
       <div
         class="border-border bg-border/30 grid gap-px border sm:grid-cols-2 lg:grid-cols-3"
