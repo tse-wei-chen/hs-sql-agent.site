@@ -81,9 +81,7 @@ for (const expectation of expectations) {
 
   for (const phrase of expectation.phrases) {
     if (!html.includes(phrase)) {
-      errors.push(
-        `${expectation.route}: missing search-intent phrase: ${phrase}`
-      );
+      errors.push(`${expectation.route}: missing search-intent phrase: ${phrase}`);
     }
   }
 }
