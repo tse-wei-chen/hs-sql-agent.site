@@ -31,16 +31,14 @@ const docsSearchIntentTitles: Partial<
     "sql-compiler/database-dialects":
       "SQL-Dialekte: PostgreSQL, MySQL und mehr",
     "integration/aspnet-core": "ASP.NET Core: SQL-MCP-Integration",
-    "administration/mcp-keys":
-      "MCP-Schlüssel und Datenbank-Zugriffskontrolle",
+    "administration/mcp-keys": "MCP-Schlüssel und Datenbank-Zugriffskontrolle",
   },
   fr: {
     "getting-started/quick-start": "Serveur MCP SQL : démarrage rapide",
     "sql-compiler/database-dialects":
       "Dialectes SQL : PostgreSQL, MySQL et plus",
     "integration/aspnet-core": "ASP.NET Core : intégration MCP SQL",
-    "administration/mcp-keys":
-      "Clés MCP et contrôle d’accès aux bases",
+    "administration/mcp-keys": "Clés MCP et contrôle d’accès aux bases",
   },
   "zh-hans": {
     "getting-started/quick-start": "SQL MCP Server 快速开始",
