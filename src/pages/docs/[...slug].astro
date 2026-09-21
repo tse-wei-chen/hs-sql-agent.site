@@ -5,6 +5,7 @@ import Callout from "@/components/docs/mdx/Callout.astro";
 import AutoSteps from "@/components/docs/mdx/AutoSteps.astro";
 import TableSurface from "@/components/docs/mdx/TableSurface.astro";
 import { docsVersionDefinitions, docsVersions } from "@/data/docsVersions";
+import { getDocsSearchIntentTitle } from "@/data/docsSearchIntentSeo";
 import { locales } from "@/utils/getPostsByLocale";
 import config from "@/config";
 import {
@@ -134,6 +135,7 @@ const alternates = (locales as readonly string[])
     locale: alternateLocale,
     href: getDocsRouteUrl(alternateLocale, currentSlug, alternateRouteVersion),
   }));
+const pageTitle = getDocsSearchIntentTitle(locale, currentSlug, doc.data.title);
 const { Content, headings } = await render(doc);
 const mdxComponents = {
   blockquote: Callout,
@@ -143,7 +145,7 @@ const mdxComponents = {
 ---
 
 <DocsLayout
-  title={doc.data.title}
+  title={pageTitle}
   description={doc.data.description}
   {locale}
   {currentSlug}

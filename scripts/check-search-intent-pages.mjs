@@ -46,6 +46,25 @@ const expectations = [
   },
 ];
 
+const docsTitleExpectations = [
+  {
+    route: "docs/getting-started/quick-start/index.html",
+    title: "SQL MCP Server Quick Start | hs-sql-agent",
+  },
+  {
+    route: "docs/sql-compiler/database-dialects/index.html",
+    title: "SQL Dialects: PostgreSQL, MySQL and More | hs-sql-agent",
+  },
+  {
+    route: "ko/docs/integration/aspnet-core/index.html",
+    title: "ASP.NET Core SQL MCP 통합 | hs-sql-agent",
+  },
+  {
+    route: "de/docs/administration/mcp-keys/index.html",
+    title: "MCP-Schlüssel und Datenbank-Zugriffskontrolle | hs-sql-agent",
+  },
+];
+
 for (const expectation of expectations) {
   const file = path.join(distDir, expectation.route);
   let html;
@@ -62,8 +81,27 @@ for (const expectation of expectations) {
 
   for (const phrase of expectation.phrases) {
     if (!html.includes(phrase)) {
-      errors.push(`${expectation.route}: missing search-intent phrase: ${phrase}`);
+      errors.push(
+        `${expectation.route}: missing search-intent phrase: ${phrase}`
+      );
     }
+  }
+}
+
+for (const expectation of docsTitleExpectations) {
+  const file = path.join(distDir, expectation.route);
+  let html;
+  try {
+    html = await readFile(file, "utf8");
+  } catch {
+    errors.push(`${expectation.route}: expected rendered documentation page`);
+    continue;
+  }
+
+  if (!html.includes(`<title>${expectation.title}</title>`)) {
+    errors.push(
+      `${expectation.route}: missing search-intent title: ${expectation.title}`
+    );
   }
 }
 
@@ -79,5 +117,5 @@ if (errors.length > 0) {
 }
 
 process.stdout.write(
-  `Search-intent output contract passed for ${expectations.length} landing pages.\n`
+  `Search-intent output contract passed for ${expectations.length} landing pages and ${docsTitleExpectations.length} documentation titles.\n`
 );
