@@ -1,5 +1,5 @@
 ---
-import LandingPage from "@/components/LandingPage.astro";
+import ProductHome from "@/components/ProductHome.astro";
 import { locales } from "@/utils/getPostsByLocale";
 import config from "@/config";
 
@@ -12,4 +12,4 @@ export async function getStaticPaths() {
 const locale = Astro.currentLocale ?? config.site.lang;
 ---
 
-<LandingPage locale={locale} />
+<ProductHome locale={locale} />
