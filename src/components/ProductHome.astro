@@ -1,0 +1,485 @@
+---
+import { getRelativeLocaleUrl } from "astro:i18n";
+import Layout from "@/layouts/Layout.astro";
+import Header from "@/components/Header.astro";
+import Footer from "@/components/Footer.astro";
+import config from "@/config";
+
+type Props = { locale: string };
+const { locale } = Astro.props;
+
+const copies = {
+  en: {
+    title: "Turn trusted SQL into governed MCP tools for AI agents",
+    description:
+      "Define parameterized SQL in the Admin UI, publish it as a typed MCP tool, and let AI agents supply only the arguments. Every call still passes through hs-sql-agent's fail-closed compiler, access policy, and Safe DML controls.",
+    kicker:
+      "Open-source SQL-to-MCP tool factory · six SQL dialects · fail-closed",
+    primary: "Create your first SQL tool",
+    secondary: "View on GitHub",
+    factoryTitle: "Ship an AI tool without writing MCP server code.",
+    factoryDesc:
+      "Name the tool, describe when the model should use it, write the SQL template, declare parameters such as {{ customerId }}, test it, then publish. The MCP schema is generated from your parameter contract.",
+    steps: [
+      "Write SQL",
+      "Declare parameters",
+      "Test & publish",
+      "Agent calls the tool",
+    ],
+    safeTitle: "Deterministic SQL shape. Governed execution.",
+    safeDesc:
+      "Custom tools do not bypass the safety boundary. Query tools use the same typed compiler and table policy; DML tools use the same preview, approval, revalidation, and transaction controls.",
+    compiler: "Fail-closed SQL compiler",
+    access: "Per-key database & table scope",
+    dml: "Human-approved Safe DML",
+    six: "PostgreSQL · MySQL · SQL Server · Oracle · SQLite · Firebird",
+    useTitle: "Two ways to use hs-sql-agent",
+    custom:
+      "Publish trusted SQL as reusable MCP tools when you want predictable, engineer-defined behavior.",
+    raw: "Keep raw SQL tools available when the agent genuinely needs flexible ad-hoc querying.",
+    docs: "Read the docs",
+  },
+  "zh-hant": {
+    title: "把可信 SQL 直接發布成受治理的 AI MCP 工具",
+    description:
+      "在管理介面定義參數化 SQL，發布成 typed MCP tool，AI 只需要填參數。每次執行仍會經過 hs-sql-agent 的 fail-closed compiler、存取政策與 Safe DML 控制。",
+    kicker: "開源 SQL-to-MCP Tool Factory · 六種 SQL 方言 · fail-closed",
+    primary: "建立第一個 SQL Tool",
+    secondary: "查看 GitHub",
+    factoryTitle: "不用寫 MCP Server 程式碼，也能發布 AI Tool。",
+    factoryDesc:
+      "設定 Tool 名稱與給模型看的描述、貼上 SQL Template、宣告 {{ customerId }} 這類參數、測試後發布；系統會依參數契約產生 MCP schema。",
+    steps: ["寫 SQL", "宣告參數", "測試並發布", "Agent 呼叫 Tool"],
+    safeTitle: "SQL 形狀可控，執行仍受治理。",
+    safeDesc:
+      "Custom Tool 不會繞過安全邊界。Query 走同一套 typed compiler 與 table policy；DML 走同一套 preview、approval、revalidation 與 transaction。",
+    compiler: "Fail-closed SQL compiler",
+    access: "每把 Key 的資料庫與資料表範圍",
+    dml: "人工核准 Safe DML",
+    six: "PostgreSQL · MySQL · SQL Server · Oracle · SQLite · Firebird",
+    useTitle: "hs-sql-agent 有兩種使用方式",
+    custom:
+      "需要可預測、工程師定義好的行為時，把可信 SQL 發布成可重用 MCP Tool。",
+    raw: "真的需要臨時查詢時，仍可保留 raw SQL tools 給 Agent 使用。",
+    docs: "閱讀文件",
+  },
+  "zh-hans": {
+    title: "把可信 SQL 直接发布为受治理的 AI MCP 工具",
+    description:
+      "在管理界面定义参数化 SQL，发布为 typed MCP tool，AI 只需填写参数。每次执行仍会经过 fail-closed compiler、访问策略与 Safe DML 控制。",
+    kicker: "开源 SQL-to-MCP Tool Factory · 六种 SQL 方言 · fail-closed",
+    primary: "创建第一个 SQL Tool",
+    secondary: "查看 GitHub",
+    factoryTitle: "无需编写 MCP Server 代码，也能发布 AI Tool。",
+    factoryDesc:
+      "设置 Tool 名称和描述、编写 SQL Template、声明 {{ customerId }} 等参数、测试并发布；系统根据参数契约生成 MCP schema。",
+    steps: ["编写 SQL", "声明参数", "测试并发布", "Agent 调用 Tool"],
+    safeTitle: "SQL 形状可控，执行仍受治理。",
+    safeDesc:
+      "Custom Tool 不会绕过安全边界。Query 走相同 typed compiler 与 table policy；DML 走相同 preview、approval、revalidation 与 transaction。",
+    compiler: "Fail-closed SQL compiler",
+    access: "每个 Key 的数据库与表范围",
+    dml: "人工审批 Safe DML",
+    six: "PostgreSQL · MySQL · SQL Server · Oracle · SQLite · Firebird",
+    useTitle: "hs-sql-agent 有两种使用方式",
+    custom:
+      "需要可预测、工程师定义的行为时，把可信 SQL 发布为可复用 MCP Tool。",
+    raw: "需要临时查询时，仍可保留 raw SQL tools 给 Agent 使用。",
+    docs: "阅读文档",
+  },
+  ja: {
+    title: "信頼できる SQL を、ガバナンスされた AI 向け MCP ツールへ。",
+    description:
+      "Admin UI でパラメータ化 SQL を定義し、typed MCP tool として公開。AI は引数だけを渡し、実行は fail-closed compiler・アクセス制御・Safe DML を通過します。",
+    kicker:
+      "Open-source SQL-to-MCP Tool Factory · 6 SQL dialects · fail-closed",
+    primary: "最初の SQL Tool を作る",
+    secondary: "GitHub を見る",
+    factoryTitle: "MCP Server のコードを書かずに AI Tool を公開。",
+    factoryDesc:
+      "名前と説明、SQL Template、{{ customerId }} のようなパラメータを定義し、テスト後に公開。パラメータ契約から MCP schema を生成します。",
+    steps: ["SQL を書く", "パラメータ定義", "テスト・公開", "Agent が呼び出す"],
+    safeTitle: "SQL の形は決定的。実行は常にガバナンス下。",
+    safeDesc:
+      "Custom Tool も同じ compiler・table policy・Safe DML approval を通過します。",
+    compiler: "Fail-closed SQL compiler",
+    access: "Key ごとの DB / table scope",
+    dml: "Human-approved Safe DML",
+    six: "PostgreSQL · MySQL · SQL Server · Oracle · SQLite · Firebird",
+    useTitle: "2 つの使い方",
+    custom: "予測可能な処理には engineer-defined SQL tool。",
+    raw: "柔軟な ad-hoc query が必要なら raw SQL tool。",
+    docs: "ドキュメント",
+  },
+  ko: {
+    title: "신뢰할 수 있는 SQL을 거버넌스된 AI MCP 도구로 배포하세요.",
+    description:
+      "Admin UI에서 파라미터화 SQL을 정의해 typed MCP tool로 게시하고, AI는 인수만 전달합니다. 모든 실행은 fail-closed compiler, 접근 정책, Safe DML을 통과합니다.",
+    kicker:
+      "Open-source SQL-to-MCP Tool Factory · 6 SQL dialects · fail-closed",
+    primary: "첫 SQL Tool 만들기",
+    secondary: "GitHub 보기",
+    factoryTitle: "MCP Server 코드를 작성하지 않고 AI Tool을 배포합니다.",
+    factoryDesc:
+      "이름, 설명, SQL Template, {{ customerId }} 같은 파라미터를 정의하고 테스트 후 게시하면 MCP schema가 생성됩니다.",
+    steps: ["SQL 작성", "파라미터 선언", "테스트·게시", "Agent 호출"],
+    safeTitle: "SQL 형태는 결정적이고 실행은 거버넌스됩니다.",
+    safeDesc:
+      "Custom Tool도 동일한 compiler, table policy, Safe DML approval 경계를 사용합니다.",
+    compiler: "Fail-closed SQL compiler",
+    access: "Key별 DB / table scope",
+    dml: "Human-approved Safe DML",
+    six: "PostgreSQL · MySQL · SQL Server · Oracle · SQLite · Firebird",
+    useTitle: "두 가지 사용 방식",
+    custom: "예측 가능한 동작에는 engineer-defined SQL tool.",
+    raw: "유연한 ad-hoc query에는 raw SQL tool.",
+    docs: "문서 보기",
+  },
+  fr: {
+    title:
+      "Transformez vos SQL de confiance en outils MCP gouvernés pour les agents IA.",
+    description:
+      "Définissez un SQL paramétré dans l'Admin UI, publiez-le comme typed MCP tool et laissez l'IA fournir uniquement les arguments. Chaque appel reste soumis au compilateur fail-closed, aux politiques d'accès et à Safe DML.",
+    kicker:
+      "SQL-to-MCP Tool Factory open source · 6 dialectes SQL · fail-closed",
+    primary: "Créer un premier SQL Tool",
+    secondary: "Voir sur GitHub",
+    factoryTitle: "Publiez un AI Tool sans écrire de code MCP Server.",
+    factoryDesc:
+      "Nom, description, SQL Template, paramètres comme {{ customerId }}, test puis publication : le schéma MCP est généré depuis le contrat des paramètres.",
+    steps: [
+      "Écrire le SQL",
+      "Déclarer les paramètres",
+      "Tester et publier",
+      "L'agent appelle l'outil",
+    ],
+    safeTitle: "Forme SQL déterministe. Exécution gouvernée.",
+    safeDesc:
+      "Les Custom Tools utilisent le même compiler, les mêmes table policies et le même protocole Safe DML.",
+    compiler: "Fail-closed SQL compiler",
+    access: "Scope DB / tables par clé",
+    dml: "Safe DML avec approbation humaine",
+    six: "PostgreSQL · MySQL · SQL Server · Oracle · SQLite · Firebird",
+    useTitle: "Deux façons d'utiliser hs-sql-agent",
+    custom: "SQL tool défini par l'ingénieur pour les opérations prévisibles.",
+    raw: "Raw SQL tool pour les requêtes ad hoc réellement nécessaires.",
+    docs: "Lire la documentation",
+  },
+  de: {
+    title:
+      "Vertrauenswürdiges SQL als kontrollierte MCP-Tools für KI-Agenten veröffentlichen.",
+    description:
+      "Definieren Sie parametrisiertes SQL im Admin UI, veröffentlichen Sie es als typed MCP tool und lassen Sie die KI nur Argumente liefern. Jeder Aufruf bleibt hinter fail-closed Compiler, Zugriffspolitik und Safe DML.",
+    kicker:
+      "Open-source SQL-to-MCP Tool Factory · 6 SQL-Dialekte · fail-closed",
+    primary: "Erstes SQL Tool erstellen",
+    secondary: "Auf GitHub ansehen",
+    factoryTitle:
+      "AI Tools veröffentlichen, ohne MCP-Server-Code zu schreiben.",
+    factoryDesc:
+      "Name, Beschreibung, SQL Template und Parameter wie {{ customerId }} definieren, testen und veröffentlichen; das MCP schema entsteht aus dem Parametervertrag.",
+    steps: [
+      "SQL schreiben",
+      "Parameter definieren",
+      "Testen & veröffentlichen",
+      "Agent ruft Tool auf",
+    ],
+    safeTitle: "Deterministische SQL-Form. Kontrollierte Ausführung.",
+    safeDesc:
+      "Custom Tools nutzen denselben Compiler, dieselben Table Policies und denselben Safe-DML-Prozess.",
+    compiler: "Fail-closed SQL compiler",
+    access: "DB-/Table-Scope pro Key",
+    dml: "Human-approved Safe DML",
+    six: "PostgreSQL · MySQL · SQL Server · Oracle · SQLite · Firebird",
+    useTitle: "Zwei Nutzungsmodelle",
+    custom: "Engineer-defined SQL tools für vorhersehbare Abläufe.",
+    raw: "Raw SQL tools für echte Ad-hoc-Abfragen.",
+    docs: "Dokumentation lesen",
+  },
+} as const;
+
+const copy = copies[locale as keyof typeof copies] ?? copies.en;
+const docsUrl = getRelativeLocaleUrl(
+  locale,
+  "docs/administration/custom-tools"
+);
+const compilerUrl = getRelativeLocaleUrl(locale, "features/sql-compiler");
+const dmlUrl = getRelativeLocaleUrl(locale, "features/safe-dml");
+const accessUrl = getRelativeLocaleUrl(locale, "features/access-control");
+const pageUrl = new URL(getRelativeLocaleUrl(locale), Astro.site ?? Astro.url)
+  .href;
+const structuredData = {
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "WebSite",
+      name: config.site.title,
+      url: pageUrl,
+      description: copy.description,
+      inLanguage: locale,
+    },
+    {
+      "@type": "SoftwareApplication",
+      name: config.site.title,
+      applicationCategory: "DeveloperApplication",
+      operatingSystem: "Linux, Windows, macOS",
+      url: pageUrl,
+      sameAs: "https://github.com/tse-wei-chen/hs-sql-agent",
+      description: copy.description,
+      featureList: [
+        "SQL-to-MCP custom tools",
+        "Parameterized SQL templates",
+        "Fail-closed SQL compiler",
+        "Safe DML approvals",
+        "Per-key database and table policy",
+        "PostgreSQL, MySQL, SQL Server, Oracle, SQLite, Firebird",
+      ],
+    },
+  ],
+};
+---
+
+<Layout
+  title={`${config.site.title} — ${copy.title}`}
+  description={copy.description}
+>
+  <Fragment slot="head">
+    <script
+      type="application/ld+json"
+      is:inline
+      set:html={JSON.stringify(structuredData)}
+    />
+  </Fragment>
+
+  <Header />
+
+  <main id="main-content" class="product-home">
+    <section class="hero">
+      <p class="kicker">{copy.kicker}</p>
+      <h1>{copy.title}</h1>
+      <p class="lead">{copy.description}</p>
+      <div class="actions">
+        <a class="primary" href={docsUrl}>{copy.primary} →</a>
+        <a href="https://github.com/tse-wei-chen/hs-sql-agent" rel="external">
+          {copy.secondary} ↗
+        </a>
+      </div>
+      <div class="sql-card">
+        <div class="tool-name">get_customer_orders</div>
+        <pre><code>SELECT id, total, status
+FROM orders
+WHERE customer_id = {`{{ customerId }}`}</code></pre>
+        <div class="schema">customerId: number → typed MCP argument</div>
+      </div>
+    </section>
+
+    <section class="shell">
+      <p class="kicker">SQL → MCP</p>
+      <h2>{copy.factoryTitle}</h2>
+      <p class="section-lead">{copy.factoryDesc}</p>
+      <div class="steps">
+        {
+          copy.steps.map((step, index) => (
+            <article>
+              <span>{String(index + 1).padStart(2, "0")}</span>
+              <strong>{step}</strong>
+            </article>
+          ))
+        }
+      </div>
+    </section>
+
+    <section class="band">
+      <div class="shell">
+        <p class="kicker">GOVERNANCE</p>
+        <h2>{copy.safeTitle}</h2>
+        <p class="section-lead">{copy.safeDesc}</p>
+        <div class="cards">
+          <a href={compilerUrl}>
+            <strong>{copy.compiler}</strong>
+            <span>Parse → bind → validate → prove → compile</span>
+          </a>
+          <a href={accessUrl}>
+            <strong>{copy.access}</strong>
+            <span>Database, tools, tables, limits, audit</span>
+          </a>
+          <a href={dmlUrl}>
+            <strong>{copy.dml}</strong>
+            <span>Preview → approve → revalidate → commit</span>
+          </a>
+        </div>
+      </div>
+    </section>
+
+    <section class="shell">
+      <p class="kicker">SIX DATABASES</p>
+      <h2>{copy.six}</h2>
+      <p class="section-lead">
+        One governed tool contract across six supported database providers, with
+        provider-aware validation and lowering.
+      </p>
+    </section>
+
+    <section class="shell">
+      <p class="kicker">TWO MODES</p>
+      <h2>{copy.useTitle}</h2>
+      <div class="cards two">
+        <article>
+          <strong>Custom SQL Tools</strong>
+          <span>{copy.custom}</span>
+        </article>
+        <article>
+          <strong>Raw SQL Tools</strong>
+          <span>{copy.raw}</span>
+        </article>
+      </div>
+      <div class="actions">
+        <a class="primary" href={docsUrl}>{copy.docs} →</a>
+      </div>
+    </section>
+  </main>
+
+  <Footer />
+</Layout>
+
+<style>
+  .product-home {
+    --max: 1120px;
+  }
+  .hero,
+  .shell {
+    max-width: var(--max);
+    margin: 0 auto;
+    padding: 6rem 1.5rem;
+  }
+  .hero {
+    padding-top: 8rem;
+    text-align: center;
+  }
+  .kicker {
+    font:
+      600 0.78rem/1.2 ui-monospace,
+      monospace;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--color-accent);
+  }
+  h1 {
+    max-width: 1000px;
+    margin: 1rem auto;
+    font-size: clamp(2.8rem, 7vw, 5.8rem);
+    line-height: 0.98;
+    letter-spacing: -0.055em;
+  }
+  h2 {
+    font-size: clamp(2rem, 4vw, 3.5rem);
+    line-height: 1.05;
+    letter-spacing: -0.035em;
+  }
+  .lead,
+  .section-lead {
+    max-width: 820px;
+    margin: 1.4rem auto;
+    color: var(--color-foreground-muted);
+    font-size: 1.12rem;
+    line-height: 1.75;
+  }
+  .actions {
+    display: flex;
+    gap: 0.8rem;
+    justify-content: center;
+    flex-wrap: wrap;
+    margin-top: 2rem;
+  }
+  .actions a {
+    border: 1px solid var(--color-border);
+    border-radius: 999px;
+    padding: 0.8rem 1.1rem;
+    text-decoration: none;
+  }
+  .actions .primary {
+    background: var(--color-foreground);
+    color: var(--color-background);
+  }
+  .sql-card {
+    max-width: 760px;
+    margin: 3.5rem auto 0;
+    text-align: left;
+    border: 1px solid var(--color-border);
+    border-radius: 18px;
+    padding: 1.25rem;
+    background: var(--color-card);
+  }
+  .tool-name,
+  .schema {
+    font:
+      600 0.8rem ui-monospace,
+      monospace;
+    color: var(--color-foreground-muted);
+  }
+  pre {
+    overflow: auto;
+    margin: 1rem 0;
+    padding: 1rem;
+    border-radius: 12px;
+    background: var(--color-background);
+  }
+  .band {
+    border-block: 1px solid var(--color-border);
+    background: color-mix(in srgb, var(--color-card) 55%, transparent);
+  }
+  .steps,
+  .cards {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 1rem;
+    margin-top: 2.5rem;
+  }
+  .steps article,
+  .cards > a,
+  .cards article {
+    border: 1px solid var(--color-border);
+    border-radius: 16px;
+    padding: 1.25rem;
+    text-decoration: none;
+    color: inherit;
+    background: var(--color-card);
+  }
+  .steps span {
+    display: block;
+    font:
+      600 0.75rem ui-monospace,
+      monospace;
+    color: var(--color-foreground-muted);
+    margin-bottom: 2rem;
+  }
+  .cards {
+    grid-template-columns: repeat(3, 1fr);
+  }
+  .cards strong,
+  .cards span {
+    display: block;
+  }
+  .cards span {
+    margin-top: 0.7rem;
+    color: var(--color-foreground-muted);
+    line-height: 1.55;
+  }
+  .cards.two {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  @media (max-width: 800px) {
+    .hero,
+    .shell {
+      padding: 4rem 1rem;
+    }
+    .hero {
+      padding-top: 6rem;
+    }
+    .steps,
+    .cards,
+    .cards.two {
+      grid-template-columns: 1fr;
+    }
+  }
+</style>
