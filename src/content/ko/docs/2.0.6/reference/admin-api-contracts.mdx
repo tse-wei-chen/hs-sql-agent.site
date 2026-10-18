@@ -1,100 +1,86 @@
 ---
-title: "관리 REST API 계약"
-description: "Controller 및 DTO에 근거한 요청, 응답, 상태 코드 안내입니다."
+title: "기존 API 요청 및 응답 예시"
+description: "Admin UI에서 발급한 API 키로 기존 관리 REST API를 호출하는 예시."
 sidebar:
   group: Reference
   order: 143
 ---
 
-관리 API는 `/api` 경로에 있으며 각 작업별 표준 권한을 확인합니다. 아래 예시는 서버에서 사용하는 관리 API 키 요청과 응답 DTO에 기반합니다.
+Admin UI의 **Runtime → Management API Keys**에서 키를 만든 다음, 백엔드는 `X-API-Key`로 기존 `/api`를 호출합니다. 아래는 연동 서비스가 실제로 호출하는 API입니다.
 
-## 관리 API 키 발급 (관리자)
+## GET: 데이터베이스 연결 목록
 
-`/runtime/security.edit` 권한이 있는 로그인 관리자는 세 가지 필수 필드로 키를 발급할 수 있습니다.
-
-```http
-POST /api/runtime/management-api-keys
-Authorization: Bearer <administrator JWT>
-Content-Type: application/json
-```
-
-```json
-{
-  "name": "provisioning-backend",
-  "expiresAt": "2027-01-01T00:00:00Z",
-  "permissions": [
-    "/runtime/custom-tools.view",
-    "/runtime/custom-tools.create",
-    "/runtime/custom-tools.edit"
-  ]
-}
-```
-
-- `name`: string, not blank, maximum 100 characters.
-- `expiresAt`: RFC 3339 UTC date-time, future and within 365 days.
-- `permissions`: non-empty array of canonical permission keys supported by this API.
-
-## 응답 확인
-
-`plaintextKey`는 발급 또는 교체 시에만 반환됩니다. 키 목록 API는 비밀 값 없이 `key` 메타데이터만 제공합니다.
-
-**200 OK** — illustrative identifiers and timestamps:
-
-```json
-{
-  "key": {
-    "id": 17,
-    "name": "provisioning-backend",
-    "keyPrefix": "hsa_mgmt_example",
-    "permissions": [
-      "/runtime/custom-tools.view",
-      "/runtime/custom-tools.create",
-      "/runtime/custom-tools.edit"
-    ],
-    "createdAt": "2026-10-18T09:00:00Z",
-    "expiresAt": "2027-01-01T00:00:00Z",
-    "lastUsedAt": null,
-    "revokedAt": null,
-    "createdBy": "1"
-  },
-  "plaintextKey": "hsa_mgmt_<one-time-secret>"
-}
-```
-
-## 발급된 키 사용
-
-백엔드는 `X-API-Key` 헤더로 기존 관리 API를 호출하고 각 엔드포인트의 표준 권한 검사를 받습니다.
+필요 권한: `/runtime/db-management.view`. 성공 시 HTTP `200`으로 `DbManagementVM` 배열을 반환합니다. 아래는 일부 필드입니다.
 
 ```bash
-curl "https://agent.example.com/api/CustomSqlTool" \
+curl -X GET "https://agent.example.com/api/DbManagement" \
   -H "X-API-Key: ${HS_MANAGEMENT_API_KEY}"
 ```
 
-## 관리 API 키 엔드포인트
+**200 OK** — JSON (selected fields):
 
-이 키 관리 엔드포인트에는 로그인 관리자의 `/runtime/security.edit` 권한이 필요합니다.
+```json
+[
+  {
+    "id": 1,
+    "name": "Production DB",
+    "sqlProvider": "PostgreSql",
+    "host": "db.internal",
+    "database": "orders",
+    "isBootstrapManaged": false
+  }
+]
+```
 
-| Method | Route | Success | Other outcomes |
-| --- | --- | --- | --- |
-| `GET` | `/api/runtime/management-api-keys` | `200` `ManagementApiKeyView[]` | `401`, `403` |
-| `GET` | `/api/runtime/management-api-keys/permissions` | `200` `string[]` | `401`, `403` |
-| `POST` | `/api/runtime/management-api-keys` | `200` `IssuedManagementApiKey` | `400`, `401`, `403` |
-| `POST` | `/api/runtime/management-api-keys/{id}/rotate` | `200` `IssuedManagementApiKey` | `401`, `403`, `404`, `409` |
-| `POST` | `/api/runtime/management-api-keys/{id}/revoke` | `204` (no body) | `401`, `403`, `404` |
+## POST: Custom Tool 생성
 
+필요 권한: `/runtime/custom-tools.create`. 실제 `dbManagementId`를 입력하고 SQL Template은 데이터베이스에 맞게 수정하세요.
 
-## HTTP 상태 코드 및 유효성 검사
+```bash
+curl -X POST "https://agent.example.com/api/CustomSqlTool" \
+  -H "X-API-Key: ${HS_MANAGEMENT_API_KEY}" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "list_orders",
+    "description": "List order identifiers",
+    "type": "Query",
+    "sqlTemplate": "SELECT id FROM orders",
+    "dbManagementId": 1
+  }'
+```
 
-| Status | Meaning |
+성공 시 `201 Created`와 `CustomSqlTool` 객체를 반환합니다. 서버에서 생성하는 일부 필드를 보여줍니다.
+
+```json
+{
+  "id": 42,
+  "name": "list_orders",
+  "description": "List order identifiers",
+  "sqlTemplate": "SELECT id FROM orders",
+  "type": "Query",
+  "parametersJson": null,
+  "dbManagementId": 1,
+  "status": "Draft",
+  "publishedRevisionId": null,
+  "publishedIdentity": null,
+  "createdAt": "2026-10-18T09:00:00Z",
+  "lastModifiedAt": null
+}
+```
+
+## 주요 HTTP 응답 코드
+
+| HTTP | Meaning |
 | --- | --- |
-| `400` | Invalid name, expiry, permissions, or model validation |
-| `401` | Missing or invalid authentication |
-| `403` | Authenticated but operation not permitted |
-| `404` | Key ID does not exist |
-| `409` | Attempted rotation of a revoked or expired key |
+| `200` | Successful read or update with a JSON response |
+| `201` | Custom Tool created successfully |
+| `204` | Successful action without a response body |
+| `400` | Invalid request data |
+| `401` | API Key missing, invalid, revoked, or expired |
+| `403` | API Key valid but lacking required permission |
+| `404` | Requested resource not found |
+| `409` | Operation conflicts with current resource state |
 
-## 스키마 적용 범위
+## 다른 API 안내
 
-현재 OpenAPI 추출에는 14개 Controller, 93개 HTTP 작업이 포함됩니다. 명시된 DTO는 스키마로 제공되지만 일부 기존 IActionResult 작업은 응답 타입 정의가 누락되어 있습니다. 개선 진행 상황은 Issue #295에서 확인하세요.
-
-[라우트 목록](/ko/docs/reference/api-reference) · [OpenAPI coverage tracking](https://github.com/tse-wei-chen/hs-sql-agent/issues/295)
+전체 경로는[관리 REST API 목록](/ko/docs/reference/api-reference)을 참고하세요. 누락된 응답 Schema는 [OpenAPI PR #294](https://github.com/tse-wei-chen/hs-sql-agent/pull/294)에서 보완 중입니다.

@@ -1,60 +1,74 @@
 ---
-title: "管理 API 金鑰"
-description: "透過管理介面簽發 API 金鑰，讓後端整合服務直接呼叫既有管理 API。"
+title: "使用 System-to-System API Key 呼叫管理 API"
+description: "從 Admin UI 簽發 Key，讓外部後端直接呼叫既有的管理 REST API。"
 sidebar:
   group: Integration
   order: 89
 ---
 
-需要從 SaaS 後端、排程或部署流程自動建立 Custom Tools、更新設定或簽發存取憑證時，可以使用**管理 API 金鑰**。每把金鑰只會取得管理員明確授予的 API 權限。
+要讓 SaaS 後端、排程或其他系統自動化管理作業，先在 **Admin UI 建立 System-to-System API Key**，設定可操作的權限，再由外部後端透過 `X-API-Key` 呼叫**現有 `/api`**。不用寫程式去簽發 Key，也不必模擬管理員登入。
 
-## 建立金鑰
+## 1. 在 Admin UI 簽發 Key
 
-以具有 `/runtime/security.edit` 權限的管理員登入，前往 **Runtime → Management API Keys**。
+1. 使用具有安全設定編輯權限的管理員帳號登入 Admin UI。
+2. 開啟 **Runtime → Management API Keys**。
+3. 輸入名稱，例如 `production-integration`，並設定到期時間。
+4. 勾選外部服務需要的管理權限。若要執行下方範例，請選 `/runtime/db-management.view` 與 `/runtime/custom-tools.view`。
+5. 點選 **Issue key**，立即複製產生的 Key；明文只會顯示一次。
 
-1. 輸入金鑰名稱，例如 `production-integration`。
-2. 設定到期時間（最長 365 天）。
-3. 勾選整合服務需要的管理權限。
-4. 建立後立即複製明文金鑰；金鑰只會顯示一次。
+請將 Key 存放在外部後端的 Secret Manager 或環境變數，不要放進前端程式碼、瀏覽器或版本庫。
 
-請將金鑰存放在後端的機密管理服務，不要放在瀏覽器前端或版本庫。
+## 2. 使用 Key 呼叫現有 API
 
-## 呼叫管理 API
-
-將金鑰放在 `X-API-Key` HTTP 標頭，即可呼叫具有權限的既有管理 API：
+例如，列出已設定的資料庫連線：
 
 ```bash
-curl "https://agent.example.com/api/CustomSqlTool" \
+curl -X GET "https://agent.example.com/api/DbManagement" \
   -H "X-API-Key: ${HS_MANAGEMENT_API_KEY}"
 ```
 
-使用 `X-API-Key` 時，不要同時送出 `Authorization` 標頭，否則請求會被拒絕。
+或列出已建立的 Custom Tools：
 
-## 常見操作與所需權限
+```bash
+curl -X GET "https://agent.example.com/api/CustomSqlTool" \
+  -H "X-API-Key: ${HS_MANAGEMENT_API_KEY}"
+```
 
-| 操作 | API | Canonical Permission |
-| --- | --- | --- |
-| 列出 Custom Tools | `GET /api/CustomSqlTool` | `/runtime/custom-tools.view` |
-| 建立 Custom Tool | `POST /api/CustomSqlTool` | `/runtime/custom-tools.create` |
-| 發布 Custom Tool | `POST /api/CustomSqlTool/{id}/publish` | `/runtime/custom-tools.edit` |
-| 列出已發行的存取金鑰 | `GET /api/runtime/mcp-keys` | `/runtime/mcp-keys.view` |
-| 簽發存取金鑰 | `POST /api/runtime/mcp-keys` | `/runtime/mcp-keys.create` |
+## 3. 查看 API 回應
 
-所有請求仍會經過原本的管理 API 權限驗證，不需要建立額外的 SaaS 專用 API。
+資料庫清單 API 成功時回傳 HTTP `200` 與 JSON 陣列。以下只展示其中一筆的部分欄位：
 
-## 權限與金鑰管理
+```json
+[
+  {
+    "id": 1,
+    "name": "Production DB",
+    "sqlProvider": "PostgreSql",
+    "host": "db.internal",
+    "database": "orders",
+    "isBootstrapManaged": false
+  }
+]
+```
 
-- **最小權限**：只勾選整合需要的 Canonical Permissions。
-- **撤銷**：管理員可隨時撤銷金鑰，後續請求會立即失效。
-- **輪替**：會簽發新金鑰並立即撤銷舊金鑰。
-- **稽核**：金鑰明文不會寫入資料庫；管理操作會以 `management-api-key` 身分記錄。
+## Key 可以呼叫哪些 API？
 
-管理 API 金鑰的建立、輪替與撤銷，須由具有 `/runtime/security.edit` 權限的登入管理員操作。
+由 Admin UI 勾選的權限決定。只要有對應權限，同一把 Key 就能呼叫多個現有管理 API，不需要為每個端點重新建立 Key。
 
-> 目前金鑰的權限範圍是**管理 API 操作**，不會自動依特定資料庫 ID 或租戶限制。請只交給可信任的後端服務，並由整合方負責業務資料授權。
+| API | Permission |
+| --- | --- |
+| `GET /api/DbManagement` | `/runtime/db-management.view` |
+| `GET /api/CustomSqlTool` | `/runtime/custom-tools.view` |
+| `POST /api/CustomSqlTool` | `/runtime/custom-tools.create` |
+| `POST /api/CustomSqlTool/{id}/publish` | `/runtime/custom-tools.edit` |
+| `POST /api/DbManagement` | `/runtime/db-management.create` |
 
-## 部署需求
+## 如何查 Request／Response 規格？
 
-正式使用前，請完成 Admin Store 的 SQLite 或 PostgreSQL migration，以建立 `ManagementApiKeys` 資料表。
+請看[實際 Request／Response 串接範例](/zh-hant/docs/2.0.6/reference/admin-api-contracts)，其中有建立 Custom Tool 的 POST JSON 範例；其他 API 請參考[管理 REST API 路由索引](/zh-hant/docs/reference/api-reference)。尚未補齊的 Response Schema 持續追蹤於 [Issue #295](https://github.com/tse-wei-chen/hs-sql-agent/issues/295)。
 
-各欄位的 Request／Response 定義、HTTP 狀態碼與完整範例，請參閱[管理 REST API 串接規格](/zh-hant/docs/2.0.6/reference/admin-api-contracts)。
+## 後續輪替或撤銷
+
+需要輪替或撤銷時，回到 **Runtime → Management API Keys** 操作即可。外部服務只負責使用已簽發的 Key，不需要管理 Key 的簽發流程。
+
+> 管理權限不會自動限制特定資料庫 ID 或 SaaS 租戶；Key 只應交給可信任的後端。使用 `X-API-Key` 時，不要同時送出 `Authorization` 標頭。

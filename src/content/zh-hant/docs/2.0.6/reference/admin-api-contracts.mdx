@@ -1,100 +1,86 @@
 ---
-title: "管理 REST API 串接規格"
-description: "根據 Controller 與 DTO 整理的管理 API Request、Response、狀態碼與串接範例。"
+title: "使用 Key 呼叫既有 API：Request／Response"
+description: "以 Admin UI 建立的 System-to-System Key 呼叫管理 REST API，含實際 JSON 範例。"
 sidebar:
   group: Reference
   order: 143
 ---
 
-管理 REST API 統一使用 `/api` 路徑，並依每個操作的 Canonical Permission 驗證。以下範例直接對應後端 Management API Key 的 Request／Response 型別。
+管理員先從 **Runtime → Management API Keys** 簽發 Key；外部服務將 Key 放在 `X-API-Key` 標頭後，即可直接呼叫現有的管理 API。以下只介紹**外部串接方會使用的端點**。
 
-## 建立管理 API 金鑰（管理員操作）
+## GET 範例：列出資料庫連線
 
-具有 `/runtime/security.edit` 權限的登入管理員可以建立金鑰。Request JSON 有三個必填欄位：
-
-```http
-POST /api/runtime/management-api-keys
-Authorization: Bearer <administrator JWT>
-Content-Type: application/json
-```
-
-```json
-{
-  "name": "provisioning-backend",
-  "expiresAt": "2027-01-01T00:00:00Z",
-  "permissions": [
-    "/runtime/custom-tools.view",
-    "/runtime/custom-tools.create",
-    "/runtime/custom-tools.edit"
-  ]
-}
-```
-
-- `name`: string, not blank, maximum 100 characters.
-- `expiresAt`: RFC 3339 UTC date-time, future and within 365 days.
-- `permissions`: non-empty array of canonical permission keys supported by this API.
-
-## 解讀回應
-
-`plaintextKey` 僅在建立或輪替時回傳；`key` 是可以安全列出的 Metadata。列表 API 不會再提供明文。
-
-**200 OK** — illustrative identifiers and timestamps:
-
-```json
-{
-  "key": {
-    "id": 17,
-    "name": "provisioning-backend",
-    "keyPrefix": "hsa_mgmt_example",
-    "permissions": [
-      "/runtime/custom-tools.view",
-      "/runtime/custom-tools.create",
-      "/runtime/custom-tools.edit"
-    ],
-    "createdAt": "2026-10-18T09:00:00Z",
-    "expiresAt": "2027-01-01T00:00:00Z",
-    "lastUsedAt": null,
-    "revokedAt": null,
-    "createdBy": "1"
-  },
-  "plaintextKey": "hsa_mgmt_<one-time-secret>"
-}
-```
-
-## 使用簽發的金鑰
-
-完成簽發後，外部後端使用 `X-API-Key` 呼叫已授權的既有管理 API。每個端點都會檢查金鑰是否具有相應的 Canonical Permission。
+需要 `/runtime/db-management.view` 權限。成功回傳 HTTP `200`，Response 為 `DbManagementVM` 陣列；下方僅列出部分欄位。
 
 ```bash
-curl "https://agent.example.com/api/CustomSqlTool" \
+curl -X GET "https://agent.example.com/api/DbManagement" \
   -H "X-API-Key: ${HS_MANAGEMENT_API_KEY}"
 ```
 
-## 管理 API 金鑰端點
+**200 OK** — JSON (selected fields):
 
-以下金鑰管理端點僅允許具有 `/runtime/security.edit` 權限的登入管理員使用。
+```json
+[
+  {
+    "id": 1,
+    "name": "Production DB",
+    "sqlProvider": "PostgreSql",
+    "host": "db.internal",
+    "database": "orders",
+    "isBootstrapManaged": false
+  }
+]
+```
 
-| Method | Route | Success | Other outcomes |
-| --- | --- | --- | --- |
-| `GET` | `/api/runtime/management-api-keys` | `200` `ManagementApiKeyView[]` | `401`, `403` |
-| `GET` | `/api/runtime/management-api-keys/permissions` | `200` `string[]` | `401`, `403` |
-| `POST` | `/api/runtime/management-api-keys` | `200` `IssuedManagementApiKey` | `400`, `401`, `403` |
-| `POST` | `/api/runtime/management-api-keys/{id}/rotate` | `200` `IssuedManagementApiKey` | `401`, `403`, `404`, `409` |
-| `POST` | `/api/runtime/management-api-keys/{id}/revoke` | `204` (no body) | `401`, `403`, `404` |
+## POST 範例：建立 Custom Tool
 
+需要 `/runtime/custom-tools.create` 權限。請使用實際存在的 `dbManagementId`，並依照目標資料庫修改 SQL Template。Request JSON 對應後端 `CustomSqlTool` 模型。
 
-## HTTP 狀態碼與驗證
+```bash
+curl -X POST "https://agent.example.com/api/CustomSqlTool" \
+  -H "X-API-Key: ${HS_MANAGEMENT_API_KEY}" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "list_orders",
+    "description": "List order identifiers",
+    "type": "Query",
+    "sqlTemplate": "SELECT id FROM orders",
+    "dbManagementId": 1
+  }'
+```
 
-| Status | Meaning |
+成功回傳 `201 Created` 與 `CustomSqlTool` 物件；下方展示部分由伺服器產生的欄位。
+
+```json
+{
+  "id": 42,
+  "name": "list_orders",
+  "description": "List order identifiers",
+  "sqlTemplate": "SELECT id FROM orders",
+  "type": "Query",
+  "parametersJson": null,
+  "dbManagementId": 1,
+  "status": "Draft",
+  "publishedRevisionId": null,
+  "publishedIdentity": null,
+  "createdAt": "2026-10-18T09:00:00Z",
+  "lastModifiedAt": null
+}
+```
+
+## 常見 HTTP 狀態碼
+
+| HTTP | Meaning |
 | --- | --- |
-| `400` | Invalid name, expiry, permissions, or model validation |
-| `401` | Missing or invalid authentication |
-| `403` | Authenticated but operation not permitted |
-| `404` | Key ID does not exist |
-| `409` | Attempted rotation of a revoked or expired key |
+| `200` | Successful read or update with a JSON response |
+| `201` | Custom Tool created successfully |
+| `204` | Successful action without a response body |
+| `400` | Invalid request data |
+| `401` | API Key missing, invalid, revoked, or expired |
+| `403` | API Key valid but lacking required permission |
+| `404` | Requested resource not found |
+| `409` | Operation conflicts with current resource state |
 
-## 規格涵蓋進度
+## 其他 API 規格
 
-預備中的 OpenAPI 匯出目前盤點到 14 個 Controller、93 個 HTTP operations。已在程式碼明確標示的 Request／Response 會產生 JSON Schema；部分舊版 IActionResult action 尚未宣告具體 Response DTO，不能將這份規格視為完整的成功回應模型。詳見主專案 Issue #295。
-
-[完整路由索引](/zh-hant/docs/reference/api-reference) · [OpenAPI coverage tracking](https://github.com/tse-wei-chen/hs-sql-agent/issues/295)
+其他端點請查閱[管理 HTTP API 路由參考](/zh-hant/docs/reference/api-reference)。部分舊端點仍缺完整 Response Schema，正在 [OpenAPI PR #294](https://github.com/tse-wei-chen/hs-sql-agent/pull/294) 補齊；不能把只有路由的清單誤認為完整 DTO 契約。

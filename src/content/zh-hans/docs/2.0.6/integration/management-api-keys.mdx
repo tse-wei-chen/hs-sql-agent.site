@@ -1,55 +1,74 @@
 ---
-title: "管理 API 密钥"
-description: "从管理界面签发 API 密钥，让后端集成服务直接调用现有管理 API。"
+title: "使用 System-to-System API Key 调用管理 API"
+description: "在 Admin UI 签发 Key，让外部后端调用现有管理 REST API。"
 sidebar:
   group: Integration
   order: 89
 ---
 
-当 SaaS 后端、部署流程或其他服务需要自动管理 Custom Tools、更新配置或签发访问凭证时，可以使用**管理 API 密钥**。每把密钥只能执行管理员明确授权的操作。
+要让 SaaS 后端、定时任务或其他系统自动进行管理操作，请先在 **Admin UI 创建 System-to-System API Key**，选择权限，再通过 `X-API-Key` 调用**现有 `/api`**。无需编写签发 Key 的接口调用，也不需要模拟管理员登录。
 
-## 创建密钥
+## 1. 在 Admin UI 签发 Key
 
-1. 以拥有 `/runtime/security.edit` 权限的管理员身份登录，打开 **Runtime → Management API Keys**。
-2. 填写集成名称和过期时间（最长 365 天）。
-3. 明确选择需要的管理权限。
-4. 签发密钥并立即复制明文；明文只显示一次。
+1. 使用具有安全设置编辑权限的管理员账号登录 Admin UI。
+2. 打开 **Runtime → Management API Keys**。
+3. 填写名称，例如 `production-integration`，设置过期时间。
+4. 选择集成需要的权限。下方示例需要 `/runtime/db-management.view` 和 `/runtime/custom-tools.view`。
+5. 点击 **Issue key** 并立即复制密钥；明文只显示一次。
 
-请将密钥保存在后端密钥管理系统中，不要放在前端代码或代码仓库。
+请将 Key 存入后端 Secret Manager 或环境变量，不要暴露给浏览器或放入代码仓库。
 
-## 调用管理 API
+## 2. 使用 Key 调用现有 API
 
-调用 API 时，通过 `X-API-Key` HTTP 请求头传递密钥：
+例如列出已配置的数据库连接：
 
 ```bash
-curl "https://agent.example.com/api/CustomSqlTool" \
+curl -X GET "https://agent.example.com/api/DbManagement" \
   -H "X-API-Key: ${HS_MANAGEMENT_API_KEY}"
 ```
 
-不要同时发送 `X-API-Key` 和 `Authorization` 请求头，否则请求会被拒绝。
+或者列出 Custom Tools：
 
-## 常见操作及所需权限
+```bash
+curl -X GET "https://agent.example.com/api/CustomSqlTool" \
+  -H "X-API-Key: ${HS_MANAGEMENT_API_KEY}"
+```
 
-直接使用现有 `/api` 管理接口，无需开发额外的集成接口；每次请求仍会检查对应的规范权限。
+## 3. 查看响应
 
-| 操作 | API | Canonical Permission |
-| --- | --- | --- |
-| 查看 Custom Tools | `GET /api/CustomSqlTool` | `/runtime/custom-tools.view` |
-| 创建 Custom Tool | `POST /api/CustomSqlTool` | `/runtime/custom-tools.create` |
-| 发布 Custom Tool | `POST /api/CustomSqlTool/{id}/publish` | `/runtime/custom-tools.edit` |
-| 查看访问密钥 | `GET /api/runtime/mcp-keys` | `/runtime/mcp-keys.view` |
-| 签发访问密钥 | `POST /api/runtime/mcp-keys` | `/runtime/mcp-keys.create` |
+数据库列表接口成功时返回 HTTP `200` 与 JSON 数组。下方是单个项目的部分字段：
 
-## 权限和密钥管理
+```json
+[
+  {
+    "id": 1,
+    "name": "Production DB",
+    "sqlProvider": "PostgreSql",
+    "host": "db.internal",
+    "database": "orders",
+    "isBootstrapManaged": false
+  }
+]
+```
 
-只授予集成服务所需的最小权限。管理员可以随时撤销密钥，也可以通过轮换签发新密钥并立即使旧密钥失效。管理数据库只保存哈希，不保存明文；操作以 `management-api-key` 身份记录审计日志。
+## Key 可以调用哪些 API？
 
-签发、轮换或撤销管理 API 密钥，需要已登录管理员拥有 `/runtime/security.edit` 权限。
+由 Admin UI 选择的权限决定。同一把 Key 可以调用多个已授权的现有 API，无需单独签发。
 
-> 管理权限目前不会按数据库 ID 或租户自动限制。请将密钥保存在可信任的后端，并由集成服务自行执行应用层授权。
+| API | Permission |
+| --- | --- |
+| `GET /api/DbManagement` | `/runtime/db-management.view` |
+| `GET /api/CustomSqlTool` | `/runtime/custom-tools.view` |
+| `POST /api/CustomSqlTool` | `/runtime/custom-tools.create` |
+| `POST /api/CustomSqlTool/{id}/publish` | `/runtime/custom-tools.edit` |
+| `POST /api/DbManagement` | `/runtime/db-management.create` |
 
-## 部署要求
+## 在哪里查看 Request／Response？
 
-签发密钥前，需要执行 SQLite 或 PostgreSQL 的 Admin Store 数据库迁移，创建 `ManagementApiKeys` 表。
+请查看[实际请求响应示例](/zh-hans/docs/2.0.6/reference/admin-api-contracts)，其中包括创建 Custom Tool 的 POST JSON；其他接口参见[管理 REST API 路由参考](/zh-hans/docs/reference/api-reference)。未完善的响应 Schema 见 [Issue #295](https://github.com/tse-wei-chen/hs-sql-agent/issues/295)。
 
-请求与响应字段、HTTP 状态码及完整示例，请参阅[管理 REST API 接入规范](/zh-hans/docs/2.0.6/reference/admin-api-contracts)。
+## 轮换或撤销 Key
+
+如需轮换或撤销，请返回 **Runtime → Management API Keys** 操作。外部服务只使用已签发的 Key。
+
+> 管理权限不会自动限制数据库 ID 或租户；Key 仅应放在可信任的后端。使用 `X-API-Key` 时不要同时发送 `Authorization`。

@@ -1,100 +1,86 @@
 ---
-title: "Contrats de l’API REST d’administration"
-description: "Requêtes, réponses et codes HTTP basés sur les contrôleurs et DTO réels."
+title: "Requêtes et réponses des API existantes"
+description: "Exemples concrets utilisant une clé émise dans l'Admin UI."
 sidebar:
   group: Reference
   order: 143
 ---
 
-Les routes d’administration sont exposées sous `/api` avec des autorisations canoniques par opération. Les exemples ci-dessous correspondent aux DTO réels de gestion des clés.
+Après l'émission dans **Runtime → Management API Keys**, votre backend appelle les API `/api` existantes via `X-API-Key`. Cette page décrit les endpoints effectivement utilisés par l'intégration.
 
-## Émettre une clé d’administration (administrateur)
+## GET : lister les bases
 
-Un administrateur connecté disposant de `/runtime/security.edit` peut émettre une clé avec trois champs JSON obligatoires.
-
-```http
-POST /api/runtime/management-api-keys
-Authorization: Bearer <administrator JWT>
-Content-Type: application/json
-```
-
-```json
-{
-  "name": "provisioning-backend",
-  "expiresAt": "2027-01-01T00:00:00Z",
-  "permissions": [
-    "/runtime/custom-tools.view",
-    "/runtime/custom-tools.create",
-    "/runtime/custom-tools.edit"
-  ]
-}
-```
-
-- `name`: string, not blank, maximum 100 characters.
-- `expiresAt`: RFC 3339 UTC date-time, future and within 365 days.
-- `permissions`: non-empty array of canonical permission keys supported by this API.
-
-## Lire la réponse
-
-`plaintextKey` est renvoyé uniquement lors de l’émission ou de la rotation. L’API de liste ne révèle jamais le secret.
-
-**200 OK** — illustrative identifiers and timestamps:
-
-```json
-{
-  "key": {
-    "id": 17,
-    "name": "provisioning-backend",
-    "keyPrefix": "hsa_mgmt_example",
-    "permissions": [
-      "/runtime/custom-tools.view",
-      "/runtime/custom-tools.create",
-      "/runtime/custom-tools.edit"
-    ],
-    "createdAt": "2026-10-18T09:00:00Z",
-    "expiresAt": "2027-01-01T00:00:00Z",
-    "lastUsedAt": null,
-    "revokedAt": null,
-    "createdBy": "1"
-  },
-  "plaintextKey": "hsa_mgmt_<one-time-secret>"
-}
-```
-
-## Utiliser la clé
-
-Le backend appelle les routes existantes avec `X-API-Key` et uniquement les autorisations accordées.
+Autorisation : `/runtime/db-management.view`. Réponse HTTP `200`, tableau de `DbManagementVM`. Champs abrégés ci-dessous.
 
 ```bash
-curl "https://agent.example.com/api/CustomSqlTool" \
+curl -X GET "https://agent.example.com/api/DbManagement" \
   -H "X-API-Key: ${HS_MANAGEMENT_API_KEY}"
 ```
 
-## Points d’accès des clés d’administration
+**200 OK** — JSON (selected fields):
 
-Ces routes nécessitent une session administrateur autorisée pour `/runtime/security.edit`.
+```json
+[
+  {
+    "id": 1,
+    "name": "Production DB",
+    "sqlProvider": "PostgreSql",
+    "host": "db.internal",
+    "database": "orders",
+    "isBootstrapManaged": false
+  }
+]
+```
 
-| Method | Route | Success | Other outcomes |
-| --- | --- | --- | --- |
-| `GET` | `/api/runtime/management-api-keys` | `200` `ManagementApiKeyView[]` | `401`, `403` |
-| `GET` | `/api/runtime/management-api-keys/permissions` | `200` `string[]` | `401`, `403` |
-| `POST` | `/api/runtime/management-api-keys` | `200` `IssuedManagementApiKey` | `400`, `401`, `403` |
-| `POST` | `/api/runtime/management-api-keys/{id}/rotate` | `200` `IssuedManagementApiKey` | `401`, `403`, `404`, `409` |
-| `POST` | `/api/runtime/management-api-keys/{id}/revoke` | `204` (no body) | `401`, `403`, `404` |
+## POST : créer un Custom Tool
 
+Autorisation : `/runtime/custom-tools.create`. Remplacez `dbManagementId` par un identifiant existant et adaptez la requête SQL à votre base.
 
-## Statuts HTTP et validation
+```bash
+curl -X POST "https://agent.example.com/api/CustomSqlTool" \
+  -H "X-API-Key: ${HS_MANAGEMENT_API_KEY}" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "list_orders",
+    "description": "List order identifiers",
+    "type": "Query",
+    "sqlTemplate": "SELECT id FROM orders",
+    "dbManagementId": 1
+  }'
+```
 
-| Status | Meaning |
+Succès : `201 Created` et objet `CustomSqlTool`. Certains champs sont générés par le serveur.
+
+```json
+{
+  "id": 42,
+  "name": "list_orders",
+  "description": "List order identifiers",
+  "sqlTemplate": "SELECT id FROM orders",
+  "type": "Query",
+  "parametersJson": null,
+  "dbManagementId": 1,
+  "status": "Draft",
+  "publishedRevisionId": null,
+  "publishedIdentity": null,
+  "createdAt": "2026-10-18T09:00:00Z",
+  "lastModifiedAt": null
+}
+```
+
+## Codes de réponse courants
+
+| HTTP | Meaning |
 | --- | --- |
-| `400` | Invalid name, expiry, permissions, or model validation |
-| `401` | Missing or invalid authentication |
-| `403` | Authenticated but operation not permitted |
-| `404` | Key ID does not exist |
-| `409` | Attempted rotation of a revoked or expired key |
+| `200` | Successful read or update with a JSON response |
+| `201` | Custom Tool created successfully |
+| `204` | Successful action without a response body |
+| `400` | Invalid request data |
+| `401` | API Key missing, invalid, revoked, or expired |
+| `403` | API Key valid but lacking required permission |
+| `404` | Requested resource not found |
+| `409` | Operation conflicts with current resource state |
 
-## Couverture des schémas
+## Autres API
 
-L’export OpenAPI inventorie 93 opérations réparties dans 14 contrôleurs. Les DTO explicitement typés disposent de schémas ; certains anciens IActionResult n’ont pas encore de réponse structurée documentée. Suivi : issue #295.
-
-[Index des routes](/fr/docs/reference/api-reference) · [OpenAPI coverage tracking](https://github.com/tse-wei-chen/hs-sql-agent/issues/295)
+Voir le [catalogue des routes Admin](/fr/docs/reference/api-reference). Les schémas de réponse manquants sont en cours de traitement dans [OpenAPI PR #294](https://github.com/tse-wei-chen/hs-sql-agent/pull/294).

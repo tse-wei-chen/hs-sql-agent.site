@@ -1,55 +1,74 @@
 ---
-title: "管理 API キー"
-description: "管理画面で API キーを発行し、バックエンドから既存の管理 API を自動操作します。"
+title: "System-to-System API キーで管理 API を利用する"
+description: "Admin UI でキーを発行し、バックエンドから既存の管理 REST API を呼び出します。"
 sidebar:
   group: Integration
   order: 89
 ---
 
-バックエンドサービスやデプロイ処理から Custom Tools の管理、設定変更、アクセス用の認証情報の発行を自動化する場合は、**管理 API キー**を利用できます。キーには選択した管理権限だけが付与されます。
+バックエンドや自動化処理から管理操作を行うには、まず **Admin UI で System-to-System API キーを発行**し、必要な権限を付与します。そのキーを `X-API-Key` ヘッダーに入れて既存の `/api` を呼び出してください。キー発行用 API を自分で呼び出す必要はありません。
 
-## キーを発行する
+## 1. Admin UI でキーを発行する
 
-1. `/runtime/security.edit` 権限を持つ管理者でログインし、**Runtime → Management API Keys** を開きます。
-2. 連携名と有効期限（最大365日）を入力します。
-3. 必要な管理権限を選択します。
-4. キーを発行し、一度だけ表示される秘密値をコピーします。
+1. セキュリティ設定を編集できる管理者として Admin UI にログインします。
+2. **Runtime → Management API Keys** を開きます。
+3. `production-integration` などの名前と有効期限を指定します。
+4. 連携に必要な権限を選択します。以下の例では `/runtime/db-management.view` と `/runtime/custom-tools.view` を選びます。
+5. **Issue key** を押し、一度だけ表示される秘密値をコピーします。
 
-秘密値はバックエンドのシークレット管理サービスに保管し、フロントエンドやリポジトリに含めないでください。
+キーはバックエンドのシークレット管理基盤か環境変数に保存し、ブラウザーやリポジトリには置かないでください。
 
-## 管理 API を呼び出す
+## 2. 既存の API を呼び出す
 
-API リクエストの `X-API-Key` ヘッダーに秘密値を指定します。
+設定済みのデータベース接続一覧を取得する例：
 
 ```bash
-curl "https://agent.example.com/api/CustomSqlTool" \
+curl -X GET "https://agent.example.com/api/DbManagement" \
   -H "X-API-Key: ${HS_MANAGEMENT_API_KEY}"
 ```
 
-`X-API-Key` と `Authorization` ヘッダーを同時に送信すると拒否されます。
+Custom Tools の一覧を取得する例：
 
-## 主な操作と必要な権限
+```bash
+curl -X GET "https://agent.example.com/api/CustomSqlTool" \
+  -H "X-API-Key: ${HS_MANAGEMENT_API_KEY}"
+```
 
-別の連携用 API を作る必要はありません。既存の `/api` エンドポイントに対して正規の管理権限が適用されます。
+## 3. 応答を確認する
 
-| 操作 | API | Canonical Permission |
-| --- | --- | --- |
-| Custom Tools の一覧 | `GET /api/CustomSqlTool` | `/runtime/custom-tools.view` |
-| Custom Tool の作成 | `POST /api/CustomSqlTool` | `/runtime/custom-tools.create` |
-| Custom Tool の公開 | `POST /api/CustomSqlTool/{id}/publish` | `/runtime/custom-tools.edit` |
-| アクセスキーの一覧 | `GET /api/runtime/mcp-keys` | `/runtime/mcp-keys.view` |
-| アクセスキーの発行 | `POST /api/runtime/mcp-keys` | `/runtime/mcp-keys.create` |
+データベース一覧 API は成功時に HTTP `200` と JSON 配列を返します。以下は1件の一部フィールドのみを示します。
 
-## 権限とキーの管理
+```json
+[
+  {
+    "id": 1,
+    "name": "Production DB",
+    "sqlProvider": "PostgreSql",
+    "host": "db.internal",
+    "database": "orders",
+    "isBootstrapManaged": false
+  }
+]
+```
 
-連携に必要な権限だけを付与してください。管理者はキーをいつでも失効させることができ、ローテーション時には新しい秘密値を発行して古いキーを即時無効化します。管理 DB に残るのはハッシュであり、操作は `management-api-key` として監査されます。
+## 呼び出し可能な API と権限
 
-管理 API キーの発行・ローテーション・失効には、ログイン済み管理者の `/runtime/security.edit` 権限が必要です。
+Admin UI で付与した権限に応じて、同じキーで複数の既存管理 API を呼び出せます。
 
-> 管理権限は特定のデータベース ID やテナントに自動では限定されません。信頼できるバックエンドにキーを保管し、アプリケーション固有の認可は連携側で実装してください。
+| API | Permission |
+| --- | --- |
+| `GET /api/DbManagement` | `/runtime/db-management.view` |
+| `GET /api/CustomSqlTool` | `/runtime/custom-tools.view` |
+| `POST /api/CustomSqlTool` | `/runtime/custom-tools.create` |
+| `POST /api/CustomSqlTool/{id}/publish` | `/runtime/custom-tools.edit` |
+| `POST /api/DbManagement` | `/runtime/db-management.create` |
 
-## 導入に必要な準備
+## Request／Response の仕様
 
-キーを発行する前に、SQLite または PostgreSQL 用の Admin Store マイグレーションで `ManagementApiKeys` テーブルを追加します。
+POST の JSON 例は[実際の Request／Response](/ja/docs/2.0.6/reference/admin-api-contracts)、他のルートは[管理 REST API リファレンス](/ja/docs/reference/api-reference)を参照してください。レスポンス仕様の補完状況は [Issue #295](https://github.com/tse-wei-chen/hs-sql-agent/issues/295) に記載しています。
 
-リクエスト／レスポンスの各フィールドと HTTP ステータスについては、[管理 REST API の仕様](/ja/docs/2.0.6/reference/admin-api-contracts)を参照してください。
+## キーの更新・失効
+
+キーのローテーションや失効は **Runtime → Management API Keys** から行います。連携側がキー発行 API を操作する必要はありません。
+
+> 権限はデータベース ID やテナント単位の隔離ではありません。信頼できるバックエンドのみで使用し、`X-API-Key` と `Authorization` を同時に送信しないでください。

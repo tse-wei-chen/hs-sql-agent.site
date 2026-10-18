@@ -1,100 +1,86 @@
 ---
-title: "Admin REST API Contracts"
-description: "HTTP API request and response examples for server integrations, backed by controller DTOs."
+title: "Calling existing APIs: Request and Response"
+description: "Concrete examples of existing Admin REST endpoints using the key created in the Admin UI."
 sidebar:
   group: Reference
   order: 143
 ---
 
-The Admin API exposes its routes at `/api`. Use the canonical permission assigned to each operation. The examples below match the Management API Key request and response records in the server source.
+After issuing a key in **Runtime → Management API Keys**, call existing Admin REST APIs with the `X-API-Key` request header. The examples below describe the endpoints used by integrations.
 
-## Issue a Management API Key (administrator)
+## GET example: list database connections
 
-A signed-in administrator with `/runtime/security.edit` can issue the initial key. The JSON request has three required fields:
-
-```http
-POST /api/runtime/management-api-keys
-Authorization: Bearer <administrator JWT>
-Content-Type: application/json
-```
-
-```json
-{
-  "name": "provisioning-backend",
-  "expiresAt": "2027-01-01T00:00:00Z",
-  "permissions": [
-    "/runtime/custom-tools.view",
-    "/runtime/custom-tools.create",
-    "/runtime/custom-tools.edit"
-  ]
-}
-```
-
-- `name`: string, not blank, maximum 100 characters.
-- `expiresAt`: RFC 3339 UTC date-time, future and within 365 days.
-- `permissions`: non-empty array of canonical permission keys supported by this API.
-
-## Read the response
-
-`plaintextKey` is returned only on issuance or rotation. `key` contains safe metadata and appears without the secret in list responses.
-
-**200 OK** — illustrative identifiers and timestamps:
-
-```json
-{
-  "key": {
-    "id": 17,
-    "name": "provisioning-backend",
-    "keyPrefix": "hsa_mgmt_example",
-    "permissions": [
-      "/runtime/custom-tools.view",
-      "/runtime/custom-tools.create",
-      "/runtime/custom-tools.edit"
-    ],
-    "createdAt": "2026-10-18T09:00:00Z",
-    "expiresAt": "2027-01-01T00:00:00Z",
-    "lastUsedAt": null,
-    "revokedAt": null,
-    "createdBy": "1"
-  },
-  "plaintextKey": "hsa_mgmt_<one-time-secret>"
-}
-```
-
-## Use the issued key
-
-Once issued, a backend integration calls the existing management endpoints using `X-API-Key`, provided that the key grants the endpoint's canonical permission.
+Required permission: `/runtime/db-management.view`. Returns HTTP `200` and a JSON array (`DbManagementVM`). Fields shown below are a subset.
 
 ```bash
-curl "https://agent.example.com/api/CustomSqlTool" \
+curl -X GET "https://agent.example.com/api/DbManagement" \
   -H "X-API-Key: ${HS_MANAGEMENT_API_KEY}"
 ```
 
-## Management API Key endpoints
+**200 OK** — JSON (selected fields):
 
-These endpoints manage the integration keys themselves and require a signed-in administrator with `/runtime/security.edit`.
+```json
+[
+  {
+    "id": 1,
+    "name": "Production DB",
+    "sqlProvider": "PostgreSql",
+    "host": "db.internal",
+    "database": "orders",
+    "isBootstrapManaged": false
+  }
+]
+```
 
-| Method | Route | Success | Other outcomes |
-| --- | --- | --- | --- |
-| `GET` | `/api/runtime/management-api-keys` | `200` `ManagementApiKeyView[]` | `401`, `403` |
-| `GET` | `/api/runtime/management-api-keys/permissions` | `200` `string[]` | `401`, `403` |
-| `POST` | `/api/runtime/management-api-keys` | `200` `IssuedManagementApiKey` | `400`, `401`, `403` |
-| `POST` | `/api/runtime/management-api-keys/{id}/rotate` | `200` `IssuedManagementApiKey` | `401`, `403`, `404`, `409` |
-| `POST` | `/api/runtime/management-api-keys/{id}/revoke` | `204` (no body) | `401`, `403`, `404` |
+## POST example: create a Custom Tool
 
+Required permission: `/runtime/custom-tools.create`. Use a valid existing `dbManagementId` and adapt the SQL template to your database. The request body maps to the backend `CustomSqlTool` model.
 
-## Status codes and validation
+```bash
+curl -X POST "https://agent.example.com/api/CustomSqlTool" \
+  -H "X-API-Key: ${HS_MANAGEMENT_API_KEY}" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "list_orders",
+    "description": "List order identifiers",
+    "type": "Query",
+    "sqlTemplate": "SELECT id FROM orders",
+    "dbManagementId": 1
+  }'
+```
 
-| Status | Meaning |
+Returns `201 Created` and a `CustomSqlTool` response. Some server-managed properties are shown below.
+
+```json
+{
+  "id": 42,
+  "name": "list_orders",
+  "description": "List order identifiers",
+  "sqlTemplate": "SELECT id FROM orders",
+  "type": "Query",
+  "parametersJson": null,
+  "dbManagementId": 1,
+  "status": "Draft",
+  "publishedRevisionId": null,
+  "publishedIdentity": null,
+  "createdAt": "2026-10-18T09:00:00Z",
+  "lastModifiedAt": null
+}
+```
+
+## Common response codes
+
+| HTTP | Meaning |
 | --- | --- |
-| `400` | Invalid name, expiry, permissions, or model validation |
-| `401` | Missing or invalid authentication |
-| `403` | Authenticated but operation not permitted |
-| `404` | Key ID does not exist |
-| `409` | Attempted rotation of a revoked or expired key |
+| `200` | Successful read or update with a JSON response |
+| `201` | Custom Tool created successfully |
+| `204` | Successful action without a response body |
+| `400` | Invalid request data |
+| `401` | API Key missing, invalid, revoked, or expired |
+| `403` | API Key valid but lacking required permission |
+| `404` | Requested resource not found |
+| `409` | Operation conflicts with current resource state |
 
-## Schema coverage
+## Other endpoints
 
-The preview CI export inventories 93 HTTP operations across 14 controllers. The source-backed OpenAPI export includes request bodies where declared and explicit response schemas where typed. Other legacy IActionResult actions still need typed response annotations before the full API reference can be called complete. Track coverage in product issue #295.
-
-[Browse the route index](/docs/reference/api-reference) · [OpenAPI coverage tracking](https://github.com/tse-wei-chen/hs-sql-agent/issues/295)
+For all other Admin API paths, refer to the [HTTP API route reference](/docs/reference/api-reference). Response schemas for some legacy actions are still being completed in [OpenAPI PR #294](https://github.com/tse-wei-chen/hs-sql-agent/pull/294); do not assume that the route listing alone defines a complete DTO contract.
