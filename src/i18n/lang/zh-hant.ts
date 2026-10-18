@@ -102,6 +102,7 @@ export default {
     search: "搜尋 API 路徑、方法或分類",
     parameters: "路徑與查詢參數",
     request: "請求內容",
+    statusMeaning: "說明",
     responses: "回應模型",
     property: "欄位",
     location: "位置",

@@ -104,6 +104,7 @@ export default {
     search: "Search by path, method or category",
     parameters: "Path and query parameters",
     request: "Request body",
+    statusMeaning: "Meaning",
     responses: "Response models",
     property: "Property",
     location: "Location",

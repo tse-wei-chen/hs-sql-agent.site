@@ -109,6 +109,7 @@ export default {
     search: "Rechercher un chemin, une méthode ou une catégorie",
     parameters: "Paramètres de chemin et de requête",
     request: "Corps de la requête",
+    statusMeaning: "Signification",
     responses: "Modèles de réponse",
     property: "Champ",
     location: "Emplacement",

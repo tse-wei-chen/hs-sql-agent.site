@@ -101,6 +101,7 @@ export default {
     search: "搜索 API 路径、方法或分类",
     parameters: "路径与查询参数",
     request: "请求内容",
+    statusMeaning: "说明",
     responses: "响应模型",
     property: "字段",
     location: "位置",

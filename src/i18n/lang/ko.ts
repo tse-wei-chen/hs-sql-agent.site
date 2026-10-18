@@ -106,6 +106,7 @@ export default {
     search: "API 경로, 메서드 또는 분류 검색",
     parameters: "경로 및 쿼리 매개변수",
     request: "요청 본문",
+    statusMeaning: "설명",
     responses: "응답 모델",
     property: "필드",
     location: "위치",

@@ -107,6 +107,7 @@ export default {
     search: "API-Pfad, Methode oder Kategorie suchen",
     parameters: "Pfad- und Abfrageparameter",
     request: "Anfrageinhalt",
+    statusMeaning: "Bedeutung",
     responses: "Antwortmodelle",
     property: "Feld",
     location: "Position",

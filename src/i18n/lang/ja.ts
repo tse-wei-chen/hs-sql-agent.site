@@ -106,6 +106,7 @@ export default {
     search: "API パス・メソッド・分類を検索",
     parameters: "パスとクエリのパラメータ",
     request: "リクエスト本文",
+    statusMeaning: "説明",
     responses: "レスポンスモデル",
     property: "項目名",
     location: "指定箇所",

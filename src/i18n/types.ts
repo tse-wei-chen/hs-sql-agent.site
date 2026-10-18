@@ -93,6 +93,7 @@ export interface UIStrings {
     parameters: string;
     request: string;
     responses: string;
+    statusMeaning: string;
     property: string;
     location: string;
     type: string;
