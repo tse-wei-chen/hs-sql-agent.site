@@ -1,54 +1,58 @@
 ---
 title: "管理 API 金鑰"
-description: "透過獨立的 X-API-Key 憑證，讓可信任的後端系統呼叫既有管理 REST API；不與 MCP 金鑰或管理員 JWT 混用。"
+description: "透過管理介面簽發 API 金鑰，讓後端整合服務直接呼叫既有管理 API。"
 sidebar:
   group: Integration
   order: 89
 ---
 
-管理 API 金鑰讓可信任的後端整合服務，在不進行互動式管理員登入的情況下，呼叫獲授權的既有 `/api` 管理端點。它**不是 MCP 存取金鑰**，也不是管理員登入權杖。
+需要從 SaaS 後端、排程或部署流程自動建立 Custom Tools、更新設定或簽發存取憑證時，可以使用**管理 API 金鑰**。每把金鑰只會取得管理員明確授予的 API 權限。
 
-## 從管理介面建立金鑰
+## 建立金鑰
 
-使用具備 `/runtime/security.edit` 權限的真人管理員登入，開啟 **執行環境 → 管理 API 金鑰（Management API Keys）**。填寫整合服務名稱、365 天內的 UTC 到期時間，並明確勾選所需的管理權限。建立後只能看見一次明文金鑰，應立即存入後端機密儲存空間，不要放在瀏覽器前端或版本庫。
+以具有 `/runtime/security.edit` 權限的管理員登入，前往 **Runtime → Management API Keys**。
 
-## Authentication
+1. 輸入金鑰名稱，例如 `production-integration`。
+2. 設定到期時間（最長 365 天）。
+3. 勾選整合服務需要的管理權限。
+4. 建立後立即複製明文金鑰；金鑰只會顯示一次。
 
-請將金鑰放在 `X-API-Key` 標頭。真人管理員仍透過 `Authorization: Bearer <JWT>` 登入；兩種標頭不可同時使用。
+請將金鑰存放在後端的機密管理服務，不要放在瀏覽器前端或版本庫。
 
-```http
-GET /api/runtime/mcp-keys HTTP/1.1
-Host: agent.example.com
-X-API-Key: hsa_mgmt_<secret>
-```
+## 呼叫管理 API
+
+將金鑰放在 `X-API-Key` HTTP 標頭，即可呼叫具有權限的既有管理 API：
 
 ```bash
-curl https://agent.example.com/api/runtime/mcp-keys \\
+curl "https://agent.example.com/api/CustomSqlTool" \
   -H "X-API-Key: ${HS_MANAGEMENT_API_KEY}"
 ```
 
-## 沿用既有管理 API，不建立 SaaS 專用端點
+使用 `X-API-Key` 時，不要同時送出 `Authorization` 標頭，否則請求會被拒絕。
 
-整合服務可依授權呼叫 Custom Tool 建立、發布與 MCP 金鑰簽發等既有 API。供 MCP Client 執行工具的 **MCP 金鑰必須另外建立**；管理 API 金鑰不能用於 `/mcp`。
+## 常見操作與所需權限
 
-| Method | Endpoint | Canonical permission |
+| 操作 | API | Canonical Permission |
 | --- | --- | --- |
-| `GET` | `/api/runtime/management-api-keys` | `/runtime/security.edit` (human only) |
-| `POST` | `/api/runtime/management-api-keys` | `/runtime/security.edit` (human only) |
-| `POST` | `/api/runtime/management-api-keys/{id}/rotate` | `/runtime/security.edit` (human only) |
-| `POST` | `/api/runtime/management-api-keys/{id}/revoke` | `/runtime/security.edit` (human only) |
-| `POST` | `/api/CustomSqlTool` | `/runtime/custom-tools.create` |
-| `POST` | `/api/CustomSqlTool/{id}/publish` | `/runtime/custom-tools.edit` |
-| `POST` | `/api/runtime/mcp-keys` | `/runtime/mcp-keys.create` |
+| 列出 Custom Tools | `GET /api/CustomSqlTool` | `/runtime/custom-tools.view` |
+| 建立 Custom Tool | `POST /api/CustomSqlTool` | `/runtime/custom-tools.create` |
+| 發布 Custom Tool | `POST /api/CustomSqlTool/{id}/publish` | `/runtime/custom-tools.edit` |
+| 列出已發行的存取金鑰 | `GET /api/runtime/mcp-keys` | `/runtime/mcp-keys.view` |
+| 簽發存取金鑰 | `POST /api/runtime/mcp-keys` | `/runtime/mcp-keys.create` |
 
-## 權限與安全邊界
+所有請求仍會經過原本的管理 API 權限驗證，不需要建立額外的 SaaS 專用 API。
 
-每把金鑰只能選擇明確允許的 Canonical Permission（`path.action`）。無法管理使用者、角色、安全性原則或其他管理 API 金鑰。到期或撤銷後立即停止授權；輪替會建立新金鑰並立即撤銷舊金鑰。資料庫只保留雜湊，不儲存明文，管理操作會以 `management-api-key` 身分留下稽核紀錄。
+## 權限與金鑰管理
 
-> 管理權限不代表資料庫或租戶隔離。具有 Custom Tool／MCP 金鑰管理權限的憑證，可操作相應的管理資源；僅應交給可信任的後端服務，租戶與資料列的存取規則由串接系統自行負責。
+- **最小權限**：只勾選整合需要的 Canonical Permissions。
+- **撤銷**：管理員可隨時撤銷金鑰，後續請求會立即失效。
+- **輪替**：會簽發新金鑰並立即撤銷舊金鑰。
+- **稽核**：金鑰明文不會寫入資料庫；管理操作會以 `management-api-key` 身分記錄。
 
-### Migration
+管理 API 金鑰的建立、輪替與撤銷，須由具有 `/runtime/security.edit` 權限的登入管理員操作。
 
-本功能會透過 SQLite／PostgreSQL 遷移，在管理資料庫新增 `ManagementApiKeys` 資料表。請先完成遷移，再簽發金鑰。既有管理員 JWT 與 MCP 金鑰不受影響。
+> 目前金鑰的權限範圍是**管理 API 操作**，不會自動依特定資料庫 ID 或租戶限制。請只交給可信任的後端服務，並由整合方負責業務資料授權。
 
-MCP Client 的連線憑證與傳輸設定，請參閱 [MCP 用戶端連線指南](/zh-hant/docs/mcp/client-onboarding)。
+## 部署需求
+
+正式使用前，請完成 Admin Store 的 SQLite 或 PostgreSQL migration，以建立 `ManagementApiKeys` 資料表。
