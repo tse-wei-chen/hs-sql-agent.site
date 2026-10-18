@@ -1,0 +1,54 @@
+---
+title: "Clés d’API d’administration"
+description: "Automatisez l’API REST d’administration avec X-API-Key, indépendamment des JWT administrateur et des clés MCP."
+sidebar:
+  group: Integration
+  order: 89
+---
+
+Les clés d’API d’administration permettent à un service serveur de confiance d’appeler les points d’accès `/api` autorisés sans connexion interactive d’un administrateur. **Elles ne remplacent ni une clé MCP ni un jeton de session administrateur.**
+
+## Créer une clé depuis l’interface d’administration
+
+Connectez-vous avec un compte disposant de `/runtime/security.edit`, puis ouvrez **Runtime → Management API Keys**. Indiquez le nom de l’intégration, une expiration en UTC (365 jours au maximum) et sélectionnez explicitement les autorisations nécessaires. La clé en clair n’apparaît **qu’une seule fois** : conservez-la dans le coffre de secrets du serveur, jamais dans le navigateur ou le dépôt de code.
+
+## Authentication
+
+Transmettez la clé avec l’en-tête `X-API-Key`. Les administrateurs utilisent toujours `Authorization: Bearer <JWT>`. Une requête contenant les deux en-têtes est refusée.
+
+```http
+GET /api/runtime/mcp-keys HTTP/1.1
+Host: agent.example.com
+X-API-Key: hsa_mgmt_<secret>
+```
+
+```bash
+curl https://agent.example.com/api/runtime/mcp-keys \\
+  -H "X-API-Key: ${HS_MANAGEMENT_API_KEY}"
+```
+
+## Réutiliser l’API existante
+
+Selon les droits accordés, l’intégration peut créer et publier des Custom Tools, ou émettre des clés MCP par les API existantes. La **clé MCP destinée au client doit être créée séparément**. Une clé d’administration ne permet pas d’accéder à `/mcp`.
+
+| Method | Endpoint | Canonical permission |
+| --- | --- | --- |
+| `GET` | `/api/runtime/management-api-keys` | `/runtime/security.edit` (human only) |
+| `POST` | `/api/runtime/management-api-keys` | `/runtime/security.edit` (human only) |
+| `POST` | `/api/runtime/management-api-keys/{id}/rotate` | `/runtime/security.edit` (human only) |
+| `POST` | `/api/runtime/management-api-keys/{id}/revoke` | `/runtime/security.edit` (human only) |
+| `POST` | `/api/CustomSqlTool` | `/runtime/custom-tools.create` |
+| `POST` | `/api/CustomSqlTool/{id}/publish` | `/runtime/custom-tools.edit` |
+| `POST` | `/api/runtime/mcp-keys` | `/runtime/mcp-keys.create` |
+
+## Droits et limites de sécurité
+
+Chaque clé ne reçoit que des autorisations canoniques `path.action` choisies explicitement. Elle ne peut pas gérer les utilisateurs, rôles, politiques de sécurité ou d’autres clés d’administration. Une clé expirée ou révoquée est rejetée ; la rotation invalide immédiatement l’ancienne clé. Seul le hachage est conservé dans la base d’administration et les opérations sont auditées avec l’identité `management-api-key`.
+
+> Les droits d’administration n’assurent aucune isolation par base de données ou par locataire. Les autorisations de gestion des Custom Tools et clés MCP portent sur les ressources administratives correspondantes. Réservez ces clés aux services serveurs de confiance et gérez la séparation des locataires dans l’application intégratrice.
+
+### Migration
+
+Une migration SQLite ou PostgreSQL ajoute la table `ManagementApiKeys` au stockage administratif. Appliquez-la avant d’émettre une clé. Les JWT administrateur et les clés MCP existants ne changent pas.
+
+Pour l’accès des clients MCP, consultez [la connexion d’un client MCP](/fr/docs/mcp/client-onboarding).

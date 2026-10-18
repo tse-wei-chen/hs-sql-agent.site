@@ -1,0 +1,29 @@
+---
+title: "Upgrade-Leitfaden"
+description: "Vorbereitung von 2.0.6: separate Management-API-Schlüssel, Migration des Admin-Stores und unveränderte JWT-/MCP-Authentifizierung."
+sidebar:
+  group: Reference
+  order: 144
+---
+
+## 2.0.5 → 2.0.6 (proposed)
+
+Die geplante Version 2.0.6 ergänzt den serverseitigen Zugriff auf die Admin-API ohne interaktive Anmeldung. SQL-Compiler und Ausführung der MCP-Tools werden dabei nicht geändert.
+
+## Management API Keys
+
+Nach der Bereitstellung und der Admin-Store-Migration erstellen Sie unter Management API Keys einen Schlüssel mit minimalen Berechtigungen. Bewahren Sie das einmalig angezeigte Geheimnis sicher auf und verwenden Sie für erlaubte `/api`-Aufrufe `X-API-Key`. Administratoren bleiben bei JWT, MCP-Clients bei ihren eigenen MCP-Schlüsseln.
+
+```http
+X-API-Key: hsa_mgmt_<secret>
+```
+
+## Migration and compatibility
+
+Eine SQLite- beziehungsweise PostgreSQL-Migration legt die zusätzliche Tabelle `ManagementApiKeys` an. Führen Sie die Migration vor der ersten Schlüsselausstellung aus. Vorhandene Administrator-JWTs und MCP-Schlüssel bleiben unverändert.
+
+Vorhandene Administrator-JWTs, MCP-Schlüssel, die fünf integrierten MCP-Tools und die SQL-Sicherheitsregeln bleiben unverändert. Die neue Tabelle ist eine additive Änderung. Widerrufen Sie Integrationsschlüssel vor einem Rollback, da frühere Versionen sie nicht authentifizieren.
+
+> Kanonische Management-Berechtigungen enthalten keine automatische Einschränkung auf eine Datenbank-ID oder einen SaaS-Mandanten.
+
+[Management-API-Schlüssel](/de/docs/2.0.6/integration/management-api-keys)

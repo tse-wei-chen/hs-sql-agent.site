@@ -1,0 +1,29 @@
+---
+title: "升级指南"
+description: "拟议中的 2.0.6：独立的管理 API 密钥、管理数据库迁移及原有 JWT／MCP 认证兼容性。"
+sidebar:
+  group: Reference
+  order: 144
+---
+
+## 2.0.5 → 2.0.6 (proposed)
+
+计划中的 2.0.6 版本增加机器到机器的管理 API 访问，无须模拟管理员登录；SQL 编译器和 MCP 工具执行流程不变。
+
+## Management API Keys
+
+部署新版本并完成管理数据库迁移后，在 Management API Keys 中创建最小权限凭证，安全保存只显示一次的密钥，并通过 `X-API-Key` 调用获授权的 `/api`。真人管理员继续使用 JWT，MCP 客户端继续使用单独的 MCP 密钥。
+
+```http
+X-API-Key: hsa_mgmt_<secret>
+```
+
+## Migration and compatibility
+
+此功能通过 SQLite／PostgreSQL 数据库迁移新增 `ManagementApiKeys` 管理表。请先完成迁移再签发密钥。已有管理员 JWT 和 MCP 密钥保持不变。
+
+现有 JWT 会话、MCP 密钥、五项内置 MCP 工具以及 SQL 安全行为不受影响。本次仅新增管理表。需要回滚时，应先撤销已签发的集成密钥，旧版本不支持此身份验证方式。
+
+> 规范管理权限不会自动限制数据库 ID 或 SaaS 租户；密钥只能交给可信任的后端。
+
+[管理 API 密钥](/zh-hans/docs/2.0.6/integration/management-api-keys)

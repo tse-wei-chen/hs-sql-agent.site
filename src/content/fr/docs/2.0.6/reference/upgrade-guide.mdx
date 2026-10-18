@@ -1,0 +1,29 @@
+---
+title: "Guide de mise à niveau"
+description: "Préparation de la version 2.0.6 : clés d’administration, migration du stockage et compatibilité JWT/MCP."
+sidebar:
+  group: Reference
+  order: 144
+---
+
+## 2.0.5 → 2.0.6 (proposed)
+
+La version 2.0.6 envisagée permet à des services de confiance d’appeler l’API d’administration sans session interactive. Le compilateur SQL et l’exécution des outils MCP restent inchangés.
+
+## Management API Keys
+
+Après déploiement et migration du stockage administratif, émettez une clé à privilèges minimaux depuis Management API Keys. Sauvegardez son secret affiché une seule fois, puis utilisez `X-API-Key` sur les routes `/api` autorisées. Les administrateurs humains conservent le JWT ; les clients MCP conservent leurs propres clés.
+
+```http
+X-API-Key: hsa_mgmt_<secret>
+```
+
+## Migration and compatibility
+
+Une migration SQLite ou PostgreSQL ajoute la table `ManagementApiKeys` au stockage administratif. Appliquez-la avant d’émettre une clé. Les JWT administrateur et les clés MCP existants ne changent pas.
+
+Les sessions JWT, les clés MCP, les cinq outils MCP intégrés et les garanties SQL ne changent pas. La nouvelle table est additive. Avant un retour arrière, révoquez les clés d’intégration puisque l’ancienne version ne sait pas les vérifier.
+
+> Les permissions canoniques ne limitent pas à elles seules l’accès à un identifiant de base de données ou à un locataire SaaS.
+
+[Clés d’API d’administration](/fr/docs/2.0.6/integration/management-api-keys)

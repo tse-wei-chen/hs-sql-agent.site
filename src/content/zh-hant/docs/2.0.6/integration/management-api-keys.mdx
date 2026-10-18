@@ -1,0 +1,54 @@
+---
+title: "管理 API 金鑰"
+description: "透過獨立的 X-API-Key 憑證，讓可信任的後端系統呼叫既有管理 REST API；不與 MCP 金鑰或管理員 JWT 混用。"
+sidebar:
+  group: Integration
+  order: 89
+---
+
+管理 API 金鑰讓可信任的後端整合服務，在不進行互動式管理員登入的情況下，呼叫獲授權的既有 `/api` 管理端點。它**不是 MCP 存取金鑰**，也不是管理員登入權杖。
+
+## 從管理介面建立金鑰
+
+使用具備 `/runtime/security.edit` 權限的真人管理員登入，開啟 **執行環境 → 管理 API 金鑰（Management API Keys）**。填寫整合服務名稱、365 天內的 UTC 到期時間，並明確勾選所需的管理權限。建立後只能看見一次明文金鑰，應立即存入後端機密儲存空間，不要放在瀏覽器前端或版本庫。
+
+## Authentication
+
+請將金鑰放在 `X-API-Key` 標頭。真人管理員仍透過 `Authorization: Bearer <JWT>` 登入；兩種標頭不可同時使用。
+
+```http
+GET /api/runtime/mcp-keys HTTP/1.1
+Host: agent.example.com
+X-API-Key: hsa_mgmt_<secret>
+```
+
+```bash
+curl https://agent.example.com/api/runtime/mcp-keys \\
+  -H "X-API-Key: ${HS_MANAGEMENT_API_KEY}"
+```
+
+## 沿用既有管理 API，不建立 SaaS 專用端點
+
+整合服務可依授權呼叫 Custom Tool 建立、發布與 MCP 金鑰簽發等既有 API。供 MCP Client 執行工具的 **MCP 金鑰必須另外建立**；管理 API 金鑰不能用於 `/mcp`。
+
+| Method | Endpoint | Canonical permission |
+| --- | --- | --- |
+| `GET` | `/api/runtime/management-api-keys` | `/runtime/security.edit` (human only) |
+| `POST` | `/api/runtime/management-api-keys` | `/runtime/security.edit` (human only) |
+| `POST` | `/api/runtime/management-api-keys/{id}/rotate` | `/runtime/security.edit` (human only) |
+| `POST` | `/api/runtime/management-api-keys/{id}/revoke` | `/runtime/security.edit` (human only) |
+| `POST` | `/api/CustomSqlTool` | `/runtime/custom-tools.create` |
+| `POST` | `/api/CustomSqlTool/{id}/publish` | `/runtime/custom-tools.edit` |
+| `POST` | `/api/runtime/mcp-keys` | `/runtime/mcp-keys.create` |
+
+## 權限與安全邊界
+
+每把金鑰只能選擇明確允許的 Canonical Permission（`path.action`）。無法管理使用者、角色、安全性原則或其他管理 API 金鑰。到期或撤銷後立即停止授權；輪替會建立新金鑰並立即撤銷舊金鑰。資料庫只保留雜湊，不儲存明文，管理操作會以 `management-api-key` 身分留下稽核紀錄。
+
+> 管理權限不代表資料庫或租戶隔離。具有 Custom Tool／MCP 金鑰管理權限的憑證，可操作相應的管理資源；僅應交給可信任的後端服務，租戶與資料列的存取規則由串接系統自行負責。
+
+### Migration
+
+本功能會透過 SQLite／PostgreSQL 遷移，在管理資料庫新增 `ManagementApiKeys` 資料表。請先完成遷移，再簽發金鑰。既有管理員 JWT 與 MCP 金鑰不受影響。
+
+MCP Client 的連線憑證與傳輸設定，請參閱 [MCP 用戶端連線指南](/zh-hant/docs/mcp/client-onboarding)。

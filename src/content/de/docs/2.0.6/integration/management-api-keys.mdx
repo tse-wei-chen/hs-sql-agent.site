@@ -1,0 +1,54 @@
+---
+title: "Management-API-Schlüssel"
+description: "Bestehende Admin-REST-APIs über X-API-Key automatisieren – unabhängig von Administrator-JWT und MCP-Schlüsseln."
+sidebar:
+  group: Integration
+  order: 89
+---
+
+Management-API-Schlüssel ermöglichen vertrauenswürdigen Backend-Diensten den Zugriff auf ausdrücklich erlaubte `/api`-Verwaltungsendpunkte ohne interaktive Administratoranmeldung. **Sie sind weder MCP-Zugriffsschlüssel noch Anmelde-Token für Administratoren.**
+
+## Schlüssel in der Administrationsoberfläche erstellen
+
+Melden Sie sich als Administrator mit `/runtime/security.edit` an und öffnen Sie **Runtime → Management API Keys**. Geben Sie einen Integrationsnamen, eine UTC-Ablaufzeit (maximal 365 Tage) und die ausdrücklich freizugebenden Berechtigungen an. Der Klartextschlüssel wird **nur einmal** angezeigt. Speichern Sie ihn im Secrets-Manager des Backends, niemals im Browser oder Quellcode.
+
+## Authentication
+
+Senden Sie den Management-Schlüssel über den Header `X-API-Key`. Administratoren verwenden weiterhin `Authorization: Bearer <JWT>`. Beide Header gleichzeitig führen zur Ablehnung der Anfrage.
+
+```http
+GET /api/runtime/mcp-keys HTTP/1.1
+Host: agent.example.com
+X-API-Key: hsa_mgmt_<secret>
+```
+
+```bash
+curl https://agent.example.com/api/runtime/mcp-keys \\
+  -H "X-API-Key: ${HS_MANAGEMENT_API_KEY}"
+```
+
+## Bestehende Verwaltungs-APIs wiederverwenden
+
+Mit den gewährten Rechten lassen sich bestehende Endpunkte zum Anlegen und Veröffentlichen von Custom Tools sowie zum Ausstellen von MCP-Schlüsseln aufrufen. Der **MCP-Schlüssel für den Client wird separat ausgestellt**. Management-Schlüssel sind auf `/mcp` nicht gültig.
+
+| Method | Endpoint | Canonical permission |
+| --- | --- | --- |
+| `GET` | `/api/runtime/management-api-keys` | `/runtime/security.edit` (human only) |
+| `POST` | `/api/runtime/management-api-keys` | `/runtime/security.edit` (human only) |
+| `POST` | `/api/runtime/management-api-keys/{id}/rotate` | `/runtime/security.edit` (human only) |
+| `POST` | `/api/runtime/management-api-keys/{id}/revoke` | `/runtime/security.edit` (human only) |
+| `POST` | `/api/CustomSqlTool` | `/runtime/custom-tools.create` |
+| `POST` | `/api/CustomSqlTool/{id}/publish` | `/runtime/custom-tools.edit` |
+| `POST` | `/api/runtime/mcp-keys` | `/runtime/mcp-keys.create` |
+
+## Berechtigungen und Sicherheitsgrenzen
+
+Jeder Schlüssel erhält nur ausdrücklich ausgewählte kanonische `path.action`-Berechtigungen. Benutzer, Rollen, Sicherheitsrichtlinien und andere Management-API-Schlüssel können damit nicht verwaltet werden. Abgelaufene oder widerrufene Schlüssel werden abgelehnt; bei Rotation wird der alte Schlüssel sofort widerrufen. Im Verwaltungsspeicher bleibt nur der Hash; Aktionen erscheinen in der Auditierung als `management-api-key`.
+
+> Management-Berechtigungen bewirken keine Isolation nach Datenbank oder Mandant. Rechte zum Verwalten von Custom Tools und MCP-Schlüsseln gelten für die entsprechenden Verwaltungsressourcen. Schlüssel dürfen nur an vertrauenswürdige Backends gehen; die Mandanten- und Zeilenberechtigung ist Aufgabe der integrierenden Anwendung.
+
+### Migration
+
+Eine SQLite- beziehungsweise PostgreSQL-Migration legt die zusätzliche Tabelle `ManagementApiKeys` an. Führen Sie die Migration vor der ersten Schlüsselausstellung aus. Vorhandene Administrator-JWTs und MCP-Schlüssel bleiben unverändert.
+
+Informationen zur MCP-Client-Anbindung finden Sie unter [MCP-Client-Einrichtung](/de/docs/mcp/client-onboarding).

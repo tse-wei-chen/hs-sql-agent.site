@@ -1,0 +1,54 @@
+---
+title: "관리 API 키"
+description: "JWT나 MCP 키를 사용하지 않고, 독립적인 X-API-Key 인증으로 기존 관리 REST API를 안전하게 자동화합니다."
+sidebar:
+  group: Integration
+  order: 89
+---
+
+관리 API 키를 사용하면 신뢰할 수 있는 백엔드 서비스가 관리자로 직접 로그인하지 않아도 권한을 부여받은 기존 `/api` 관리 엔드포인트를 호출할 수 있습니다. **MCP 접근 키도, 관리자 로그인 토큰도 아닙니다.**
+
+## 관리 화면에서 키 발급
+
+`/runtime/security.edit` 권한이 있는 관리자로 로그인하고 **Runtime → Management API Keys** 페이지를 엽니다. 연동 이름, UTC 만료 시각(최대 365일), 필요한 관리 권한을 명시적으로 선택합니다. 원본 키는 **한 번만 표시**되므로 백엔드 비밀 관리 저장소에 보관하고 브라우저나 소스 저장소에 넣지 마세요.
+
+## Authentication
+
+관리 API 키는 `X-API-Key` 헤더로 전송합니다. 관리자의 JWT는 기존과 같이 `Authorization: Bearer <JWT>` 를 사용합니다. 두 헤더를 함께 보내면 요청을 거부합니다.
+
+```http
+GET /api/runtime/mcp-keys HTTP/1.1
+Host: agent.example.com
+X-API-Key: hsa_mgmt_<secret>
+```
+
+```bash
+curl https://agent.example.com/api/runtime/mcp-keys \\
+  -H "X-API-Key: ${HS_MANAGEMENT_API_KEY}"
+```
+
+## 별도 SaaS API 없이 기존 관리 API 사용
+
+부여한 권한에 따라 기존 Custom Tool 생성·게시, MCP 키 발급 등 관리 API를 호출할 수 있습니다. MCP 클라이언트가 도구를 실행할 때 필요한 **MCP 키는 별도로 발급**해야 합니다. 관리 API 키로 `/mcp`에 접속할 수는 없습니다.
+
+| Method | Endpoint | Canonical permission |
+| --- | --- | --- |
+| `GET` | `/api/runtime/management-api-keys` | `/runtime/security.edit` (human only) |
+| `POST` | `/api/runtime/management-api-keys` | `/runtime/security.edit` (human only) |
+| `POST` | `/api/runtime/management-api-keys/{id}/rotate` | `/runtime/security.edit` (human only) |
+| `POST` | `/api/runtime/management-api-keys/{id}/revoke` | `/runtime/security.edit` (human only) |
+| `POST` | `/api/CustomSqlTool` | `/runtime/custom-tools.create` |
+| `POST` | `/api/CustomSqlTool/{id}/publish` | `/runtime/custom-tools.edit` |
+| `POST` | `/api/runtime/mcp-keys` | `/runtime/mcp-keys.create` |
+
+## 권한 및 보안 경계
+
+각 키에는 명시적으로 선택한 표준 `path.action` 권한만 부여됩니다. 사용자·역할·보안 정책 또는 다른 관리 API 키는 관리할 수 없습니다. 만료되거나 폐기된 키는 즉시 사용할 수 없고, 교체 시 이전 키는 바로 폐기됩니다. 관리 DB에는 해시만 저장되며, 작업은 `management-api-key` 주체로 감사 기록에 남습니다.
+
+> 관리 권한만으로 데이터베이스별 또는 테넌트별 격리가 적용되지는 않습니다. Custom Tool과 MCP 키 관리 권한은 해당 관리 리소스에 적용됩니다. 신뢰할 수 있는 서버에만 키를 보관하고 테넌트 및 행 단위 접근 정책은 연동 애플리케이션에서 구현하세요.
+
+### Migration
+
+SQLite 및 PostgreSQL 관리 저장소 마이그레이션으로 `ManagementApiKeys` 테이블이 추가됩니다. 키를 발급하기 전에 마이그레이션을 적용하세요. 기존 관리자 JWT와 MCP 키는 변경되지 않습니다.
+
+MCP 클라이언트 연결 방법은 [MCP 클라이언트 설정](/ko/docs/mcp/client-onboarding)을 참고하세요.

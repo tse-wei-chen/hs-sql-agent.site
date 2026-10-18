@@ -1,0 +1,29 @@
+---
+title: "アップグレードガイド"
+description: "予定されている 2.0.6 更新：管理 API キー、管理ストアの移行、および既存 JWT／MCP 認証との互換性。"
+sidebar:
+  group: Reference
+  order: 144
+---
+
+## 2.0.5 → 2.0.6 (proposed)
+
+2.0.6 では、管理者の対話ログインを必要としないサーバー間の管理 API アクセスを予定しています。SQL コンパイラと MCP ツール実行の契約は変更しません。
+
+## Management API Keys
+
+新バージョンをデプロイして管理ストアのマイグレーションを適用した後、Management API Keys 画面から最小権限のキーを発行します。一度だけ表示されるキーを安全に保存し、許可された `/api` の呼び出しには `X-API-Key` を使います。管理者は JWT、MCP クライアントは専用の MCP キーを引き続き使用します。
+
+```http
+X-API-Key: hsa_mgmt_<secret>
+```
+
+## Migration and compatibility
+
+SQLite／PostgreSQL の管理ストア移行で `ManagementApiKeys` テーブルが追加されます。キーの発行前にマイグレーションを適用してください。既存の管理者 JWT と MCP キーは変更されません。
+
+既存の管理者セッション、MCP キー、5つの標準 MCP ツール、および SQL の安全性は変更されません。追加される管理テーブルは既存機能と独立しています。ロールバックする前に連携キーを失効させてください。
+
+> 管理権限だけでは DB ID や SaaS テナントを分離できません。キーは信頼できるバックエンドでのみ使用してください。
+
+[管理 API キー](/ja/docs/2.0.6/integration/management-api-keys)

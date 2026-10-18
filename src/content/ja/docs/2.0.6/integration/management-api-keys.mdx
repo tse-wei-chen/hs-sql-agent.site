@@ -1,0 +1,54 @@
+---
+title: "管理 API キー"
+description: "既存の管理 REST API を X-API-Key で安全に自動化します。MCP キーや管理者 JWT とは独立した認証方式です。"
+sidebar:
+  group: Integration
+  order: 89
+---
+
+管理 API キーを使用すると、信頼できるバックエンドサービスが管理者として対話的にログインすることなく、許可された既存の `/api` エンドポイントを呼び出せます。**MCP アクセスキーや管理者のログイントークンではありません。**
+
+## 管理画面からキーを発行する
+
+`/runtime/security.edit` 権限を持つ管理者でログインし、**Runtime → Management API Keys** を開きます。連携名、有効期限（UTC、最大365日）、必要な管理権限を明示的に選択してください。平文キーは発行時に**一度だけ**表示されます。バックエンドのシークレット管理基盤に保存し、ブラウザーやソース管理には置かないでください。
+
+## Authentication
+
+管理 API キーは `X-API-Key` ヘッダーで送信します。管理者の JWT は従来どおり `Authorization: Bearer <JWT>` を使用します。両方を同時に送信すると拒否されます。
+
+```http
+GET /api/runtime/mcp-keys HTTP/1.1
+Host: agent.example.com
+X-API-Key: hsa_mgmt_<secret>
+```
+
+```bash
+curl https://agent.example.com/api/runtime/mcp-keys \\
+  -H "X-API-Key: ${HS_MANAGEMENT_API_KEY}"
+```
+
+## 既存の管理 API を再利用する
+
+許可された範囲で Custom Tool の作成・公開や MCP キーの発行など、既存の管理 API を実行できます。MCP クライアントに渡す **MCP キーは別途発行**してください。管理 API キーは `/mcp` の認証には使えません。
+
+| Method | Endpoint | Canonical permission |
+| --- | --- | --- |
+| `GET` | `/api/runtime/management-api-keys` | `/runtime/security.edit` (human only) |
+| `POST` | `/api/runtime/management-api-keys` | `/runtime/security.edit` (human only) |
+| `POST` | `/api/runtime/management-api-keys/{id}/rotate` | `/runtime/security.edit` (human only) |
+| `POST` | `/api/runtime/management-api-keys/{id}/revoke` | `/runtime/security.edit` (human only) |
+| `POST` | `/api/CustomSqlTool` | `/runtime/custom-tools.create` |
+| `POST` | `/api/CustomSqlTool/{id}/publish` | `/runtime/custom-tools.edit` |
+| `POST` | `/api/runtime/mcp-keys` | `/runtime/mcp-keys.create` |
+
+## 権限とセキュリティ上の制約
+
+キーに付与できるのは明示的に選択した正規の `path.action` 権限のみです。ユーザー、ロール、セキュリティポリシー、ほかの管理 API キーは操作できません。失効・期限切れのキーは使用できず、ローテーション時には旧キーを直ちに無効化します。管理 DB にはハッシュのみ保存し、操作は `management-api-key` として監査します。
+
+> 管理権限はデータベース単位やテナント単位の分離を意味しません。Custom Tool や MCP キーの管理権限は対象の管理リソースに作用します。信頼できるバックエンドだけに配布し、テナント／行レベルの認可は連携元で実装してください。
+
+### Migration
+
+SQLite／PostgreSQL の管理ストア移行で `ManagementApiKeys` テーブルが追加されます。キーの発行前にマイグレーションを適用してください。既存の管理者 JWT と MCP キーは変更されません。
+
+MCP クライアントへの接続方法は [MCP クライアント設定](/ja/docs/mcp/client-onboarding) を参照してください。

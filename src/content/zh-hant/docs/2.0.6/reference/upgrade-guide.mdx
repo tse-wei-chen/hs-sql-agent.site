@@ -1,0 +1,29 @@
+---
+title: "升級指南"
+description: "預備中的 2.0.6 更新：獨立的管理 API 金鑰、管理資料庫遷移，以及與現有 JWT／MCP 憑證的相容性。"
+sidebar:
+  group: Reference
+  order: 144
+---
+
+## 2.0.5 → 2.0.6 (proposed)
+
+規劃中的 2.0.6 新增機器對機器的管理 API 存取能力，不必再讓串接服務模擬管理員登入；SQL 編譯器與 MCP 工具執行流程不變。
+
+## Management API Keys
+
+部署新版並完成管理資料庫遷移後，開啟「管理 API 金鑰」，建立權限最小化的整合憑證，妥善保存只顯示一次的明文，呼叫授權的 `/api` 時改用 `X-API-Key`。真人管理員維持 JWT，MCP Client 維持獨立 MCP 金鑰。
+
+```http
+X-API-Key: hsa_mgmt_<secret>
+```
+
+## Migration and compatibility
+
+本功能會透過 SQLite／PostgreSQL 遷移，在管理資料庫新增 `ManagementApiKeys` 資料表。請先完成遷移，再簽發金鑰。既有管理員 JWT 與 MCP 金鑰不受影響。
+
+既有管理員登入、MCP 金鑰、五項內建 MCP 工具及 SQL 安全保證均不變；此次新增的是管理資料表。若需要回復舊版本，應先撤銷整合用金鑰，舊版不支援此驗證方式。
+
+> Canonical 管理權限不提供資料庫 ID 或 SaaS 租戶隔離，API 金鑰只應提供給可信任的後端系統。
+
+[管理 API 金鑰](/zh-hant/docs/2.0.6/integration/management-api-keys)
