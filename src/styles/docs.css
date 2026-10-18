@@ -457,7 +457,7 @@
 .doc-page .app-prose table {
   display: table;
   width: 100%;
-  margin-block: 2rem;
+  margin-block: 0rem;
   overflow: hidden;
   border: 1px solid var(--border);
   border-collapse: separate;

@@ -10,7 +10,7 @@ import ApiReference from "@/components/docs/ApiReference.astro";
 
 Each operation expands to show parameters, the request-body property table and response models, including nested fields, types, Required and Nullable. This is generated from the .NET Controller and DTO metadata, not manually retyped.
 
-[Start by creating a System-to-System key in the Admin UI](/docs/2.0.6/integration/management-api-keys).
+[Start by creating a System-to-System key in the Admin UI](/docs/integration/management-api-keys).
 
 > Some older Controller actions return IActionResult without a declared response model. Those operations are explicitly marked as missing a Response Schema, rather than showing guessed properties. Model completeness is tracked in issue #295. Human account endpoints are not accessible with a System-to-System key; check each operation's authentication and permission.
 

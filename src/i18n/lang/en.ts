@@ -100,7 +100,6 @@ export default {
   adminApiReference: {
     operations: "API operations",
     responseCoverage: "operations with defined response models",
-    preview: "Preview contract",
     search: "Search by path, method or category",
     parameters: "Path and query parameters",
     request: "Request body",

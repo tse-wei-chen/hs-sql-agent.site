@@ -2,7 +2,7 @@
 
 > hs-sql-agent provides governed SQL access for AI agents through MCP, with fail-closed typed SQL compilation, scoped access policies, approval-gated DML, explainable compiler decisions, deployment diagnostics, and support for PostgreSQL, MySQL, SQL Server, Oracle, SQLite, and Firebird.
 
-Current documented release: **2.0.5**. Product behavior is pinned by `src/data/productRelease.ts`; prerelease documentation pins an immutable product commit until the matching release tag exists.
+Current documented release: **2.0.6**. Product behavior is pinned to the released `v2.0.6` commit by `src/data/productRelease.ts`.
 
 The documentation site is localized in English, Traditional Chinese, Simplified Chinese, Japanese, Korean, French, and German. Prefer stable unversioned documentation URLs for the current release.
 
@@ -76,7 +76,7 @@ Doctor `Warning` items deserve review but do not block readiness; Doctor `Error`
 - [Database dialects](https://sql-agent.net/docs/sql-compiler/database-dialects)
 - [Safe DML](https://sql-agent.net/docs/sql-compiler/safe-dml)
 
-2.0.5 does not bypass or weaken the typed SQL pipeline. SQL still passes parse, bind, authorization, policy validation, target-capability proof, compilation, and provider execution boundaries.
+2.0.6 does not bypass or weaken the typed SQL pipeline. SQL still passes parse, bind, authorization, policy validation, target-capability proof, compilation, and provider execution boundaries.
 
 For `UPDATE` and `DELETE`, approval binds exact row-set evidence and revalidates before mutation. `INSERT ... VALUES` binds immutable payload evidence. Multi-statement DML remains one server-owned atomic transaction; client-supplied transaction-control SQL is rejected.
 
@@ -109,14 +109,14 @@ An asynchronous provider may return `Pending`. Durable completion remains server
 
 ## Source of truth
 
-- [Pinned 2.0.5 product source](https://github.com/tse-wei-chen/hs-sql-agent/tree/26f7da26ee1c718c440a834c45497a56e1442083)
+- [Pinned 2.0.6 product source](https://github.com/tse-wei-chen/hs-sql-agent/tree/e6f289ac183a89a649acaa46c6845c763a9b6c68)
 - [Product repository](https://github.com/tse-wei-chen/hs-sql-agent)
 - [Documentation repository](https://github.com/tse-wei-chen/hs-sql-agent.site)
 - [Content source policy](https://github.com/tse-wei-chen/hs-sql-agent.site/blob/main/CONTENT_SOURCES.md)
 
-## Current 2.0.5 overlay source
+## Current 2.0.6 overlay source
 
 Only behavior changed by this release is duplicated into the current overlay. Unchanged pages are inherited from the immediate parent release.
 
-- [MCP tools](https://raw.githubusercontent.com/tse-wei-chen/hs-sql-agent.site/main/src/content/en/docs/2.0.5/mcp/tools-reference.mdx)
-- [Upgrade guide](https://raw.githubusercontent.com/tse-wei-chen/hs-sql-agent.site/main/src/content/en/docs/2.0.5/reference/upgrade-guide.mdx)
+- [Admin API Reference](https://sql-agent.net/docs/reference/api-reference)
+- [System-to-System API Key integration](https://sql-agent.net/docs/integration/management-api-keys)

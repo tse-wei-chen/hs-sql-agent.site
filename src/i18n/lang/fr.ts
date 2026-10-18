@@ -105,7 +105,6 @@ export default {
   adminApiReference: {
     operations: "opérations API",
     responseCoverage: "opérations avec modèle de réponse",
-    preview: "Aperçu de la spécification API",
     search: "Rechercher un chemin, une méthode ou une catégorie",
     parameters: "Paramètres de chemin et de requête",
     request: "Corps de la requête",

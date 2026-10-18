@@ -102,7 +102,6 @@ export default {
   adminApiReference: {
     operations: "API 操作",
     responseCoverage: "件の操作に応答モデルを定義済み",
-    preview: "API 仕様プレビュー",
     search: "API パス・メソッド・分類を検索",
     parameters: "パスとクエリのパラメータ",
     request: "リクエスト本文",
