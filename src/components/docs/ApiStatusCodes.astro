@@ -15,11 +15,15 @@ const codes = ["200", "201", "204", "400", "401", "403", "404", "409"] as const;
     </tr>
   </thead>
   <tbody>
-    {codes.map(code => (
-      <tr>
-        <td><code>{code}</code></td>
-        <td>{ui.responseLabels[code]}</td>
-      </tr>
-    ))}
+    {
+      codes.map(code => (
+        <tr>
+          <td>
+            <code>{code}</code>
+          </td>
+          <td>{ui.responseLabels[code]}</td>
+        </tr>
+      ))
+    }
   </tbody>
 </table>
