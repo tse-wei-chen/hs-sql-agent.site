@@ -1,0 +1,177 @@
+---
+import {
+  apiOperations,
+  apiGroups,
+  contentSchema,
+  describeType,
+  modelRows,
+  sourceCommit,
+  successfulResponseHasSchema,
+  type PropertyRow,
+} from "@/utils/adminApiReference";
+
+type Props = { locale?: string };
+const { locale = "en" } = Astro.props;
+const zh = locale === "zh-hant" || locale === "zh-hans";
+const strings = {
+  operations: zh ? "API 操作" : "API operations",
+  responseCoverage: zh ? "具備成功回應模型" : "typed success response models",
+  preview: zh ? "預覽契約" : "Preview contract",
+  search: zh ? "搜尋路由、Method 或群組" : "Search path, method or group",
+  parameters: zh ? "Path / Query 參數" : "Path / Query parameters",
+  request: zh ? "Request Body" : "Request Body",
+  responses: zh ? "Response Models" : "Response Models",
+  property: zh ? "Property" : "Property",
+  type: zh ? "Type" : "Type",
+  required: zh ? "必填" : "Required",
+  nullable: "Nullable",
+  notes: zh ? "描述 / 限制" : "Description / constraints",
+  yes: zh ? "是" : "Yes",
+  no: zh ? "否" : "No",
+  none: zh ? "無" : "None",
+  unspecified: zh ? "尚未在 Controller 宣告 Response Schema" : "Response schema not declared by the controller yet",
+  noBody: zh ? "此回應沒有 Body" : "No response body",
+  auth: zh ? "認證" : "Authentication",
+  requiredGrant: zh ? "權限" : "Permission",
+};
+const groups = apiGroups.map(tag => ({
+  tag,
+  operations: apiOperations.filter(op => op.tag === tag),
+}));
+const covered = apiOperations.filter(successfulResponseHasSchema).length;
+const opId = (method: string, path: string) =>
+  `api-${method.toLowerCase()}-${path.replace(/[^a-zA-Z0-9]+/g, "-").replace(/^-|-$/g, "").toLowerCase()}`;
+
+type ParamRow = {
+  name: string;
+  location: string;
+  type: string;
+  required: boolean;
+  description: string;
+};
+const parameters = (op: (typeof apiOperations)[number]): ParamRow[] =>
+  (op.parameters ?? []).map(item => ({
+    name: item.name,
+    location: item.in,
+    type: describeType(item.schema),
+    required: item.required ?? false,
+    description: item.description ?? "",
+  }));
+const responses = (op: (typeof apiOperations)[number]) =>
+  Object.entries(op.responses).sort(([a], [b]) => a.localeCompare(b));
+const auth = (op: (typeof apiOperations)[number]) => {
+  const names = (op.security ?? []).flatMap(s => Object.keys(s));
+  return names.length > 0 ? [...new Set(names)].join(" / ") : "—";
+};
+const grants = (op: (typeof apiOperations)[number]) =>
+  op.description?.match(/Canonical permission(?: \(any-of\))?:\s*([^\n]+)/)?.[1] ?? "—";
+---
+<div class="api-ref" data-api-reference>
+  <p class="api-ref-meta">
+    {apiOperations.length} {strings.operations} · {covered} {strings.responseCoverage}
+    · {strings.preview} <code>{sourceCommit.slice(0, 12)}</code>
+  </p>
+  <label class="api-ref-search-label" for={`api-ref-search-${locale}`}>{strings.search}</label>
+  <input
+    class="api-ref-search"
+    id={`api-ref-search-${locale}`}
+    type="search"
+    placeholder={strings.search}
+    autocomplete="off"
+    data-api-search
+  />
+  <nav aria-label={strings.operations} class="api-ref-groups">
+    {groups.map(group => <a href={`#api-group-${group.tag.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`}>{group.tag} ({group.operations.length})</a>)}
+  </nav>
+  {groups.map(group => (
+    <section class="api-ref-group" data-api-group>
+      <h2 id={`api-group-${group.tag.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`}>{group.tag}</h2>
+      {group.operations.map(op => (
+        <details
+          class="api-ref-op"
+          id={opId(op.method, op.path)}
+          data-api-operation
+          data-search-value={`${op.method} ${op.path} ${group.tag}`.toLowerCase()}
+        >
+          <summary>
+            <span class={`api-ref-method method-${op.method.toLowerCase()}`}>{op.method}</span>
+            <code class="api-ref-path">{op.path}</code>
+            <span class="api-ref-expand" aria-hidden="true">⌄</span>
+          </summary>
+          <div class="api-ref-detail">
+            <p><strong>{strings.auth}:</strong> {auth(op)}</p>
+            {grants(op) !== "—" && <p><strong>{strings.requiredGrant}:</strong> <code>{grants(op)}</code></p>}
+            <h3>{strings.parameters}</h3>
+            {parameters(op).length > 0 ? (
+              <div class="api-ref-table-scroll"><table>
+                <thead><tr><th>{strings.property}</th><th>In</th><th>{strings.type}</th><th>{strings.required}</th><th>{strings.notes}</th></tr></thead>
+                <tbody>{parameters(op).map(p => <tr><td><code>{p.name}</code></td><td>{p.location}</td><td><code>{p.type}</code></td><td>{p.required ? strings.yes : strings.no}</td><td>{p.description || "—"}</td></tr>)}</tbody>
+              </table></div>
+            ) : <p class="api-ref-muted">{strings.none}</p>}
+            <h3>{strings.request}</h3>
+            {op.requestBody ? (
+              <>
+                <p class="api-ref-muted">{op.requestBody.content?.mediaType ?? "application/json"} · {strings.required}: {op.requestBody.required ? strings.yes : strings.no}</p>
+                <SchemaRows rows={modelRows(contentSchema(op.requestBody.content))} strings={strings} />
+              </>
+            ) : <p class="api-ref-muted">{strings.none}</p>}
+            <h3>{strings.responses}</h3>
+            {responses(op).map(([status, response]) => (
+              <div class="api-ref-response">
+                <h4><code>{status}</code> {response.description}</h4>
+                {contentSchema(response.content) ? (
+                  <SchemaRows rows={modelRows(contentSchema(response.content))} strings={strings} />
+                ) : status === "204" || status === "304" ? (
+                  <p class="api-ref-muted">{strings.noBody}</p>
+                ) : (
+                  <p class="api-ref-untyped">{strings.unspecified}</p>
+                )}
+              </div>
+            ))}
+          </div>
+        </details>
+      ))}
+    </section>
+  ))}
+</div>
+
+
+<style>
+.api-ref{margin-top:1.2rem}
+.api-ref-meta,.api-ref-muted{color:var(--color-text-muted,#737373);font-size:.84rem}
+.api-ref-search-label{display:block;font-weight:600;margin:.9rem 0 .35rem}
+.api-ref-search{width:100%;border:1px solid var(--color-border,#9ca3af);border-radius:.5rem;padding:.7rem .85rem;color:inherit;background:transparent}
+.api-ref-groups{display:flex;flex-wrap:wrap;gap:.45rem;margin:1rem 0 1.5rem}
+.api-ref-groups a{border:1px solid var(--color-border,#737373);border-radius:999px;padding:.22rem .6rem;font-size:.79rem;text-decoration:none}
+.api-ref-op{border:1px solid var(--color-border,#7775);border-radius:.65rem;margin:.55rem 0;overflow:hidden}
+.api-ref-op summary{display:flex;align-items:center;gap:.65rem;padding:.85rem;cursor:pointer;list-style:none}
+.api-ref-op summary::-webkit-details-marker{display:none}
+.api-ref-op[open] summary{border-bottom:1px solid var(--color-border,#7775)}
+.api-ref-method{font-size:.72rem;font-weight:800;min-width:3.3rem;text-align:center;border-radius:.28rem;padding:.23rem .35rem;background:#dbeafe;color:#1e40af}
+.method-post{background:#dcfce7;color:#166534}.method-put,.method-patch{background:#fef3c7;color:#854d0e}.method-delete{background:#fee2e2;color:#991b1b}
+.api-ref-path{overflow-wrap:anywhere;font-size:.85rem}.api-ref-expand{margin-left:auto}
+.api-ref-detail{padding:.85rem 1rem 1rem;font-size:.85rem}
+.api-ref-detail h3{font-size:1rem;font-weight:700;margin:1.3rem 0 .4rem}
+.api-ref-detail h4{font-size:.85rem;margin:.9rem 0 .35rem}
+.api-ref-table-scroll{overflow-x:auto}
+.api-ref-detail table{font-size:.78rem;width:100%;border-collapse:collapse;margin:.5rem 0}
+.api-ref-detail th,.api-ref-detail td{border-bottom:1px solid var(--color-border,#7775);padding:.45rem .4rem;vertical-align:top;text-align:left}
+.api-ref-detail td{overflow-wrap:anywhere}
+.api-ref-detail td:first-child{min-width:6rem}
+.api-ref-untyped{font-size:.8rem;border-left:3px solid #ca8a04;padding:.3rem .65rem;margin:.4rem 0}
+.api-ref-response{margin-bottom:.6rem}
+</style>
+<script is:inline>
+document.querySelectorAll('[data-api-reference]').forEach(root=>{
+  const field=root.querySelector('[data-api-search]');
+  field?.addEventListener('input',()=>{
+    const needle=field.value.trim().toLowerCase();
+    root.querySelectorAll('[data-api-operation]').forEach(item=>{
+      item.hidden=Boolean(needle && !item.dataset.searchValue.includes(needle));
+    });
+    root.querySelectorAll('[data-api-group]').forEach(group=>{
+      group.hidden=!Array.from(group.querySelectorAll('[data-api-operation]')).some(item=>!item.hidden);
+    });
+  });
+});
+</script>

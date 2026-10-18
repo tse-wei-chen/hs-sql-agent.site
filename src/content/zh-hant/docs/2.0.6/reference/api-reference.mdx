@@ -1,0 +1,17 @@
+---
+title: "管理 REST API Reference"
+description: "逐一查看所有管理 API 的 Request／Response Model Properties、型別、必填與 Nullable。"
+sidebar:
+  group: Reference
+  order: 142
+---
+
+import ApiReference from "@/components/docs/ApiReference.astro";
+
+展開任一 API 即可查看 Path／Query Parameters、Request Body、各個 HTTP Response 的 Model Properties，以及巢狀欄位、型別、Required、Nullable 與欄位限制。內容由後端 Controller／DTO 的 OpenAPI Metadata 產生，不靠手寫猜測。
+
+[先在 Admin UI 簽發 System-to-System Key，再呼叫現有 API](/zh-hant/docs/2.0.6/integration/management-api-keys).
+
+> 部分既有 Controller 使用 IActionResult，尚未宣告具體 Response Model；這些 API 會明確顯示「尚未宣告」，不會編造欄位。缺口持續在 Issue #295 補齊。身分／帳號 API 不提供 System-to-System Key 存取，請以各 API 的認證與權限要求為準。
+
+<ApiReference locale="zh-hant" />
