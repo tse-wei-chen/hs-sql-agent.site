@@ -82,7 +82,8 @@
       @apply border-s-accent/80 wrap-break-word opacity-80;
     }
 
-    details:not(.callout) {
+    /* API Reference renders full-width, independently expandable contract rows. */
+    details:not(.callout):not(.api-ref-op) {
       @apply text-foreground inline-block cursor-pointer select-none [&_p]:hidden [&_ul]:my-0!;
     }
 
