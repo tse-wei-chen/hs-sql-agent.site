@@ -2,9 +2,11 @@
 title: "Request und Response bestehender Admin APIs"
 description: "Praxisbeispiele mit einem in der Admin UI ausgestellten API-Schlüssel."
 sidebar:
-  group: Reference
+  group: Referenz
   order: 143
 ---
+
+import ApiStatusCodes from "@/components/docs/ApiStatusCodes.astro";
 
 Erstellen Sie den Schlüssel unter **Runtime → Management API Keys**. Das Backend ruft die vorhandenen `/api`-Endpunkte mit `X-API-Key` auf. Hier werden die tatsächlich von Integrationen verwendeten APIs erklärt.
 
@@ -17,7 +19,7 @@ curl -X GET "https://agent.example.com/api/DbManagement" \
   -H "X-API-Key: ${HS_MANAGEMENT_API_KEY}"
 ```
 
-**200 OK** — JSON (selected fields):
+**200 OK** — JSON (Auswahl der Felder):
 
 ```json
 [
@@ -70,16 +72,7 @@ Erfolg: `201 Created` und ein `CustomSqlTool`-Objekt mit serverseitig generierte
 
 ## Häufige HTTP-Statuscodes
 
-| HTTP | Meaning |
-| --- | --- |
-| `200` | Successful read or update with a JSON response |
-| `201` | Custom Tool created successfully |
-| `204` | Successful action without a response body |
-| `400` | Invalid request data |
-| `401` | API Key missing, invalid, revoked, or expired |
-| `403` | API Key valid but lacking required permission |
-| `404` | Requested resource not found |
-| `409` | Operation conflicts with current resource state |
+<ApiStatusCodes locale="de" />
 
 ## Weitere APIs
 

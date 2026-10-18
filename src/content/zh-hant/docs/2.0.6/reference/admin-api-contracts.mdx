@@ -2,9 +2,11 @@
 title: "使用 Key 呼叫既有 API：Request／Response"
 description: "以 Admin UI 建立的 System-to-System Key 呼叫管理 REST API，含實際 JSON 範例。"
 sidebar:
-  group: Reference
+  group: 參考
   order: 143
 ---
+
+import ApiStatusCodes from "@/components/docs/ApiStatusCodes.astro";
 
 管理員先從 **Runtime → Management API Keys** 簽發 Key；外部服務將 Key 放在 `X-API-Key` 標頭後，即可直接呼叫現有的管理 API。以下只介紹**外部串接方會使用的端點**。
 
@@ -17,7 +19,7 @@ curl -X GET "https://agent.example.com/api/DbManagement" \
   -H "X-API-Key: ${HS_MANAGEMENT_API_KEY}"
 ```
 
-**200 OK** — JSON (selected fields):
+**200 OK** — JSON（僅列部分欄位）：
 
 ```json
 [
@@ -70,16 +72,7 @@ curl -X POST "https://agent.example.com/api/CustomSqlTool" \
 
 ## 常見 HTTP 狀態碼
 
-| HTTP | Meaning |
-| --- | --- |
-| `200` | Successful read or update with a JSON response |
-| `201` | Custom Tool created successfully |
-| `204` | Successful action without a response body |
-| `400` | Invalid request data |
-| `401` | API Key missing, invalid, revoked, or expired |
-| `403` | API Key valid but lacking required permission |
-| `404` | Requested resource not found |
-| `409` | Operation conflicts with current resource state |
+<ApiStatusCodes locale="zh-hant" />
 
 ## 其他 API 規格
 

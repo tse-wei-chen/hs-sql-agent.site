@@ -2,9 +2,11 @@
 title: "既存 API の Request／Response 例"
 description: "Admin UI で発行したキーを利用して管理 REST API を呼び出す例。"
 sidebar:
-  group: Reference
+  group: リファレンス
   order: 143
 ---
+
+import ApiStatusCodes from "@/components/docs/ApiStatusCodes.astro";
 
 Admin UI の **Runtime → Management API Keys** でキーを作成した後、バックエンドは `X-API-Key` で既存の `/api` を呼び出します。ここでは連携側が実際に使う API を説明します。
 
@@ -17,7 +19,7 @@ curl -X GET "https://agent.example.com/api/DbManagement" \
   -H "X-API-Key: ${HS_MANAGEMENT_API_KEY}"
 ```
 
-**200 OK** — JSON (selected fields):
+**200 OK** — JSON（一部のフィールドのみ）：
 
 ```json
 [
@@ -70,16 +72,7 @@ curl -X POST "https://agent.example.com/api/CustomSqlTool" \
 
 ## 主な HTTP ステータス
 
-| HTTP | Meaning |
-| --- | --- |
-| `200` | Successful read or update with a JSON response |
-| `201` | Custom Tool created successfully |
-| `204` | Successful action without a response body |
-| `400` | Invalid request data |
-| `401` | API Key missing, invalid, revoked, or expired |
-| `403` | API Key valid but lacking required permission |
-| `404` | Requested resource not found |
-| `409` | Operation conflicts with current resource state |
+<ApiStatusCodes locale="ja" />
 
 ## 他の管理 API
 

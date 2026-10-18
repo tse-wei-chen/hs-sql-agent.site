@@ -2,9 +2,11 @@
 title: "使用 Key 调用现有 API：Request／Response"
 description: "使用 Admin UI 签发的 Key 调用现有管理 API，附实际 JSON 示例。"
 sidebar:
-  group: Reference
+  group: 参考
   order: 143
 ---
+
+import ApiStatusCodes from "@/components/docs/ApiStatusCodes.astro";
 
 管理员先在 **Runtime → Management API Keys** 签发 Key；外部后端通过 `X-API-Key` 调用现有管理 API。本页只说明**集成服务需要调用的接口**。
 
@@ -17,7 +19,7 @@ curl -X GET "https://agent.example.com/api/DbManagement" \
   -H "X-API-Key: ${HS_MANAGEMENT_API_KEY}"
 ```
 
-**200 OK** — JSON (selected fields):
+**200 OK** — JSON（仅展示部分字段）：
 
 ```json
 [
@@ -70,16 +72,7 @@ curl -X POST "https://agent.example.com/api/CustomSqlTool" \
 
 ## 常见 HTTP 状态码
 
-| HTTP | Meaning |
-| --- | --- |
-| `200` | Successful read or update with a JSON response |
-| `201` | Custom Tool created successfully |
-| `204` | Successful action without a response body |
-| `400` | Invalid request data |
-| `401` | API Key missing, invalid, revoked, or expired |
-| `403` | API Key valid but lacking required permission |
-| `404` | Requested resource not found |
-| `409` | Operation conflicts with current resource state |
+<ApiStatusCodes locale="zh-hans" />
 
 ## 其他 API 规范
 
