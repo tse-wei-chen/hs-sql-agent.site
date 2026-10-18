@@ -1,54 +1,53 @@
 ---
 title: "Management API Keys"
-description: "Call the existing Admin REST API from trusted backends with a dedicated X-API-Key credential, independent of MCP keys and human JWT sessions."
+description: "Create API keys to automate existing Admin REST API operations from trusted backend services."
 sidebar:
   group: Integration
   order: 89
 ---
 
-Management API Keys give trusted server-side integrations access to selected existing `/api` administration endpoints. A Management API Key is **not** an MCP access key, and it is not a human session token.
+Use a **Management API Key** when your backend service, deployment pipeline, or another integration needs to administer Custom Tools, configuration, or access credentials. Each key can perform only the management operations you explicitly authorize.
 
-## Create a key in the Admin Console
+## Create a key
 
-Sign in as a human administrator with `/runtime/security.edit`, open **Runtime → Management API Keys**, choose an integration name, UTC expiration (within 365 days), and explicit canonical permissions. Issue the key and copy the secret displayed **once**. Store it in a backend secrets manager. Never ship it to a browser or commit it to a repository.
+1. Sign in to the Admin Console with the `/runtime/security.edit` permission and open **Runtime → Management API Keys**.
+2. Enter an integration name and expiration date (up to 365 days).
+3. Select the required canonical management permissions.
+4. Issue the key and copy its secret. The secret is shown only once.
 
-## Authentication
+Store the secret in a backend secrets manager, never in client-side code or source control.
 
-Send the API key in `X-API-Key`. Human administrator JWTs continue to use `Authorization: Bearer <JWT>`; these two headers must not be sent together.
+## Call the Admin API
 
-```http
-GET /api/runtime/mcp-keys HTTP/1.1
-Host: agent.example.com
-X-API-Key: hsa_mgmt_<secret>
-```
+Send the secret in the `X-API-Key` HTTP header:
 
 ```bash
-curl https://agent.example.com/api/runtime/mcp-keys \\
+curl "https://agent.example.com/api/CustomSqlTool" \
   -H "X-API-Key: ${HS_MANAGEMENT_API_KEY}"
 ```
 
-## Use existing APIs, not new SaaS endpoints
+Do not send an `Authorization` header together with `X-API-Key`. A request containing both is rejected.
 
-The same key can call permitted Custom Tool creation, publication, and MCP key issuance endpoints. Issue an **MCP access key separately** for the MCP client. Management API Keys never authenticate `/mcp`.
+## Common operations and permissions
 
-| Method | Endpoint | Canonical permission |
+Existing `/api` endpoints work without a separate integration API. The usual canonical permissions still apply.
+
+| Operation | API | Canonical Permission |
 | --- | --- | --- |
-| `GET` | `/api/runtime/management-api-keys` | `/runtime/security.edit` (human only) |
-| `POST` | `/api/runtime/management-api-keys` | `/runtime/security.edit` (human only) |
-| `POST` | `/api/runtime/management-api-keys/{id}/rotate` | `/runtime/security.edit` (human only) |
-| `POST` | `/api/runtime/management-api-keys/{id}/revoke` | `/runtime/security.edit` (human only) |
-| `POST` | `/api/CustomSqlTool` | `/runtime/custom-tools.create` |
-| `POST` | `/api/CustomSqlTool/{id}/publish` | `/runtime/custom-tools.edit` |
-| `POST` | `/api/runtime/mcp-keys` | `/runtime/mcp-keys.create` |
+| List Custom Tools | `GET /api/CustomSqlTool` | `/runtime/custom-tools.view` |
+| Create a Custom Tool | `POST /api/CustomSqlTool` | `/runtime/custom-tools.create` |
+| Publish a Custom Tool | `POST /api/CustomSqlTool/{id}/publish` | `/runtime/custom-tools.edit` |
+| List access keys | `GET /api/runtime/mcp-keys` | `/runtime/mcp-keys.view` |
+| Issue an access key | `POST /api/runtime/mcp-keys` | `/runtime/mcp-keys.create` |
 
-## Security and limits
+## Access control and key lifecycle
 
-Permissions are an explicit allowlist of canonical `path.action` grants. Machine keys cannot manage users, roles, security-policy settings, or other Management API Keys. A key is rejected after expiration or revocation; rotation creates a replacement and revokes the previous secret immediately. The Admin Store persists a hash, not plaintext, and management activity is audited as `management-api-key`.
+Grant only the actions the integration needs. An administrator can revoke a key at any time or rotate it to issue a replacement and immediately invalidate the old secret. The Admin Store keeps a hash rather than the plaintext key; management actions are auditable under the `management-api-key` actor.
 
-> Management permissions are not database or tenant isolation. A key permitted to manage Custom Tools or MCP keys can operate the matching management resources across databases; restrict distribution to a trusted backend and apply your application's own tenant/row-level policy.
+Issuing, rotating, and revoking Management API Keys requires a signed-in administrator with `/runtime/security.edit`.
 
-### Migration
+> Management permissions are not automatically limited to a database ID or tenant. Keep the secret in a trusted backend and enforce application-specific authorization in your integration.
 
-The feature adds an Admin Store table, `ManagementApiKeys`, via SQLite and PostgreSQL migrations. Apply the appropriate migration before issuing any key; existing human JWTs and MCP keys remain unchanged.
+## Deployment requirements
 
-For client transport and execution credentials, see [MCP client onboarding](/docs/mcp/client-onboarding).
+Apply the Admin Store migration for SQLite or PostgreSQL to create the `ManagementApiKeys` table before issuing keys.

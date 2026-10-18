@@ -1,6 +1,6 @@
 ---
 title: "升级指南"
-description: "拟议中的 2.0.6：独立的管理 API 密钥、管理数据库迁移及原有 JWT／MCP 认证兼容性。"
+description: "准备 2.0.6 管理 API 密钥功能及所需的 Admin Store 迁移。"
 sidebar:
   group: Reference
   order: 144
@@ -8,22 +8,19 @@ sidebar:
 
 ## 2.0.5 → 2.0.6 (proposed)
 
-计划中的 2.0.6 版本增加机器到机器的管理 API 访问，无须模拟管理员登录；SQL 编译器和 MCP 工具执行流程不变。
+计划中的 2.0.6 版本增加 API 密钥认证，让外部系统直接调用现有的 `/api` 管理接口。
 
-## Management API Keys
+## 升级步骤
 
-部署新版本并完成管理数据库迁移后，在 Management API Keys 中创建最小权限凭证，安全保存只显示一次的密钥，并通过 `X-API-Key` 调用获授权的 `/api`。真人管理员继续使用 JWT，MCP 客户端继续使用单独的 MCP 密钥。
+1. 部署新版服务器，执行 Admin Store 迁移，创建 `ManagementApiKeys` 表。
+2. 在管理界面创建密钥，只选择集成服务需要的权限。
+3. 安全保存只显示一次的明文，并使用 `X-API-Key` 请求头调用接口。
+4. 验证密钥过期、撤销与轮换的处理流程。
 
-```http
-X-API-Key: hsa_mgmt_<secret>
-```
+## 兼容性与回滚
 
-## Migration and compatibility
+现有管理员登录和 MCP 客户端连接流程无需更改。旧版服务器无法验证管理 API 密钥；回滚前请先停止在集成中使用这些密钥。
 
-此功能通过 SQLite／PostgreSQL 数据库迁移新增 `ManagementApiKeys` 管理表。请先完成迁移再签发密钥。已有管理员 JWT 和 MCP 密钥保持不变。
+> 管理权限目前不会按数据库 ID 或租户自动限制。请将密钥保存在可信任的后端，并由集成服务自行执行应用层授权。
 
-现有 JWT 会话、MCP 密钥、五项内置 MCP 工具以及 SQL 安全行为不受影响。本次仅新增管理表。需要回滚时，应先撤销已签发的集成密钥，旧版本不支持此身份验证方式。
-
-> 规范管理权限不会自动限制数据库 ID 或 SaaS 租户；密钥只能交给可信任的后端。
-
-[管理 API 密钥](/zh-hans/docs/2.0.6/integration/management-api-keys)
+[管理 API 密钥使用指南](/zh-hans/docs/2.0.6/integration/management-api-keys)

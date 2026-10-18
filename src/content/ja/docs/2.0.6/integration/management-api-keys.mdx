@@ -1,54 +1,53 @@
 ---
 title: "管理 API キー"
-description: "既存の管理 REST API を X-API-Key で安全に自動化します。MCP キーや管理者 JWT とは独立した認証方式です。"
+description: "管理画面で API キーを発行し、バックエンドから既存の管理 API を自動操作します。"
 sidebar:
   group: Integration
   order: 89
 ---
 
-管理 API キーを使用すると、信頼できるバックエンドサービスが管理者として対話的にログインすることなく、許可された既存の `/api` エンドポイントを呼び出せます。**MCP アクセスキーや管理者のログイントークンではありません。**
+バックエンドサービスやデプロイ処理から Custom Tools の管理、設定変更、アクセス用の認証情報の発行を自動化する場合は、**管理 API キー**を利用できます。キーには選択した管理権限だけが付与されます。
 
-## 管理画面からキーを発行する
+## キーを発行する
 
-`/runtime/security.edit` 権限を持つ管理者でログインし、**Runtime → Management API Keys** を開きます。連携名、有効期限（UTC、最大365日）、必要な管理権限を明示的に選択してください。平文キーは発行時に**一度だけ**表示されます。バックエンドのシークレット管理基盤に保存し、ブラウザーやソース管理には置かないでください。
+1. `/runtime/security.edit` 権限を持つ管理者でログインし、**Runtime → Management API Keys** を開きます。
+2. 連携名と有効期限（最大365日）を入力します。
+3. 必要な管理権限を選択します。
+4. キーを発行し、一度だけ表示される秘密値をコピーします。
 
-## Authentication
+秘密値はバックエンドのシークレット管理サービスに保管し、フロントエンドやリポジトリに含めないでください。
 
-管理 API キーは `X-API-Key` ヘッダーで送信します。管理者の JWT は従来どおり `Authorization: Bearer <JWT>` を使用します。両方を同時に送信すると拒否されます。
+## 管理 API を呼び出す
 
-```http
-GET /api/runtime/mcp-keys HTTP/1.1
-Host: agent.example.com
-X-API-Key: hsa_mgmt_<secret>
-```
+API リクエストの `X-API-Key` ヘッダーに秘密値を指定します。
 
 ```bash
-curl https://agent.example.com/api/runtime/mcp-keys \\
+curl "https://agent.example.com/api/CustomSqlTool" \
   -H "X-API-Key: ${HS_MANAGEMENT_API_KEY}"
 ```
 
-## 既存の管理 API を再利用する
+`X-API-Key` と `Authorization` ヘッダーを同時に送信すると拒否されます。
 
-許可された範囲で Custom Tool の作成・公開や MCP キーの発行など、既存の管理 API を実行できます。MCP クライアントに渡す **MCP キーは別途発行**してください。管理 API キーは `/mcp` の認証には使えません。
+## 主な操作と必要な権限
 
-| Method | Endpoint | Canonical permission |
+別の連携用 API を作る必要はありません。既存の `/api` エンドポイントに対して正規の管理権限が適用されます。
+
+| 操作 | API | Canonical Permission |
 | --- | --- | --- |
-| `GET` | `/api/runtime/management-api-keys` | `/runtime/security.edit` (human only) |
-| `POST` | `/api/runtime/management-api-keys` | `/runtime/security.edit` (human only) |
-| `POST` | `/api/runtime/management-api-keys/{id}/rotate` | `/runtime/security.edit` (human only) |
-| `POST` | `/api/runtime/management-api-keys/{id}/revoke` | `/runtime/security.edit` (human only) |
-| `POST` | `/api/CustomSqlTool` | `/runtime/custom-tools.create` |
-| `POST` | `/api/CustomSqlTool/{id}/publish` | `/runtime/custom-tools.edit` |
-| `POST` | `/api/runtime/mcp-keys` | `/runtime/mcp-keys.create` |
+| Custom Tools の一覧 | `GET /api/CustomSqlTool` | `/runtime/custom-tools.view` |
+| Custom Tool の作成 | `POST /api/CustomSqlTool` | `/runtime/custom-tools.create` |
+| Custom Tool の公開 | `POST /api/CustomSqlTool/{id}/publish` | `/runtime/custom-tools.edit` |
+| アクセスキーの一覧 | `GET /api/runtime/mcp-keys` | `/runtime/mcp-keys.view` |
+| アクセスキーの発行 | `POST /api/runtime/mcp-keys` | `/runtime/mcp-keys.create` |
 
-## 権限とセキュリティ上の制約
+## 権限とキーの管理
 
-キーに付与できるのは明示的に選択した正規の `path.action` 権限のみです。ユーザー、ロール、セキュリティポリシー、ほかの管理 API キーは操作できません。失効・期限切れのキーは使用できず、ローテーション時には旧キーを直ちに無効化します。管理 DB にはハッシュのみ保存し、操作は `management-api-key` として監査します。
+連携に必要な権限だけを付与してください。管理者はキーをいつでも失効させることができ、ローテーション時には新しい秘密値を発行して古いキーを即時無効化します。管理 DB に残るのはハッシュであり、操作は `management-api-key` として監査されます。
 
-> 管理権限はデータベース単位やテナント単位の分離を意味しません。Custom Tool や MCP キーの管理権限は対象の管理リソースに作用します。信頼できるバックエンドだけに配布し、テナント／行レベルの認可は連携元で実装してください。
+管理 API キーの発行・ローテーション・失効には、ログイン済み管理者の `/runtime/security.edit` 権限が必要です。
 
-### Migration
+> 管理権限は特定のデータベース ID やテナントに自動では限定されません。信頼できるバックエンドにキーを保管し、アプリケーション固有の認可は連携側で実装してください。
 
-SQLite／PostgreSQL の管理ストア移行で `ManagementApiKeys` テーブルが追加されます。キーの発行前にマイグレーションを適用してください。既存の管理者 JWT と MCP キーは変更されません。
+## 導入に必要な準備
 
-MCP クライアントへの接続方法は [MCP クライアント設定](/ja/docs/mcp/client-onboarding) を参照してください。
+キーを発行する前に、SQLite または PostgreSQL 用の Admin Store マイグレーションで `ManagementApiKeys` テーブルを追加します。

@@ -1,6 +1,6 @@
 ---
 title: "Upgrade Guide"
-description: "Preparing the proposed 2.0.6 release: dedicated Management API Keys, Admin Store migrations, and unchanged JWT/MCP authentication."
+description: "Prepare the 2.0.6 Management API Key feature and its Admin Store migration."
 sidebar:
   group: Reference
   order: 144
@@ -8,22 +8,19 @@ sidebar:
 
 ## 2.0.5 → 2.0.6 (proposed)
 
-This proposed 2.0.6 update adds machine-to-machine management of the existing Admin REST API without requiring interactive login. It does not change the SQL compiler or MCP tool execution protocol.
+The proposed 2.0.6 release adds API keys for programmatic administration through the existing `/api` endpoints.
 
-## Management API Keys
+## Upgrade steps
 
-After deploying the new version and applying Admin Store migrations: open the Management API Keys page, create a narrowly permissioned integration key, store its one-time secret, and use `X-API-Key` when calling the authorized `/api` endpoints. Keep human admin requests on JWT and MCP client requests on MCP keys.
+1. Deploy the new server version and apply the Admin Store migration that creates `ManagementApiKeys`.
+2. Create a Management API Key in the Admin Console and select only the permissions the integration needs.
+3. Store the one-time secret securely and use the `X-API-Key` header for authorized requests.
+4. Verify expiry, revocation, and rotation in the integration.
 
-```http
-X-API-Key: hsa_mgmt_<secret>
-```
+## Compatibility and rollback
 
-## Migration and compatibility
+Existing administrator sign-in and MCP client connections do not need to change. Older server versions cannot validate Management API Keys; stop using these keys before rolling back.
 
-The feature adds an Admin Store table, `ManagementApiKeys`, via SQLite and PostgreSQL migrations. Apply the appropriate migration before issuing any key; existing human JWTs and MCP keys remain unchanged.
+> Management permissions are not automatically limited to a database ID or tenant. Keep the secret in a trusted backend and enforce application-specific authorization in your integration.
 
-Existing human JWT sessions, MCP keys, five built-in MCP tools, and SQL security semantics remain unchanged. The new table is additive. If rolling back, revoke affected integration keys first; the earlier version has no Management API Key authentication.
-
-> Do not assume database-ID or SaaS tenant isolation from a canonical management permission. API keys are intended for trusted backends only.
-
-[Management API Keys](/docs/2.0.6/integration/management-api-keys)
+[Management API Keys guide](/docs/2.0.6/integration/management-api-keys)

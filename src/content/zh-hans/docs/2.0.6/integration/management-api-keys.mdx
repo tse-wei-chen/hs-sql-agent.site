@@ -1,54 +1,53 @@
 ---
 title: "管理 API 密钥"
-description: "使用独立的 X-API-Key 凭证，让可信任的后端系统调用现有管理 REST API，不与 MCP 密钥或管理员 JWT 混用。"
+description: "从管理界面签发 API 密钥，让后端集成服务直接调用现有管理 API。"
 sidebar:
   group: Integration
   order: 89
 ---
 
-管理 API 密钥允许可信任的后端服务无需交互式管理员登录，就能调用已授权的 `/api` 管理接口。它**不是 MCP 访问密钥**，也不是管理员登录令牌。
+当 SaaS 后端、部署流程或其他服务需要自动管理 Custom Tools、更新配置或签发访问凭证时，可以使用**管理 API 密钥**。每把密钥只能执行管理员明确授权的操作。
 
-## 在管理控制台创建密钥
+## 创建密钥
 
-使用具有 `/runtime/security.edit` 权限的管理员账户登录，打开 **运行管理 → Management API Keys**。填写集成服务名称、365 天以内的 UTC 过期时间，并明确勾选需要的管理权限。明文密钥只显示一次，请立即存入后端密钥管理系统，不要放到浏览器或代码仓库。
+1. 以拥有 `/runtime/security.edit` 权限的管理员身份登录，打开 **Runtime → Management API Keys**。
+2. 填写集成名称和过期时间（最长 365 天）。
+3. 明确选择需要的管理权限。
+4. 签发密钥并立即复制明文；明文只显示一次。
 
-## Authentication
+请将密钥保存在后端密钥管理系统中，不要放在前端代码或代码仓库。
 
-调用时将密钥放入 `X-API-Key` 请求头。管理员的 JWT 仍使用 `Authorization: Bearer <JWT>`；这两种请求头不能同时使用。
+## 调用管理 API
 
-```http
-GET /api/runtime/mcp-keys HTTP/1.1
-Host: agent.example.com
-X-API-Key: hsa_mgmt_<secret>
-```
+调用 API 时，通过 `X-API-Key` HTTP 请求头传递密钥：
 
 ```bash
-curl https://agent.example.com/api/runtime/mcp-keys \\
+curl "https://agent.example.com/api/CustomSqlTool" \
   -H "X-API-Key: ${HS_MANAGEMENT_API_KEY}"
 ```
 
-## 复用现有管理 API，无需 SaaS 专用接口
+不要同时发送 `X-API-Key` 和 `Authorization` 请求头，否则请求会被拒绝。
 
-集成方可以按授权调用现有 Custom Tool 创建、发布和 MCP 密钥签发接口。供 MCP 客户端执行工具使用的 **MCP 密钥必须单独签发**；管理 API 密钥不能调用 `/mcp`。
+## 常见操作及所需权限
 
-| Method | Endpoint | Canonical permission |
+直接使用现有 `/api` 管理接口，无需开发额外的集成接口；每次请求仍会检查对应的规范权限。
+
+| 操作 | API | Canonical Permission |
 | --- | --- | --- |
-| `GET` | `/api/runtime/management-api-keys` | `/runtime/security.edit` (human only) |
-| `POST` | `/api/runtime/management-api-keys` | `/runtime/security.edit` (human only) |
-| `POST` | `/api/runtime/management-api-keys/{id}/rotate` | `/runtime/security.edit` (human only) |
-| `POST` | `/api/runtime/management-api-keys/{id}/revoke` | `/runtime/security.edit` (human only) |
-| `POST` | `/api/CustomSqlTool` | `/runtime/custom-tools.create` |
-| `POST` | `/api/CustomSqlTool/{id}/publish` | `/runtime/custom-tools.edit` |
-| `POST` | `/api/runtime/mcp-keys` | `/runtime/mcp-keys.create` |
+| 查看 Custom Tools | `GET /api/CustomSqlTool` | `/runtime/custom-tools.view` |
+| 创建 Custom Tool | `POST /api/CustomSqlTool` | `/runtime/custom-tools.create` |
+| 发布 Custom Tool | `POST /api/CustomSqlTool/{id}/publish` | `/runtime/custom-tools.edit` |
+| 查看访问密钥 | `GET /api/runtime/mcp-keys` | `/runtime/mcp-keys.view` |
+| 签发访问密钥 | `POST /api/runtime/mcp-keys` | `/runtime/mcp-keys.create` |
 
-## 权限与安全边界
+## 权限和密钥管理
 
-每把密钥只能获得明确选择的规范权限（`path.action`）。它不能管理用户、角色、安全策略或其他管理 API 密钥。过期或撤销后立即失效；轮换将签发新密钥并立即撤销旧密钥。管理数据库只保存哈希值，不保存明文；审计身份为 `management-api-key`。
+只授予集成服务所需的最小权限。管理员可以随时撤销密钥，也可以通过轮换签发新密钥并立即使旧密钥失效。管理数据库只保存哈希，不保存明文；操作以 `management-api-key` 身份记录审计日志。
 
-> 管理权限不等于数据库或租户隔离。具有 Custom Tool、MCP 密钥管理权限的密钥可以操作对应管理资源；仅可交给可信任的后端服务，租户及数据行访问策略由接入系统负责。
+签发、轮换或撤销管理 API 密钥，需要已登录管理员拥有 `/runtime/security.edit` 权限。
 
-### Migration
+> 管理权限目前不会按数据库 ID 或租户自动限制。请将密钥保存在可信任的后端，并由集成服务自行执行应用层授权。
 
-此功能通过 SQLite／PostgreSQL 数据库迁移新增 `ManagementApiKeys` 管理表。请先完成迁移再签发密钥。已有管理员 JWT 和 MCP 密钥保持不变。
+## 部署要求
 
-MCP 客户端的连接方式，请参阅 [MCP 客户端接入指南](/zh-hans/docs/mcp/client-onboarding)。
+签发密钥前，需要执行 SQLite 或 PostgreSQL 的 Admin Store 数据库迁移，创建 `ManagementApiKeys` 表。
