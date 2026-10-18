@@ -1,0 +1,76 @@
+---
+import type { PropertyRow } from "@/utils/adminApiReference";
+type Props = {
+  rows: PropertyRow[];
+  strings: {
+    property: string;
+    type: string;
+    required: string;
+    nullable: string;
+    notes: string;
+    yes: string;
+    no: string;
+    none: string;
+  };
+};
+const { rows, strings } = Astro.props;
+---
+
+<div class="api-schema-scroller">
+  <table class="api-schema-table">
+    <thead
+      ><tr>
+        <th>{strings.property}</th><th>{strings.type}</th><th
+          >{strings.required}</th
+        ><th>{strings.nullable}</th><th>{strings.notes}</th>
+      </tr></thead
+    >
+    <tbody>
+      {
+        rows.map(row => (
+          <tr>
+            <td>
+              <code>{row.name}</code>
+            </td>
+            <td>
+              <code>{row.type}</code>
+            </td>
+            <td>
+              {row.required === null
+                ? "—"
+                : row.required
+                  ? strings.yes
+                  : strings.no}
+            </td>
+            <td>{row.nullable ? strings.yes : strings.no}</td>
+            <td>{row.description || "—"}</td>
+          </tr>
+        ))
+      }
+    </tbody>
+  </table>
+</div>
+<style>
+  .api-schema-scroller {
+    overflow-x: auto;
+  }
+  .api-schema-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.78rem;
+  }
+  .api-schema-table th,
+  .api-schema-table td {
+    padding: 0.42rem 0.38rem;
+    text-align: left;
+    vertical-align: top;
+    border-bottom: 1px solid var(--color-border, #7775);
+  }
+  .api-schema-table td:first-child {
+    min-width: 8rem;
+    overflow-wrap: anywhere;
+  }
+  .api-schema-table td:last-child {
+    overflow-wrap: anywhere;
+  }
+</style>

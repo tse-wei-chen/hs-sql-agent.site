@@ -1,0 +1,79 @@
+---
+title: "기존 API 요청 및 응답 예시"
+description: "Admin UI에서 발급한 API 키로 기존 관리 REST API를 호출하는 예시."
+sidebar:
+  group: 참조
+  order: 143
+---
+
+import ApiStatusCodes from "@/components/docs/ApiStatusCodes.astro";
+
+Admin UI의 **Runtime → Management API Keys**에서 키를 만든 다음, 백엔드는 `X-API-Key`로 기존 `/api`를 호출합니다. 아래는 연동 서비스가 실제로 호출하는 API입니다.
+
+## GET: 데이터베이스 연결 목록
+
+필요 권한: `/runtime/db-management.view`. 성공 시 HTTP `200`으로 `DbManagementVM` 배열을 반환합니다. 아래는 일부 필드입니다.
+
+```bash
+curl -X GET "https://agent.example.com/api/DbManagement" \
+  -H "X-API-Key: ${HS_MANAGEMENT_API_KEY}"
+```
+
+**200 OK** — JSON(일부 필드만 표시):
+
+```json
+[
+  {
+    "id": 1,
+    "name": "Production DB",
+    "sqlProvider": "PostgreSql",
+    "host": "db.internal",
+    "database": "orders",
+    "isBootstrapManaged": false
+  }
+]
+```
+
+## POST: Custom Tool 생성
+
+필요 권한: `/runtime/custom-tools.create`. 실제 `dbManagementId`를 입력하고 SQL Template은 데이터베이스에 맞게 수정하세요.
+
+```bash
+curl -X POST "https://agent.example.com/api/CustomSqlTool" \
+  -H "X-API-Key: ${HS_MANAGEMENT_API_KEY}" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "list_orders",
+    "description": "List order identifiers",
+    "type": "Query",
+    "sqlTemplate": "SELECT id FROM orders",
+    "dbManagementId": 1
+  }'
+```
+
+성공 시 `201 Created`와 `CustomSqlTool` 객체를 반환합니다. 서버에서 생성하는 일부 필드를 보여줍니다.
+
+```json
+{
+  "id": 42,
+  "name": "list_orders",
+  "description": "List order identifiers",
+  "sqlTemplate": "SELECT id FROM orders",
+  "type": "Query",
+  "parametersJson": null,
+  "dbManagementId": 1,
+  "status": "Draft",
+  "publishedRevisionId": null,
+  "publishedIdentity": null,
+  "createdAt": "2026-10-18T09:00:00Z",
+  "lastModifiedAt": null
+}
+```
+
+## 주요 HTTP 응답 코드
+
+<ApiStatusCodes locale="ko" />
+
+## 다른 API 안내
+
+전체 경로는[관리 REST API 목록](/ko/docs/reference/api-reference)을 참고하세요. 누락된 응답 Schema는 [OpenAPI PR #294](https://github.com/tse-wei-chen/hs-sql-agent/pull/294)에서 보완 중입니다.

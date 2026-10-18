@@ -1,0 +1,74 @@
+---
+title: "System-to-System API キーで管理 API を利用する"
+description: "Admin UI でキーを発行し、バックエンドから既存の管理 REST API を呼び出します。"
+sidebar:
+  group: 連携
+  order: 89
+---
+
+バックエンドや自動化処理から管理操作を行うには、まず **Admin UI で System-to-System API キーを発行**し、必要な権限を付与します。そのキーを `X-API-Key` ヘッダーに入れて既存の `/api` を呼び出してください。キー発行用 API を自分で呼び出す必要はありません。
+
+## 1. Admin UI でキーを発行する
+
+1. セキュリティ設定を編集できる管理者として Admin UI にログインします。
+2. **Runtime → Management API Keys** を開きます。
+3. `production-integration` などの名前と有効期限を指定します。
+4. 連携に必要な権限を選択します。以下の例では `/runtime/db-management.view` と `/runtime/custom-tools.view` を選びます。
+5. **Issue key** を押し、一度だけ表示される秘密値をコピーします。
+
+キーはバックエンドのシークレット管理基盤か環境変数に保存し、ブラウザーやリポジトリには置かないでください。
+
+## 2. 既存の API を呼び出す
+
+設定済みのデータベース接続一覧を取得する例：
+
+```bash
+curl -X GET "https://agent.example.com/api/DbManagement" \
+  -H "X-API-Key: ${HS_MANAGEMENT_API_KEY}"
+```
+
+Custom Tools の一覧を取得する例：
+
+```bash
+curl -X GET "https://agent.example.com/api/CustomSqlTool" \
+  -H "X-API-Key: ${HS_MANAGEMENT_API_KEY}"
+```
+
+## 3. 応答を確認する
+
+データベース一覧 API は成功時に HTTP `200` と JSON 配列を返します。以下は1件の一部フィールドのみを示します。
+
+```json
+[
+  {
+    "id": 1,
+    "name": "Production DB",
+    "sqlProvider": "PostgreSql",
+    "host": "db.internal",
+    "database": "orders",
+    "isBootstrapManaged": false
+  }
+]
+```
+
+## 呼び出し可能な API と権限
+
+Admin UI で付与した権限に応じて、同じキーで複数の既存管理 API を呼び出せます。
+
+| API | Permission |
+| --- | --- |
+| `GET /api/DbManagement` | `/runtime/db-management.view` |
+| `GET /api/CustomSqlTool` | `/runtime/custom-tools.view` |
+| `POST /api/CustomSqlTool` | `/runtime/custom-tools.create` |
+| `POST /api/CustomSqlTool/{id}/publish` | `/runtime/custom-tools.edit` |
+| `POST /api/DbManagement` | `/runtime/db-management.create` |
+
+## Request／Response の仕様
+
+POST の JSON 例は[実際の Request／Response](/ja/docs/2.0.6/reference/admin-api-contracts)、他のルートは[管理 REST API リファレンス](/ja/docs/reference/api-reference)を参照してください。レスポンス仕様の補完状況は [Issue #295](https://github.com/tse-wei-chen/hs-sql-agent/issues/295) に記載しています。
+
+## キーの更新・失効
+
+キーのローテーションや失効は **Runtime → Management API Keys** から行います。連携側がキー発行 API を操作する必要はありません。
+
+> 権限はデータベース ID やテナント単位の隔離ではありません。信頼できるバックエンドのみで使用し、`X-API-Key` と `Authorization` を同時に送信しないでください。

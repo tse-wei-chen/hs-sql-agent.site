@@ -1,0 +1,74 @@
+---
+title: "使用 System-to-System API Key 调用管理 API"
+description: "在 Admin UI 签发 Key，让外部后端调用现有管理 REST API。"
+sidebar:
+  group: 集成
+  order: 89
+---
+
+要让 SaaS 后端、定时任务或其他系统自动进行管理操作，请先在 **Admin UI 创建 System-to-System API Key**，选择权限，再通过 `X-API-Key` 调用**现有 `/api`**。无需编写签发 Key 的接口调用，也不需要模拟管理员登录。
+
+## 1. 在 Admin UI 签发 Key
+
+1. 使用具有安全设置编辑权限的管理员账号登录 Admin UI。
+2. 打开 **Runtime → Management API Keys**。
+3. 填写名称，例如 `production-integration`，设置过期时间。
+4. 选择集成需要的权限。下方示例需要 `/runtime/db-management.view` 和 `/runtime/custom-tools.view`。
+5. 点击 **Issue key** 并立即复制密钥；明文只显示一次。
+
+请将 Key 存入后端 Secret Manager 或环境变量，不要暴露给浏览器或放入代码仓库。
+
+## 2. 使用 Key 调用现有 API
+
+例如列出已配置的数据库连接：
+
+```bash
+curl -X GET "https://agent.example.com/api/DbManagement" \
+  -H "X-API-Key: ${HS_MANAGEMENT_API_KEY}"
+```
+
+或者列出 Custom Tools：
+
+```bash
+curl -X GET "https://agent.example.com/api/CustomSqlTool" \
+  -H "X-API-Key: ${HS_MANAGEMENT_API_KEY}"
+```
+
+## 3. 查看响应
+
+数据库列表接口成功时返回 HTTP `200` 与 JSON 数组。下方是单个项目的部分字段：
+
+```json
+[
+  {
+    "id": 1,
+    "name": "Production DB",
+    "sqlProvider": "PostgreSql",
+    "host": "db.internal",
+    "database": "orders",
+    "isBootstrapManaged": false
+  }
+]
+```
+
+## Key 可以调用哪些 API？
+
+由 Admin UI 选择的权限决定。同一把 Key 可以调用多个已授权的现有 API，无需单独签发。
+
+| API | Permission |
+| --- | --- |
+| `GET /api/DbManagement` | `/runtime/db-management.view` |
+| `GET /api/CustomSqlTool` | `/runtime/custom-tools.view` |
+| `POST /api/CustomSqlTool` | `/runtime/custom-tools.create` |
+| `POST /api/CustomSqlTool/{id}/publish` | `/runtime/custom-tools.edit` |
+| `POST /api/DbManagement` | `/runtime/db-management.create` |
+
+## 在哪里查看 Request／Response？
+
+请查看[实际请求响应示例](/zh-hans/docs/2.0.6/reference/admin-api-contracts)，其中包括创建 Custom Tool 的 POST JSON；其他接口参见[管理 REST API 路由参考](/zh-hans/docs/reference/api-reference)。未完善的响应 Schema 见 [Issue #295](https://github.com/tse-wei-chen/hs-sql-agent/issues/295)。
+
+## 轮换或撤销 Key
+
+如需轮换或撤销，请返回 **Runtime → Management API Keys** 操作。外部服务只使用已签发的 Key。
+
+> 管理权限不会自动限制数据库 ID 或租户；Key 仅应放在可信任的后端。使用 `X-API-Key` 时不要同时发送 `Authorization`。

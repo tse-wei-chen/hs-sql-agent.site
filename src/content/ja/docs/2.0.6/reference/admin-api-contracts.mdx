@@ -1,0 +1,79 @@
+---
+title: "既存 API の Request／Response 例"
+description: "Admin UI で発行したキーを利用して管理 REST API を呼び出す例。"
+sidebar:
+  group: リファレンス
+  order: 143
+---
+
+import ApiStatusCodes from "@/components/docs/ApiStatusCodes.astro";
+
+Admin UI の **Runtime → Management API Keys** でキーを作成した後、バックエンドは `X-API-Key` で既存の `/api` を呼び出します。ここでは連携側が実際に使う API を説明します。
+
+## GET: データベース接続一覧
+
+必要な権限：`/runtime/db-management.view`。HTTP `200` で `DbManagementVM` の配列を返します。以下は一部のフィールドです。
+
+```bash
+curl -X GET "https://agent.example.com/api/DbManagement" \
+  -H "X-API-Key: ${HS_MANAGEMENT_API_KEY}"
+```
+
+**200 OK** — JSON（一部のフィールドのみ）：
+
+```json
+[
+  {
+    "id": 1,
+    "name": "Production DB",
+    "sqlProvider": "PostgreSql",
+    "host": "db.internal",
+    "database": "orders",
+    "isBootstrapManaged": false
+  }
+]
+```
+
+## POST: Custom Tool の作成
+
+必要な権限：`/runtime/custom-tools.create`。存在する `dbManagementId` を指定し、SQL Template は対象データベースに合わせて調整します。
+
+```bash
+curl -X POST "https://agent.example.com/api/CustomSqlTool" \
+  -H "X-API-Key: ${HS_MANAGEMENT_API_KEY}" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "list_orders",
+    "description": "List order identifiers",
+    "type": "Query",
+    "sqlTemplate": "SELECT id FROM orders",
+    "dbManagementId": 1
+  }'
+```
+
+成功時は `201 Created` と `CustomSqlTool` が返されます。サーバーが設定する一部のフィールドを示します。
+
+```json
+{
+  "id": 42,
+  "name": "list_orders",
+  "description": "List order identifiers",
+  "sqlTemplate": "SELECT id FROM orders",
+  "type": "Query",
+  "parametersJson": null,
+  "dbManagementId": 1,
+  "status": "Draft",
+  "publishedRevisionId": null,
+  "publishedIdentity": null,
+  "createdAt": "2026-10-18T09:00:00Z",
+  "lastModifiedAt": null
+}
+```
+
+## 主な HTTP ステータス
+
+<ApiStatusCodes locale="ja" />
+
+## 他の管理 API
+
+ルート一覧は[管理 REST API リファレンス](/ja/docs/reference/api-reference)を参照してください。未定義のレスポンススキーマは [OpenAPI PR #294](https://github.com/tse-wei-chen/hs-sql-agent/pull/294) で補完中です。

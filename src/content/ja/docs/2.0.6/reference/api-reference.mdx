@@ -1,0 +1,17 @@
+---
+title: "管理 REST API リファレンス"
+description: "すべての API のリクエスト／レスポンスモデルのフィールド、型、必須、Nullable を確認します。"
+sidebar:
+  group: リファレンス
+  order: 142
+---
+
+import ApiReference from "@/components/docs/ApiReference.astro";
+
+各 API を展開すると Path／Query パラメータ、Request Body、各 HTTP レスポンスのプロパティとネスト構造、型、必須／Nullable を確認できます。Controller と DTO の OpenAPI メタデータから生成されます。
+
+[先に Admin UI で System-to-System キーを発行する](/ja/docs/2.0.6/integration/management-api-keys).
+
+> 古い IActionResult の一部にはレスポンス型の宣言がなく、Schema 未定義として表示します。推測したフィールドは掲載しません。進捗は Issue #295 を参照してください。アカウント API は System-to-System キーでは使用できません。
+
+<ApiReference locale="ja" />

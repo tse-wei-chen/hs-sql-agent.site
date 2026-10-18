@@ -1,0 +1,26 @@
+---
+title: "Upgrade Guide"
+description: "Prepare the 2.0.6 Management API Key feature and its Admin Store migration."
+sidebar:
+  group: Reference
+  order: 144
+---
+
+## 2.0.5 → 2.0.6 (proposed)
+
+The proposed 2.0.6 release adds API keys for programmatic administration through the existing `/api` endpoints.
+
+## Upgrade steps
+
+1. Deploy the new server version and apply the Admin Store migration that creates `ManagementApiKeys`.
+2. Create a Management API Key in the Admin Console and select only the permissions the integration needs.
+3. Store the one-time secret securely and use the `X-API-Key` header for authorized requests.
+4. Verify expiry, revocation, and rotation in the integration.
+
+## Compatibility and rollback
+
+Existing administrator sign-in and MCP client connections do not need to change. Older server versions cannot validate Management API Keys; stop using these keys before rolling back.
+
+> Management permissions are not automatically limited to a database ID or tenant. Keep the secret in a trusted backend and enforce application-specific authorization in your integration.
+
+[Management API Keys guide](/docs/2.0.6/integration/management-api-keys)

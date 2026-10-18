@@ -1,0 +1,74 @@
+---
+title: "System-to-System API 키로 관리 API 사용"
+description: "Admin UI에서 키를 발급하고 백엔드에서 기존 REST API를 호출합니다."
+sidebar:
+  group: 통합
+  order: 89
+---
+
+백엔드 서비스가 관리 작업을 자동화하려면 **Admin UI에서 System-to-System API 키를 발급**하고 필요한 권한을 선택하세요. 그다음 `X-API-Key` 헤더로 기존 `/api`를 호출하면 됩니다. 키를 발급하기 위한 별도의 API 호출은 필요하지 않습니다.
+
+## 1. Admin UI에서 키 발급
+
+1. 보안 설정을 수정할 수 있는 관리자로 Admin UI에 로그인합니다.
+2. **Runtime → Management API Keys** 페이지를 엽니다.
+3. `production-integration` 같은 이름과 만료 시간을 입력합니다.
+4. 필요한 권한을 선택합니다. 아래 예시는 `/runtime/db-management.view`와 `/runtime/custom-tools.view`가 필요합니다.
+5. **Issue key**를 누르고 한 번만 표시되는 비밀 값을 복사합니다.
+
+키는 백엔드 Secret Manager 또는 환경 변수에 보관하고 브라우저나 Git에 노출하지 마세요.
+
+## 2. 기존 관리 API 호출
+
+설정된 데이터베이스 연결 목록:
+
+```bash
+curl -X GET "https://agent.example.com/api/DbManagement" \
+  -H "X-API-Key: ${HS_MANAGEMENT_API_KEY}"
+```
+
+Custom Tools 목록:
+
+```bash
+curl -X GET "https://agent.example.com/api/CustomSqlTool" \
+  -H "X-API-Key: ${HS_MANAGEMENT_API_KEY}"
+```
+
+## 3. 응답 확인
+
+데이터베이스 목록 API는 성공 시 HTTP `200`과 JSON 배열을 반환합니다. 아래는 한 항목의 일부 필드 예시입니다.
+
+```json
+[
+  {
+    "id": 1,
+    "name": "Production DB",
+    "sqlProvider": "PostgreSql",
+    "host": "db.internal",
+    "database": "orders",
+    "isBootstrapManaged": false
+  }
+]
+```
+
+## 키 권한과 호출 가능한 API
+
+Admin UI에서 부여한 권한에 따라 동일한 키로 여러 기존 관리 API를 호출할 수 있습니다.
+
+| API | Permission |
+| --- | --- |
+| `GET /api/DbManagement` | `/runtime/db-management.view` |
+| `GET /api/CustomSqlTool` | `/runtime/custom-tools.view` |
+| `POST /api/CustomSqlTool` | `/runtime/custom-tools.create` |
+| `POST /api/CustomSqlTool/{id}/publish` | `/runtime/custom-tools.edit` |
+| `POST /api/DbManagement` | `/runtime/db-management.create` |
+
+## Request／Response 확인
+
+POST JSON 예시는[실제 요청과 응답](/ko/docs/2.0.6/reference/admin-api-contracts)을, 다른 경로는[관리 REST API 목록](/ko/docs/reference/api-reference)을 참고하세요. 부족한 응답 Schema는 [Issue #295](https://github.com/tse-wei-chen/hs-sql-agent/issues/295)에서 보완 중입니다.
+
+## 키 교체 또는 폐기
+
+키의 교체나 폐기는 **Runtime → Management API Keys**에서 처리합니다. 외부 서비스는 이미 발급된 키만 사용하면 됩니다.
+
+> 관리 권한만으로 데이터베이스 ID나 테넌트가 격리되지는 않습니다. 키는 신뢰할 수 있는 백엔드에만 보관하고 `X-API-Key`와 `Authorization`을 함께 보내지 마세요.

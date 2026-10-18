@@ -1,0 +1,79 @@
+---
+title: "Request und Response bestehender Admin APIs"
+description: "Praxisbeispiele mit einem in der Admin UI ausgestellten API-Schlüssel."
+sidebar:
+  group: Referenz
+  order: 143
+---
+
+import ApiStatusCodes from "@/components/docs/ApiStatusCodes.astro";
+
+Erstellen Sie den Schlüssel unter **Runtime → Management API Keys**. Das Backend ruft die vorhandenen `/api`-Endpunkte mit `X-API-Key` auf. Hier werden die tatsächlich von Integrationen verwendeten APIs erklärt.
+
+## GET: Datenbankverbindungen auflisten
+
+Berechtigung: `/runtime/db-management.view`. Antwort: HTTP `200` mit einem Array von `DbManagementVM`. Es werden nur ausgewählte Felder gezeigt.
+
+```bash
+curl -X GET "https://agent.example.com/api/DbManagement" \
+  -H "X-API-Key: ${HS_MANAGEMENT_API_KEY}"
+```
+
+**200 OK** — JSON (Auswahl der Felder):
+
+```json
+[
+  {
+    "id": 1,
+    "name": "Production DB",
+    "sqlProvider": "PostgreSql",
+    "host": "db.internal",
+    "database": "orders",
+    "isBootstrapManaged": false
+  }
+]
+```
+
+## POST: Custom Tool erstellen
+
+Berechtigung: `/runtime/custom-tools.create`. Verwenden Sie eine vorhandene `dbManagementId` und passen Sie die SQL-Vorlage an Ihre Datenbank an.
+
+```bash
+curl -X POST "https://agent.example.com/api/CustomSqlTool" \
+  -H "X-API-Key: ${HS_MANAGEMENT_API_KEY}" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "list_orders",
+    "description": "List order identifiers",
+    "type": "Query",
+    "sqlTemplate": "SELECT id FROM orders",
+    "dbManagementId": 1
+  }'
+```
+
+Erfolg: `201 Created` und ein `CustomSqlTool`-Objekt mit serverseitig generierten Feldern.
+
+```json
+{
+  "id": 42,
+  "name": "list_orders",
+  "description": "List order identifiers",
+  "sqlTemplate": "SELECT id FROM orders",
+  "type": "Query",
+  "parametersJson": null,
+  "dbManagementId": 1,
+  "status": "Draft",
+  "publishedRevisionId": null,
+  "publishedIdentity": null,
+  "createdAt": "2026-10-18T09:00:00Z",
+  "lastModifiedAt": null
+}
+```
+
+## Häufige HTTP-Statuscodes
+
+<ApiStatusCodes locale="de" />
+
+## Weitere APIs
+
+Das [Admin REST API-Verzeichnis](/de/docs/reference/api-reference) enthält weitere Routen. Fehlende Antwortschemata werden in [OpenAPI PR #294](https://github.com/tse-wei-chen/hs-sql-agent/pull/294) ergänzt.

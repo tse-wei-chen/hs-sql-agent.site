@@ -1,0 +1,74 @@
+---
+title: "Utiliser une clé API système à système"
+description: "Émettez une clé dans l'Admin UI, puis appelez les API REST d'administration existantes."
+sidebar:
+  group: Intégration
+  order: 89
+---
+
+Pour automatiser l'administration depuis un backend, **créez une clé API système à système dans l'Admin UI**, sélectionnez ses autorisations, puis appelez les endpoints `/api` existants via `X-API-Key`. Aucune requête API n'est nécessaire pour émettre la clé.
+
+## 1. Émettre une clé dans l'Admin UI
+
+1. Connectez-vous avec un administrateur autorisé à modifier la sécurité.
+2. Ouvrez **Runtime → Management API Keys**.
+3. Saisissez un nom, par exemple `production-integration`, et définissez la date d'expiration.
+4. Choisissez les autorisations nécessaires. Les exemples utilisent `/runtime/db-management.view` et `/runtime/custom-tools.view`.
+5. Cliquez sur **Issue key** et copiez immédiatement le secret affiché une seule fois.
+
+Conservez la clé dans le gestionnaire de secrets du backend ou une variable d'environnement, jamais dans le navigateur ou Git.
+
+## 2. Appeler les API existantes
+
+Lister les connexions aux bases de données :
+
+```bash
+curl -X GET "https://agent.example.com/api/DbManagement" \
+  -H "X-API-Key: ${HS_MANAGEMENT_API_KEY}"
+```
+
+Lister les Custom Tools :
+
+```bash
+curl -X GET "https://agent.example.com/api/CustomSqlTool" \
+  -H "X-API-Key: ${HS_MANAGEMENT_API_KEY}"
+```
+
+## 3. Lire la réponse
+
+L'API de liste des bases retourne HTTP `200` avec un tableau JSON. Voici quelques champs d'un élément :
+
+```json
+[
+  {
+    "id": 1,
+    "name": "Production DB",
+    "sqlProvider": "PostgreSql",
+    "host": "db.internal",
+    "database": "orders",
+    "isBootstrapManaged": false
+  }
+]
+```
+
+## Autorisations et API accessibles
+
+Les droits choisis dans l'Admin UI définissent les endpoints que la même clé peut appeler.
+
+| API | Permission |
+| --- | --- |
+| `GET /api/DbManagement` | `/runtime/db-management.view` |
+| `GET /api/CustomSqlTool` | `/runtime/custom-tools.view` |
+| `POST /api/CustomSqlTool` | `/runtime/custom-tools.create` |
+| `POST /api/CustomSqlTool/{id}/publish` | `/runtime/custom-tools.edit` |
+| `POST /api/DbManagement` | `/runtime/db-management.create` |
+
+## Spécifications Request／Response
+
+Consultez les [exemples de requêtes et réponses](/fr/docs/2.0.6/reference/admin-api-contracts) pour un POST JSON et le [catalogue des routes Admin](/fr/docs/reference/api-reference) pour les autres API. Les réponses encore non documentées sont suivies dans [issue #295](https://github.com/tse-wei-chen/hs-sql-agent/issues/295).
+
+## Renouveler ou révoquer la clé
+
+La rotation et la révocation s'effectuent depuis **Runtime → Management API Keys**. Le service externe utilise simplement la clé déjà émise.
+
+> Les autorisations ne limitent pas automatiquement une base de données ou un locataire. Réservez la clé à un backend de confiance. N'envoyez pas `Authorization` avec `X-API-Key`.

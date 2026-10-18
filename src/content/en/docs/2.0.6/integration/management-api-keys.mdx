@@ -1,0 +1,74 @@
+---
+title: "Use a System-to-System API Key"
+description: "Issue a key in the Admin UI, then use it to call existing management APIs from your backend."
+sidebar:
+  group: Integration
+  order: 89
+---
+
+A System-to-System API Key lets a backend service automate existing Admin REST API operations. **Create the key in the Admin UI, grant the permissions it needs, then call the normal `/api` endpoints using `X-API-Key`.**
+
+## 1. Issue the key in the Admin UI
+
+1. Sign in to the Admin UI with permission to edit security settings.
+2. Open **Runtime → Management API Keys**.
+3. Enter a name such as `production-integration` and set an expiration date.
+4. Select the permissions needed by your service. For the examples below, enable `/runtime/db-management.view` and `/runtime/custom-tools.view`.
+5. Select **Issue key** and copy the secret immediately. It is only displayed once.
+
+Save the key in your backend's secret manager or environment variables. Do not expose it to browsers or store it in a repository.
+
+## 2. Call your existing APIs
+
+List configured database connections:
+
+```bash
+curl -X GET "https://agent.example.com/api/DbManagement" \
+  -H "X-API-Key: ${HS_MANAGEMENT_API_KEY}"
+```
+
+List registered Custom Tools:
+
+```bash
+curl -X GET "https://agent.example.com/api/CustomSqlTool" \
+  -H "X-API-Key: ${HS_MANAGEMENT_API_KEY}"
+```
+
+## 3. Read the response
+
+The database list endpoint responds with HTTP `200` and a JSON array. This is an abbreviated example of a single item:
+
+```json
+[
+  {
+    "id": 1,
+    "name": "Production DB",
+    "sqlProvider": "PostgreSql",
+    "host": "db.internal",
+    "database": "orders",
+    "isBootstrapManaged": false
+  }
+]
+```
+
+## Which APIs can I call?
+
+The permissions checked in the UI determine which management endpoints accept the key. You can use the same key for every permitted operation.
+
+| API | Permission |
+| --- | --- |
+| `GET /api/DbManagement` | `/runtime/db-management.view` |
+| `GET /api/CustomSqlTool` | `/runtime/custom-tools.view` |
+| `POST /api/CustomSqlTool` | `/runtime/custom-tools.create` |
+| `POST /api/CustomSqlTool/{id}/publish` | `/runtime/custom-tools.edit` |
+| `POST /api/DbManagement` | `/runtime/db-management.create` |
+
+## Where are the request and response schemas?
+
+See [practical Request/Response examples](/docs/2.0.6/reference/admin-api-contracts) for a JSON POST example, and the [Admin API route reference](/docs/reference/api-reference) for other endpoints. Full response schema coverage is still being improved in [issue #295](https://github.com/tse-wei-chen/hs-sql-agent/issues/295).
+
+## Rotate or revoke the key
+
+Return to **Runtime → Management API Keys** to rotate or revoke it. The backend uses the already issued key; it does not need to programmatically issue or manage keys.
+
+> A management permission is not a tenant or database-ID restriction. Keep the key only in trusted backend services. Send `X-API-Key` without an additional `Authorization` header.

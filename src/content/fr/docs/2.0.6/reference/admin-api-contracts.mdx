@@ -1,0 +1,79 @@
+---
+title: "Requêtes et réponses des API existantes"
+description: "Exemples concrets utilisant une clé émise dans l'Admin UI."
+sidebar:
+  group: Référence
+  order: 143
+---
+
+import ApiStatusCodes from "@/components/docs/ApiStatusCodes.astro";
+
+Après l'émission dans **Runtime → Management API Keys**, votre backend appelle les API `/api` existantes via `X-API-Key`. Cette page décrit les endpoints effectivement utilisés par l'intégration.
+
+## GET : lister les bases
+
+Autorisation : `/runtime/db-management.view`. Réponse HTTP `200`, tableau de `DbManagementVM`. Champs abrégés ci-dessous.
+
+```bash
+curl -X GET "https://agent.example.com/api/DbManagement" \
+  -H "X-API-Key: ${HS_MANAGEMENT_API_KEY}"
+```
+
+**200 OK** — JSON (quelques champs uniquement) :
+
+```json
+[
+  {
+    "id": 1,
+    "name": "Production DB",
+    "sqlProvider": "PostgreSql",
+    "host": "db.internal",
+    "database": "orders",
+    "isBootstrapManaged": false
+  }
+]
+```
+
+## POST : créer un Custom Tool
+
+Autorisation : `/runtime/custom-tools.create`. Remplacez `dbManagementId` par un identifiant existant et adaptez la requête SQL à votre base.
+
+```bash
+curl -X POST "https://agent.example.com/api/CustomSqlTool" \
+  -H "X-API-Key: ${HS_MANAGEMENT_API_KEY}" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "list_orders",
+    "description": "List order identifiers",
+    "type": "Query",
+    "sqlTemplate": "SELECT id FROM orders",
+    "dbManagementId": 1
+  }'
+```
+
+Succès : `201 Created` et objet `CustomSqlTool`. Certains champs sont générés par le serveur.
+
+```json
+{
+  "id": 42,
+  "name": "list_orders",
+  "description": "List order identifiers",
+  "sqlTemplate": "SELECT id FROM orders",
+  "type": "Query",
+  "parametersJson": null,
+  "dbManagementId": 1,
+  "status": "Draft",
+  "publishedRevisionId": null,
+  "publishedIdentity": null,
+  "createdAt": "2026-10-18T09:00:00Z",
+  "lastModifiedAt": null
+}
+```
+
+## Codes de réponse courants
+
+<ApiStatusCodes locale="fr" />
+
+## Autres API
+
+Voir le [catalogue des routes Admin](/fr/docs/reference/api-reference). Les schémas de réponse manquants sont en cours de traitement dans [OpenAPI PR #294](https://github.com/tse-wei-chen/hs-sql-agent/pull/294).

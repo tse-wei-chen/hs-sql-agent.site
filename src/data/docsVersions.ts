@@ -44,6 +44,15 @@ const versionDefinitions = [
     removed: [],
     redirects: {},
   },
+  {
+    // Staged documentation preview: do not merge before the product 2.0.6 release.
+    version: "2.0.6",
+    label: "2.0.6 (preview)",
+    status: "supported",
+    parent: productRelease.version,
+    removed: [],
+    redirects: {},
+  },
 ] as const satisfies readonly DocsVersionDefinition[];
 
 export const docsVersions = {

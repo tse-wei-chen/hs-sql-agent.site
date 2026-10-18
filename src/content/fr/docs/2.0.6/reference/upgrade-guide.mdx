@@ -1,0 +1,26 @@
+---
+title: "Guide de mise à niveau"
+description: "Préparer la fonctionnalité de clés d’administration de 2.0.6 et la migration de l’Admin Store."
+sidebar:
+  group: Référence
+  order: 144
+---
+
+## 2.0.5 → 2.0.6 (proposed)
+
+La version 2.0.6 envisagée ajoute une authentification par clé pour automatiser les API d’administration `/api` existantes.
+
+## Étapes de mise à niveau
+
+1. Déployez la nouvelle version et appliquez la migration de l’Admin Store qui crée `ManagementApiKeys`.
+2. Émettez une clé avec les seules autorisations nécessaires depuis la console.
+3. Conservez le secret affiché une fois et utilisez `X-API-Key` pour les requêtes autorisées.
+4. Testez l’expiration, la révocation et la rotation dans votre intégration.
+
+## Compatibilité et retour arrière
+
+Les connexions des administrateurs et les clients MCP continuent de fonctionner comme auparavant. Les versions antérieures ne savent pas valider les nouvelles clés : cessez de les utiliser dans vos intégrations avant tout retour arrière.
+
+> Les autorisations de gestion ne sont pas automatiquement limitées à une base de données ou à un locataire. Conservez la clé dans un backend de confiance et appliquez les règles d’accès métier côté intégration.
+
+[Guide des clés d’API d’administration](/fr/docs/2.0.6/integration/management-api-keys)

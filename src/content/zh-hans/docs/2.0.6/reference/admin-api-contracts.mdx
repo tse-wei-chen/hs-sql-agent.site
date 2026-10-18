@@ -1,0 +1,79 @@
+---
+title: "使用 Key 调用现有 API：Request／Response"
+description: "使用 Admin UI 签发的 Key 调用现有管理 API，附实际 JSON 示例。"
+sidebar:
+  group: 参考
+  order: 143
+---
+
+import ApiStatusCodes from "@/components/docs/ApiStatusCodes.astro";
+
+管理员先在 **Runtime → Management API Keys** 签发 Key；外部后端通过 `X-API-Key` 调用现有管理 API。本页只说明**集成服务需要调用的接口**。
+
+## GET 示例：列出数据库连接
+
+需要 `/runtime/db-management.view` 权限。成功返回 `200` 和 `DbManagementVM` 数组；下方仅展示部分字段。
+
+```bash
+curl -X GET "https://agent.example.com/api/DbManagement" \
+  -H "X-API-Key: ${HS_MANAGEMENT_API_KEY}"
+```
+
+**200 OK** — JSON（仅展示部分字段）：
+
+```json
+[
+  {
+    "id": 1,
+    "name": "Production DB",
+    "sqlProvider": "PostgreSql",
+    "host": "db.internal",
+    "database": "orders",
+    "isBootstrapManaged": false
+  }
+]
+```
+
+## POST 示例：创建 Custom Tool
+
+需要 `/runtime/custom-tools.create` 权限。请使用已存在的 `dbManagementId`，并根据目标数据库修改 SQL Template。请求映射到 `CustomSqlTool` 模型。
+
+```bash
+curl -X POST "https://agent.example.com/api/CustomSqlTool" \
+  -H "X-API-Key: ${HS_MANAGEMENT_API_KEY}" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "list_orders",
+    "description": "List order identifiers",
+    "type": "Query",
+    "sqlTemplate": "SELECT id FROM orders",
+    "dbManagementId": 1
+  }'
+```
+
+成功返回 `201 Created` 和 `CustomSqlTool` 对象；下方展示部分服务器生成字段。
+
+```json
+{
+  "id": 42,
+  "name": "list_orders",
+  "description": "List order identifiers",
+  "sqlTemplate": "SELECT id FROM orders",
+  "type": "Query",
+  "parametersJson": null,
+  "dbManagementId": 1,
+  "status": "Draft",
+  "publishedRevisionId": null,
+  "publishedIdentity": null,
+  "createdAt": "2026-10-18T09:00:00Z",
+  "lastModifiedAt": null
+}
+```
+
+## 常见 HTTP 状态码
+
+<ApiStatusCodes locale="zh-hans" />
+
+## 其他 API 规范
+
+更多接口见[管理 REST API 路由参考](/zh-hans/docs/reference/api-reference)。部分旧接口缺少完整的 Response Schema，正通过 [OpenAPI PR #294](https://github.com/tse-wei-chen/hs-sql-agent/pull/294) 补齐。
