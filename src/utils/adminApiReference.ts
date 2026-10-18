@@ -1,3 +1,4 @@
+import { getAdminApiMessages } from "@/data/adminApiReferenceI18n";
 import { gunzipSync } from "node:zlib";
 import packedSpec from "@/data/admin-api/openapi-2.0.6-preview.b64?raw";
 import packedDelta from "@/data/admin-api/openapi-2.0.6-update.b64?raw";
@@ -109,22 +110,22 @@ function refName(ref: string) {
   return ref.split("/").at(-1) ?? ref;
 }
 
-export function describeType(input?: Schema): string {
-  if (!input) return "unspecified";
+export function describeType(input?: Schema, locale = "en"): string {
+  if (!input) return getAdminApiMessages(locale).unknownType;
   if (input.$ref) return refName(input.$ref);
-  if (input.oneOf?.length) return input.oneOf.map(describeType).join(" | ");
-  if (input.anyOf?.length) return input.anyOf.map(describeType).join(" | ");
-  if (input.allOf?.length) return input.allOf.map(describeType).join(" & ");
+  if (input.oneOf?.length) return input.oneOf.map(item => describeType(item, locale)).join(" | ");
+  if (input.anyOf?.length) return input.anyOf.map(item => describeType(item, locale)).join(" | ");
+  if (input.allOf?.length) return input.allOf.map(item => describeType(item, locale)).join(" & ");
   const types = Array.isArray(input.type)
     ? input.type.filter(t => t !== "null")
     : input.type
       ? [input.type]
       : [];
   const type =
-    types.join(" | ") || (input.properties ? "object" : "unspecified");
-  if (type === "array") return `array<${describeType(input.items)}>`;
+    types.join(" | ") || (input.properties ? "object" : getAdminApiMessages(locale).unknownType);
+  if (type === "array") return `array<${describeType(input.items, locale)}>`;
   if (type === "object" && input.additionalProperties) {
-    return `map<string, ${typeof input.additionalProperties === "object" ? describeType(input.additionalProperties) : "any"}>`;
+    return `map<string, ${typeof input.additionalProperties === "object" ? describeType(input.additionalProperties, locale) : "any"}>`;
   }
   return input.format ? `${type} (${input.format})` : type;
 }
@@ -137,22 +138,23 @@ function isNullable(schema: Schema) {
   );
 }
 
-function constraints(schema: Schema): string {
+function constraints(schema: Schema, locale: string): string {
+  const labels = getAdminApiMessages(locale);
   const values = [
     schema.description,
-    schema.enum ? `enum: ${schema.enum.map(String).join(", ")}` : undefined,
+    schema.enum ? `${labels.enumLabel}: ${schema.enum.map(String).join(", ")}` : undefined,
     schema.default !== undefined
-      ? `default: ${JSON.stringify(schema.default)}`
+      ? `${labels.defaultLabel}: ${JSON.stringify(schema.default)}`
       : undefined,
-    schema.pattern ? `pattern: ${schema.pattern}` : undefined,
+    schema.pattern ? `${labels.patternLabel}: ${schema.pattern}` : undefined,
     schema.minLength !== undefined
-      ? `minLength: ${schema.minLength}`
+      ? `${labels.minLengthLabel}: ${schema.minLength}`
       : undefined,
     schema.maxLength !== undefined
-      ? `maxLength: ${schema.maxLength}`
+      ? `${labels.maxLengthLabel}: ${schema.maxLength}`
       : undefined,
-    schema.minimum !== undefined ? `min: ${schema.minimum}` : undefined,
-    schema.maximum !== undefined ? `max: ${schema.maximum}` : undefined,
+    schema.minimum !== undefined ? `${labels.minimumLabel}: ${schema.minimum}` : undefined,
+    schema.maximum !== undefined ? `${labels.maximumLabel}: ${schema.maximum}` : undefined,
   ];
   return values.filter(Boolean).join(" · ");
 }
@@ -160,7 +162,7 @@ function constraints(schema: Schema): string {
 /** Expand $refs and array items into fully qualified property paths.
  * A cyclic reference is displayed by name without recursive expansion.
  */
-export function modelRows(source?: Schema): PropertyRow[] {
+export function modelRows(source?: Schema, locale = "en"): PropertyRow[] {
   if (!source) return [];
   const rows: PropertyRow[] = [];
   const walk = (
@@ -194,10 +196,10 @@ export function modelRows(source?: Schema): PropertyRow[] {
       const path = prefix ? `${prefix}.${name}` : name;
       rows.push({
         name: path,
-        type: describeType(child),
+        type: describeType(child, locale),
         required: required.has(name),
         nullable: isNullable(child),
-        description: constraints(child),
+        description: constraints(child, locale),
       });
       walk(child, path, depth + 1, currentRefs);
     }
@@ -205,11 +207,11 @@ export function modelRows(source?: Schema): PropertyRow[] {
   walk(source, "", 0, new Set());
   if (rows.length === 0) {
     rows.push({
-      name: "(body)",
-      type: describeType(source),
+      name: getAdminApiMessages(locale).bodyField,
+      type: describeType(source, locale),
       required: null,
       nullable: isNullable(source),
-      description: constraints(source),
+      description: constraints(source, locale),
     });
   }
   return rows;

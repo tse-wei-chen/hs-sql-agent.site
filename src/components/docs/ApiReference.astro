@@ -1,5 +1,6 @@
 ---
 import SchemaRows from "./SchemaRows.astro";
+import { getAdminApiMessages, getAdminApiGroupLabel, getHttpStatusLabel } from "@/data/adminApiReferenceI18n";
 import {
   apiOperations,
   apiGroups,
@@ -12,116 +13,11 @@ import {
 
 type Props = { locale?: string };
 const { locale = "en" } = Astro.props;
-const zh = locale === "zh-hant" || locale === "zh-hans";
-const strings = {
-  operations: zh ? "API 操作" : "API operations",
-  responseCoverage: zh ? "具備成功回應模型" : "typed success response models",
-  preview: zh ? "預覽契約" : "Preview contract",
-  search: zh ? "搜尋路由、Method 或群組" : "Search path, method or group",
-  parameters: zh ? "Path / Query 參數" : "Path / Query parameters",
-  request: zh ? "Request Body" : "Request Body",
-  responses: zh ? "Response Models" : "Response Models",
-  property: zh ? "Property" : "Property",
-  type: zh ? "Type" : "Type",
-  required: zh ? "必填" : "Required",
-  nullable: "Nullable",
-  notes: zh ? "描述 / 限制" : "Description / constraints",
-  yes: zh ? "是" : "Yes",
-  no: zh ? "否" : "No",
-  none: zh ? "無" : "None",
-  unspecified: zh
-    ? "尚未在 Controller 宣告 Response Schema"
-    : "Response schema not declared by the controller yet",
-  noBody: zh ? "此回應沒有 Body" : "No response body",
-  auth: zh ? "認證" : "Authentication",
-  requiredGrant: zh ? "權限" : "Permission",
-};
-const translations: Record<string, Partial<typeof strings>> = {
-  ja: {
-    operations: "API 操作",
-    responseCoverage: "レスポンスモデルが定義済み",
-    preview: "プレビュー仕様",
-    search: "パス・メソッド・分類で検索",
-    parameters: "パス／クエリパラメータ",
-    request: "リクエスト本文",
-    responses: "レスポンスモデル",
-    property: "プロパティ",
-    type: "型",
-    required: "必須",
-    notes: "説明・制約",
-    yes: "はい",
-    no: "いいえ",
-    none: "なし",
-    unspecified: "Controller にレスポンスのスキーマが未定義",
-    noBody: "レスポンス本文なし",
-    auth: "認証",
-    requiredGrant: "権限",
-  },
-  ko: {
-    operations: "API 작업",
-    responseCoverage: "응답 모델 명시됨",
-    preview: "미리보기 계약",
-    search: "경로, 메서드 또는 그룹 검색",
-    parameters: "경로／쿼리 매개변수",
-    request: "요청 본문",
-    responses: "응답 모델",
-    property: "속성",
-    type: "유형",
-    required: "필수",
-    notes: "설명／제약",
-    yes: "예",
-    no: "아니요",
-    none: "없음",
-    unspecified: "Controller에 응답 스키마가 선언되지 않음",
-    noBody: "응답 본문 없음",
-    auth: "인증",
-    requiredGrant: "권한",
-  },
-  fr: {
-    operations: "Opérations API",
-    responseCoverage: "modèles de réponse déclarés",
-    preview: "Contrat provisoire",
-    search: "Rechercher une route, méthode ou catégorie",
-    parameters: "Paramètres de chemin et de requête",
-    request: "Corps de requête",
-    responses: "Modèles de réponse",
-    property: "Propriété",
-    type: "Type",
-    required: "Obligatoire",
-    notes: "Description et contraintes",
-    yes: "Oui",
-    no: "Non",
-    none: "Aucun",
-    unspecified: "Schéma de réponse non déclaré dans le contrôleur",
-    noBody: "Pas de corps de réponse",
-    auth: "Authentification",
-    requiredGrant: "Autorisation",
-  },
-  de: {
-    operations: "API-Operationen",
-    responseCoverage: "definierte Antwortmodelle",
-    preview: "Vertragsvorschau",
-    search: "Pfad, Methode oder Kategorie suchen",
-    parameters: "Pfad- und Query-Parameter",
-    request: "Anfrageinhalt",
-    responses: "Antwortmodelle",
-    property: "Eigenschaft",
-    type: "Typ",
-    required: "Pflichtfeld",
-    notes: "Beschreibung und Einschränkungen",
-    yes: "Ja",
-    no: "Nein",
-    none: "Keine",
-    unspecified: "Antwortschema im Controller noch nicht definiert",
-    noBody: "Kein Antwortinhalt",
-    auth: "Authentifizierung",
-    requiredGrant: "Berechtigung",
-  },
-};
-Object.assign(strings, translations[locale] ?? {});
+const strings = getAdminApiMessages(locale);
 
 const groups = apiGroups.map(tag => ({
   tag,
+  label: getAdminApiGroupLabel(locale, tag),
   operations: apiOperations.filter(op => op.tag === tag),
 }));
 const covered = apiOperations.filter(successfulResponseHasSchema).length;
@@ -142,7 +38,7 @@ const parameters = (op: (typeof apiOperations)[number]): ParamRow[] =>
   (op.parameters ?? []).map(item => ({
     name: item.name,
     location: item.in,
-    type: describeType(item.schema),
+    type: describeType(item.schema, locale),
     required: item.required ?? false,
     description: item.description ?? "",
   }));
@@ -183,7 +79,7 @@ const grants = (op: (typeof apiOperations)[number]) =>
         <a
           href={`#api-group-${group.tag.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`}
         >
-          {group.tag} ({group.operations.length})
+          {group.label} ({group.operations.length})
         </a>
       ))
     }
@@ -194,14 +90,14 @@ const grants = (op: (typeof apiOperations)[number]) =>
         <h2
           id={`api-group-${group.tag.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`}
         >
-          {group.tag}
+          {group.label} <code>{group.tag}</code>
         </h2>
         {group.operations.map(op => (
           <details
             class="api-ref-op"
             id={opId(op.method, op.path)}
             data-api-operation
-            data-search-value={`${op.method} ${op.path} ${group.tag}`.toLowerCase()}
+            data-search-value={`${op.method} ${op.path} ${group.tag} ${group.label}`.toLowerCase()}
           >
             <summary>
               <span class={`api-ref-method method-${op.method.toLowerCase()}`}>
@@ -229,7 +125,7 @@ const grants = (op: (typeof apiOperations)[number]) =>
                     <thead>
                       <tr>
                         <th>{strings.property}</th>
-                        <th>In</th>
+                        <th>{strings.location}</th>
                         <th>{strings.type}</th>
                         <th>{strings.required}</th>
                         <th>{strings.notes}</th>
@@ -264,7 +160,7 @@ const grants = (op: (typeof apiOperations)[number]) =>
                     {op.requestBody.required ? strings.yes : strings.no}
                   </p>
                   <SchemaRows
-                    rows={modelRows(contentSchema(op.requestBody.content))}
+                    rows={modelRows(contentSchema(op.requestBody.content), locale)}
                     strings={strings}
                   />
                 </>
@@ -275,11 +171,11 @@ const grants = (op: (typeof apiOperations)[number]) =>
               {responses(op).map(([status, response]) => (
                 <div class="api-ref-response">
                   <h4>
-                    <code>{status}</code> {response.description}
+                    <code>{status}</code> {getHttpStatusLabel(locale, status, response.description)}
                   </h4>
                   {contentSchema(response.content) ? (
                     <SchemaRows
-                      rows={modelRows(contentSchema(response.content))}
+                      rows={modelRows(contentSchema(response.content), locale)}
                       strings={strings}
                     />
                   ) : status === "204" || status === "304" ? (
