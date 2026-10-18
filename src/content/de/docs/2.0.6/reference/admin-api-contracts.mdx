@@ -1,0 +1,100 @@
+---
+title: "Admin REST API – Verträge"
+description: "Anfrage- und Antwortschemata sowie HTTP-Status auf Basis realer Controller und DTOs."
+sidebar:
+  group: Reference
+  order: 143
+---
+
+Die Verwaltungs-API verwendet `/api` und prüft die kanonische Berechtigung jeder Aktion. Die Beispiele entsprechen den tatsächlichen DTOs der Management-API-Schlüssel.
+
+## Management-API-Schlüssel ausstellen (Administrator)
+
+Ein angemeldeter Administrator mit `/runtime/security.edit` kann einen Schlüssel mit drei Pflichtfeldern ausstellen.
+
+```http
+POST /api/runtime/management-api-keys
+Authorization: Bearer <administrator JWT>
+Content-Type: application/json
+```
+
+```json
+{
+  "name": "provisioning-backend",
+  "expiresAt": "2027-01-01T00:00:00Z",
+  "permissions": [
+    "/runtime/custom-tools.view",
+    "/runtime/custom-tools.create",
+    "/runtime/custom-tools.edit"
+  ]
+}
+```
+
+- `name`: string, not blank, maximum 100 characters.
+- `expiresAt`: RFC 3339 UTC date-time, future and within 365 days.
+- `permissions`: non-empty array of canonical permission keys supported by this API.
+
+## Antwort lesen
+
+`plaintextKey` wird nur beim Ausstellen oder Rotieren zurückgegeben. Die API zum Auflisten gibt den geheimen Wert nicht erneut zurück.
+
+**200 OK** — illustrative identifiers and timestamps:
+
+```json
+{
+  "key": {
+    "id": 17,
+    "name": "provisioning-backend",
+    "keyPrefix": "hsa_mgmt_example",
+    "permissions": [
+      "/runtime/custom-tools.view",
+      "/runtime/custom-tools.create",
+      "/runtime/custom-tools.edit"
+    ],
+    "createdAt": "2026-10-18T09:00:00Z",
+    "expiresAt": "2027-01-01T00:00:00Z",
+    "lastUsedAt": null,
+    "revokedAt": null,
+    "createdBy": "1"
+  },
+  "plaintextKey": "hsa_mgmt_<one-time-secret>"
+}
+```
+
+## Ausgestellten Schlüssel verwenden
+
+Das Backend nutzt `X-API-Key` für erlaubte Verwaltungsrouten. Die jeweiligen Berechtigungen werden weiterhin geprüft.
+
+```bash
+curl "https://agent.example.com/api/CustomSqlTool" \
+  -H "X-API-Key: ${HS_MANAGEMENT_API_KEY}"
+```
+
+## Endpunkte für Management-API-Schlüssel
+
+Diese Verwaltungsendpunkte setzen eine angemeldete Administration mit `/runtime/security.edit` voraus.
+
+| Method | Route | Success | Other outcomes |
+| --- | --- | --- | --- |
+| `GET` | `/api/runtime/management-api-keys` | `200` `ManagementApiKeyView[]` | `401`, `403` |
+| `GET` | `/api/runtime/management-api-keys/permissions` | `200` `string[]` | `401`, `403` |
+| `POST` | `/api/runtime/management-api-keys` | `200` `IssuedManagementApiKey` | `400`, `401`, `403` |
+| `POST` | `/api/runtime/management-api-keys/{id}/rotate` | `200` `IssuedManagementApiKey` | `401`, `403`, `404`, `409` |
+| `POST` | `/api/runtime/management-api-keys/{id}/revoke` | `204` (no body) | `401`, `403`, `404` |
+
+
+## HTTP-Status und Validierung
+
+| Status | Meaning |
+| --- | --- |
+| `400` | Invalid name, expiry, permissions, or model validation |
+| `401` | Missing or invalid authentication |
+| `403` | Authenticated but operation not permitted |
+| `404` | Key ID does not exist |
+| `409` | Attempted rotation of a revoked or expired key |
+
+## Schema-Abdeckung
+
+Der OpenAPI-Export enthält 93 Operationen aus 14 Controllern. Explizite DTOs werden als Schema generiert; für einige bisherige IActionResult-Aktionen fehlen noch konkrete Antworttypen. Fortschritt: Issue #295.
+
+[Routenverzeichnis](/de/docs/reference/api-reference) · [OpenAPI coverage tracking](https://github.com/tse-wei-chen/hs-sql-agent/issues/295)

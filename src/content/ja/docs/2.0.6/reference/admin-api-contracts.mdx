@@ -1,0 +1,100 @@
+---
+title: "管理 REST API の仕様"
+description: "Controller と DTO に基づくリクエスト、レスポンス、HTTP ステータスのリファレンス。"
+sidebar:
+  group: Reference
+  order: 143
+---
+
+管理 API は `/api` 以下で公開され、操作ごとに正規の権限を確認します。以下の例は実際の Management API Key の DTO に対応しています。
+
+## 管理 API キーの発行（管理者）
+
+`/runtime/security.edit` 権限を持つログイン済み管理者が、3つの必須フィールドを指定してキーを発行できます。
+
+```http
+POST /api/runtime/management-api-keys
+Authorization: Bearer <administrator JWT>
+Content-Type: application/json
+```
+
+```json
+{
+  "name": "provisioning-backend",
+  "expiresAt": "2027-01-01T00:00:00Z",
+  "permissions": [
+    "/runtime/custom-tools.view",
+    "/runtime/custom-tools.create",
+    "/runtime/custom-tools.edit"
+  ]
+}
+```
+
+- `name`: string, not blank, maximum 100 characters.
+- `expiresAt`: RFC 3339 UTC date-time, future and within 365 days.
+- `permissions`: non-empty array of canonical permission keys supported by this API.
+
+## レスポンスの確認
+
+`plaintextKey` は発行またはローテーション時にのみ返されます。一覧 API が返す `key` メタデータに秘密値は含まれません。
+
+**200 OK** — illustrative identifiers and timestamps:
+
+```json
+{
+  "key": {
+    "id": 17,
+    "name": "provisioning-backend",
+    "keyPrefix": "hsa_mgmt_example",
+    "permissions": [
+      "/runtime/custom-tools.view",
+      "/runtime/custom-tools.create",
+      "/runtime/custom-tools.edit"
+    ],
+    "createdAt": "2026-10-18T09:00:00Z",
+    "expiresAt": "2027-01-01T00:00:00Z",
+    "lastUsedAt": null,
+    "revokedAt": null,
+    "createdBy": "1"
+  },
+  "plaintextKey": "hsa_mgmt_<one-time-secret>"
+}
+```
+
+## キーを使った API 呼び出し
+
+バックエンドは `X-API-Key` を使い、許可された管理エンドポイントを呼び出します。各操作の権限が引き続き検証されます。
+
+```bash
+curl "https://agent.example.com/api/CustomSqlTool" \
+  -H "X-API-Key: ${HS_MANAGEMENT_API_KEY}"
+```
+
+## 管理 API キーのエンドポイント
+
+これらのキー管理エンドポイントには、ログイン済み管理者の `/runtime/security.edit` 権限が必要です。
+
+| Method | Route | Success | Other outcomes |
+| --- | --- | --- | --- |
+| `GET` | `/api/runtime/management-api-keys` | `200` `ManagementApiKeyView[]` | `401`, `403` |
+| `GET` | `/api/runtime/management-api-keys/permissions` | `200` `string[]` | `401`, `403` |
+| `POST` | `/api/runtime/management-api-keys` | `200` `IssuedManagementApiKey` | `400`, `401`, `403` |
+| `POST` | `/api/runtime/management-api-keys/{id}/rotate` | `200` `IssuedManagementApiKey` | `401`, `403`, `404`, `409` |
+| `POST` | `/api/runtime/management-api-keys/{id}/revoke` | `204` (no body) | `401`, `403`, `404` |
+
+
+## HTTP ステータスと検証
+
+| Status | Meaning |
+| --- | --- |
+| `400` | Invalid name, expiry, permissions, or model validation |
+| `401` | Missing or invalid authentication |
+| `403` | Authenticated but operation not permitted |
+| `404` | Key ID does not exist |
+| `409` | Attempted rotation of a revoked or expired key |
+
+## 仕様のカバレッジ
+
+現時点の OpenAPI エクスポートには 14 Controller の 93 操作が含まれます。明示されたリクエスト／レスポンス DTO はスキーマ化されますが、一部の旧 IActionResult 操作はレスポンス型が未定義です。補完作業は Issue #295 を参照してください。
+
+[ルート一覧](/ja/docs/reference/api-reference) · [OpenAPI coverage tracking](https://github.com/tse-wei-chen/hs-sql-agent/issues/295)

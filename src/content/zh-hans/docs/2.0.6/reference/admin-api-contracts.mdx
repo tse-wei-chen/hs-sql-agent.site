@@ -1,0 +1,100 @@
+---
+title: "管理 REST API 接入规范"
+description: "基于 Controller 和 DTO 的管理 API 请求、响应与状态码参考。"
+sidebar:
+  group: Reference
+  order: 143
+---
+
+管理 REST API 使用 `/api` 路径，并对每项操作进行规范权限验证。以下示例直接对应后端的管理 API 密钥请求与响应类型。
+
+## 签发管理 API 密钥（管理员）
+
+拥有 `/runtime/security.edit` 权限的已登录管理员可创建密钥。JSON 请求包含三个必填字段：
+
+```http
+POST /api/runtime/management-api-keys
+Authorization: Bearer <administrator JWT>
+Content-Type: application/json
+```
+
+```json
+{
+  "name": "provisioning-backend",
+  "expiresAt": "2027-01-01T00:00:00Z",
+  "permissions": [
+    "/runtime/custom-tools.view",
+    "/runtime/custom-tools.create",
+    "/runtime/custom-tools.edit"
+  ]
+}
+```
+
+- `name`: string, not blank, maximum 100 characters.
+- `expiresAt`: RFC 3339 UTC date-time, future and within 365 days.
+- `permissions`: non-empty array of canonical permission keys supported by this API.
+
+## 响应结构
+
+`plaintextKey` 仅在首次签发或轮换时返回；`key` 包含安全元数据，列表接口不会再次返回密钥明文。
+
+**200 OK** — illustrative identifiers and timestamps:
+
+```json
+{
+  "key": {
+    "id": 17,
+    "name": "provisioning-backend",
+    "keyPrefix": "hsa_mgmt_example",
+    "permissions": [
+      "/runtime/custom-tools.view",
+      "/runtime/custom-tools.create",
+      "/runtime/custom-tools.edit"
+    ],
+    "createdAt": "2026-10-18T09:00:00Z",
+    "expiresAt": "2027-01-01T00:00:00Z",
+    "lastUsedAt": null,
+    "revokedAt": null,
+    "createdBy": "1"
+  },
+  "plaintextKey": "hsa_mgmt_<one-time-secret>"
+}
+```
+
+## 使用新密钥
+
+外部后端通过 `X-API-Key` 调用获授权的现有管理 API，服务器继续验证对应的规范权限。
+
+```bash
+curl "https://agent.example.com/api/CustomSqlTool" \
+  -H "X-API-Key: ${HS_MANAGEMENT_API_KEY}"
+```
+
+## 管理 API 密钥接口
+
+这些密钥管理接口需要管理员登录并拥有 `/runtime/security.edit` 权限。
+
+| Method | Route | Success | Other outcomes |
+| --- | --- | --- | --- |
+| `GET` | `/api/runtime/management-api-keys` | `200` `ManagementApiKeyView[]` | `401`, `403` |
+| `GET` | `/api/runtime/management-api-keys/permissions` | `200` `string[]` | `401`, `403` |
+| `POST` | `/api/runtime/management-api-keys` | `200` `IssuedManagementApiKey` | `400`, `401`, `403` |
+| `POST` | `/api/runtime/management-api-keys/{id}/rotate` | `200` `IssuedManagementApiKey` | `401`, `403`, `404`, `409` |
+| `POST` | `/api/runtime/management-api-keys/{id}/revoke` | `204` (no body) | `401`, `403`, `404` |
+
+
+## HTTP 状态码与校验
+
+| Status | Meaning |
+| --- | --- |
+| `400` | Invalid name, expiry, permissions, or model validation |
+| `401` | Missing or invalid authentication |
+| `403` | Authenticated but operation not permitted |
+| `404` | Key ID does not exist |
+| `409` | Attempted rotation of a revoked or expired key |
+
+## 规范覆盖范围
+
+当前 OpenAPI 构建结果涵盖 14 个 Controller、93 项 HTTP 操作。已声明的请求与响应 DTO 可以生成结构化 Schema；部分旧版 IActionResult 操作仍缺少显式响应类型，完整性工作见主项目 Issue #295。
+
+[路由索引](/zh-hans/docs/reference/api-reference) · [OpenAPI coverage tracking](https://github.com/tse-wei-chen/hs-sql-agent/issues/295)

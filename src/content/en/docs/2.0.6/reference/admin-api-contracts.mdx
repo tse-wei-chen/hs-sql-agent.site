@@ -1,0 +1,100 @@
+---
+title: "Admin REST API Contracts"
+description: "HTTP API request and response examples for server integrations, backed by controller DTOs."
+sidebar:
+  group: Reference
+  order: 143
+---
+
+The Admin API exposes its routes at `/api`. Use the canonical permission assigned to each operation. The examples below match the Management API Key request and response records in the server source.
+
+## Issue a Management API Key (administrator)
+
+A signed-in administrator with `/runtime/security.edit` can issue the initial key. The JSON request has three required fields:
+
+```http
+POST /api/runtime/management-api-keys
+Authorization: Bearer <administrator JWT>
+Content-Type: application/json
+```
+
+```json
+{
+  "name": "provisioning-backend",
+  "expiresAt": "2027-01-01T00:00:00Z",
+  "permissions": [
+    "/runtime/custom-tools.view",
+    "/runtime/custom-tools.create",
+    "/runtime/custom-tools.edit"
+  ]
+}
+```
+
+- `name`: string, not blank, maximum 100 characters.
+- `expiresAt`: RFC 3339 UTC date-time, future and within 365 days.
+- `permissions`: non-empty array of canonical permission keys supported by this API.
+
+## Read the response
+
+`plaintextKey` is returned only on issuance or rotation. `key` contains safe metadata and appears without the secret in list responses.
+
+**200 OK** — illustrative identifiers and timestamps:
+
+```json
+{
+  "key": {
+    "id": 17,
+    "name": "provisioning-backend",
+    "keyPrefix": "hsa_mgmt_example",
+    "permissions": [
+      "/runtime/custom-tools.view",
+      "/runtime/custom-tools.create",
+      "/runtime/custom-tools.edit"
+    ],
+    "createdAt": "2026-10-18T09:00:00Z",
+    "expiresAt": "2027-01-01T00:00:00Z",
+    "lastUsedAt": null,
+    "revokedAt": null,
+    "createdBy": "1"
+  },
+  "plaintextKey": "hsa_mgmt_<one-time-secret>"
+}
+```
+
+## Use the issued key
+
+Once issued, a backend integration calls the existing management endpoints using `X-API-Key`, provided that the key grants the endpoint's canonical permission.
+
+```bash
+curl "https://agent.example.com/api/CustomSqlTool" \
+  -H "X-API-Key: ${HS_MANAGEMENT_API_KEY}"
+```
+
+## Management API Key endpoints
+
+These endpoints manage the integration keys themselves and require a signed-in administrator with `/runtime/security.edit`.
+
+| Method | Route | Success | Other outcomes |
+| --- | --- | --- | --- |
+| `GET` | `/api/runtime/management-api-keys` | `200` `ManagementApiKeyView[]` | `401`, `403` |
+| `GET` | `/api/runtime/management-api-keys/permissions` | `200` `string[]` | `401`, `403` |
+| `POST` | `/api/runtime/management-api-keys` | `200` `IssuedManagementApiKey` | `400`, `401`, `403` |
+| `POST` | `/api/runtime/management-api-keys/{id}/rotate` | `200` `IssuedManagementApiKey` | `401`, `403`, `404`, `409` |
+| `POST` | `/api/runtime/management-api-keys/{id}/revoke` | `204` (no body) | `401`, `403`, `404` |
+
+
+## Status codes and validation
+
+| Status | Meaning |
+| --- | --- |
+| `400` | Invalid name, expiry, permissions, or model validation |
+| `401` | Missing or invalid authentication |
+| `403` | Authenticated but operation not permitted |
+| `404` | Key ID does not exist |
+| `409` | Attempted rotation of a revoked or expired key |
+
+## Schema coverage
+
+The preview CI export inventories 93 HTTP operations across 14 controllers. The source-backed OpenAPI export includes request bodies where declared and explicit response schemas where typed. Other legacy IActionResult actions still need typed response annotations before the full API reference can be called complete. Track coverage in product issue #295.
+
+[Browse the route index](/docs/reference/api-reference) · [OpenAPI coverage tracking](https://github.com/tse-wei-chen/hs-sql-agent/issues/295)
