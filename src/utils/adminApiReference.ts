@@ -1,4 +1,4 @@
-import { getAdminApiMessages } from "@/data/adminApiReferenceI18n";
+import { useTranslations } from "@/i18n";
 import { gunzipSync } from "node:zlib";
 import packedSpec from "@/data/admin-api/openapi-2.0.6-preview.b64?raw";
 import packedDelta from "@/data/admin-api/openapi-2.0.6-update.b64?raw";
@@ -111,7 +111,7 @@ function refName(ref: string) {
 }
 
 export function describeType(input?: Schema, locale = "en"): string {
-  if (!input) return getAdminApiMessages(locale).unknownType;
+  if (!input) return useTranslations(locale).adminApiReference.unknownType;
   if (input.$ref) return refName(input.$ref);
   if (input.oneOf?.length) return input.oneOf.map(item => describeType(item, locale)).join(" | ");
   if (input.anyOf?.length) return input.anyOf.map(item => describeType(item, locale)).join(" | ");
@@ -122,7 +122,7 @@ export function describeType(input?: Schema, locale = "en"): string {
       ? [input.type]
       : [];
   const type =
-    types.join(" | ") || (input.properties ? "object" : getAdminApiMessages(locale).unknownType);
+    types.join(" | ") || (input.properties ? "object" : useTranslations(locale).adminApiReference.unknownType);
   if (type === "array") return `array<${describeType(input.items, locale)}>`;
   if (type === "object" && input.additionalProperties) {
     return `map<string, ${typeof input.additionalProperties === "object" ? describeType(input.additionalProperties, locale) : "any"}>`;
@@ -139,7 +139,7 @@ function isNullable(schema: Schema) {
 }
 
 function constraints(schema: Schema, locale: string): string {
-  const labels = getAdminApiMessages(locale);
+  const labels = useTranslations(locale).adminApiReference;
   const values = [
     schema.description,
     schema.enum ? `${labels.enumLabel}: ${schema.enum.map(String).join(", ")}` : undefined,
@@ -207,7 +207,7 @@ export function modelRows(source?: Schema, locale = "en"): PropertyRow[] {
   walk(source, "", 0, new Set());
   if (rows.length === 0) {
     rows.push({
-      name: getAdminApiMessages(locale).bodyField,
+      name: useTranslations(locale).adminApiReference.bodyField,
       type: describeType(source, locale),
       required: null,
       nullable: isNullable(source),

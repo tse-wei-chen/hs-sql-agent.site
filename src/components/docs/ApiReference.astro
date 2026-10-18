@@ -1,6 +1,6 @@
 ---
 import SchemaRows from "./SchemaRows.astro";
-import { getAdminApiMessages, getAdminApiGroupLabel, getHttpStatusLabel } from "@/data/adminApiReferenceI18n";
+import { useTranslations } from "@/i18n";
 import {
   apiOperations,
   apiGroups,
@@ -13,11 +13,11 @@ import {
 
 type Props = { locale?: string };
 const { locale = "en" } = Astro.props;
-const strings = getAdminApiMessages(locale);
+const strings = useTranslations(locale).adminApiReference;
 
 const groups = apiGroups.map(tag => ({
   tag,
-  label: getAdminApiGroupLabel(locale, tag),
+  label: strings.groups[tag] ?? tag,
   operations: apiOperations.filter(op => op.tag === tag),
 }));
 const covered = apiOperations.filter(successfulResponseHasSchema).length;
@@ -171,7 +171,7 @@ const grants = (op: (typeof apiOperations)[number]) =>
               {responses(op).map(([status, response]) => (
                 <div class="api-ref-response">
                   <h4>
-                    <code>{status}</code> {getHttpStatusLabel(locale, status, response.description)}
+                    <code>{status}</code> {strings.responseLabels[status] ?? response.description}
                   </h4>
                   {contentSchema(response.content) ? (
                     <SchemaRows
