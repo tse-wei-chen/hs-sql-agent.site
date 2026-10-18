@@ -1,6 +1,6 @@
 ---
 title: "Upgrade-Leitfaden"
-description: "Vorbereitung von 2.0.6: separate Management-API-Schlüssel, Migration des Admin-Stores und unveränderte JWT-/MCP-Authentifizierung."
+description: "Management-API-Schlüssel in 2.0.6 und die Migration des Admin Stores vorbereiten."
 sidebar:
   group: Reference
   order: 144
@@ -8,22 +8,19 @@ sidebar:
 
 ## 2.0.5 → 2.0.6 (proposed)
 
-Die geplante Version 2.0.6 ergänzt den serverseitigen Zugriff auf die Admin-API ohne interaktive Anmeldung. SQL-Compiler und Ausführung der MCP-Tools werden dabei nicht geändert.
+Die geplante Version 2.0.6 ergänzt API-Schlüssel, um bestehende Verwaltungsendpunkte unter `/api` programmatisch aufzurufen.
 
-## Management API Keys
+## Upgrade-Schritte
 
-Nach der Bereitstellung und der Admin-Store-Migration erstellen Sie unter Management API Keys einen Schlüssel mit minimalen Berechtigungen. Bewahren Sie das einmalig angezeigte Geheimnis sicher auf und verwenden Sie für erlaubte `/api`-Aufrufe `X-API-Key`. Administratoren bleiben bei JWT, MCP-Clients bei ihren eigenen MCP-Schlüsseln.
+1. Stellen Sie die neue Serverversion bereit und führen Sie die Admin-Store-Migration für `ManagementApiKeys` aus.
+2. Erstellen Sie einen Schlüssel mit den minimal erforderlichen Berechtigungen in der Administrationsoberfläche.
+3. Bewahren Sie das einmal angezeigte Geheimnis sicher auf und verwenden Sie bei autorisierten Aufrufen `X-API-Key`.
+4. Testen Sie Ablauf, Widerruf und Rotation in der Integration.
 
-```http
-X-API-Key: hsa_mgmt_<secret>
-```
+## Kompatibilität und Rollback
 
-## Migration and compatibility
+Bestehende Administratoranmeldungen und MCP-Client-Verbindungen funktionieren weiterhin wie gewohnt. Frühere Versionen können Management-API-Schlüssel nicht authentifizieren; beenden Sie ihre Verwendung vor einem Rollback.
 
-Eine SQLite- beziehungsweise PostgreSQL-Migration legt die zusätzliche Tabelle `ManagementApiKeys` an. Führen Sie die Migration vor der ersten Schlüsselausstellung aus. Vorhandene Administrator-JWTs und MCP-Schlüssel bleiben unverändert.
+> Verwaltungsberechtigungen sind nicht automatisch auf Datenbank-IDs oder Mandanten begrenzt. Bewahren Sie Schlüssel nur in vertrauenswürdigen Backends auf und setzen Sie anwendungsspezifische Zugriffsregeln im integrierenden Dienst um.
 
-Vorhandene Administrator-JWTs, MCP-Schlüssel, die fünf integrierten MCP-Tools und die SQL-Sicherheitsregeln bleiben unverändert. Die neue Tabelle ist eine additive Änderung. Widerrufen Sie Integrationsschlüssel vor einem Rollback, da frühere Versionen sie nicht authentifizieren.
-
-> Kanonische Management-Berechtigungen enthalten keine automatische Einschränkung auf eine Datenbank-ID oder einen SaaS-Mandanten.
-
-[Management-API-Schlüssel](/de/docs/2.0.6/integration/management-api-keys)
+[Handbuch für Management-API-Schlüssel](/de/docs/2.0.6/integration/management-api-keys)

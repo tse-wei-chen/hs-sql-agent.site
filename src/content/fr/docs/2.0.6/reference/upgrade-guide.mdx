@@ -1,6 +1,6 @@
 ---
 title: "Guide de mise à niveau"
-description: "Préparation de la version 2.0.6 : clés d’administration, migration du stockage et compatibilité JWT/MCP."
+description: "Préparer la fonctionnalité de clés d’administration de 2.0.6 et la migration de l’Admin Store."
 sidebar:
   group: Reference
   order: 144
@@ -8,22 +8,19 @@ sidebar:
 
 ## 2.0.5 → 2.0.6 (proposed)
 
-La version 2.0.6 envisagée permet à des services de confiance d’appeler l’API d’administration sans session interactive. Le compilateur SQL et l’exécution des outils MCP restent inchangés.
+La version 2.0.6 envisagée ajoute une authentification par clé pour automatiser les API d’administration `/api` existantes.
 
-## Management API Keys
+## Étapes de mise à niveau
 
-Après déploiement et migration du stockage administratif, émettez une clé à privilèges minimaux depuis Management API Keys. Sauvegardez son secret affiché une seule fois, puis utilisez `X-API-Key` sur les routes `/api` autorisées. Les administrateurs humains conservent le JWT ; les clients MCP conservent leurs propres clés.
+1. Déployez la nouvelle version et appliquez la migration de l’Admin Store qui crée `ManagementApiKeys`.
+2. Émettez une clé avec les seules autorisations nécessaires depuis la console.
+3. Conservez le secret affiché une fois et utilisez `X-API-Key` pour les requêtes autorisées.
+4. Testez l’expiration, la révocation et la rotation dans votre intégration.
 
-```http
-X-API-Key: hsa_mgmt_<secret>
-```
+## Compatibilité et retour arrière
 
-## Migration and compatibility
+Les connexions des administrateurs et les clients MCP continuent de fonctionner comme auparavant. Les versions antérieures ne savent pas valider les nouvelles clés : cessez de les utiliser dans vos intégrations avant tout retour arrière.
 
-Une migration SQLite ou PostgreSQL ajoute la table `ManagementApiKeys` au stockage administratif. Appliquez-la avant d’émettre une clé. Les JWT administrateur et les clés MCP existants ne changent pas.
+> Les autorisations de gestion ne sont pas automatiquement limitées à une base de données ou à un locataire. Conservez la clé dans un backend de confiance et appliquez les règles d’accès métier côté intégration.
 
-Les sessions JWT, les clés MCP, les cinq outils MCP intégrés et les garanties SQL ne changent pas. La nouvelle table est additive. Avant un retour arrière, révoquez les clés d’intégration puisque l’ancienne version ne sait pas les vérifier.
-
-> Les permissions canoniques ne limitent pas à elles seules l’accès à un identifiant de base de données ou à un locataire SaaS.
-
-[Clés d’API d’administration](/fr/docs/2.0.6/integration/management-api-keys)
+[Guide des clés d’API d’administration](/fr/docs/2.0.6/integration/management-api-keys)
