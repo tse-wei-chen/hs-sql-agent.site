@@ -103,7 +103,6 @@ export default {
   adminApiReference: {
     operations: "API-Operationen",
     responseCoverage: "Operationen mit definiertem Antwortmodell",
-    preview: "Vorschau der API-Spezifikation",
     search: "API-Pfad, Methode oder Kategorie suchen",
     parameters: "Pfad- und Abfrageparameter",
     request: "Anfrageinhalt",

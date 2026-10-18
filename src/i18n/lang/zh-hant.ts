@@ -98,7 +98,6 @@ export default {
   adminApiReference: {
     operations: "API 操作",
     responseCoverage: "項操作已定義回應模型",
-    preview: "預覽版 API 規格",
     search: "搜尋 API 路徑、方法或分類",
     parameters: "路徑與查詢參數",
     request: "請求內容",

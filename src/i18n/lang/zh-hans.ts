@@ -97,7 +97,6 @@ export default {
   adminApiReference: {
     operations: "API 操作",
     responseCoverage: "项操作已定义响应模型",
-    preview: "预览版 API 规范",
     search: "搜索 API 路径、方法或分类",
     parameters: "路径与查询参数",
     request: "请求内容",

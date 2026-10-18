@@ -102,7 +102,6 @@ export default {
   adminApiReference: {
     operations: "API 작업",
     responseCoverage: "개 작업에 응답 모델이 정의됨",
-    preview: "API 명세 미리보기",
     search: "API 경로, 메서드 또는 분류 검색",
     parameters: "경로 및 쿼리 매개변수",
     request: "요청 본문",

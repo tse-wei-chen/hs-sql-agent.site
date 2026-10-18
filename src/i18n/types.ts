@@ -88,7 +88,6 @@ export interface UIStrings {
   adminApiReference: {
     operations: string;
     responseCoverage: string;
-    preview: string;
     search: string;
     parameters: string;
     request: string;
