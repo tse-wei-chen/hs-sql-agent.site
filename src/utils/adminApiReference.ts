@@ -1,5 +1,6 @@
 import { gunzipSync } from "node:zlib";
 import packedSpec from "@/data/admin-api/openapi-2.0.6-preview.b64?raw";
+import packedDelta from "@/data/admin-api/openapi-2.0.6-update.b64?raw";
 
 export type Schema = {
   $ref?: string;
@@ -55,6 +56,25 @@ type ApiSpec = {
 const spec = JSON.parse(
   gunzipSync(Buffer.from(packedSpec.trim(), "base64")).toString("utf8")
 ) as ApiSpec;
+
+type ApiDelta = {
+  sourceCommit: string;
+  schemas: Record<string, Schema>;
+  responses: Record<string, Record<string, ApiOperation["responses"]>>;
+};
+const delta = JSON.parse(
+  gunzipSync(Buffer.from(packedDelta.trim(), "base64")).toString("utf8")
+) as ApiDelta;
+Object.assign(spec.schemas, delta.schemas);
+for (const [path, methods] of Object.entries(delta.responses)) {
+  for (const [method, responses] of Object.entries(methods)) {
+    if (!spec.paths[path]?.[method]) {
+      throw new Error(`OpenAPI snapshot mismatch: ${method} ${path}`);
+    }
+    spec.paths[path][method].responses = responses;
+  }
+}
+spec.sourceCommit = delta.sourceCommit;
 
 export const sourceCommit = spec.sourceCommit;
 export const schemaDefinitions = spec.schemas;
