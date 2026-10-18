@@ -160,7 +160,10 @@ const grants = (op: (typeof apiOperations)[number]) =>
                     {op.requestBody.required ? strings.yes : strings.no}
                   </p>
                   <SchemaRows
-                    rows={modelRows(contentSchema(op.requestBody.content), locale)}
+                    rows={modelRows(
+                      contentSchema(op.requestBody.content),
+                      locale
+                    )}
                     strings={strings}
                   />
                 </>
@@ -171,7 +174,8 @@ const grants = (op: (typeof apiOperations)[number]) =>
               {responses(op).map(([status, response]) => (
                 <div class="api-ref-response">
                   <h4>
-                    <code>{status}</code> {strings.responseLabels[status] ?? response.description}
+                    <code>{status}</code>{" "}
+                    {strings.responseLabels[status] ?? response.description}
                   </h4>
                   {contentSchema(response.content) ? (
                     <SchemaRows

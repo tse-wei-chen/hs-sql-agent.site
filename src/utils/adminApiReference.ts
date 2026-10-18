@@ -113,16 +113,22 @@ function refName(ref: string) {
 export function describeType(input?: Schema, locale = "en"): string {
   if (!input) return useTranslations(locale).adminApiReference.unknownType;
   if (input.$ref) return refName(input.$ref);
-  if (input.oneOf?.length) return input.oneOf.map(item => describeType(item, locale)).join(" | ");
-  if (input.anyOf?.length) return input.anyOf.map(item => describeType(item, locale)).join(" | ");
-  if (input.allOf?.length) return input.allOf.map(item => describeType(item, locale)).join(" & ");
+  if (input.oneOf?.length)
+    return input.oneOf.map(item => describeType(item, locale)).join(" | ");
+  if (input.anyOf?.length)
+    return input.anyOf.map(item => describeType(item, locale)).join(" | ");
+  if (input.allOf?.length)
+    return input.allOf.map(item => describeType(item, locale)).join(" & ");
   const types = Array.isArray(input.type)
     ? input.type.filter(t => t !== "null")
     : input.type
       ? [input.type]
       : [];
   const type =
-    types.join(" | ") || (input.properties ? "object" : useTranslations(locale).adminApiReference.unknownType);
+    types.join(" | ") ||
+    (input.properties
+      ? "object"
+      : useTranslations(locale).adminApiReference.unknownType);
   if (type === "array") return `array<${describeType(input.items, locale)}>`;
   if (type === "object" && input.additionalProperties) {
     return `map<string, ${typeof input.additionalProperties === "object" ? describeType(input.additionalProperties, locale) : "any"}>`;
@@ -142,7 +148,9 @@ function constraints(schema: Schema, locale: string): string {
   const labels = useTranslations(locale).adminApiReference;
   const values = [
     schema.description,
-    schema.enum ? `${labels.enumLabel}: ${schema.enum.map(String).join(", ")}` : undefined,
+    schema.enum
+      ? `${labels.enumLabel}: ${schema.enum.map(String).join(", ")}`
+      : undefined,
     schema.default !== undefined
       ? `${labels.defaultLabel}: ${JSON.stringify(schema.default)}`
       : undefined,
@@ -153,8 +161,12 @@ function constraints(schema: Schema, locale: string): string {
     schema.maxLength !== undefined
       ? `${labels.maxLengthLabel}: ${schema.maxLength}`
       : undefined,
-    schema.minimum !== undefined ? `${labels.minimumLabel}: ${schema.minimum}` : undefined,
-    schema.maximum !== undefined ? `${labels.maximumLabel}: ${schema.maximum}` : undefined,
+    schema.minimum !== undefined
+      ? `${labels.minimumLabel}: ${schema.minimum}`
+      : undefined,
+    schema.maximum !== undefined
+      ? `${labels.maximumLabel}: ${schema.maximum}`
+      : undefined,
   ];
   return values.filter(Boolean).join(" · ");
 }
