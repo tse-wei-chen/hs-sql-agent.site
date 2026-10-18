@@ -89,13 +89,6 @@ function refName(ref: string) {
   return ref.split("/").at(-1) ?? ref;
 }
 
-function resolve(schema: Schema, visited: Set<string> = new Set()): Schema {
-  if (!schema.$ref) return schema;
-  const name = refName(schema.$ref);
-  if (visited.has(name) || !schemaDefinitions[name]) return schema;
-  return resolve(schemaDefinitions[name], new Set([...visited, name]));
-}
-
 export function describeType(input?: Schema): string {
   if (!input) return "unspecified";
   if (input.$ref) return refName(input.$ref);
@@ -107,7 +100,8 @@ export function describeType(input?: Schema): string {
     : input.type
       ? [input.type]
       : [];
-  const type = types.join(" | ") || (input.properties ? "object" : "unspecified");
+  const type =
+    types.join(" | ") || (input.properties ? "object" : "unspecified");
   if (type === "array") return `array<${describeType(input.items)}>`;
   if (type === "object" && input.additionalProperties) {
     return `map<string, ${typeof input.additionalProperties === "object" ? describeType(input.additionalProperties) : "any"}>`;
@@ -118,8 +112,8 @@ export function describeType(input?: Schema): string {
 function isNullable(schema: Schema) {
   return Boolean(
     schema.nullable ||
-      (Array.isArray(schema.type) && schema.type.includes("null")) ||
-      schema.anyOf?.some(s => s.type === "null")
+    (Array.isArray(schema.type) && schema.type.includes("null")) ||
+    schema.anyOf?.some(s => s.type === "null")
   );
 }
 
@@ -127,10 +121,16 @@ function constraints(schema: Schema): string {
   const values = [
     schema.description,
     schema.enum ? `enum: ${schema.enum.map(String).join(", ")}` : undefined,
-    schema.default !== undefined ? `default: ${JSON.stringify(schema.default)}` : undefined,
+    schema.default !== undefined
+      ? `default: ${JSON.stringify(schema.default)}`
+      : undefined,
     schema.pattern ? `pattern: ${schema.pattern}` : undefined,
-    schema.minLength !== undefined ? `minLength: ${schema.minLength}` : undefined,
-    schema.maxLength !== undefined ? `maxLength: ${schema.maxLength}` : undefined,
+    schema.minLength !== undefined
+      ? `minLength: ${schema.minLength}`
+      : undefined,
+    schema.maxLength !== undefined
+      ? `maxLength: ${schema.maxLength}`
+      : undefined,
     schema.minimum !== undefined ? `min: ${schema.minimum}` : undefined,
     schema.maximum !== undefined ? `max: ${schema.maximum}` : undefined,
   ];
@@ -201,6 +201,7 @@ export function contentSchema(content?: ApiContent): Schema | undefined {
 
 export function successfulResponseHasSchema(operation: ApiOperation) {
   return Object.entries(operation.responses).some(
-    ([status, response]) => status.startsWith("2") && Boolean(contentSchema(response.content))
+    ([status, response]) =>
+      status.startsWith("2") && Boolean(contentSchema(response.content))
   );
 }
