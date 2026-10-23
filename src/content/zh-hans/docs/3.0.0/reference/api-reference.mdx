@@ -1,0 +1,17 @@
+---
+title: "管理 REST API Reference"
+description: "逐项查看管理 API 的请求／响应模型字段、类型、必填及 Nullable。"
+sidebar:
+  group: 参考
+  order: 142
+---
+
+import ApiReference from "@/components/docs/ApiReferenceV3.astro";
+
+展开每个 API 即可查看 Path／Query 参数、请求体、各状态码的响应模型字段，以及嵌套属性、类型、必填与 Nullable。数据来自后端 Controller／DTO 的 OpenAPI 元数据。
+
+[先在 Admin UI 签发 System-to-System Key](/zh-hans/docs/integration/management-api-keys).
+
+> 部分旧 Controller 返回 IActionResult，尚未声明具体的响应模型；这些操作会明确标记 Schema 尚未声明，不会猜测属性。完整性工作见 Issue #295。账号类 API 不可使用 System-to-System Key。
+
+<ApiReference locale="zh-hans" />
