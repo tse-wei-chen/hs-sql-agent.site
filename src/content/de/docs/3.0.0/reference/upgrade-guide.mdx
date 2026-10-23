@@ -1,0 +1,37 @@
+---
+title: "Upgrade auf v3.0.0"
+description: "Inkompatible Änderungen am Freigabespeicher, kontrollierter v2-Abbau und Umgang mit ungewissen DML-Transaktionen."
+sidebar:
+  group: Referenz
+  order: 144
+---
+
+
+## 2.0.6 → 3.0.0: inkompatible Änderungen
+
+- **Eigene Freigabespeicher:** `IDmlApprovalChallengeStore.TryPromoteAsync` muss atomar implementiert werden. Das schrittweise Verbrauchen einzelner Freigaben mit anschließendem Anlegen einer Sammelfreigabe ist unsicher. Einzelne und mehrere Anweisungen über `execute_dml_sql` verwenden denselben Sammelprozess.
+- **Redis:** Freigabeschlüssel enthalten `{dml-approval}:`; Werte verwenden `hs-sql-agent.dml-challenge` mit `SchemaVersion=1`. Alte v2-Schlüssel und -Werte dürfen nicht unverändert übernommen werden.
+- **Nachweis der Freigabe:** Ohne `ApprovalPlanBinding` wird eine Freigabe abgelehnt. Verschlüsselte ausstehende Ausführungen nutzen `hs-sql-agent.dml-resume` (`SchemaVersion=1`). Der explizite Leser für Altformate erteilt keine zusätzlichen Berechtigungen.
+- **Verwaltungsdatenbank:** SQLite/PostgreSQL verweigern die Migration bei verbliebenen Zuständen `Pending` oder `Executing`. Die neue Spalte `AdmissionProtocolVersion` verhindert, dass alte Schreibvorgänge mit Standardwert 0 diese Zustände neu anlegen oder wiederherstellen; v3 schreibt Wert 1. **Die direkten Schreibrechte alter Worker auf der Zieldatenbank werden dadurch nicht entzogen.**
+- **SQL-Schutz:** Bei vorgeschriebener selektiver Bedingung werden immer wahre Bedingungen wie `WHERE 1=1` für `UPDATE`/`DELETE` abgelehnt. Eingaben sind auf 4.194.304 UTF-16-Einheiten und 131.072 Lexer-Token begrenzt.
+
+## Sichere Umstellung
+
+1. Neue v2-DML-Vorschauen und Freigaben stoppen; ausstehende Anfragen und Redis-Schlüssel erfassen.
+2. **Sämtliche v2-Worker mit DML-Rechten anhalten** und ungewisse Datenbankergebnisse unabhängig prüfen. Fehlende Witness-Einträge, Redis-Schlüssel oder Zeitüberschreitungen **beweisen keinen Rollback**. `Executing` niemals automatisch abschließen.
+3. Verwaltungsdatenbank zusammen mit Verschlüsselungsschlüsseln und Nachweisen sichern. Alte Zieldatenbank-Schreibrechte entziehen und verbleibende Sitzungen beenden.
+4. Erst nach vollständigem Stillstand SQLite/PostgreSQL migrieren und sämtliche eigenen Freigabespeicher und Worker gleichzeitig aktualisieren.
+5. Für inkompatible Freigaben neue Vorschauen und **eine erneute menschliche Freigabe** verlangen; verbrauchte Einmalschlüssel nicht wiederverwenden.
+6. `AddHsSqlAgentNativeDmlSchemaFreshness()` und `AddHsSqlAgentTargetExecutionFence()` nur nach gesonderter Bereitstellung und echtem Zieldatenbanktest einschalten. Beide bleiben **standardmäßig deaktiviert**.
+
+## Ungewisser Ausgang und Rückabwicklung
+
+`dml.commit_outcome_unknown` und `dml.rollback_outcome_unknown` bedeuten: **verbrauchte Freigaben nicht wiederholen**. Die Antwort enthält `outcome_unknown` und `retryable=false`; ein Fehler beim Schreiben des Prüfprotokolls darf einen bestätigten COMMIT nicht als Fehlschlag darstellen.
+
+Die SQLite/PostgreSQL-Protokollmigration ist eine **Einweg-Sicherheitsmigration**. Ein direktes EF-Downgrade wird abgelehnt. Die Rückkehr erfordert stillgelegte Worker, geprüfte ungewisse Transaktionen und eine kontrollierte Wiederherstellung einer kompatiblen Sicherung.
+
+`target-fence-v1` ist weiterhin experimentell und optional: Eine neue Bereitschaftsprüfung beweist nicht, dass alte Worker-Zugangsdaten ungültig sind, und erlaubt kein automatisches Abschließen von `Executing`. Nur Oracles zweiter Witness-Eindeutigkeitstest verwendet READ COMMITTED; die übrigen Prüfungen verwenden SERIALIZABLE.
+
+Es bleiben fünf reguläre MCP-Werkzeuge; vier reine Lesewerkzeuge sind vorausgewählt, DML bleibt abgewählt.
+
+Quelle: [v3-Migrationsanleitung](https://github.com/tse-wei-chen/hs-sql-agent/blob/4acb6725bb4623104ae6a9de5c3dea404616d09e/docs/v3-migration.md)
