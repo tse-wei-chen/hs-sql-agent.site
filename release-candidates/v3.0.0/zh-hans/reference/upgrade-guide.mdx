@@ -1,0 +1,38 @@
+---
+title: "升级至 v3.0.0（候选版本）"
+description: "了解审批存储接口的不兼容变更、v2 工作节点停用要求，以及交易结果未知时的处理方式。"
+sidebar:
+  group: 参考
+  order: 144
+---
+
+> **尚未发布：** 本指南基于产品 PR #299，并不表示 v3.0.0 已正式发布。
+
+## 2.0.6 → 3.0.0：不兼容变更
+
+- **自定义审批存储：** 必须实现原子性的 `IDmlApprovalChallengeStore.TryPromoteAsync`。逐条消耗子审批再创建批次审批并不安全；单条和多条 `execute_dml_sql` 都采用聚合审批。
+- **Redis：** 审批键包含 `{dml-approval}:`，数据采用 `hs-sql-agent.dml-challenge` 封装（`SchemaVersion=1`）。v2 的键及旧数据格式不能直接沿用。
+- **审批证据：** 缺少 `ApprovalPlanBinding` 的请求会被拒绝。加密的待执行请求改用 `hs-sql-agent.dml-resume`（`SchemaVersion=1`）；旧格式读取器不会擅自授予新的安全权限。
+- **管理数据库：** SQLite/PostgreSQL 在仍有 `Pending` 或 `Executing` 请求时拒绝迁移。新增 `AdmissionProtocolVersion` 后，旧版默认值 0 不能创建或恢复这些状态；v3 明确写入版本 1。**此限制并不会撤销旧工作节点直接写入目标数据库的权限。**
+- **SQL 安全策略：** 要求选择性条件时，`UPDATE`/`DELETE` 中的 `WHERE 1=1` 等恒真条件会被拒绝。输入上限为 4,194,304 个 UTF-16 单位和 131,072 个词法标记。
+
+## 安全升级步骤
+
+1. 暂停新的 v2 DML 预览与审批，盘点未结请求和 Redis 审批键。
+2. **停止所有**具备 DML 权限的 v2 工作节点，并独立核实每笔未结交易的实际结果。缺少 Witness、Redis 键或等待超时都**不能证明已回滚**；不得自动结案 `Executing`。
+3. 连同加密密钥和必要证据一起备份管理数据库；撤销旧工作节点的目标数据库写入权限并确认旧连接已退出。
+4. 完成停用后才执行 SQLite/PostgreSQL 管理数据库迁移；同步升级全部工作节点和自定义审批存储实现。
+5. 对不兼容的旧请求重新预览并获取**新的人工审批**，不得重复使用已消耗的审批键。
+6. 仅在完成各自部署前提及真实数据库验证后，才选择启用 `AddHsSqlAgentNativeDmlSchemaFreshness()` 或 `AddHsSqlAgentTargetExecutionFence()`；两者均**默认关闭**。
+
+## 交易结果未知与降级
+
+`dml.commit_outcome_unknown` 和 `dml.rollback_outcome_unknown` 都表示**不得重试已消耗的审批**。接口返回 `outcome_unknown`、`retryable=false`；审计写入失败也不能把已确认提交的交易改报成失败。
+
+SQLite/PostgreSQL 的审批版本迁移是**单向安全迁移**，不允许直接执行 EF migration 降级。只能在停用工作节点并核实未结交易后，由运维人员按受控流程恢复兼容的备份。
+
+`target-fence-v1` 仍为实验性可选功能，不代表整个部署集群已完成接入，也不允许自动结案 `Executing`。仅 Oracle 的 Witness 唯一键冲突检测使用 READ COMMITTED，其他准备检测使用 SERIALIZABLE。
+
+五个标准 MCP 工具保持不变：默认选中四个只读工具，DML 仍不默认选中。
+
+依据：[v3 升级原文](https://github.com/tse-wei-chen/hs-sql-agent/blob/4265650907c475389562194ea7f3248ccfe65984/docs/v3-migration.md)
