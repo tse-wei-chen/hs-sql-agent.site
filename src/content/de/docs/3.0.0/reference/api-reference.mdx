@@ -1,0 +1,17 @@
+---
+title: "Admin REST API-Referenz"
+description: "Request-/Response-Modellfelder, Typen, Pflichtangaben und Nullable für jeden API-Endpunkt."
+sidebar:
+  group: Referenz
+  order: 142
+---
+
+import ApiReference from "@/components/docs/ApiReferenceV3.astro";
+
+Öffnen Sie einen Endpunkt, um Path-/Query-Parameter, Request Body und Response-Modelle samt verschachtelten Feldern, Typen, Pflichtstatus und Nullable einzusehen. Die Daten stammen aus den OpenAPI-Metadaten der echten Controller und DTOs.
+
+[Zuerst einen System-to-System-Schlüssel in der Admin UI ausstellen](/de/docs/integration/management-api-keys).
+
+> Einige bisherige IActionResult-Aktionen definieren kein Response-Modell. Diese werden ausdrücklich als nicht deklariert markiert; es werden keine Felder erfunden. Weiterführung in Issue #295. Benutzerkonten-APIs sind mit einem System-to-System-Schlüssel nicht verfügbar.
+
+<ApiReference locale="de" />
