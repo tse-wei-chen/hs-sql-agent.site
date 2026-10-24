@@ -1,0 +1,90 @@
+---
+title: "Upgrade Guide — Versioned Secret Protection"
+description: "Planned hs-sql-agent 3.0.0 breaking-change checklist for versioned encryption, approval draining, key rotation and safe rollback."
+sidebar:
+  group: Reference
+  order: 144
+draft: true
+---
+
+## Planned 3.0.0 change: versioned secret protection
+
+**Status: [hs-sql-agent PR #302](https://github.com/tse-wei-chen/hs-sql-agent/pull/302) has merged into `main` ([squash commit `78ec5f30`](https://github.com/tse-wei-chen/hs-sql-agent/commit/78ec5f30bd3bcd2200cb95131bd85ba2a6a34eb6)); **3.0.0 has not been released or published in this documentation site.** This page covers the secret-protection migration only; it is **not** a complete 2.0.6 → 3.0.0 release-diff audit. Keep this page unpublished until the actual release.
+
+The new implementation replaces legacy HMAC-derived encryption with purpose- and record-bound AES-256-GCM envelopes of the form `v2:<key-id>:<base64 nonce/tag/ciphertext>`. The envelope authenticates its version, key ID, purpose and trusted record identifier. There is **no legacy decryption fallback or automatic ciphertext conversion**.
+
+## Breaking changes
+
+| Area | Required operator action |
+| --- | --- |
+| Stored database passwords | Existing encrypted credentials cannot be read by the new runtime. Re-enter each password through the management API/UI, or provide it in bootstrap configuration. |
+| Durable DML approvals | Drain `Pending` requests and resolve `Executing` requests before migrating. SQLite and PostgreSQL Admin Store migrations reject outstanding requests. Historical encrypted resume payloads become unreadable. |
+| Secret settings | Supply three **independent** random 32-byte Base64 values: database-password encryption key, DML-payload encryption key and DML fingerprint key. Missing, malformed, short or reused protection keys cause startup validation failure. |
+| Bootstrap MCP keys | Specify `Bootstrap:Databases:*:McpKeys:*:Key` (or `BOOTSTRAP_MCP_KEY` for the Docker example). Startup no longer generates or logs missing bootstrap keys. Revoke keys previously exposed in logs. |
+| Database `ExtraSettings` | Only JSON Boolean `Encrypt` and `TrustServerCertificate` are accepted. Unknown/duplicate keys, strings and invalid JSON are rejected on writes, bootstrap and connection tests. |
+| Diagnostics | Connection tests and health probes return the generic `DB_CONNECTION_FAILED`, not raw driver exception text. `security.secret-protection` in Runtime Doctor checks key configuration without exposing secrets. |
+
+## Required upgrade procedure
+
+1. **Back up** the Admin Store and the previous deployment's secrets. Keep a restorable snapshot and the old binary for read-only investigation.
+2. **Stop admission of new DML approvals.** Drain every `Pending` approval and independently verify outcomes of `Executing` approvals. Do not label an uncertain execution completed or failed just to bypass migration.
+3. **Inspect historical witnesses before upgrading.** The new runtime cannot decrypt old resume payloads, including those on historical terminal records.
+4. **Generate three independent keys**, running `openssl rand -base64 32` separately for each. Store keys outside source control. Do not use the deliberately invalid example placeholders.
+5. **Configure all nodes identically**, including retained encryption keys and the unversioned DML fingerprint key. Preserve the existing `HMAC_KEY` so issued MCP keys remain usable. Keep JWT signing separate.
+6. **Set explicit bootstrap MCP keys** if bootstrap provisioning is enabled. Alternatively, issue keys through the authenticated management UI/API (which displays the secret once).
+7. **Deploy all nodes together** and run the SQLite/PostgreSQL Admin Store migration. Never mix old and new binaries during this change.
+8. **Re-enter existing database passwords** via management UI/API or bootstrap. Confirm connections and run authorized, governed read and approval checks before returning traffic.
+
+The migration adds a stable unique `SecretBindingId` for each database record and lifts the PostgreSQL length restriction on the ciphertext column. The existing `PasswordHash` column contains *recoverable encrypted credentials*, not a one-way password hash.
+
+## Configure protection keys
+
+In Docker deployments, supply these environment variables with real keys:
+
+```dotenv
+# Replace every example value with a different output of openssl rand -base64 32
+DB_ENCRYPTION_KEY_ID=db-1
+DB_ENCRYPTION_KEY=REPLACE_WITH_32_BYTE_BASE64_VALUE_1
+DML_ENCRYPTION_KEY_ID=dml-1
+DML_ENCRYPTION_KEY=REPLACE_WITH_32_BYTE_BASE64_VALUE_2
+DML_FINGERPRINT_KEY=REPLACE_WITH_32_BYTE_BASE64_VALUE_3
+```
+
+The `REPLACE_WITH_...` strings above are **not valid key material**. Generate three values independently:
+
+```sh
+openssl rand -base64 32
+openssl rand -base64 32
+openssl rand -base64 32
+```
+
+For custom .NET hosts, configure `HsSqlAgentRuntimeOptions.SecretProtection` (or the legacy aggregate's `SecretProtection`) **before runtime registration**:
+
+```json
+{
+  "SecretProtection": {
+    "DatabasePasswords": { "ActiveKeyId": "db-1", "Keys": { "db-1": "<base64-key-1>" } },
+    "DmlPayloads": { "ActiveKeyId": "dml-1", "Keys": { "dml-1": "<base64-key-2>" } },
+    "DmlFingerprintKey": "<base64-key-3>"
+  }
+}
+```
+
+Each encryption key ring has its own `ActiveKeyId` and `Keys` collection. The encrypted database credential is bound to `db-password:<SecretBindingId>`; durable DML data is bound to `dml-payload:<RequestId>`. Use the trusted record's identifier, never one parsed from ciphertext.
+
+## Key rotation
+
+1. Distribute the previous and replacement encryption keys to **every** node under distinct IDs.
+2. Change `ActiveKeyId` on every node only after all nodes know both IDs. New writes use the active key; reads select the retained key referenced by each ciphertext envelope.
+3. Re-save database passwords to re-encrypt them. Keep old DML keys for any payload or historical investigation still needing decryption.
+4. Retire old keys only after confirming no required ciphertext references them.
+
+The `DmlFingerprintKey` is **not versioned**. Rotate it only after draining approvals, and preserve the prior deployment's secrets for historical witness inspection. Docker Compose's simple variables define active keys; use a configuration override or mounted secret to retain additional key IDs.
+
+## Rollback and readiness
+
+**No down-migration is supported.** Rollback means restoring the **pre-upgrade Admin Store backup**, old binaries and the matching previous configuration/secrets; simply restarting an old binary against the migrated database is not a safe rollback.
+
+Verify that `security.secret-protection` reports healthy key configuration. Public sample keys trigger a warning outside Production and an error in Production; unmodified placeholders or invalid configuration fail startup. Check that no database password or approval payload fails to decrypt and that no raw driver error text leaks through connection checks.
+
+**Sources:** [implementation PR #302](https://github.com/tse-wei-chen/hs-sql-agent/pull/302) · [source upgrade specification](https://github.com/tse-wei-chen/hs-sql-agent/blob/78ec5f30bd3bcd2200cb95131bd85ba2a6a34eb6/docs/secret-protection-upgrade.md).
