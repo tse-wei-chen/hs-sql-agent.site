@@ -14,7 +14,7 @@ Do not embed product/marketing pages here. Product pages are Astro UI and live o
 
 ## Version model
 
-The currently published baseline is **2.0.2**, pinned to product tag `v2.0.2` through `src/data/productRelease.ts`. Earlier product versions are not published as documentation trees by this site.
+The oldest documentation baseline is **2.0.2**. The current version is declared by `src/data/productRelease.ts`, with historical versions inheriting unchanged pages through `src/data/docsVersions.ts`.
 
 Future versions should contain only pages that changed in that version. Effective content is resolved through `src/data/docsVersions.ts`, where each version may inherit from a parent, remove inherited pages, or redirect old slugs.
 

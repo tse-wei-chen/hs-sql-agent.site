@@ -1,0 +1,37 @@
+---
+title: "v3.0.0 업그레이드 안내"
+description: "승인 저장소의 호환성 변경, v2 작업자 중지, 확인되지 않은 DML 트랜잭션 처리 방법을 설명합니다."
+sidebar:
+  group: 참고
+  order: 144
+---
+
+
+## 2.0.6 → 3.0.0: 호환성이 깨지는 변경
+
+- **사용자 정의 승인 저장소:** `IDmlApprovalChallengeStore.TryPromoteAsync` 를 원자적으로 구현해야 합니다. 개별 승인을 순서대로 소비한 뒤 일괄 승인을 등록하는 방식은 안전하지 않습니다. 단일 및 다중 `execute_dml_sql` 모두 집계 승인 절차를 사용합니다.
+- **Redis:** 승인 키에 `{dml-approval}:`가 포함되며, 값은 `hs-sql-agent.dml-challenge`의 `SchemaVersion=1` 형식을 사용합니다. v2 키와 기존 형식을 그대로 재사용할 수 없습니다.
+- **승인 검증:** `ApprovalPlanBinding`이 없는 승인은 거부됩니다. 암호화된 보류 실행 정보는 `hs-sql-agent.dml-resume`(`SchemaVersion=1`)으로 변경됩니다. 이전 형식을 읽더라도 새로운 권한을 임의로 부여하지 않습니다.
+- **관리 데이터베이스:** SQLite/PostgreSQL에는 `Pending` 또는 `Executing`이 남아 있으면 마이그레이션이 거부됩니다. `AdmissionProtocolVersion` 도입 후 이전 작업자의 기본값 0으로는 해당 상태를 새로 만들거나 복원할 수 없습니다. v3는 1을 명시합니다. **단, 이전 작업자의 대상 DB 쓰기 권한을 자동으로 회수하지는 않습니다.**
+- **SQL 안전 규칙:** 선택 조건이 요구되는 `UPDATE`/`DELETE`에서 `WHERE 1=1` 등의 항상 참인 조건은 거부됩니다. 입력 제한은 UTF-16 4,194,304단위 및 어휘 토큰 131,072개입니다.
+
+## 안전한 전환 순서
+
+1. v2 DML 미리 보기와 승인 신규 발급을 중단하고 보류 요청과 Redis 승인 키를 확인합니다.
+2. DML 권한이 있는 **모든 v2 작업자를 중지**한 뒤, 미확정 트랜잭션의 실제 결과를 별도로 조사합니다. Witness 또는 Redis 키가 없거나 시간이 초과되었다는 사실은 **롤백 증거가 아닙니다**. `Executing`을 자동 종결하지 마세요.
+3. 관리 데이터베이스와 암호화 키·증거를 함께 백업하고, 이전 작업자의 대상 DB 쓰기 권한과 기존 세션을 철회·종료합니다.
+4. 중지 사실을 확인한 뒤 SQLite/PostgreSQL 마이그레이션을 수행하고 모든 사용자 정의 승인 저장소와 작업자를 함께 갱신합니다.
+5. 호환되지 않는 이전 승인은 새로 미리 보고 **사람의 승인을 다시 받아야 합니다**. 이미 소비한 승인 키는 재사용하지 않습니다.
+6. `AddHsSqlAgentNativeDmlSchemaFreshness()`, `AddHsSqlAgentTargetExecutionFence()`는 각각의 배포 조건과 실제 DB 검증을 완료한 경우에만 선택적으로 활성화합니다. **기본값은 비활성**입니다.
+
+## 결과 미확정과 다운그레이드
+
+`dml.commit_outcome_unknown`와 `dml.rollback_outcome_unknown`는 둘 다 **소비한 승인을 재시도하면 안 된다**는 뜻입니다. 응답은 `outcome_unknown`, `retryable=false`이며, 감사 기록 실패 때문에 확인된 COMMIT을 실패로 바꾸어 보고하지 않습니다.
+
+SQLite/PostgreSQL 승인 프로토콜 마이그레이션은 **일방향 보안 전환**입니다. EF migration으로 직접 되돌리는 작업은 거부됩니다. 복구하려면 작업자를 중지하고 미확정 결과를 조사한 뒤 운영자가 호환되는 백업을 복원해야 합니다.
+
+`target-fence-v1`는 시험적 선택 기능으로, 전체 작업자 등록이나 이전 권한 철회를 증명하지 않으며 `Executing` 자동 종결을 허용하지 않습니다. Oracle Witness 고유성 검증의 두 번째 단계만 READ COMMITTED이고 나머지 단계는 SERIALIZABLE입니다.
+
+표준 MCP 도구는 5개 그대로이며, 읽기 전용 도구 4개가 기본 선택되고 DML은 선택 사항입니다.
+
+근거: [v3 마이그레이션 원문](https://github.com/tse-wei-chen/hs-sql-agent/blob/4acb6725bb4623104ae6a9de5c3dea404616d09e/docs/v3-migration.md)

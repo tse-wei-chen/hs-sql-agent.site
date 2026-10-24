@@ -1,0 +1,37 @@
+---
+title: "Mise à niveau vers v3.0.0"
+description: "Ruptures de compatibilité des approbations, arrêt coordonné des agents v2 et traitement des transactions DML incertaines."
+sidebar:
+  group: Référence
+  order: 144
+---
+
+
+## 2.0.6 → 3.0.0 : changements incompatibles
+
+- **Stockages d'approbation personnalisés :** `IDmlApprovalChallengeStore.TryPromoteAsync` doit être atomique. Consommer les approbations individuelles avant de créer une approbation groupée n'est pas sûr. Les exécutions `execute_dml_sql` simples et multiples utilisent toutes deux la promotion groupée.
+- **Redis :** les clés contiennent `{dml-approval}:` et les valeurs utilisent l'enveloppe `hs-sql-agent.dml-challenge` avec `SchemaVersion=1`. Les anciennes clés et valeurs v2 ne sont pas réutilisables telles quelles.
+- **Preuves d'approbation :** toute approbation dépourvue de `ApprovalPlanBinding` est refusée. Les reprises chiffrées adoptent `hs-sql-agent.dml-resume` (`SchemaVersion=1`). La lecture explicite de l'ancien format ne confère aucune autorisation nouvelle.
+- **Base d'administration :** les migrations SQLite/PostgreSQL refusent de démarrer tant que des approbations `Pending` ou `Executing` subsistent. La colonne `AdmissionProtocolVersion` empêche les anciens agents (valeur implicite 0) de créer ou de rétablir ces états ; v3 écrit explicitement 1. **Cette protection ne révoque pas les droits d'écriture directs des anciens agents sur les bases cibles.**
+- **Protection SQL :** lorsque des conditions sélectives sont exigées, les prédicats toujours vrais tels que `WHERE 1=1` sont refusés pour `UPDATE`/`DELETE`. Les limites sont de 4 194 304 unités UTF-16 et 131 072 jetons lexicaux.
+
+## Déploiement sans réexécution dangereuse
+
+1. Suspendre les nouvelles prévisualisations et approbations DML v2 ; inventorier les demandes en attente et les clés Redis.
+2. **Arrêter tous les agents v2 autorisés à modifier les données**, puis établir indépendamment l'issue physique des transactions non résolues. L'absence de Witness, de clé Redis ou un délai dépassé **ne prouve pas un rollback**. Ne jamais résoudre automatiquement `Executing`.
+3. Sauvegarder la base d'administration avec ses clés de chiffrement et les preuves nécessaires. Révoquer les droits d'écriture des anciens agents sur les bases cibles et vérifier la fermeture de leurs sessions.
+4. Après cet arrêt seulement, migrer SQLite/PostgreSQL et mettre à jour ensemble les stockages d'approbation personnalisés et les agents concernés.
+5. Exiger une nouvelle prévisualisation et **une nouvelle approbation humaine** pour les anciennes demandes incompatibles ; ne jamais rejouer une approbation consommée.
+6. N'activer `AddHsSqlAgentNativeDmlSchemaFreshness()` ou `AddHsSqlAgentTargetExecutionFence()` qu'après vérification de leurs prérequis et essais sur les bases réelles. Ces options restent **désactivées par défaut**.
+
+## Issue inconnue et retour arrière
+
+`dml.commit_outcome_unknown` et `dml.rollback_outcome_unknown` interdisent tous deux de **réessayer une approbation consommée**. L'API renvoie `outcome_unknown`, `retryable=false` ; l'échec du journal d'audit ne transforme pas un COMMIT confirmé en échec.
+
+La migration du protocole d'admission sur SQLite/PostgreSQL est **irréversible par migration EF**. Un retour arrière demande l'arrêt des agents, la vérification des transactions incertaines et une restauration contrôlée d'une sauvegarde compatible.
+
+`target-fence-v1` est expérimental et facultatif. La vérification du nouvel agent ne prouve pas la révocation des anciens accès et n'autorise pas la résolution automatique de `Executing`. Seul le second contrôle d'unicité Witness d'Oracle emploie READ COMMITTED ; les autres contrôles utilisent SERIALIZABLE.
+
+Les cinq outils MCP restent identiques : quatre outils de lecture présélectionnés, DML non sélectionné.
+
+Source : [guide de migration v3](https://github.com/tse-wei-chen/hs-sql-agent/blob/4acb6725bb4623104ae6a9de5c3dea404616d09e/docs/v3-migration.md)

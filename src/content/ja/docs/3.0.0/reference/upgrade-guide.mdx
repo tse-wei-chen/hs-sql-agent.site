@@ -1,0 +1,37 @@
+---
+title: "v3.0.0 へのアップグレード"
+description: "承認ストアの破壊的変更、v2 ワーカーの停止手順、確定できない DML トランザクションの扱い。"
+sidebar:
+  group: リファレンス
+  order: 144
+---
+
+
+## 2.0.6 → 3.0.0：互換性に影響する変更
+
+- **独自の承認ストア：** `IDmlApprovalChallengeStore.TryPromoteAsync` の原子的な実装が必須です。子承認を順番に消費してから一括承認を登録する方式は安全ではありません。単一 SQL と複数 SQL の `execute_dml_sql` は、どちらも集約承認を使用します。
+- **Redis：** 承認キーに `{dml-approval}:` を使用し、値は `hs-sql-agent.dml-challenge` の `SchemaVersion=1` 形式になります。v2 のキーと値をそのまま再利用することはできません。
+- **承認の紐付け：** `ApprovalPlanBinding` を欠く承認は拒否されます。保留中の暗号化データは `hs-sql-agent.dml-resume`（`SchemaVersion=1`）に移行します。旧形式の読み取りによって、新しい権限が自動付与されることはありません。
+- **管理データベース：** SQLite／PostgreSQL は `Pending` または `Executing` が残っている場合、移行を拒否します。`AdmissionProtocolVersion` が追加され、旧ワーカーが既定値 0 でこれらの状態を作成・復活させることを防ぎます。v3 はバージョン 1 を明示します。**これだけでは旧ワーカーの対象データベースへの書き込み権限は失効しません。**
+- **SQL 制限：** 選択的な条件が必要なとき、`UPDATE`／`DELETE` の `WHERE 1=1` など常に真となる条件を拒否します。入力上限は UTF-16 で 4,194,304 単位、字句トークンで 131,072 個です。
+
+## 安全な移行手順
+
+1. v2 の新規 DML プレビューと承認を停止し、保留中の要求と Redis キーを洗い出します。
+2. DML を実行できる **すべての v2 ワーカーを停止**し、未決済トランザクションの実際の結果を個別に確認します。Witness や Redis キーが見つからないこと、タイムアウトしたことは**ロールバックの証明ではありません**。`Executing` を自動で解決しないでください。
+3. 管理データベースを暗号鍵・必要な証跡とともに保全し、旧ワーカーの対象 DB 書き込み権限を無効化して既存セッションが終了したことを確認します。
+4. 停止を確認した後に SQLite／PostgreSQL の移行を実行し、独自承認ストアとすべての対象ワーカーを同時に更新します。
+5. 互換性のない旧承認は、新しいプレビューと**改めての人による承認**を取得します。消費済みの承認を再利用しないでください。
+6. `AddHsSqlAgentNativeDmlSchemaFreshness()` と `AddHsSqlAgentTargetExecutionFence()` は、それぞれの配備条件と実 DB 検証を満たした場合のみ有効化します。**既定では無効**です。
+
+## 結果不明とダウングレード
+
+`dml.commit_outcome_unknown` と `dml.rollback_outcome_unknown` は、いずれも**消費済み承認を再実行してはいけない**状態です。API は `outcome_unknown` と `retryable=false` を返します。監査記録の障害によって、確認済み COMMIT が失敗扱いになることはありません。
+
+SQLite／PostgreSQL の承認プロトコル移行は**一方向の安全性を伴う移行**であり、EF migration による直接のダウングレードは拒否されます。戻す場合はワーカーを停止し、未決済結果を調査した上で、運用担当者が互換バックアップから復元します。
+
+`target-fence-v1` は試験的な任意機能です。新ワーカーの準備テストは旧権限の失効を保証せず、`Executing` の自動解決も許可しません。Oracle の Witness 一意性テストの第 2 段階のみ READ COMMITTED、それ以外は SERIALIZABLE です。
+
+標準 MCP ツールは 5 個のまま、既定では読み取り専用の 4 個が選択され、DML は任意です。
+
+出典：[v3 移行ガイド](https://github.com/tse-wei-chen/hs-sql-agent/blob/4acb6725bb4623104ae6a9de5c3dea404616d09e/docs/v3-migration.md)

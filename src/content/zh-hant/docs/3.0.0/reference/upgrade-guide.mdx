@@ -1,0 +1,37 @@
+---
+title: "升級至 v3.0.0"
+description: "說明核准儲存介面的重大變更、v2 工作節點停用程序，以及無法確認的資料庫交易結果。"
+sidebar:
+  group: 參考
+  order: 144
+---
+
+
+## 2.0.6 → 3.0.0：不相容變更
+
+- **自訂核准儲存介面：** 必須實作具原子性的 `IDmlApprovalChallengeStore.TryPromoteAsync`。逐筆消耗子核准再建立批次核准並不安全；單筆及多筆 `execute_dml_sql` 都會使用彙總核准流程。
+- **Redis：** 核准金鑰包含 `{dml-approval}:`，資料改用 `hs-sql-agent.dml-challenge` 封裝格式（`SchemaVersion=1`）。不能直接沿用 v2 金鑰及舊格式。
+- **核准證據：** 缺少 `ApprovalPlanBinding` 的核准會被拒絕。待處理交易的加密恢復資料改用 `hs-sql-agent.dml-resume`（`SchemaVersion=1`）；舊格式讀取器不會憑空授予新權限。
+- **管理資料庫：** SQLite／PostgreSQL 遷移遇到未結束的 `Pending` 或 `Executing` 核准會直接拒絕。新增的 `AdmissionProtocolVersion` 會阻止版本為 0 的舊寫入新增或恢復上述狀態；v3 會明確寫入版本 1。**這不代表舊工作節點已失去目標資料庫的寫入權限。**
+- **SQL 安全規則：** 當政策要求選擇性條件時，`UPDATE`／`DELETE` 的 `WHERE 1=1` 等恆真條件會遭拒絕；輸入上限為 4,194,304 個 UTF-16 單位及 131,072 個詞彙分析記號。
+
+## 安全升級步驟
+
+1. 停止發出新的 v2 DML 預覽與核准請求，盤點尚未完成的申請及 Redis 核准金鑰。
+2. **停止所有**具 DML 能力的 v2 工作節點，逐一確認未決交易的實際結果。找不到 Witness、Redis 金鑰或等待逾時，**都不能當成交易已回滾的證據**；也不能自動結案 `Executing`。
+3. 一併備份管理資料庫、加密金鑰與調查證據；正式環境另須撤銷舊工作節點的目標資料庫寫入權限並確認既有連線已結束。
+4. 確認停用程序完成後，才執行 SQLite／PostgreSQL 管理資料庫遷移；同時升級自訂核准儲存介面與所有工作節點。
+5. 舊版核准若與新證據格式不相容，必須重新預覽並取得**新的人工核准**，不得重播已消耗的核准金鑰。
+6. `AddHsSqlAgentNativeDmlSchemaFreshness()`、`AddHsSqlAgentTargetExecutionFence()` 仍需另外完成部署準備及實體資料庫測試後才能選用，**不會預設啟用**。
+
+## 無法確認的結果與降版限制
+
+`dml.commit_outcome_unknown` 與 `dml.rollback_outcome_unknown` 都代表**不得重試已消耗的核准**；對外狀態為 `outcome_unknown`、`retryable=false`。即使稽核記錄寫入失敗，也不能把已確認提交的交易誤報為失敗。
+
+SQLite／PostgreSQL 的核准版本遷移屬於**單向安全遷移**，不支援透過 EF migration 直接降版。必須先停止工作節點、釐清未決交易，才能由維運人員透過相容備份進行受控還原。
+
+`target-fence-v1` 仍屬實驗性選用能力：新身分的回滾式準備檢查無法證明舊身分已停權，也不能自動結案 `Executing`。Oracle 只有 Witness 唯一鍵衝突驗證使用 READ COMMITTED，其餘階段使用 SERIALIZABLE。
+
+五個標準 MCP 工具不變，預設仍勾選四個唯讀工具，DML 保持不預選。
+
+依據：[v3 升級來源](https://github.com/tse-wei-chen/hs-sql-agent/blob/4acb6725bb4623104ae6a9de5c3dea404616d09e/docs/v3-migration.md)
