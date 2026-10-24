@@ -1,0 +1,90 @@
+---
+title: "升級指南：版本化機密資料保護"
+description: "預定 3.0.0 的不相容變更：加密金鑰、DML 核准清理、部署與回復舊版。"
+sidebar:
+  group: 參考
+  order: 144
+draft: true
+---
+
+## 預定 3.0.0 變更：版本化機密資料保護
+
+**狀態：實作仍在 [hs-sql-agent PR #302](https://github.com/tse-wei-chen/hs-sql-agent/pull/302) 審查中，尚未包含於已發布的 2.0.6。** 本頁只涵蓋機密資料保護的遷移，**並非** 2.0.6 升級至 3.0.0 的完整差異清單。
+
+新版以 AES-256-GCM 取代舊有的 HMAC 衍生式加密，密文採用 `v2:<key-id>:<base64 nonce/tag/ciphertext>` 格式，並驗證版本、金鑰識別碼、用途及受信任的資料記錄識別碼。**舊格式沒有解密後備機制，也不會自動轉換。**
+
+## 不相容變更與影響
+
+| 範圍 | 必須採取的措施 |
+| --- | --- |
+| 已儲存的資料庫密碼 | 新版無法讀取舊版加密憑證。須透過管理介面／API 重新輸入密碼，或在初始佈建設定中提供。 |
+| 持久化 DML 核准 | 遷移前須清空 `Pending`、釐清 `Executing` 的實際執行結果。SQLite 與 PostgreSQL 的管理資料庫遷移會拒絕尚未結束的核准。舊版加密的歷史續行資料也將無法讀取。 |
+| 機密金鑰設定 | 必須準備三組**彼此獨立**、隨機產生的 32 位元組 Base64 金鑰，分別用於資料庫密碼、DML 資料及 DML 指紋。缺漏、格式錯誤、長度不足或重複使用會造成啟動驗證失敗。 |
+| 初始佈建的 MCP 金鑰 | 須明確設定 `Bootstrap:Databases:*:McpKeys:*:Key`（Docker 範例使用 `BOOTSTRAP_MCP_KEY`）。啟動時不再自動產生或記錄金鑰；先前可能出現在日誌中的金鑰應予撤銷。 |
+| 資料庫 `ExtraSettings` | 僅允許 JSON 布林欄位 `Encrypt` 和 `TrustServerCertificate`。未知或重複欄位、字串值與無效 JSON 都會遭到拒絕。 |
+| 診斷訊息 | 連線測試與健康探測只回傳通用的 `DB_CONNECTION_FAILED`，不顯示驅動程式原始錯誤。Runtime Doctor 以 `security.secret-protection` 檢查金鑰，且不暴露內容。 |
+
+## 正式升級前的必要步驟
+
+1. **備份**管理資料庫與既有部署密鑰，確認備份可還原，並保留舊版程式供唯讀鑑識。
+2. **停止接受新的 DML 核准。** 處理所有 `Pending`，並獨立查證 `Executing` 的實際資料庫結果。不得為了通過遷移而將不確定的執行任意標為完成或失敗。
+3. **先完成歷史執行見證資料的檢查。** 新版無法解開舊的續行資料，即使該記錄已是終止狀態也一樣。
+4. **獨立產生三組金鑰。** 每組各執行一次 `openssl rand -base64 32`；不可提交到版本庫，也不可使用範例中的無效佔位值。
+5. **所有節點採用一致的金鑰設定**，包含需保留的舊金鑰與不具版本識別碼的 DML 指紋金鑰。保留原本的 `HMAC_KEY`，以維持既有 MCP 金鑰可用；JWT 簽章金鑰仍應獨立。
+6. 若啟用初始佈建，**明確提供 MCP 金鑰**；也可以在驗證身分後透過管理介面／API 核發，只在建立時取得一次明文。
+7. **所有節點同步升級**，執行 SQLite／PostgreSQL 管理資料庫遷移；此期間不可混用新舊程式。
+8. **重新輸入既有資料庫密碼**，驗證連線、授權的唯讀查詢與 DML 核准流程，確認後再恢復流量。
+
+遷移會替每筆資料庫連線新增唯一且穩定的 `SecretBindingId`，並移除 PostgreSQL 密文欄位的長度限制。既有 `PasswordHash` 欄位存放的是**可還原的加密憑證**，並非單向密碼雜湊。
+
+## 金鑰設定方式
+
+Docker 部署須提供以下環境變數：
+
+```dotenv
+# Replace every example value with a different output of openssl rand -base64 32
+DB_ENCRYPTION_KEY_ID=db-1
+DB_ENCRYPTION_KEY=REPLACE_WITH_32_BYTE_BASE64_VALUE_1
+DML_ENCRYPTION_KEY_ID=dml-1
+DML_ENCRYPTION_KEY=REPLACE_WITH_32_BYTE_BASE64_VALUE_2
+DML_FINGERPRINT_KEY=REPLACE_WITH_32_BYTE_BASE64_VALUE_3
+```
+
+上方的 `REPLACE_WITH_...` **不是有效金鑰**。請分別產生三個值：
+
+```sh
+openssl rand -base64 32
+openssl rand -base64 32
+openssl rand -base64 32
+```
+
+自行整合的 .NET 主機，請在註冊執行階段服務**之前**設定 `HsSqlAgentRuntimeOptions.SecretProtection`（或舊版彙總選項的 `SecretProtection`）：
+
+```json
+{
+  "SecretProtection": {
+    "DatabasePasswords": { "ActiveKeyId": "db-1", "Keys": { "db-1": "<base64-key-1>" } },
+    "DmlPayloads": { "ActiveKeyId": "dml-1", "Keys": { "dml-1": "<base64-key-2>" } },
+    "DmlFingerprintKey": "<base64-key-3>"
+  }
+}
+```
+
+兩組加密金鑰集合各有自己的 `ActiveKeyId` 與 `Keys`。資料庫密碼綁定 `db-password:<SecretBindingId>`，持久化 DML 資料綁定 `dml-payload:<RequestId>`。必須使用受信任記錄的識別碼，不可從密文取出識別碼當作依據。
+
+## 金鑰輪替
+
+1. 先將新舊加密金鑰以**不同識別碼**發送到所有節點。
+2. 確認每個節點都具有兩把金鑰，再同步變更 `ActiveKeyId`。新資料使用作用中金鑰加密，讀取時則依密文標記選擇保留的金鑰。
+3. 重新儲存資料庫密碼以重新加密；仍需讀取的 DML 資料及歷史鑑識資料不可提前失去舊金鑰。
+4. 確認不再需要任何以舊金鑰加密的資料後，才能移除該金鑰。
+
+`DmlFingerprintKey` **沒有版本化機制**。輪替前必須清空核准，並保留舊部署密鑰以供歷史鑑識。Docker Compose 環境變數僅示範作用中金鑰；要保留其他識別碼，可使用設定覆寫檔或掛載的機密設定。
+
+## 回復舊版與驗收
+
+**不支援反向資料庫遷移。** 若需回復，必須還原**升級前**的管理資料庫備份、舊版程式及對應的舊設定／密鑰。不可只將舊版程式指向已遷移的資料庫。
+
+確認 Runtime Doctor 的 `security.secret-protection` 檢查通過。公開範例金鑰在非正式環境為警告、正式環境為錯誤；未替換的佔位值或無效設定會阻止啟動。另須驗證資料庫密碼與核准資料可正常解密，且連線檢查不會洩漏驅動程式錯誤。
+
+**依據：** [實作 PR #302](https://github.com/tse-wei-chen/hs-sql-agent/pull/302) · [原始升級規格](https://github.com/tse-wei-chen/hs-sql-agent/blob/security/versioned-secret-protection/docs/secret-protection-upgrade.md)。

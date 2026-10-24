@@ -1,0 +1,90 @@
+---
+title: "アップグレードガイド：バージョン付き機密情報保護"
+description: "予定されている 3.0.0 の非互換変更：暗号鍵、DML 承認の整理、展開、ロールバック。"
+sidebar:
+  group: リファレンス
+  order: 144
+draft: true
+---
+
+## 3.0.0 で予定されている機密情報保護の変更
+
+**状況：[hs-sql-agent PR #302](https://github.com/tse-wei-chen/hs-sql-agent/pull/302) で審査中です。公開済みの 2.0.6 には含まれません。** このページは機密情報保護の移行だけを扱い、**2.0.6 → 3.0.0 の変更点を網羅したものではありません**。
+
+従来の HMAC 派生方式による暗号化を、用途とレコードに結び付けた AES-256-GCM に置き換えます。暗号文は `v2:<key-id>:<base64 nonce/tag/ciphertext>` 形式で、バージョン、鍵 ID、用途、信頼済みレコード ID を認証します。**旧形式の復号フォールバックも自動変換もありません。**
+
+## 非互換変更
+
+| 対象 | 必要な対応 |
+| --- | --- |
+| 保存済みデータベースパスワード | 新ランタイムでは旧暗号文を復号できません。管理画面／API で再登録するか、初期構成にパスワードを指定してください。 |
+| 永続化 DML 承認 | 移行前に `Pending` を解消し、`Executing` の実際の実行結果を確認してください。SQLite／PostgreSQL の Admin Store 移行は未完了承認を拒否します。過去の暗号化された再開データも読み取れなくなります。 |
+| 鍵の設定 | データベースパスワード、DML データ、DML 指紋用に、**それぞれ独立した**ランダムな 32 バイトの Base64 鍵を 3 つ用意します。欠落、不正形式、短い鍵、使い回しは起動時エラーになります。 |
+| 初期作成する MCP キー | `Bootstrap:Databases:*:McpKeys:*:Key`（Docker 例では `BOOTSTRAP_MCP_KEY`）を明示します。起動時の自動生成とログ出力は廃止されます。過去にログへ露出したキーは失効させてください。 |
+| `ExtraSettings` | JSON の真偽値 `Encrypt` と `TrustServerCertificate` のみを許可します。不明・重複項目、文字列値、不正な JSON は拒否されます。 |
+| 診断 | 接続テストとヘルスチェックはドライバーの生の例外を返さず、`DB_CONNECTION_FAILED` を返します。Runtime Doctor の `security.secret-protection` は秘密値を表示せずに検証します。 |
+
+## アップグレード手順
+
+1. Admin Store と既存の鍵を**バックアップ**し、復元可能な状態にします。旧バイナリも読み取り専用の調査用に保管してください。
+2. **新しい DML 承認の受付を停止**し、`Pending` をすべて解消します。`Executing` はデータベース上の実際の結果を独立して確認してください。移行を通すために不確かな実行を完了・失敗扱いにしてはいけません。
+3. **過去の実行証跡を先に調査**します。終了済みレコードも含め、旧形式の再開データは新版では復号できません。
+4. `openssl rand -base64 32` を**別々に 3 回**実行し、独立した鍵を作成します。ソース管理に登録せず、例示用の無効な値も使用しないでください。
+5. **全ノードで鍵の構成を統一**します。保持する旧鍵とバージョン管理されない DML 指紋鍵も含めます。既存 MCP キーを維持するため `HMAC_KEY` は引き継ぎ、JWT 署名鍵とは分離してください。
+6. 初期設定を利用する場合は MCP キーを明示するか、認証済みの管理画面／API から発行してください。秘密値は発行時に一度だけ取得できます。
+7. **全ノードを一斉に更新**し、SQLite／PostgreSQL の Admin Store 移行を適用します。新旧バイナリを混在させないでください。
+8. 既存のデータベースパスワードを再登録し、接続、権限付きの読み取り、DML 承認動作を確認してからトラフィックを再開します。
+
+移行により、各データベース接続に一意で安定した `SecretBindingId` が追加され、PostgreSQL の暗号文列の長さ制限が撤廃されます。`PasswordHash` 列は一方向ハッシュではなく、**復号可能な暗号化認証情報**を保持します。
+
+## 暗号鍵の設定
+
+Docker では、次の環境変数を実際の鍵に置き換えます。
+
+```dotenv
+# Replace every example value with a different output of openssl rand -base64 32
+DB_ENCRYPTION_KEY_ID=db-1
+DB_ENCRYPTION_KEY=REPLACE_WITH_32_BYTE_BASE64_VALUE_1
+DML_ENCRYPTION_KEY_ID=dml-1
+DML_ENCRYPTION_KEY=REPLACE_WITH_32_BYTE_BASE64_VALUE_2
+DML_FINGERPRINT_KEY=REPLACE_WITH_32_BYTE_BASE64_VALUE_3
+```
+
+`REPLACE_WITH_...` は**有効な鍵ではありません**。以下のように 3 回別々に生成してください。
+
+```sh
+openssl rand -base64 32
+openssl rand -base64 32
+openssl rand -base64 32
+```
+
+独自の .NET ホストでは、ランタイム登録**前**に `HsSqlAgentRuntimeOptions.SecretProtection`（または従来の集約設定にある `SecretProtection`）を設定します。
+
+```json
+{
+  "SecretProtection": {
+    "DatabasePasswords": { "ActiveKeyId": "db-1", "Keys": { "db-1": "<base64-key-1>" } },
+    "DmlPayloads": { "ActiveKeyId": "dml-1", "Keys": { "dml-1": "<base64-key-2>" } },
+    "DmlFingerprintKey": "<base64-key-3>"
+  }
+}
+```
+
+鍵リングはそれぞれ `ActiveKeyId` と `Keys` を持ちます。データベース資格情報の結び付きは `db-password:<SecretBindingId>`、永続化 DML データは `dml-payload:<RequestId>` です。暗号文から取得した値ではなく、信頼済みレコードの ID を使ってください。
+
+## 鍵のローテーション
+
+1. 異なる ID を付けた新旧の暗号鍵を**全ノード**へ配布します。
+2. すべてのノードに両方の鍵が存在することを確認してから `ActiveKeyId` を切り替えます。新規暗号化には有効鍵を使い、復号時には暗号文の鍵 ID を参照します。
+3. データベースパスワードを再保存して再暗号化します。参照が必要な DML データや過去の調査データがある間は旧鍵を保持します。
+4. 必要な暗号文が旧鍵に依存しなくなったことを確認してから削除します。
+
+`DmlFingerprintKey` は**バージョン管理されません**。ローテーション前に承認を整理し、過去の調査のために旧環境の鍵を保持してください。Docker Compose の標準変数は有効鍵のみを示すため、保持鍵は設定の上書きやマウントした機密設定で指定します。
+
+## ロールバックと確認事項
+
+**逆方向のスキーマ移行はサポートしません。** 戻す場合は**更新前の Admin Store バックアップ**、旧バイナリ、対応する旧設定と鍵をまとめて復元してください。移行済みデータベースへ旧バイナリを接続するだけでは安全に戻せません。
+
+Runtime Doctor の `security.secret-protection` を確認してください。公開サンプル鍵は本番環境でエラー、それ以外で警告となり、未置換のプレースホルダーや不正な鍵は起動に失敗します。パスワード・承認データの復号と、接続エラーからの情報漏えい防止も確認します。
+
+**根拠：** [実装 PR #302](https://github.com/tse-wei-chen/hs-sql-agent/pull/302) · [元の移行仕様](https://github.com/tse-wei-chen/hs-sql-agent/blob/security/versioned-secret-protection/docs/secret-protection-upgrade.md)。

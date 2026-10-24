@@ -1,0 +1,90 @@
+---
+title: "Guide de mise à niveau : protection des secrets versionnée"
+description: "Ruptures prévues pour 3.0.0 : clés de chiffrement, validations DML, déploiement et retour arrière."
+sidebar:
+  group: Référence
+  order: 144
+draft: true
+---
+
+## Changement prévu pour 3.0.0 : protection des secrets versionnée
+
+**État : en cours de revue dans la [PR hs-sql-agent nº 302](https://github.com/tse-wei-chen/hs-sql-agent/pull/302), absent de la version publiée 2.0.6.** Cette page couvre uniquement la migration des secrets : **elle n’est pas un inventaire complet des changements entre 2.0.6 et 3.0.0**.
+
+Le chiffrement dérivé de HMAC est remplacé par AES-256-GCM, lié à l’usage et à l’enregistrement de confiance. Le format est `v2:<key-id>:<base64 nonce/tag/ciphertext>` ; la version, l’identifiant de clé, l’usage et l’identifiant d’enregistrement sont authentifiés. **Aucun déchiffrement de secours ni conversion automatique de l’ancien format n’est prévu.**
+
+## Modifications incompatibles
+
+| Domaine | Intervention obligatoire |
+| --- | --- |
+| Mots de passe de bases enregistrés | Le nouveau service ne peut pas déchiffrer les anciens secrets. Ressaisissez les mots de passe dans l’interface ou l’API d’administration, ou fournissez-les lors de l’initialisation. |
+| Approbations DML persistantes | Résolvez les demandes `Pending` et vérifiez le résultat réel des opérations `Executing` avant la migration. Les migrations SQLite/PostgreSQL de l’Admin Store refusent toute demande encore active. Les anciennes données chiffrées de reprise, même historiques, deviennent illisibles. |
+| Clés de protection | Fournissez **trois clés distinctes** aléatoires de 32 octets encodées en Base64 : mots de passe, charges utiles DML et empreinte DML. Toute clé absente, invalide, trop courte ou réutilisée empêche le démarrage. |
+| Clés MCP initiales | Fournissez `Bootstrap:Databases:*:McpKeys:*:Key` (ou `BOOTSTRAP_MCP_KEY` dans l’exemple Docker). Le démarrage ne génère ni ne journalise plus les clés manquantes. Révoquez celles auparavant exposées dans les journaux. |
+| `ExtraSettings` | Seuls les booléens JSON `Encrypt` et `TrustServerCertificate` sont acceptés. Champs inconnus ou dupliqués, chaînes et JSON invalide sont rejetés. |
+| Diagnostics | Les essais de connexion et sondes renvoient `DB_CONNECTION_FAILED` sans exposer les exceptions du pilote. Runtime Doctor vérifie `security.secret-protection` sans révéler les clés. |
+
+## Procédure obligatoire
+
+1. **Sauvegardez** l’Admin Store et les secrets de l’ancienne installation. Vérifiez la restauration et conservez l’ancien binaire pour les investigations en lecture seule.
+2. **Suspendez les nouvelles approbations DML.** Traitez chaque demande `Pending` et vérifiez indépendamment les résultats réels des opérations `Executing`. Ne déclarez jamais arbitrairement une exécution incertaine terminée ou échouée pour contourner la migration.
+3. **Examinez les preuves historiques avant la migration.** Les anciennes données chiffrées de reprise, y compris celles des dossiers clos, ne pourront plus être lues.
+4. **Générez trois clés indépendantes** en lançant séparément `openssl rand -base64 32` trois fois. Ne les placez pas dans le dépôt et n’utilisez pas les exemples volontairement invalides.
+5. **Configurez les mêmes clés sur tous les nœuds**, y compris les anciennes clés retenues et la clé d’empreinte DML non versionnée. Conservez `HMAC_KEY` pour maintenir la validité des clés MCP existantes et séparez la signature JWT.
+6. Fournissez explicitement les clés MCP d’initialisation si cette fonction est active ; sinon, émettez-les via l’interface/API d’administration authentifiée, qui n’affiche le secret qu’une fois.
+7. **Déployez tous les nœuds simultanément**, puis appliquez les migrations SQLite/PostgreSQL. Ne mélangez jamais anciens et nouveaux binaires.
+8. Ressaisissez les mots de passe existants. Vérifiez les connexions, une lecture autorisée et le processus d’approbation DML avant de rouvrir le trafic.
+
+La migration ajoute un `SecretBindingId` unique et stable par connexion et supprime la limite de taille de la colonne chiffrée dans PostgreSQL. Malgré son nom, `PasswordHash` stocke des **identifiants chiffrés récupérables**, et non une empreinte irréversible.
+
+## Configurer les clés
+
+Pour Docker, définissez ces variables avec vos propres clés :
+
+```dotenv
+# Replace every example value with a different output of openssl rand -base64 32
+DB_ENCRYPTION_KEY_ID=db-1
+DB_ENCRYPTION_KEY=REPLACE_WITH_32_BYTE_BASE64_VALUE_1
+DML_ENCRYPTION_KEY_ID=dml-1
+DML_ENCRYPTION_KEY=REPLACE_WITH_32_BYTE_BASE64_VALUE_2
+DML_FINGERPRINT_KEY=REPLACE_WITH_32_BYTE_BASE64_VALUE_3
+```
+
+Les valeurs `REPLACE_WITH_...` **ne sont pas des clés valides**. Générez trois valeurs distinctes :
+
+```sh
+openssl rand -base64 32
+openssl rand -base64 32
+openssl rand -base64 32
+```
+
+Pour un hôte .NET personnalisé, configurez `HsSqlAgentRuntimeOptions.SecretProtection` (ou `SecretProtection` dans les anciennes options agrégées) **avant** l’enregistrement du service :
+
+```json
+{
+  "SecretProtection": {
+    "DatabasePasswords": { "ActiveKeyId": "db-1", "Keys": { "db-1": "<base64-key-1>" } },
+    "DmlPayloads": { "ActiveKeyId": "dml-1", "Keys": { "dml-1": "<base64-key-2>" } },
+    "DmlFingerprintKey": "<base64-key-3>"
+  }
+}
+```
+
+Chaque ensemble de clés comporte `ActiveKeyId` et `Keys`. Le mot de passe est lié à `db-password:<SecretBindingId>` et les données DML à `dml-payload:<RequestId>`. Utilisez l’identifiant de l’enregistrement de confiance, jamais celui extrait du texte chiffré.
+
+## Rotation des clés
+
+1. Distribuez les anciennes et nouvelles clés de chiffrement sous des identifiants distincts à **tous** les nœuds.
+2. Une fois les deux clés disponibles partout, modifiez `ActiveKeyId`. Les nouvelles écritures utilisent la clé active ; les lectures utilisent l’identifiant de clé contenu dans chaque enveloppe.
+3. Réenregistrez les mots de passe pour les rechiffrer. Conservez les anciennes clés DML tant que des données ou preuves historiques doivent être déchiffrées.
+4. Ne retirez une ancienne clé qu’après avoir confirmé qu’aucun texte chiffré nécessaire n’en dépend.
+
+`DmlFingerprintKey` **n’est pas versionnée**. Videz les approbations avant sa rotation et conservez les anciens secrets pour toute enquête historique. Les variables Docker Compose simples définissent la clé active ; utilisez un fichier de surcharge ou une configuration secrète montée pour conserver d’autres identifiants.
+
+## Retour arrière et validation
+
+**Aucune migration inverse n’est prise en charge.** Pour revenir en arrière, restaurez **la sauvegarde antérieure** de l’Admin Store, les anciens binaires et les anciens secrets/configurations correspondants. Lancer un ancien binaire sur la base migrée n’est pas une opération sûre.
+
+Contrôlez `security.secret-protection` dans Runtime Doctor. Les clés d’exemple publiques déclenchent une alerte hors production et une erreur en production ; les valeurs fictives non remplacées ou les clés invalides empêchent le démarrage. Vérifiez aussi le déchiffrement des secrets et l’absence de messages bruts des pilotes lors des échecs de connexion.
+
+**Sources :** [PR d’implémentation nº 302](https://github.com/tse-wei-chen/hs-sql-agent/pull/302) · [guide source](https://github.com/tse-wei-chen/hs-sql-agent/blob/security/versioned-secret-protection/docs/secret-protection-upgrade.md).
