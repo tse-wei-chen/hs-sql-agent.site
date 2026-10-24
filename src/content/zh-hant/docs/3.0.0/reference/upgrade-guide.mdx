@@ -9,7 +9,7 @@ draft: true
 
 ## 預定 3.0.0 變更：版本化機密資料保護
 
-**狀態：實作仍在 [hs-sql-agent PR #302](https://github.com/tse-wei-chen/hs-sql-agent/pull/302) 審查中，尚未包含於已發布的 2.0.6。** 本頁只涵蓋機密資料保護的遷移，**並非** 2.0.6 升級至 3.0.0 的完整差異清單。
+**狀態：[hs-sql-agent PR #302](https://github.com/tse-wei-chen/hs-sql-agent/pull/302) 已合併至 `main`（[合併提交 `78ec5f30`](https://github.com/tse-wei-chen/hs-sql-agent/commit/78ec5f30bd3bcd2200cb95131bd85ba2a6a34eb6)）；**但 3.0.0 尚未正式發布，文檔網站也尚未切換版本。** 本頁只涵蓋機密資料保護的遷移，**並非** 2.0.6 升級至 3.0.0 的完整差異清單。必須等正式發布後才能公開本頁。
 
 新版以 AES-256-GCM 取代舊有的 HMAC 衍生式加密，密文採用 `v2:<key-id>:<base64 nonce/tag/ciphertext>` 格式，並驗證版本、金鑰識別碼、用途及受信任的資料記錄識別碼。**舊格式沒有解密後備機制，也不會自動轉換。**
 
@@ -87,4 +87,4 @@ openssl rand -base64 32
 
 確認 Runtime Doctor 的 `security.secret-protection` 檢查通過。公開範例金鑰在非正式環境為警告、正式環境為錯誤；未替換的佔位值或無效設定會阻止啟動。另須驗證資料庫密碼與核准資料可正常解密，且連線檢查不會洩漏驅動程式錯誤。
 
-**依據：** [實作 PR #302](https://github.com/tse-wei-chen/hs-sql-agent/pull/302) · [原始升級規格](https://github.com/tse-wei-chen/hs-sql-agent/blob/security/versioned-secret-protection/docs/secret-protection-upgrade.md)。
+**依據：** [實作 PR #302](https://github.com/tse-wei-chen/hs-sql-agent/pull/302) · [原始升級規格](https://github.com/tse-wei-chen/hs-sql-agent/blob/78ec5f30bd3bcd2200cb95131bd85ba2a6a34eb6/docs/secret-protection-upgrade.md)。

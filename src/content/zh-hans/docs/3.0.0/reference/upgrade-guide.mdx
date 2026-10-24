@@ -9,7 +9,7 @@ draft: true
 
 ## 计划用于 3.0.0 的敏感数据保护变更
 
-**状态：实现仍在 [hs-sql-agent PR #302](https://github.com/tse-wei-chen/hs-sql-agent/pull/302) 审核中，已发布的 2.0.6 不包含此功能。** 本页只说明敏感数据保护迁移，**不是** 2.0.6 → 3.0.0 的完整变更清单。
+**状态：[hs-sql-agent PR #302](https://github.com/tse-wei-chen/hs-sql-agent/pull/302) 已合并至 `main`（[合并提交 `78ec5f30`](https://github.com/tse-wei-chen/hs-sql-agent/commit/78ec5f30bd3bcd2200cb95131bd85ba2a6a34eb6)）；**但 3.0.0 尚未正式发布，文档网站仍保持当前发布版本。** 本页只说明敏感数据保护迁移，**不是** 2.0.6 → 3.0.0 的完整变更清单。请在正式发布后再公开此页面。
 
 新方案使用绑定用途和可信记录的 AES-256-GCM，取代旧的 HMAC 派生式加密。密文格式为 `v2:<key-id>:<base64 nonce/tag/ciphertext>`，会验证版本、密钥标识、用途及记录标识。**不提供旧密文解密后备方案，也不会自动转换。**
 
@@ -87,4 +87,4 @@ openssl rand -base64 32
 
 检查 Runtime Doctor 中的 `security.secret-protection`。公开样例密钥在生产环境报错、非生产环境警告；未替换的占位值或无效密钥会导致启动失败。同时确认数据库密码和审批数据可以解密，连接检查不会泄露驱动程序错误。
 
-**依据：** [实现 PR #302](https://github.com/tse-wei-chen/hs-sql-agent/pull/302) · [原始升级说明](https://github.com/tse-wei-chen/hs-sql-agent/blob/security/versioned-secret-protection/docs/secret-protection-upgrade.md)。
+**依据：** [实现 PR #302](https://github.com/tse-wei-chen/hs-sql-agent/pull/302) · [原始升级说明](https://github.com/tse-wei-chen/hs-sql-agent/blob/78ec5f30bd3bcd2200cb95131bd85ba2a6a34eb6/docs/secret-protection-upgrade.md)。

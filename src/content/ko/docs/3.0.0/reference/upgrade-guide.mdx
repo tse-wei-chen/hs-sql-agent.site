@@ -9,7 +9,7 @@ draft: true
 
 ## 3.0.0에 예정된 비밀 정보 보호 변경
 
-**상태: [hs-sql-agent PR #302](https://github.com/tse-wei-chen/hs-sql-agent/pull/302) 검토 중이며 공개된 2.0.6에는 포함되지 않습니다.** 이 문서는 비밀 정보 보호의 마이그레이션만 설명하며 **2.0.6 → 3.0.0의 전체 변경 사항 목록이 아닙니다**.
+**상태: [hs-sql-agent PR #302](https://github.com/tse-wei-chen/hs-sql-agent/pull/302)가 `main`에 병합되었습니다([병합 커밋 `78ec5f30`](https://github.com/tse-wei-chen/hs-sql-agent/commit/78ec5f30bd3bcd2200cb95131bd85ba2a6a34eb6)).** 다만 3.0.0은 아직 공식 출시되지 않았으며 문서 사이트의 게시 버전도 바뀌지 않았습니다. 이 페이지는 비밀 정보 보호 마이그레이션만 설명하며 **2.0.6 → 3.0.0의 전체 변경 사항 목록이 아닙니다**. 정식 출시 전에는 공개하지 마세요.
 
 기존 HMAC 파생 암호화를 용도와 신뢰할 수 있는 레코드에 연결된 AES-256-GCM으로 교체합니다. 암호문은 `v2:<key-id>:<base64 nonce/tag/ciphertext>` 형식이며 버전, 키 ID, 용도, 레코드 ID를 인증합니다. **이전 형식의 복호화 대체 경로나 자동 변환은 없습니다.**
 
@@ -87,4 +87,4 @@ openssl rand -base64 32
 
 Runtime Doctor의 `security.secret-protection` 상태를 확인하세요. 공개 예시 키는 운영 환경에서 오류, 그 외 환경에서 경고이며, 변경하지 않은 자리표시자와 잘못된 설정은 시작에 실패합니다. 데이터베이스 비밀번호와 승인 자료의 복호화 및 연결 오류의 정보 노출 여부도 검증합니다.
 
-**출처:** [구현 PR #302](https://github.com/tse-wei-chen/hs-sql-agent/pull/302) · [원본 업그레이드 문서](https://github.com/tse-wei-chen/hs-sql-agent/blob/security/versioned-secret-protection/docs/secret-protection-upgrade.md).
+**출처:** [구현 PR #302](https://github.com/tse-wei-chen/hs-sql-agent/pull/302) · [원본 업그레이드 문서](https://github.com/tse-wei-chen/hs-sql-agent/blob/78ec5f30bd3bcd2200cb95131bd85ba2a6a34eb6/docs/secret-protection-upgrade.md).

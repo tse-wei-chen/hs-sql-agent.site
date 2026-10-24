@@ -9,7 +9,7 @@ draft: true
 
 ## Changement prévu pour 3.0.0 : protection des secrets versionnée
 
-**État : en cours de revue dans la [PR hs-sql-agent nº 302](https://github.com/tse-wei-chen/hs-sql-agent/pull/302), absent de la version publiée 2.0.6.** Cette page couvre uniquement la migration des secrets : **elle n’est pas un inventaire complet des changements entre 2.0.6 et 3.0.0**.
+**État : la [PR hs-sql-agent nº 302](https://github.com/tse-wei-chen/hs-sql-agent/pull/302) a été fusionnée dans `main` ([commit `78ec5f30`](https://github.com/tse-wei-chen/hs-sql-agent/commit/78ec5f30bd3bcd2200cb95131bd85ba2a6a34eb6)).** Toutefois, la version 3.0.0 n’est pas encore officiellement publiée et le site conserve sa version actuelle. Cette page ne couvre que la migration des secrets : **elle ne recense pas tous les changements entre 2.0.6 et 3.0.0**. Elle doit rester non publiée jusqu’à la sortie officielle.
 
 Le chiffrement dérivé de HMAC est remplacé par AES-256-GCM, lié à l’usage et à l’enregistrement de confiance. Le format est `v2:<key-id>:<base64 nonce/tag/ciphertext>` ; la version, l’identifiant de clé, l’usage et l’identifiant d’enregistrement sont authentifiés. **Aucun déchiffrement de secours ni conversion automatique de l’ancien format n’est prévu.**
 
@@ -87,4 +87,4 @@ Chaque ensemble de clés comporte `ActiveKeyId` et `Keys`. Le mot de passe est l
 
 Contrôlez `security.secret-protection` dans Runtime Doctor. Les clés d’exemple publiques déclenchent une alerte hors production et une erreur en production ; les valeurs fictives non remplacées ou les clés invalides empêchent le démarrage. Vérifiez aussi le déchiffrement des secrets et l’absence de messages bruts des pilotes lors des échecs de connexion.
 
-**Sources :** [PR d’implémentation nº 302](https://github.com/tse-wei-chen/hs-sql-agent/pull/302) · [guide source](https://github.com/tse-wei-chen/hs-sql-agent/blob/security/versioned-secret-protection/docs/secret-protection-upgrade.md).
+**Sources :** [PR d’implémentation nº 302](https://github.com/tse-wei-chen/hs-sql-agent/pull/302) · [guide source](https://github.com/tse-wei-chen/hs-sql-agent/blob/78ec5f30bd3bcd2200cb95131bd85ba2a6a34eb6/docs/secret-protection-upgrade.md).

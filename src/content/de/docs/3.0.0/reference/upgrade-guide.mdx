@@ -9,7 +9,7 @@ draft: true
 
 ## Geplante Änderung für 3.0.0: Versionierter Geheimnisschutz
 
-**Status: noch in Prüfung unter [hs-sql-agent PR #302](https://github.com/tse-wei-chen/hs-sql-agent/pull/302), nicht Teil der veröffentlichten Version 2.0.6.** Diese Seite beschreibt ausschließlich die Migration des Geheimnisschutzes und **nicht** sämtliche Änderungen von 2.0.6 auf 3.0.0.
+**Status: [hs-sql-agent PR #302](https://github.com/tse-wei-chen/hs-sql-agent/pull/302) wurde in `main` zusammengeführt ([Merge-Commit `78ec5f30`](https://github.com/tse-wei-chen/hs-sql-agent/commit/78ec5f30bd3bcd2200cb95131bd85ba2a6a34eb6)).** Version 3.0.0 ist jedoch noch nicht offiziell veröffentlicht; die Dokumentationswebsite zeigt weiterhin die bisherige Version. Diese Seite beschreibt ausschließlich die Migration des Geheimnisschutzes und **nicht** sämtliche Änderungen von 2.0.6 auf 3.0.0. Bis zur tatsächlichen Veröffentlichung bleibt sie unveröffentlicht.
 
 Die bisherige HMAC-abgeleitete Verschlüsselung wird durch AES-256-GCM ersetzt, das an Verwendungszweck und vertrauenswürdigen Datensatz gebunden ist. Das Format lautet `v2:<key-id>:<base64 nonce/tag/ciphertext>` und authentifiziert Version, Schlüssel-ID, Zweck und Datensatzkennung. **Es gibt weder eine Entschlüsselung für das alte Format noch eine automatische Umwandlung.**
 
@@ -87,4 +87,4 @@ Jeder Verschlüsselungsschlüsselring besitzt `ActiveKeyId` und `Keys`. Datenban
 
 Prüfen Sie `security.secret-protection` in Runtime Doctor. Öffentliche Beispielschlüssel erzeugen außerhalb der Produktion eine Warnung, in der Produktion einen Fehler. Unveränderte Platzhalter oder ungültige Einstellungen verhindern den Start. Prüfen Sie die Entschlüsselung von Passwörtern und Freigabedaten sowie den Schutz vor rohen Datenbanktreibermeldungen.
 
-**Quellen:** [Implementierung PR #302](https://github.com/tse-wei-chen/hs-sql-agent/pull/302) · [ursprüngliche Upgrade-Anleitung](https://github.com/tse-wei-chen/hs-sql-agent/blob/security/versioned-secret-protection/docs/secret-protection-upgrade.md).
+**Quellen:** [Implementierung PR #302](https://github.com/tse-wei-chen/hs-sql-agent/pull/302) · [ursprüngliche Upgrade-Anleitung](https://github.com/tse-wei-chen/hs-sql-agent/blob/78ec5f30bd3bcd2200cb95131bd85ba2a6a34eb6/docs/secret-protection-upgrade.md).

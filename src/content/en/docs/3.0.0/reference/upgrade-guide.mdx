@@ -9,7 +9,7 @@ draft: true
 
 ## Planned 3.0.0 change: versioned secret protection
 
-**Status: pending implementation in [hs-sql-agent PR #302](https://github.com/tse-wei-chen/hs-sql-agent/pull/302). Not part of the published 2.0.6 runtime.** This page covers the secret-protection migration only; it is **not** a complete 2.0.6 → 3.0.0 release-diff audit.
+**Status: [hs-sql-agent PR #302](https://github.com/tse-wei-chen/hs-sql-agent/pull/302) has merged into `main` ([squash commit `78ec5f30`](https://github.com/tse-wei-chen/hs-sql-agent/commit/78ec5f30bd3bcd2200cb95131bd85ba2a6a34eb6)); **3.0.0 has not been released or published in this documentation site.** This page covers the secret-protection migration only; it is **not** a complete 2.0.6 → 3.0.0 release-diff audit. Keep this page unpublished until the actual release.
 
 The new implementation replaces legacy HMAC-derived encryption with purpose- and record-bound AES-256-GCM envelopes of the form `v2:<key-id>:<base64 nonce/tag/ciphertext>`. The envelope authenticates its version, key ID, purpose and trusted record identifier. There is **no legacy decryption fallback or automatic ciphertext conversion**.
 
@@ -87,4 +87,4 @@ The `DmlFingerprintKey` is **not versioned**. Rotate it only after draining appr
 
 Verify that `security.secret-protection` reports healthy key configuration. Public sample keys trigger a warning outside Production and an error in Production; unmodified placeholders or invalid configuration fail startup. Check that no database password or approval payload fails to decrypt and that no raw driver error text leaks through connection checks.
 
-**Sources:** [implementation PR #302](https://github.com/tse-wei-chen/hs-sql-agent/pull/302) · [source upgrade specification](https://github.com/tse-wei-chen/hs-sql-agent/blob/security/versioned-secret-protection/docs/secret-protection-upgrade.md).
+**Sources:** [implementation PR #302](https://github.com/tse-wei-chen/hs-sql-agent/pull/302) · [source upgrade specification](https://github.com/tse-wei-chen/hs-sql-agent/blob/78ec5f30bd3bcd2200cb95131bd85ba2a6a34eb6/docs/secret-protection-upgrade.md).

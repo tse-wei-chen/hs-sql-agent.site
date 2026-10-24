@@ -9,7 +9,7 @@ draft: true
 
 ## 3.0.0 で予定されている機密情報保護の変更
 
-**状況：[hs-sql-agent PR #302](https://github.com/tse-wei-chen/hs-sql-agent/pull/302) で審査中です。公開済みの 2.0.6 には含まれません。** このページは機密情報保護の移行だけを扱い、**2.0.6 → 3.0.0 の変更点を網羅したものではありません**。
+**状況：[hs-sql-agent PR #302](https://github.com/tse-wei-chen/hs-sql-agent/pull/302) は `main` にマージ済みです（[統合コミット `78ec5f30`](https://github.com/tse-wei-chen/hs-sql-agent/commit/78ec5f30bd3bcd2200cb95131bd85ba2a6a34eb6)）。** ただし、3.0.0 はまだ正式リリースされておらず、ドキュメントサイトの公開版も更新していません。このページは機密情報保護の移行だけを扱い、**2.0.6 → 3.0.0 の変更点を網羅したものではありません**。正式リリースまで非公開のままにしてください。
 
 従来の HMAC 派生方式による暗号化を、用途とレコードに結び付けた AES-256-GCM に置き換えます。暗号文は `v2:<key-id>:<base64 nonce/tag/ciphertext>` 形式で、バージョン、鍵 ID、用途、信頼済みレコード ID を認証します。**旧形式の復号フォールバックも自動変換もありません。**
 
@@ -87,4 +87,4 @@ openssl rand -base64 32
 
 Runtime Doctor の `security.secret-protection` を確認してください。公開サンプル鍵は本番環境でエラー、それ以外で警告となり、未置換のプレースホルダーや不正な鍵は起動に失敗します。パスワード・承認データの復号と、接続エラーからの情報漏えい防止も確認します。
 
-**根拠：** [実装 PR #302](https://github.com/tse-wei-chen/hs-sql-agent/pull/302) · [元の移行仕様](https://github.com/tse-wei-chen/hs-sql-agent/blob/security/versioned-secret-protection/docs/secret-protection-upgrade.md)。
+**根拠：** [実装 PR #302](https://github.com/tse-wei-chen/hs-sql-agent/pull/302) · [元の移行仕様](https://github.com/tse-wei-chen/hs-sql-agent/blob/78ec5f30bd3bcd2200cb95131bd85ba2a6a34eb6/docs/secret-protection-upgrade.md)。
