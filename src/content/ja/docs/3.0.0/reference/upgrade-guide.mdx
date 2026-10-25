@@ -1,0 +1,54 @@
+---
+title: "Upgrade Guide"
+description: "Upgrade secret protection, approval protocols and the Admin Store."
+sidebar:
+  group: Reference
+  order: 144
+---
+
+## 2.0.6 → 3.0.0
+
+This major release changes secret protection, approval storage and commit evidence. Upgrade all DML workers together; a mixed old/new fleet is unsafe.
+
+## Before deployment
+
+1. Back up the Admin Store and deployment secrets. Stop new DML previews, drain or reject Pending approvals, and reconcile Executing requests using the existing operational procedure. Never mark an uncertain execution complete merely to pass migration.
+2. Complete historical witness inspections before upgrading. Legacy encrypted resume payloads, including terminal records, become unreadable; retain the backup and old application for read-only forensic inspection.
+3. Generate three independent random 32-byte Base64 secrets (run `openssl rand -base64 32` separately three times). Set `DB_ENCRYPTION_KEY`, `DML_ENCRYPTION_KEY` and `DML_FINGERPRINT_KEY`. Keep `HMAC_KEY` stable so existing MCP keys remain usable; JWT/HMAC signing secrets must remain independent of protection keys.
+4. Stop every old DML-capable worker. Apply the SQLite or PostgreSQL Admin Store migrations, then deploy all nodes with identical key rings and fingerprint key. Missing, malformed or reused protection keys fail startup.
+5. Re-enter existing database passwords through the management UI/API or bootstrap configuration. There is no legacy decryption fallback or automatic conversion. Empty provider passwords remain supported.
+6. Configure explicit `Bootstrap:Databases:*:McpKeys:*:Key` values. Startup no longer generates or logs bootstrap keys. Revoke keys previously exposed in logs.
+7. Verify database connectivity, Doctor, MCP query access and a newly previewed/approved DML request before restoring traffic.
+
+## Approval and Admin Store breaking changes
+
+Both Admin Store providers reject migration while any durable approval is Pending or Executing. The migration adds `AdmissionProtocolVersion` with default 0 and a database CHECK: only protocol 1+ approvals may enter Pending/Executing. Terminal historical evidence is retained; old workers cannot create new active approvals through the legacy Admin Store path. This does not revoke their direct target-database permissions.
+
+Custom `IDmlApprovalChallengeStore` implementations must implement atomic, all-or-nothing `TryPromoteAsync`. Single statements and batches both use aggregate promotion; sequential delete/add is unsafe.
+
+Redis keys use `{dml-approval}:` and a versioned `hs-sql-agent.dml-challenge` envelope (`SchemaVersion=1`). Old keys are incompatible. Durable resume uses an encrypted `hs-sql-agent.dml-resume` envelope (`SchemaVersion=1`); an explicit version-0 reader preserves legacy flags without inventing approval. That format reader does not restore the ability to decrypt legacy ciphertext. Unknown or damaged versions fail closed before target SQL. Missing `ApprovalPlanBinding` requires fresh preview and consent; consumed nonces cannot be replayed.
+
+## Execution and compiler changes
+
+- `UPDATE`/`DELETE` predicates proven always true, such as `WHERE 1=1`, are rejected when selective predicates are required. Use a real filter or explicit full-table authorization.
+- Input is limited to 4,194,304 UTF-16 units and 131,072 non-End lexer tokens. AST, nesting, rendered output, stage/aggregate work, deadline and allocation budgets also fail closed with typed resource diagnostics. Iterative traversal and bounded rendering improve deep/wide SQL handling without promising unlimited SQL depth or new dialect support.
+- Opt-in immutable schema snapshots validate names and proven type families, bind their digest into plan evidence and require live freshness verification for schema-bound DML. The default path remains snapshot-free.
+- `dml.commit_outcome_unknown` and `dml.rollback_outcome_unknown` are separate non-retryable outcomes. Neither proves a safe retry. Preserve evidence and reconcile independently; missing Redis keys or witnesses do not prove rollback.
+- The five built-in MCP tools, four default read/query tools and opt-in DML posture remain. Human approval and commit-time revalidation still apply.
+
+## Optional target fencing
+
+`AddHsSqlAgentNativeDmlSchemaFreshness()` and `AddHsSqlAgentTargetExecutionFence()` remain opt-in. Provision the target tables/permissions and prove old credentials and sessions can no longer mutate before enabling fencing. SQLite requires OS/process isolation rather than user-role revocation.
+
+Every enrolled commit checks readiness on the actual target connection with two additional rollback-only transactions, followed by independent post-commit Admission and Witness reads. Readiness uses SERIALIZABLE except Oracle's intentional witness uniqueness diagnostic, which uses READ COMMITTED. Missing or contradictory post-commit proof yields an unknown outcome, not permission to replay. Fencing does not establish fleet enrollment or authorize automatic reconciliation of a live Executing worker.
+
+## Rollback
+
+Approval-admission and secret-protection migrations are one-way. Do not reverse them with `dotnet ef database update`. Rollback requires stopping DML workers, reconciling unresolved approvals and restoring the compatible pre-upgrade database backup together with old binaries and secrets.
+
+## Authoritative release guides
+
+- [Migration](https://github.com/tse-wei-chen/hs-sql-agent/blob/v3.0.0/docs/v3-migration.md)
+- [Secret protection and rotation](https://github.com/tse-wei-chen/hs-sql-agent/blob/v3.0.0/docs/secret-protection-upgrade.md)
+- [Target fence cutover](https://github.com/tse-wei-chen/hs-sql-agent/blob/v3.0.0/docs/v3-target-fence-cutover.md)
+

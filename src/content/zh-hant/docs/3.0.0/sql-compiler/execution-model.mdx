@@ -1,0 +1,49 @@
+---
+title: SQL 執行模型
+description: 說明 hs-sql-agent 如何把不可信 SQL 轉換成經過驗證、符合目標資料庫的語句後再執行。
+sidebar:
+  group: SQL Compiler
+  order: 40
+---
+
+## Bounded compilation and schema evidence
+
+Compilation rejects input beyond 4,194,304 UTF-16 units, 131,072 non-End lexer tokens, 8,192 grouping levels or the 65,536-node AST budget. Iterative AST traversal and bounded rendering preserve parameter ordering and fail-closed semantics across the six providers; they do not guarantee arbitrary SQL depth.
+
+Resource budgets include 8,000,000 work units per stage, 32,000,000 per compilation, 30 seconds per stage, 90 seconds per compilation and 536,870,912 cumulative managed allocation bytes per stage. These are compilation budgets, not database query timeouts or process memory limits. Typed resource diagnostics identify rejected work.
+
+An opt-in immutable schema snapshot resolves table/column names and proven type families, including ordered CTE/derived projections, and binds its digest into the plan fingerprint. This is bounded proof, not a full database type checker. Schema-bound DML requires a live freshness verifier; missing or changed schema proof fails closed. The default runtime remains snapshot-free. `AddHsSqlAgentNativeDmlSchemaFreshness()` provides opt-in native support.
+
+hs-sql-agent 不會把 AI 產生的 SQL 直接當成可信任指令執行。真正執行前，SQL 會先經過解析、驗證、功能支援檢查、存取政策檢查，以及針對目標資料庫的編譯。
+
+## 查詢執行流程
+
+查詢大致會依照以下順序處理：
+
+1. 驗證 MCP 金鑰，並套用該金鑰限定的資料庫、資料表、工具與執行權限範圍。
+2. 把支援的 SQL 解析成結構化定義 / AST。
+3. 驗證語句與輸入 SQL 的語意是否位於支援範圍內。
+4. 檢查目標資料庫能否安全表達維持這些語意所需的功能。
+5. 為設定的資料庫編譯並產生對應 SQL。
+6. 在設定的執行限制內執行 SQL。
+
+SQL 編譯器明確區分「驗證輸入 SQL 語意」與「確認目標資料庫支援能力」兩個階段。不支援的語法，或無法確認能安全維持相同語意的功能，會直接拒絕，不會偷偷替換成表面相似的結構。
+
+## 為什麼採用「失敗即拒絕」（fail-closed）？
+
+跨資料庫 SQL 有很多「看起來相同、實際含義不同」的情況，例如 NULL 行為、型別規則、運算子語意、分頁、識別項、函式與 DML 行為。
+
+對 AI 開放的 SQL 執行入口若採用「盡力改寫」，可能讓語法仍然正確，卻在背景改變原意。因此 hs-sql-agent 寧可明確拒絕，也不會默默降低語意保證。
+
+## 依資料庫產生 SQL
+
+MCP 的公開介面是統一的，但最後產生的 SQL 會依資料庫而異。目前支援的資料庫包括：
+
+- PostgreSQL
+- MySQL
+- SQL Server
+- Oracle
+- SQLite
+- Firebird
+
+支援範圍是刻意限定的。某個資料庫出現在支援清單中，不代表該產品提供的所有 SQL 語法都可以使用。只有當某項功能的語意能被內部表示並驗證時，編譯器才會把它納入支援範圍。

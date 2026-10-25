@@ -1,0 +1,49 @@
+---
+title: SQL-Ausführungsmodell
+description: Wie hs-sql-agent nicht vertrauenswürdiges SQL vor der Ausführung in validierte, datenbankspezifische Anweisungen überführt.
+sidebar:
+  group: SQL-Compiler
+  order: 40
+---
+
+## Bounded compilation and schema evidence
+
+Compilation rejects input beyond 4,194,304 UTF-16 units, 131,072 non-End lexer tokens, 8,192 grouping levels or the 65,536-node AST budget. Iterative AST traversal and bounded rendering preserve parameter ordering and fail-closed semantics across the six providers; they do not guarantee arbitrary SQL depth.
+
+Resource budgets include 8,000,000 work units per stage, 32,000,000 per compilation, 30 seconds per stage, 90 seconds per compilation and 536,870,912 cumulative managed allocation bytes per stage. These are compilation budgets, not database query timeouts or process memory limits. Typed resource diagnostics identify rejected work.
+
+An opt-in immutable schema snapshot resolves table/column names and proven type families, including ordered CTE/derived projections, and binds its digest into the plan fingerprint. This is bounded proof, not a full database type checker. Schema-bound DML requires a live freshness verifier; missing or changed schema proof fails closed. The default runtime remains snapshot-free. `AddHsSqlAgentNativeDmlSchemaFreshness()` provides opt-in native support.
+
+hs-sql-agent behandelt generiertes SQL nicht als vertrauenswürdigen Befehl. Die Ausführungsgrenze ist um Parsing, Validierung, Fähigkeitsprüfungen, Zugriffsrichtlinien und datenbankspezifische Kompilierung aufgebaut.
+
+## Abfragepfad
+
+Auf hoher Ebene durchläuft eine Abfrage diese Schritte:
+
+1. MCP-Schlüssel authentifizieren und seinen Datenbank-, Tabellen-, Werkzeug- und Ausführungsumfang anwenden.
+2. Unterstütztes SQL in eine strukturierte Definition / AST parsen.
+3. Die Anweisung und ihre unterstützte Quellsemantik validieren.
+4. Die Zielfähigkeiten prüfen, die zum Erhalt dieser Semantik erforderlich sind.
+5. SQL für die konfigurierte Datenbank kompilieren und ausgeben.
+6. Innerhalb der konfigurierten Laufzeitgrenzen ausführen.
+
+Die Implementierung des SQL-Compilers enthält explizite Stufen für Quellvalidierung und Zielfähigkeiten. Nicht unterstützte Syntax oder eine Fähigkeit, deren Gleichwertigkeit nicht nachgewiesen werden kann, wird abgelehnt, statt stillschweigend durch eine oberflächlich ähnliche Konstruktion ersetzt zu werden.
+
+## Warum bei Unsicherheit ablehnen?
+
+Datenbankübergreifendes SQL enthält viele Konstruktionen, die gleich aussehen, sich aber bei `NULL`, Typregeln, Operatorsemantik, Pagination, Bezeichnern, Funktionen oder DML-Verhalten unterscheiden.
+
+Für eine KI-nahe Ausführungsoberfläche ist ein Umschreiben nach dem Prinzip „best effort“ gefährlich: Eine Anweisung kann syntaktisch gültig bleiben und trotzdem ihre Bedeutung ändern. hs-sql-agent bevorzugt deshalb eine sichtbare Ablehnung gegenüber einer stillen semantischen Abschwächung. Dieses Verhalten entspricht dem Fail-Closed-Prinzip.
+
+## Datenbankspezifische Ausgabe
+
+Die öffentliche MCP-Schnittstelle ist gemeinsam, das endgültige SQL jedoch datenbankspezifisch. Derzeit werden folgende Datenbanken unterstützt:
+
+- PostgreSQL
+- MySQL
+- SQL Server
+- Oracle
+- SQLite
+- Firebird
+
+Der unterstützte Umfang ist absichtlich begrenzt. Dass eine Datenbank unterstützt wird, bedeutet nicht, dass jede von ihr angebotene SQL-Syntax akzeptiert wird; einzelne Compiler-Fähigkeiten werden erst erweitert, wenn ihre Semantik repräsentiert und validiert werden kann.

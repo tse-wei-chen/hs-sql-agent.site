@@ -1,0 +1,19 @@
+---
+title: "관리 REST API 레퍼런스"
+description: "각 API의 요청/응답 모델 필드, 타입, 필수 여부와 Nullable을 확인합니다."
+sidebar:
+  group: 참조
+  order: 142
+---
+
+import ApiReference from "@/components/docs/ApiReference.astro";
+
+각 API를 펼치면 Path／Query 매개변수, Request Body, 상태별 응답 모델의 속성, 중첩 필드, 타입, 필수 및 Nullable 정보를 볼 수 있습니다. 실제 Controller/DTO OpenAPI 메타데이터를 사용합니다.
+
+[먼저 Admin UI에서 System-to-System 키를 발급하세요](/ko/docs/integration/management-api-keys).
+
+> 일부 기존 IActionResult 엔드포인트에는 응답 모델 선언이 없어 해당 Schema를 미정의로 표시합니다. 필드를 임의로 추정하지 않습니다. Issue #295에서 보완 중입니다. 계정 API는 System-to-System 키로 접근할 수 없습니다.
+
+> This embedded reference is a historical preview snapshot, identified by the source commit displayed below. It has not been regenerated for the current release. For current behavior, verify the released Controller/DTO contracts and the [upgrade guide](/docs/reference/upgrade-guide).
+
+<ApiReference locale="ko" />

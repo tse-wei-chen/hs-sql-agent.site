@@ -1,0 +1,55 @@
+---
+title: Safe DML
+description: Approuver une ou plusieurs mutations, revalider les preuves exactes et commit la Transaction approuvée de manière atomique.
+sidebar:
+  group: SQL Compiler
+  order: 50
+---
+
+## Admission, uncertainty and target evidence
+
+When selective predicates are required, provably always-true `UPDATE`/`DELETE` filters such as `WHERE 1=1` are denied. Human approval still binds the exact plan and row-set evidence.
+
+Custom challenge stores must atomically implement `TryPromoteAsync` for both single and batch operations. Redis and durable resume use versioned envelopes; incompatible challenges need fresh preview and consent. See the [upgrade guide](/docs/reference/upgrade-guide).
+
+`dml.commit_outcome_unknown` and `dml.rollback_outcome_unknown` are distinct non-retryable outcomes. Preserve approval and target evidence for independent reconciliation. Neither absent witnesses nor missing Redis keys prove rollback; never automatically replay an uncertain mutation. An audit persistence failure after a known commit must not be reported as a failed mutation.
+
+`AddHsSqlAgentTargetExecutionFence()` is opt-in and requires target provisioning plus separate proof that old workers lost DML authority. Enrolled commits execute two additional rollback-only readiness transactions on the actual connection and two independent post-commit Admission/Witness reads. Oracle uses READ COMMITTED only for the witness unique-conflict diagnostic; other readiness phases use SERIALIZABLE. Contradictory proof yields an unknown outcome. This does not provide fleet-wide enrollment or automatic live-worker reconciliation.
+
+Le DML suit une voie plus stricte que les Query, car au moment du commit l'approbation doit toujours décrire **les mêmes Mutation Evidence**.
+
+## Un seul Tool pour un ou plusieurs Statements
+
+`execute_dml_sql` accepte une ou plusieurs instructions `UPDATE`, `DELETE` ou `INSERT ... VALUES` prises en charge. Plusieurs Statements sont séparés par des points-virgules.
+
+Il n'existe pas de Tool batch DML séparé. Une entrée multi-statement devient un Batch, reçoit une seule approbation, s'exécute dans l'ordre d'origine puis est commit de manière atomique dans une Transaction contrôlée par le serveur.
+
+Le Client ne peut pas fournir `BEGIN`, `COMMIT`, `ROLLBACK` ou un autre Transaction-control SQL. Le serveur possède les frontières de Transaction.
+
+## Ce que l'approbation lie
+
+Pour `UPDATE` et `DELETE`, l'approbation est liée au Primary Key Row Set exact observé pendant le Preview. Chaque Statement est revalidé immédiatement avant sa mutation dans la Commit Transaction.
+
+Pour `INSERT ... VALUES`, l'approbation lie le Literal Payload immuable et la Command compilée exacte. `INSERT ... SELECT` reste indisponible tant que la sémantique d'approbation du source Row Set n'est pas définie.
+
+Si un Statement précédent modifie le Row Set approuvé d'un Statement suivant, tout le Batch échoue en mode fail closed et rollback.
+
+## Provider d'approbation
+
+MCP Elicitation reste le Provider officiel par défaut. Un Host peut aussi utiliser l'adapter officiel `HsSqlAgent.Approvals.Webhook` ou implémenter `IDmlApprovalProvider` avec `HsSqlAgent.Server`.
+
+Le Provider reçoit des Evidence indépendantes du transport, pas des primitives d'exécution SQL. Il ne reçoit ni Database Connection, ni Transaction, ni Plan validé, ni autorité de commit.
+
+## Approbations Pending durables
+
+Un Provider peut retourner `Pending` pour un Workflow asynchrone. Avec l'Admin Store, hs-sql-agent conserve le Resume Intent protégé et les Approval Fingerprints.
+
+Lorsqu'une décision finale arrive, le serveur recharge l'autorisation et la configuration DB courantes, Parse et Preview à nouveau le DML, compare les Evidence approuvées et crée un nouveau Challenge de courte durée. Une modification de l'autorisation, de la configuration DB, de la Policy, du Plan, du Row Set ou des affected-row Evidence rend la demande stale au lieu de la commit.
+
+La reprise concerne**l'Intent d'exécution**, pas une ancienne Database Session.
+
+## Règles fail closed
+
+Une mutation n'est pas commit si l'approbation est refusée, expirée, stale, si le Fingerprint ne correspond plus, si l'autorisation est retirée, si la Policy courante la refuse ou si le Row Set approuvé ne peut pas être reproduit.
+
+Voir [Référence des outils MCP](/fr/docs/mcp/tools-reference), [Configuration](/fr/docs/operations/configuration) et [Intégration ASP.NET Core](/fr/docs/integration/aspnet-core).

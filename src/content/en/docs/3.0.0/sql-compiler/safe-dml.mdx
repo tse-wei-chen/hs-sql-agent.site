@@ -1,0 +1,55 @@
+---
+title: Safe DML
+description: Approve one or more mutations, revalidate exact evidence, and commit the approved transaction atomically.
+sidebar:
+  group: SQL Compiler
+  order: 50
+---
+
+## Admission, uncertainty and target evidence
+
+When selective predicates are required, provably always-true `UPDATE`/`DELETE` filters such as `WHERE 1=1` are denied. Human approval still binds the exact plan and row-set evidence.
+
+Custom challenge stores must atomically implement `TryPromoteAsync` for both single and batch operations. Redis and durable resume use versioned envelopes; incompatible challenges need fresh preview and consent. See the [upgrade guide](/docs/reference/upgrade-guide).
+
+`dml.commit_outcome_unknown` and `dml.rollback_outcome_unknown` are distinct non-retryable outcomes. Preserve approval and target evidence for independent reconciliation. Neither absent witnesses nor missing Redis keys prove rollback; never automatically replay an uncertain mutation. An audit persistence failure after a known commit must not be reported as a failed mutation.
+
+`AddHsSqlAgentTargetExecutionFence()` is opt-in and requires target provisioning plus separate proof that old workers lost DML authority. Enrolled commits execute two additional rollback-only readiness transactions on the actual connection and two independent post-commit Admission/Witness reads. Oracle uses READ COMMITTED only for the witness unique-conflict diagnostic; other readiness phases use SERIALIZABLE. Contradictory proof yields an unknown outcome. This does not provide fleet-wide enrollment or automatic live-worker reconciliation.
+
+DML uses a stricter execution path than queries because approval must still describe the **same mutation evidence** when the server reaches commit.
+
+## One tool, single or multi-statement
+
+`execute_dml_sql` accepts one or more supported `UPDATE`, `DELETE`, or `INSERT ... VALUES` statements. Multiple statements are separated by semicolons.
+
+There is no separate batch-DML tool. A multi-statement request is parsed as one batch, approved once, executed in its original order, and committed atomically inside one server-owned transaction.
+
+Transaction-control SQL such as `BEGIN`, `COMMIT`, and `ROLLBACK` is not accepted from the client. The server owns transaction boundaries.
+
+## What approval binds
+
+For `UPDATE` and `DELETE`, approval binds to the exact primary-key row set observed during preview. Every statement is revalidated immediately before its mutation inside the commit transaction.
+
+For `INSERT ... VALUES`, approval binds to the immutable literal payload and exact compiled command. `INSERT ... SELECT` remains unavailable until source-rowset approval semantics are defined.
+
+If an earlier statement changes the row set that a later statement was approved against, the entire batch fails closed and rolls back.
+
+## Approval providers
+
+MCP Elicitation remains the default first-party provider. Hosts can also use the official `HsSqlAgent.Approvals.Webhook` adapter or implement `IDmlApprovalProvider` with `HsSqlAgent.Server`.
+
+Approval providers receive transport-neutral evidence, not SQL execution primitives. They do not receive the database connection, transaction, validated execution plan, or commit authority.
+
+## Durable pending approvals
+
+A provider may return `Pending` for an asynchronous workflow. When the Admin Store capability is available, hs-sql-agent persists protected resume intent and approval fingerprints.
+
+When a later completion arrives, hs-sql-agent reloads current authorization and database configuration, reparses and previews the DML, compares the approved evidence, and creates a fresh short-lived execution challenge. Changed authorization, database configuration, policy, plan, row set, or affected-row evidence makes the request stale instead of committing it.
+
+The completion path therefore resumes **intent**, not an old database session.
+
+## Fail-closed rules
+
+A mutation is not committed when approval is rejected, expires, becomes stale, has a mismatched fingerprint, loses authorization, violates current policy, or cannot reproduce the approved row-set evidence.
+
+See [MCP Tools Reference](/docs/mcp/tools-reference), [Configuration](/docs/operations/configuration), and [ASP.NET Core integration](/docs/integration/aspnet-core).

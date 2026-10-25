@@ -1,0 +1,19 @@
+---
+title: "Référence REST de l'administration"
+description: "Champs, types, obligations et nullabilité des modèles de requête et de réponse de chaque API."
+sidebar:
+  group: Référence
+  order: 142
+---
+
+import ApiReference from "@/components/docs/ApiReference.astro";
+
+Développez une opération pour inspecter ses paramètres, les champs du corps de requête et ceux de chaque réponse, y compris les objets imbriqués, les types, les champs obligatoires et Nullable. Ces données proviennent des métadonnées OpenAPI des contrôleurs et DTO.
+
+[Commencer par créer une clé système à système depuis l'Admin UI](/fr/docs/integration/management-api-keys).
+
+> Certains anciens IActionResult ne déclarent pas de modèle de réponse : ils sont explicitement indiqués comme non documentés, sans propriété inventée. Suivi : issue #295. Les API de compte ne sont pas accessibles avec une clé système à système.
+
+> This embedded reference is a historical preview snapshot, identified by the source commit displayed below. It has not been regenerated for the current release. For current behavior, verify the released Controller/DTO contracts and the [upgrade guide](/docs/reference/upgrade-guide).
+
+<ApiReference locale="fr" />
