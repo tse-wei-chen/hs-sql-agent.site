@@ -1,8 +1,8 @@
 # Content sources of truth
 
-The website documents **hs-sql-agent 3.0.0**, pinned to the immutable release tag `v3.0.0` in `src/data/productRelease.ts`. The immediate historical release and documentation parent is `2.0.6`. Historical overlays remain unchanged.
+The website documents **hs-sql-agent 3.0.0**, pinned to immutable product commit `c40681699e4b3172c843dd567c5aee21f2f2afad` in `src/data/productRelease.ts`. The immediate historical release and documentation parent is `2.0.6`. Historical overlays remain unchanged.
 
-This release PR is prepared for manual merge after the product release. The release-tag check is intentionally expected to fail until `v3.0.0` exists; do not merge or deploy before then. Source audit used product commit `c40681699e4b3172c843dd567c5aee21f2f2afad`, whose `backend/Directory.Build.props` declares 3.0.0. Reconcile any later release changes before merging.
+This release PR is prepared for manual merge after the product release. The release label remains `v3.0.0`, while `sourceRef` pins the audited full commit so CI can verify the real sources before the tag exists. That commit declares 3.0.0 in `backend/Directory.Build.props`. Compare the final release tag against this commit before merging; repin to the tag once available. Public documentation retains release-ready wording.
 
 ## Audit: 2.0.6 → 3.0.0
 
@@ -24,8 +24,8 @@ The existing embedded Admin API reference is a historical 2.0.6 preview snapshot
 
 ## Localization
 
-Existing translated page bodies are preserved. New technical supplement sections and upgrade guides currently use verified English semantics in en/zh-hans/ja/ko/fr/de; the Traditional Chinese upgrade guide is localized. Remaining supplemental translations are explicitly unfinished and must not be described as fully localized.
+New technical sections, upgrade guides, metadata and reference notices are localized in Traditional Chinese, Simplified Chinese, Japanese, Korean, French and German from the verified English semantics. Existing translated bodies are preserved. API names, configuration keys, protocol names and code remain unchanged. New documentation links use the matching locale.
 
 ## Validation
 
-Run `pnpm run content:check` after the release tag exists, `pnpm run content:version-neutral`, `pnpm run visual:check`, and `pnpm run build`. Format changed files. The source check resolves every path in `productRelease.sources` and validates release identity against `backend/Directory.Build.props`.
+Run `pnpm run content:check` against the pinned immutable source, `pnpm run content:version-neutral`, `pnpm run visual:check`, and `pnpm run build`. Format changed files. The source check resolves every path in `productRelease.sources` and validates release identity against `backend/Directory.Build.props`.

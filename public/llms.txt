@@ -2,7 +2,7 @@
 
 > hs-sql-agent provides governed SQL access for AI agents through MCP, with fail-closed typed SQL compilation, scoped access policies, approval-gated DML, explainable compiler decisions, deployment diagnostics, and support for PostgreSQL, MySQL, SQL Server, Oracle, SQLite, and Firebird.
 
-Current documented release: **3.0.0**. Product behavior is pinned to the released `v3.0.0` commit by `src/data/productRelease.ts`.
+Current documented release: **3.0.0**. Product behavior is pinned to immutable product commit `c40681699e4b3172c843dd567c5aee21f2f2afad` by `src/data/productRelease.ts`.
 
 The documentation site is localized in English, Traditional Chinese, Simplified Chinese, Japanese, Korean, French, and German. Prefer stable unversioned documentation URLs for the current release.
 
@@ -109,7 +109,7 @@ An asynchronous provider may return `Pending`. Durable completion remains server
 
 ## Source of truth
 
-- [Pinned 3.0.0 product source](https://github.com/tse-wei-chen/hs-sql-agent/tree/v3.0.0)
+- [Pinned 3.0.0 product source](https://github.com/tse-wei-chen/hs-sql-agent/tree/c40681699e4b3172c843dd567c5aee21f2f2afad)
 - [Product repository](https://github.com/tse-wei-chen/hs-sql-agent)
 - [Documentation repository](https://github.com/tse-wei-chen/hs-sql-agent.site)
 - [Content source policy](https://github.com/tse-wei-chen/hs-sql-agent.site/blob/main/CONTENT_SOURCES.md)

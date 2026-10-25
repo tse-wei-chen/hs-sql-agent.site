@@ -6,15 +6,15 @@ sidebar:
   order: 50
 ---
 
-## Admission, uncertainty and target evidence
+## Zulassung, ungewisse Ergebnisse und Zielnachweise
 
-When selective predicates are required, provably always-true `UPDATE`/`DELETE` filters such as `WHERE 1=1` are denied. Human approval still binds the exact plan and row-set evidence.
+Wenn ein selektives Prädikat erforderlich ist, werden nachweislich immer wahre `UPDATE`-/`DELETE`-Filter wie `WHERE 1=1` abgewiesen. Die menschliche Genehmigung bleibt an den exakten Plan und die Zeilenmengennachweise gebunden.
 
-Custom challenge stores must atomically implement `TryPromoteAsync` for both single and batch operations. Redis and durable resume use versioned envelopes; incompatible challenges need fresh preview and consent. See the [upgrade guide](/docs/reference/upgrade-guide).
+Eigene Challenge-Stores müssen `TryPromoteAsync` für einzelne Anweisungen und Stapel atomar implementieren. Redis und dauerhafte Fortsetzung verwenden versionierte Hüllen. Inkompatible Challenges benötigen eine neue Vorschau und Zustimmung. Siehe [Upgrade-Leitfaden](/de/docs/reference/upgrade-guide).
 
-`dml.commit_outcome_unknown` and `dml.rollback_outcome_unknown` are distinct non-retryable outcomes. Preserve approval and target evidence for independent reconciliation. Neither absent witnesses nor missing Redis keys prove rollback; never automatically replay an uncertain mutation. An audit persistence failure after a known commit must not be reported as a failed mutation.
+`dml.commit_outcome_unknown` und `dml.rollback_outcome_unknown` sind unterschiedliche, nicht wiederholbare Ergebnisse. Bewahren Sie Genehmigungs- und Zielnachweise zur unabhängigen Klärung auf. Fehlende Witnesses oder Redis-Schlüssel beweisen keinen Rollback. Wiederholen Sie ungewisse Änderungen niemals automatisch. Ein Audit-Speicherfehler nach bestätigtem Commit darf nicht als fehlgeschlagene Änderung gemeldet werden.
 
-`AddHsSqlAgentTargetExecutionFence()` is opt-in and requires target provisioning plus separate proof that old workers lost DML authority. Enrolled commits execute two additional rollback-only readiness transactions on the actual connection and two independent post-commit Admission/Witness reads. Oracle uses READ COMMITTED only for the witness unique-conflict diagnostic; other readiness phases use SERIALIZABLE. Contradictory proof yields an unknown outcome. This does not provide fleet-wide enrollment or automatic live-worker reconciliation.
+`AddHsSqlAgentTargetExecutionFence()` ist optional und setzt Zielvorbereitung sowie einen separaten Nachweis entzogener DML-Rechte alter Worker voraus. Jeder eingebundene Commit führt auf der tatsächlichen Verbindung zwei zusätzliche, stets zurückgerollte Bereitschaftstransaktionen und danach zwei unabhängige Leseprüfungen von Admission und Witness aus. Oracle verwendet READ COMMITTED nur zur Diagnose des Witness-Eindeutigkeitskonflikts; sonst gilt SERIALIZABLE. Widersprüchliche Beweise ergeben ein ungewisses Ergebnis. Dies zertifiziert weder die Einbindung aller Worker noch eine automatische Klärung laufender Worker.
 
 DML verwendet einen strengeren Ausführungspfad als Queries, weil die Freigabe beim tatsächlichen Commit weiterhin **dieselbe Mutation Evidence** beschreiben muss.
 

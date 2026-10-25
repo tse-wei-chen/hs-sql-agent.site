@@ -6,15 +6,15 @@ sidebar:
   order: 50
 ---
 
-## Admission, uncertainty and target evidence
+## 核准准入、不確定結果與目標證據
 
-When selective predicates are required, provably always-true `UPDATE`/`DELETE` filters such as `WHERE 1=1` are denied. Human approval still binds the exact plan and row-set evidence.
+要求選擇性條件時，能證明恆真的 `UPDATE`／`DELETE` 條件（例如 `WHERE 1=1`）會被拒絕。人工核准仍須繫結精確的計畫與資料列集合證據。
 
-Custom challenge stores must atomically implement `TryPromoteAsync` for both single and batch operations. Redis and durable resume use versioned envelopes; incompatible challenges need fresh preview and consent. See the [upgrade guide](/docs/reference/upgrade-guide).
+自訂 challenge store 必須為單一與批次操作原子實作 `TryPromoteAsync`。Redis 與持久化續行使用版本化封套；不相容的 challenge 須重新預覽與核准。詳見[升級指南](/zh-hant/docs/reference/upgrade-guide)。
 
-`dml.commit_outcome_unknown` and `dml.rollback_outcome_unknown` are distinct non-retryable outcomes. Preserve approval and target evidence for independent reconciliation. Neither absent witnesses nor missing Redis keys prove rollback; never automatically replay an uncertain mutation. An audit persistence failure after a known commit must not be reported as a failed mutation.
+`dml.commit_outcome_unknown` 與 `dml.rollback_outcome_unknown` 是不同且不可重試的結果。請保留核准與目標證據，進行獨立釐清。缺少 witness 或 Redis key 都無法證明已回復，不可自動重播結果不明的變更。已確認提交後，即使稽核儲存失敗，也不能回報為變更失敗。
 
-`AddHsSqlAgentTargetExecutionFence()` is opt-in and requires target provisioning plus separate proof that old workers lost DML authority. Enrolled commits execute two additional rollback-only readiness transactions on the actual connection and two independent post-commit Admission/Witness reads. Oracle uses READ COMMITTED only for the witness unique-conflict diagnostic; other readiness phases use SERIALIZABLE. Contradictory proof yields an unknown outcome. This does not provide fleet-wide enrollment or automatic live-worker reconciliation.
+`AddHsSqlAgentTargetExecutionFence()` 須明確啟用，先準備目標資料表與權限，並另外證明舊 worker 已失去 DML 權限。每次納管提交都在實際連線上執行兩個額外的僅回復 readiness 交易，提交後獨立讀取 Admission 與 Witness 各一次。Oracle 只在 witness 唯一鍵衝突診斷使用 READ COMMITTED，其餘 readiness 階段使用 SERIALIZABLE。證據矛盾會回報不確定結果；這不提供整個叢集的節點納管證明，也不會自動處置仍存活的 worker。
 
 DML 比 Query 使用更嚴格的執行路徑，因為真正 commit 時，核准內容仍必須描述**同一份 Mutation Evidence**。
 

@@ -6,19 +6,19 @@ sidebar:
   order: 80
 ---
 
-## Required secret protection
+## 必要的秘密保護設定
 
-Configure three independent random 32-byte Base64 values before starting Docker or registering the runtime. Keep the same keys on every node and across restarts. `HMAC_KEY` and `JWT_KEY` remain separate signing secrets. Run `openssl rand -base64 32` separately for each protection key.
+啟動 Docker 或註冊執行階段前，請設定三組獨立、隨機產生的 32-byte Base64 秘密。所有節點須使用相同金鑰，重新啟動後也須保留。`HMAC_KEY` 與 `JWT_KEY` 仍為獨立的簽署秘密。請分別執行三次 `openssl rand -base64 32`。
 
-| Docker variable | ASP.NET Core configuration |
+| Docker 環境變數 | ASP.NET Core 設定 |
 | --- | --- |
 | `DB_ENCRYPTION_KEY` | `SecretProtection:DatabasePasswords:Keys:db-1` |
 | `DML_ENCRYPTION_KEY` | `SecretProtection:DmlPayloads:Keys:dml-1` |
 | `DML_FINGERPRINT_KEY` | `SecretProtection:DmlFingerprintKey` |
 
-Set `SecretProtection:DatabasePasswords:ActiveKeyId` to `db-1` and `SecretProtection:DmlPayloads:ActiveKeyId` to `dml-1`. Missing, invalid or reused keys fail startup. Example placeholders are deliberately invalid.
+將 `SecretProtection:DatabasePasswords:ActiveKeyId` 設為 `db-1`，`SecretProtection:DmlPayloads:ActiveKeyId` 設為 `dml-1`。缺少、無效或重複使用的金鑰會使啟動失敗；範例佔位值刻意設為無效。
 
-`HsSqlAgent.Hosting` binds `SecretProtection` automatically. Modular hosts must bind it explicitly:
+`HsSqlAgent.Hosting` 會自動繫結 `SecretProtection`；模組化主機須明確繫結：
 
 ```csharp
 hs.AddHsSqlAgentRuntime(options =>
@@ -27,9 +27,9 @@ hs.AddHsSqlAgentRuntime(options =>
 });
 ```
 
-For new bootstrap MCP keys, provide explicit `Bootstrap:Databases:*:McpKeys:*:Key` values; startup does not generate or log them. Existing encrypted database passwords must be re-entered. Read the [upgrade guide](/docs/reference/upgrade-guide) before changing an existing deployment.
+新 bootstrap MCP 金鑰須明確提供 `Bootstrap:Databases:*:McpKeys:*:Key`，啟動時不再產生或記錄金鑰。既有加密資料庫密碼須重新輸入。變更既有部署前，請閱讀[升級指南](/zh-hant/docs/reference/upgrade-guide)。
 
-Multiple modules may call `AddHsSqlAgentCore()` on the same `IServiceCollection`. Capability configuration is accepted only on first registration; later overrides fail. Separate service collections remain isolated.
+多個模組可在相同的 `IServiceCollection` 上呼叫 `AddHsSqlAgentCore()`。各能力只接受首次註冊時的設定，後續覆寫會失敗；不同的服務集合仍彼此隔離。
 
 ASP.NET Core 應用現在有兩個 NuGet 入口。請依「宿主要掌握哪些邊界」來選，而不是把兩個套件當成同一層級的替代名稱。
 

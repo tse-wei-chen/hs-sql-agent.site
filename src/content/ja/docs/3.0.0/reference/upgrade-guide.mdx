@@ -1,54 +1,51 @@
 ---
-title: "Upgrade Guide"
-description: "Upgrade secret protection, approval protocols and the Admin Store."
+title: "アップグレードガイド"
+description: "シークレット保護、承認プロトコル、管理データベースの移行手順。"
 sidebar:
-  group: Reference
+  group: リファレンス
   order: 144
 ---
 
 ## 2.0.6 → 3.0.0
 
-This major release changes secret protection, approval storage and commit evidence. Upgrade all DML workers together; a mixed old/new fleet is unsafe.
+このメジャーリリースはシークレット保護、承認ストレージ、コミット証拠を変更します。DML worker は一斉に更新してください。新旧混在は安全ではありません。
 
-## Before deployment
+## デプロイ前の準備
 
-1. Back up the Admin Store and deployment secrets. Stop new DML previews, drain or reject Pending approvals, and reconcile Executing requests using the existing operational procedure. Never mark an uncertain execution complete merely to pass migration.
-2. Complete historical witness inspections before upgrading. Legacy encrypted resume payloads, including terminal records, become unreadable; retain the backup and old application for read-only forensic inspection.
-3. Generate three independent random 32-byte Base64 secrets (run `openssl rand -base64 32` separately three times). Set `DB_ENCRYPTION_KEY`, `DML_ENCRYPTION_KEY` and `DML_FINGERPRINT_KEY`. Keep `HMAC_KEY` stable so existing MCP keys remain usable; JWT/HMAC signing secrets must remain independent of protection keys.
-4. Stop every old DML-capable worker. Apply the SQLite or PostgreSQL Admin Store migrations, then deploy all nodes with identical key rings and fingerprint key. Missing, malformed or reused protection keys fail startup.
-5. Re-enter existing database passwords through the management UI/API or bootstrap configuration. There is no legacy decryption fallback or automatic conversion. Empty provider passwords remain supported.
-6. Configure explicit `Bootstrap:Databases:*:McpKeys:*:Key` values. Startup no longer generates or logs bootstrap keys. Revoke keys previously exposed in logs.
-7. Verify database connectivity, Doctor, MCP query access and a newly previewed/approved DML request before restoring traffic.
+1. Admin Store とデプロイ用シークレットをバックアップし、新しい DML プレビューを停止します。Pending を完了または拒否し、Executing を既存の運用手順で調査してください。移行を通すために結果不明の実行を完了扱いにしてはいけません。
+2. 過去の witness 調査を済ませます。旧暗号化 resume ペイロードは終端状態の記録も含め読めなくなります。バックアップと旧アプリを読み取り専用の調査用に保持してください。
+3. `openssl rand -base64 32` を個別に 3 回実行し、独立した 32 バイト Base64 値を `DB_ENCRYPTION_KEY`、`DML_ENCRYPTION_KEY`、`DML_FINGERPRINT_KEY` に設定します。既存 MCP キーのため `HMAC_KEY` を保持し、保護キーと HMAC/JWT 署名シークレットを分離してください。
+4. 旧 DML worker をすべて停止し、SQLite または PostgreSQL の Admin Store 移行を適用します。全ノードに同じキーリングと fingerprint key を設定します。欠落、不正、使い回しは起動エラーです。
+5. 管理 UI/API または bootstrap 設定で既存 DB パスワードを再入力します。旧形式の復号や自動変換はありません。空のパスワードを使用するプロバイダーは引き続き利用できます。
+6. `Bootstrap:Databases:*:McpKeys:*:Key` を明示します。起動時の自動生成とログ出力は廃止されました。ログに漏れたキーは失効させてください。
+7. 接続、Doctor、MCP クエリ、新規プレビューから承認した DML を確認してから通信を再開します。
 
-## Approval and Admin Store breaking changes
+## 承認と Admin Store の破壊的変更
 
-Both Admin Store providers reject migration while any durable approval is Pending or Executing. The migration adds `AdmissionProtocolVersion` with default 0 and a database CHECK: only protocol 1+ approvals may enter Pending/Executing. Terminal historical evidence is retained; old workers cannot create new active approvals through the legacy Admin Store path. This does not revoke their direct target-database permissions.
+両 Admin Store は Pending/Executing が残っていると移行を拒否します。`AdmissionProtocolVersion` は既定値 0 で追加され、DB CHECK 制約がプロトコル 1 以上の承認だけを Pending/Executing に許可します。過去の終端証拠は保持されます。これは旧 worker の Admin Store 経由の受付を防ぎますが、ターゲット DB の直接権限は取り消しません。
 
-Custom `IDmlApprovalChallengeStore` implementations must implement atomic, all-or-nothing `TryPromoteAsync`. Single statements and batches both use aggregate promotion; sequential delete/add is unsafe.
+カスタム `IDmlApprovalChallengeStore` は `TryPromoteAsync` を全件成功または全件不成立のアトミック操作で実装してください。単文とバッチの双方が集約昇格を使用します。逐次の削除・追加では安全ではありません。
 
-Redis keys use `{dml-approval}:` and a versioned `hs-sql-agent.dml-challenge` envelope (`SchemaVersion=1`). Old keys are incompatible. Durable resume uses an encrypted `hs-sql-agent.dml-resume` envelope (`SchemaVersion=1`); an explicit version-0 reader preserves legacy flags without inventing approval. That format reader does not restore the ability to decrypt legacy ciphertext. Unknown or damaged versions fail closed before target SQL. Missing `ApprovalPlanBinding` requires fresh preview and consent; consumed nonces cannot be replayed.
+Redis は `{dml-approval}:` キーと `hs-sql-agent.dml-challenge` エンベロープ（`SchemaVersion=1`）になり、旧キーとは非互換です。永続再開は暗号化された `hs-sql-agent.dml-resume`（`SchemaVersion=1`）を使用します。明示的な version-0 リーダーは旧フラグを保持するだけで、同意を追加せず、旧暗号文を復号可能にもしません。不明・破損バージョンはターゲット SQL 前に拒否します。`ApprovalPlanBinding` の欠落時は再プレビューと再承認が必要で、消費済み nonce は再利用できません。
 
-## Execution and compiler changes
+## 実行とコンパイラー
 
-- `UPDATE`/`DELETE` predicates proven always true, such as `WHERE 1=1`, are rejected when selective predicates are required. Use a real filter or explicit full-table authorization.
-- Input is limited to 4,194,304 UTF-16 units and 131,072 non-End lexer tokens. AST, nesting, rendered output, stage/aggregate work, deadline and allocation budgets also fail closed with typed resource diagnostics. Iterative traversal and bounded rendering improve deep/wide SQL handling without promising unlimited SQL depth or new dialect support.
-- Opt-in immutable schema snapshots validate names and proven type families, bind their digest into plan evidence and require live freshness verification for schema-bound DML. The default path remains snapshot-free.
-- `dml.commit_outcome_unknown` and `dml.rollback_outcome_unknown` are separate non-retryable outcomes. Neither proves a safe retry. Preserve evidence and reconcile independently; missing Redis keys or witnesses do not prove rollback.
-- The five built-in MCP tools, four default read/query tools and opt-in DML posture remain. Human approval and commit-time revalidation still apply.
+- 選択的条件が必要な `UPDATE`／`DELETE` では `WHERE 1=1` などの恒真条件を拒否します。実際の絞り込みか、明示的な全表操作権限が必要です。
+- 入力上限は 4,194,304 UTF-16 単位と 131,072 字句トークンです。AST、深度、出力、作業量、期限、割り当てにも型付きの拒否診断があります。反復走査は無制限の深度や新しい方言の保証ではありません。
+- 任意の不変スキーマスナップショットは名前と証明可能な型を検証し、ダイジェストを計画証拠に含めます。スキーマ証拠付き DML にはライブ鮮度検証が必要です。既定ではスナップショットを取得しません。
+- `dml.commit_outcome_unknown` と `dml.rollback_outcome_unknown` は別々の再試行不可の結果です。証拠を保存して独立に調査してください。Redis キーや witness の欠落はロールバックの証明ではありません。
+- 5 個の組み込み MCP ツール、既定の 4 個の読み取りツール、DML の明示的有効化、人間の承認、コミット前再検証は維持されます。
 
-## Optional target fencing
+## 任意のターゲットフェンス
 
-`AddHsSqlAgentNativeDmlSchemaFreshness()` and `AddHsSqlAgentTargetExecutionFence()` remain opt-in. Provision the target tables/permissions and prove old credentials and sessions can no longer mutate before enabling fencing. SQLite requires OS/process isolation rather than user-role revocation.
+`AddHsSqlAgentNativeDmlSchemaFreshness()` と `AddHsSqlAgentTargetExecutionFence()` は任意です。表と権限を準備し、旧資格情報とセッションが変更できないことを検証します。SQLite は OS／プロセスによる隔離が必要です。
 
-Every enrolled commit checks readiness on the actual target connection with two additional rollback-only transactions, followed by independent post-commit Admission and Witness reads. Readiness uses SERIALIZABLE except Oracle's intentional witness uniqueness diagnostic, which uses READ COMMITTED. Missing or contradictory post-commit proof yields an unknown outcome, not permission to replay. Fencing does not establish fleet enrollment or authorize automatic reconciliation of a live Executing worker.
+対象コミットごとに実接続で追加のロールバック専用検証を 2 回行い、コミット後に Admission と Witness を独立して読み取ります。Oracle の witness 一意性診断だけ READ COMMITTED、他は SERIALIZABLE です。証拠の欠落・矛盾は不確定な結果であり、再実行の許可ではありません。全 worker の登録を保証せず、稼働中の Executing の自動照合も許可しません。
 
-## Rollback
+## ダウングレード
 
-Approval-admission and secret-protection migrations are one-way. Do not reverse them with `dotnet ef database update`. Rollback requires stopping DML workers, reconciling unresolved approvals and restoring the compatible pre-upgrade database backup together with old binaries and secrets.
+承認受付とシークレット保護の移行は一方向です。`dotnet ef database update` で逆移行してはいけません。DML worker を停止して未解決承認を調査し、互換性のある移行前バックアップ、旧バイナリ、旧シークレットをまとめて復元してください。
 
-## Authoritative release guides
-
-- [Migration](https://github.com/tse-wei-chen/hs-sql-agent/blob/v3.0.0/docs/v3-migration.md)
-- [Secret protection and rotation](https://github.com/tse-wei-chen/hs-sql-agent/blob/v3.0.0/docs/secret-protection-upgrade.md)
-- [Target fence cutover](https://github.com/tse-wei-chen/hs-sql-agent/blob/v3.0.0/docs/v3-target-fence-cutover.md)
-
+- [移行](https://github.com/tse-wei-chen/hs-sql-agent/blob/v3.0.0/docs/v3-migration.md)
+- [シークレット保護とローテーション](https://github.com/tse-wei-chen/hs-sql-agent/blob/v3.0.0/docs/secret-protection-upgrade.md)
+- [ターゲットフェンスの切り替え](https://github.com/tse-wei-chen/hs-sql-agent/blob/v3.0.0/docs/v3-target-fence-cutover.md)

@@ -6,19 +6,19 @@ sidebar:
   order: 100
 ---
 
-## Required secret protection
+## 必須のシークレット保護設定
 
-Configure three independent random 32-byte Base64 values before starting Docker or registering the runtime. Keep the same keys on every node and across restarts. `HMAC_KEY` and `JWT_KEY` remain separate signing secrets. Run `openssl rand -base64 32` separately for each protection key.
+Docker の起動またはランタイム登録の前に、互いに独立したランダムな 32 バイトの Base64 シークレットを 3 個設定してください。すべてのノードで同じキーを使い、再起動後も保持します。`HMAC_KEY` と `JWT_KEY` は別の署名シークレットです。`openssl rand -base64 32` を個別に 3 回実行してください。
 
-| Docker variable | ASP.NET Core configuration |
+| Docker 環境変数 | ASP.NET Core 設定 |
 | --- | --- |
 | `DB_ENCRYPTION_KEY` | `SecretProtection:DatabasePasswords:Keys:db-1` |
 | `DML_ENCRYPTION_KEY` | `SecretProtection:DmlPayloads:Keys:dml-1` |
 | `DML_FINGERPRINT_KEY` | `SecretProtection:DmlFingerprintKey` |
 
-Set `SecretProtection:DatabasePasswords:ActiveKeyId` to `db-1` and `SecretProtection:DmlPayloads:ActiveKeyId` to `dml-1`. Missing, invalid or reused keys fail startup. Example placeholders are deliberately invalid.
+`SecretProtection:DatabasePasswords:ActiveKeyId` を `db-1`、`SecretProtection:DmlPayloads:ActiveKeyId` を `dml-1` に設定します。キーの欠落、不正な値、使い回しは起動エラーになります。サンプルのプレースホルダーは意図的に無効です。
 
-`HsSqlAgent.Hosting` binds `SecretProtection` automatically. Modular hosts must bind it explicitly:
+`HsSqlAgent.Hosting` は `SecretProtection` を自動的にバインドします。モジュール構成のホストでは明示的にバインドします。
 
 ```csharp
 hs.AddHsSqlAgentRuntime(options =>
@@ -27,7 +27,7 @@ hs.AddHsSqlAgentRuntime(options =>
 });
 ```
 
-For new bootstrap MCP keys, provide explicit `Bootstrap:Databases:*:McpKeys:*:Key` values; startup does not generate or log them. Existing encrypted database passwords must be re-entered. Read the [upgrade guide](/docs/reference/upgrade-guide) before changing an existing deployment.
+新規 bootstrap MCP キーには `Bootstrap:Databases:*:McpKeys:*:Key` を明示してください。起動時にキーを生成したりログに記録したりしません。既存の暗号化された DB パスワードは再入力が必要です。既存環境を変更する前に[アップグレードガイド](/ja/docs/reference/upgrade-guide)を確認してください。
 
 Web Host を誰が所有するかに応じてデプロイ形態を選びます。
 

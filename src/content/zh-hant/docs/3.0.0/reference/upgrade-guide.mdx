@@ -1,8 +1,8 @@
 ---
-title: "????"
-description: "Upgrade secret protection, approval protocols and the Admin Store."
+title: "升級指南"
+description: "升級秘密保護、核准協定與管理資料庫。"
 sidebar:
-  group: Reference
+  group: 參考
   order: 144
 ---
 
@@ -47,4 +47,3 @@ Redis key 改用 `{dml-approval}:` 與 `hs-sql-agent.dml-challenge` envelope（`
 核准 admission 與秘密保護遷移為單向，不可使用 `dotnet ef database update` 反向移除。降版須停止 DML worker、釐清未決核准，並一起還原升級前資料庫、舊程式與部署秘密。
 
 [主專案遷移指南](https://github.com/tse-wei-chen/hs-sql-agent/blob/v3.0.0/docs/v3-migration.md) · [金鑰輪替](https://github.com/tse-wei-chen/hs-sql-agent/blob/v3.0.0/docs/secret-protection-upgrade.md) · [Target fence 切換](https://github.com/tse-wei-chen/hs-sql-agent/blob/v3.0.0/docs/v3-target-fence-cutover.md)
-

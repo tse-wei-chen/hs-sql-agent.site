@@ -6,13 +6,13 @@ sidebar:
   order: 40
 ---
 
-## Bounded compilation and schema evidence
+## 제한된 컴파일 및 스키마 증거
 
-Compilation rejects input beyond 4,194,304 UTF-16 units, 131,072 non-End lexer tokens, 8,192 grouping levels or the 65,536-node AST budget. Iterative AST traversal and bounded rendering preserve parameter ordering and fail-closed semantics across the six providers; they do not guarantee arbitrary SQL depth.
+입력이 4,194,304 UTF-16 단위, End를 제외한 131,072개 어휘 토큰, 8,192단계 그룹 중첩 또는 AST 노드 65,536개를 초과하면 거부됩니다. 반복형 AST 탐색과 크기 제한 렌더링은 여섯 공급자에서 매개변수 순서 및 안전성을 입증하지 못하면 거부하는 원칙을 유지합니다. 임의 깊이 SQL 지원을 보장하지 않습니다.
 
-Resource budgets include 8,000,000 work units per stage, 32,000,000 per compilation, 30 seconds per stage, 90 seconds per compilation and 536,870,912 cumulative managed allocation bytes per stage. These are compilation budgets, not database query timeouts or process memory limits. Typed resource diagnostics identify rejected work.
+자원 한도는 단계당 8,000,000 작업 단위, 컴파일당 32,000,000 작업 단위, 단계당 30초, 컴파일당 90초, 단계당 누적 관리 메모리 할당 536,870,912바이트입니다. 이는 컴파일 예산이며 DB 쿼리 시간 제한이나 프로세스 메모리 한도가 아닙니다. 초과 시 형식화된 자원 진단을 반환합니다.
 
-An opt-in immutable schema snapshot resolves table/column names and proven type families, including ordered CTE/derived projections, and binds its digest into the plan fingerprint. This is bounded proof, not a full database type checker. Schema-bound DML requires a live freshness verifier; missing or changed schema proof fails closed. The default runtime remains snapshot-free. `AddHsSqlAgentNativeDmlSchemaFreshness()` provides opt-in native support.
+선택적으로 활성화하는 불변 스키마 스냅샷은 테이블·열 이름과 입증 가능한 유형 계열을 해석하며 순서가 있는 CTE/파생 투영도 포함합니다. 다이제스트는 계획 지문에 결합됩니다. 완전한 DB 유형 검사기는 아닙니다. 스키마 증거가 있는 DML에는 실제 최신 상태 검증이 필요하며, 증거가 누락되거나 스키마가 바뀌면 거부됩니다. 기본 런타임은 스냅샷을 수집하지 않습니다. `AddHsSqlAgentNativeDmlSchemaFreshness()`로 선택적 네이티브 지원을 활성화합니다.
 
 hs-sql-agent는 AI가 생성한 SQL을 신뢰된 명령으로 바로 실행하지 않습니다. 실행 전에 파싱, 검증, 지원 기능 확인, 접근 정책 적용, 대상 데이터베이스용 컴파일을 거칩니다.
 

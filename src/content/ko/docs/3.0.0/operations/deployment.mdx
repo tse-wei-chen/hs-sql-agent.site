@@ -6,19 +6,19 @@ sidebar:
   order: 100
 ---
 
-## Required secret protection
+## 필수 비밀 정보 보호 설정
 
-Configure three independent random 32-byte Base64 values before starting Docker or registering the runtime. Keep the same keys on every node and across restarts. `HMAC_KEY` and `JWT_KEY` remain separate signing secrets. Run `openssl rand -base64 32` separately for each protection key.
+Docker를 시작하거나 런타임을 등록하기 전에 서로 독립적인 무작위 32바이트 Base64 비밀 값 세 개를 설정하세요. 모든 노드가 같은 키를 사용하고 재시작 후에도 유지해야 합니다. `HMAC_KEY`와 `JWT_KEY`는 별도의 서명 비밀 값입니다. `openssl rand -base64 32`를 각각 세 번 실행하세요.
 
-| Docker variable | ASP.NET Core configuration |
+| Docker 환경 변수 | ASP.NET Core 설정 |
 | --- | --- |
 | `DB_ENCRYPTION_KEY` | `SecretProtection:DatabasePasswords:Keys:db-1` |
 | `DML_ENCRYPTION_KEY` | `SecretProtection:DmlPayloads:Keys:dml-1` |
 | `DML_FINGERPRINT_KEY` | `SecretProtection:DmlFingerprintKey` |
 
-Set `SecretProtection:DatabasePasswords:ActiveKeyId` to `db-1` and `SecretProtection:DmlPayloads:ActiveKeyId` to `dml-1`. Missing, invalid or reused keys fail startup. Example placeholders are deliberately invalid.
+`SecretProtection:DatabasePasswords:ActiveKeyId`는 `db-1`, `SecretProtection:DmlPayloads:ActiveKeyId`는 `dml-1`로 설정합니다. 누락되거나 잘못되거나 재사용된 키는 시작 실패를 일으킵니다. 예제의 자리표시자는 의도적으로 유효하지 않습니다.
 
-`HsSqlAgent.Hosting` binds `SecretProtection` automatically. Modular hosts must bind it explicitly:
+`HsSqlAgent.Hosting`은 `SecretProtection`을 자동 바인딩합니다. 모듈형 호스트에서는 명시적으로 바인딩해야 합니다.
 
 ```csharp
 hs.AddHsSqlAgentRuntime(options =>
@@ -27,7 +27,7 @@ hs.AddHsSqlAgentRuntime(options =>
 });
 ```
 
-For new bootstrap MCP keys, provide explicit `Bootstrap:Databases:*:McpKeys:*:Key` values; startup does not generate or log them. Existing encrypted database passwords must be re-entered. Read the [upgrade guide](/docs/reference/upgrade-guide) before changing an existing deployment.
+새 bootstrap MCP 키에는 `Bootstrap:Databases:*:McpKeys:*:Key` 값을 명시하세요. 시작 시 키를 생성하거나 로그에 기록하지 않습니다. 기존 암호화 DB 비밀번호는 다시 입력해야 합니다. 기존 배포를 변경하기 전에 [업그레이드 가이드](/ko/docs/reference/upgrade-guide)를 읽으세요.
 
 Web Host를 누가 소유하는지에 따라 배포 형태를 선택합니다.
 

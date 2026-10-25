@@ -6,15 +6,15 @@ sidebar:
   order: 50
 ---
 
-## Admission, uncertainty and target evidence
+## 승인 수락, 불확실한 결과 및 대상 증거
 
-When selective predicates are required, provably always-true `UPDATE`/`DELETE` filters such as `WHERE 1=1` are denied. Human approval still binds the exact plan and row-set evidence.
+선택적 조건이 필요한 경우 `WHERE 1=1`처럼 항상 참임이 입증되는 `UPDATE`/`DELETE` 필터는 거부됩니다. 사람의 승인은 여전히 정확한 계획과 행 집합 증거에 결합됩니다.
 
-Custom challenge stores must atomically implement `TryPromoteAsync` for both single and batch operations. Redis and durable resume use versioned envelopes; incompatible challenges need fresh preview and consent. See the [upgrade guide](/docs/reference/upgrade-guide).
+사용자 지정 challenge store는 단일 및 배치 작업 모두에 대해 `TryPromoteAsync`를 원자적으로 구현해야 합니다. Redis와 영속 재개는 버전이 있는 봉투 형식을 사용합니다. 호환되지 않는 challenge에는 새 미리 보기와 동의가 필요합니다. [업그레이드 가이드](/ko/docs/reference/upgrade-guide)를 참조하세요.
 
-`dml.commit_outcome_unknown` and `dml.rollback_outcome_unknown` are distinct non-retryable outcomes. Preserve approval and target evidence for independent reconciliation. Neither absent witnesses nor missing Redis keys prove rollback; never automatically replay an uncertain mutation. An audit persistence failure after a known commit must not be reported as a failed mutation.
+`dml.commit_outcome_unknown`과 `dml.rollback_outcome_unknown`은 서로 다르며 둘 다 재시도할 수 없는 결과입니다. 승인 및 대상 증거를 보관하고 독립적으로 조사하세요. witness나 Redis 키가 없다고 롤백이 입증되는 것은 아닙니다. 불확실한 변경을 자동 재실행하지 마세요. 커밋이 확인된 뒤 감사 저장에 실패하더라도 변경 실패로 보고하면 안 됩니다.
 
-`AddHsSqlAgentTargetExecutionFence()` is opt-in and requires target provisioning plus separate proof that old workers lost DML authority. Enrolled commits execute two additional rollback-only readiness transactions on the actual connection and two independent post-commit Admission/Witness reads. Oracle uses READ COMMITTED only for the witness unique-conflict diagnostic; other readiness phases use SERIALIZABLE. Contradictory proof yields an unknown outcome. This does not provide fleet-wide enrollment or automatic live-worker reconciliation.
+`AddHsSqlAgentTargetExecutionFence()`는 선택적 기능입니다. 대상 준비와 별도로 이전 worker의 DML 권한 철회를 입증해야 합니다. 등록된 커밋마다 실제 연결에서 롤백 전용 준비 검증 트랜잭션 두 개를 추가 실행하고, 커밋 후 Admission과 Witness를 독립적으로 읽습니다. Oracle의 witness 고유성 충돌 진단만 READ COMMITTED이며 나머지 검증은 SERIALIZABLE입니다. 증거가 모순되면 불확실한 결과를 반환합니다. 전체 worker 등록이나 실행 중 worker의 자동 조정을 보장하지 않습니다.
 
 DML은 Query보다 더 엄격한 실행 경로를 사용합니다. 실제 commit 시점에도 승인 내용이**동일한 Mutation Evidence**를 설명해야 하기 때문입니다.
 

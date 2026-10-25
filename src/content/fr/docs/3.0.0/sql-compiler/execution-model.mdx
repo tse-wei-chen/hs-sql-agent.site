@@ -6,13 +6,13 @@ sidebar:
   order: 40
 ---
 
-## Bounded compilation and schema evidence
+## Compilation bornée et preuves de schéma
 
-Compilation rejects input beyond 4,194,304 UTF-16 units, 131,072 non-End lexer tokens, 8,192 grouping levels or the 65,536-node AST budget. Iterative AST traversal and bounded rendering preserve parameter ordering and fail-closed semantics across the six providers; they do not guarantee arbitrary SQL depth.
+La compilation refuse toute entrée dépassant 4,194,304 unités UTF-16, 131,072 jetons lexicaux hors End, 8,192 niveaux de groupement ou 65,536 nœuds AST. Le parcours itératif et le rendu borné préservent l’ordre des paramètres et le refus en cas de preuve insuffisante pour les six fournisseurs. Ils ne garantissent pas une profondeur SQL arbitraire.
 
-Resource budgets include 8,000,000 work units per stage, 32,000,000 per compilation, 30 seconds per stage, 90 seconds per compilation and 536,870,912 cumulative managed allocation bytes per stage. These are compilation budgets, not database query timeouts or process memory limits. Typed resource diagnostics identify rejected work.
+Les budgets sont de 8,000,000 unités de travail par étape, 32,000,000 par compilation, 30 secondes par étape, 90 secondes par compilation et 536,870,912 octets d’allocations managées cumulées par étape. Ce sont des limites de compilation, pas des délais de requête DB ni des limites de mémoire du processus. Des diagnostics de ressources typés signalent les refus.
 
-An opt-in immutable schema snapshot resolves table/column names and proven type families, including ordered CTE/derived projections, and binds its digest into the plan fingerprint. This is bounded proof, not a full database type checker. Schema-bound DML requires a live freshness verifier; missing or changed schema proof fails closed. The default runtime remains snapshot-free. `AddHsSqlAgentNativeDmlSchemaFreshness()` provides opt-in native support.
+Un instantané de schéma immuable, facultatif, résout les noms de tables et colonnes ainsi que les familles de types prouvables, y compris les projections ordonnées CTE/dérivées. Son condensat est lié à l’empreinte du plan. Ce n’est pas un vérificateur complet des types DB. Le DML avec preuve de schéma exige une vérification de fraîcheur réelle ; une preuve absente ou modifiée entraîne un refus. Aucun instantané n’est capturé par défaut. `AddHsSqlAgentNativeDmlSchemaFreshness()` active le support natif facultatif.
 
 hs-sql-agent ne traite jamais le SQL généré comme une commande fiable. La frontière d’exécution repose sur l’analyse, la validation, la vérification des capacités, les politiques d’accès et la compilation propre au moteur de base de données.
 

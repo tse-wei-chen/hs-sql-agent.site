@@ -6,19 +6,19 @@ sidebar:
   order: 90
 ---
 
-## Required secret protection
+## 必要的秘密保護設定
 
-Configure three independent random 32-byte Base64 values before starting Docker or registering the runtime. Keep the same keys on every node and across restarts. `HMAC_KEY` and `JWT_KEY` remain separate signing secrets. Run `openssl rand -base64 32` separately for each protection key.
+啟動 Docker 或註冊執行階段前，請設定三組獨立、隨機產生的 32-byte Base64 秘密。所有節點須使用相同金鑰，重新啟動後也須保留。`HMAC_KEY` 與 `JWT_KEY` 仍為獨立的簽署秘密。請分別執行三次 `openssl rand -base64 32`。
 
-| Docker variable | ASP.NET Core configuration |
+| Docker 環境變數 | ASP.NET Core 設定 |
 | --- | --- |
 | `DB_ENCRYPTION_KEY` | `SecretProtection:DatabasePasswords:Keys:db-1` |
 | `DML_ENCRYPTION_KEY` | `SecretProtection:DmlPayloads:Keys:dml-1` |
 | `DML_FINGERPRINT_KEY` | `SecretProtection:DmlFingerprintKey` |
 
-Set `SecretProtection:DatabasePasswords:ActiveKeyId` to `db-1` and `SecretProtection:DmlPayloads:ActiveKeyId` to `dml-1`. Missing, invalid or reused keys fail startup. Example placeholders are deliberately invalid.
+將 `SecretProtection:DatabasePasswords:ActiveKeyId` 設為 `db-1`，`SecretProtection:DmlPayloads:ActiveKeyId` 設為 `dml-1`。缺少、無效或重複使用的金鑰會使啟動失敗；範例佔位值刻意設為無效。
 
-`HsSqlAgent.Hosting` binds `SecretProtection` automatically. Modular hosts must bind it explicitly:
+`HsSqlAgent.Hosting` 會自動繫結 `SecretProtection`；模組化主機須明確繫結：
 
 ```csharp
 hs.AddHsSqlAgentRuntime(options =>
@@ -27,17 +27,17 @@ hs.AddHsSqlAgentRuntime(options =>
 });
 ```
 
-For new bootstrap MCP keys, provide explicit `Bootstrap:Databases:*:McpKeys:*:Key` values; startup does not generate or log them. Existing encrypted database passwords must be re-entered. Read the [upgrade guide](/docs/reference/upgrade-guide) before changing an existing deployment.
+新 bootstrap MCP 金鑰須明確提供 `Bootstrap:Databases:*:McpKeys:*:Key`，啟動時不再產生或記錄金鑰。既有加密資料庫密碼須重新輸入。變更既有部署前，請閱讀[升級指南](/zh-hant/docs/reference/upgrade-guide)。
 
-## Credential storage and rotation
+## 憑證儲存與金鑰輪替
 
-Database passwords use purpose-bound AES-256-GCM ciphertext tied to the trusted record's `SecretBindingId`; durable payloads are bound to `RequestId`. There is no legacy decryption fallback. `ICryptoService` accepts a context string rather than caller-provided key bytes.
+資料庫密碼以 AES-256-GCM 加密，並繫結用途與可信紀錄的 `SecretBindingId`；持久化執行內容則繫結 `RequestId`。不提供舊加密格式的解密備援。`ICryptoService` 改為接收情境字串，而非呼叫端提供的金鑰位元組。
 
-To rotate an encryption ring, distribute old and new IDs to every node, switch `ActiveKeyId`, then re-save passwords. Retain old DML keys while pending or historical payloads still require inspection. The independent fingerprint key is not versioned; drain approvals before rotating it and retain prior secrets for historical witness inspection.
+輪替加密金鑰環時，先將新舊金鑰以不同 ID 分發到所有節點，再切換 `ActiveKeyId` 並重新儲存密碼。只要待核准或歷史內容仍需檢查，就須保留舊 DML 金鑰。獨立的 fingerprint key 沒有版本化；輪替前須清空未決核准，並保留舊秘密供歷史 witness 檢查。
 
-`ExtraSettings` accepts only JSON booleans `Encrypt` and `TrustServerCertificate`. Unknown/duplicate fields, strings and invalid JSON are rejected. Connection tests and health probes expose generic `DB_CONNECTION_FAILED` messages rather than driver details.
+`ExtraSettings` 只接受 JSON 布林欄位 `Encrypt` 與 `TrustServerCertificate`。未知或重複欄位、字串值及無效 JSON 都會被拒絕。連線測試與健康探測回傳通用 `DB_CONNECTION_FAILED` 訊息，不暴露驅動程式細節。
 
-Doctor check `security.secret-protection` validates key IDs, Base64/length and independence without returning secrets. Public sample keys warn outside Production and error in Production, including retained inactive samples. Invalid placeholders error everywhere; invalid configuration can prevent startup before Doctor is available.
+Doctor 的 `security.secret-protection` 檢查金鑰 ID、Base64 格式、長度與獨立性，不回傳秘密。公開範例金鑰在非正式環境顯示警告，在 Production 顯示錯誤，包含非作用中的保留金鑰。無效佔位值在所有環境都是錯誤；設定無效時可能在 Doctor 可用前就啟動失敗。
 
 hs-sql-agent 有三種使用方式，但安全邊界一致。
 

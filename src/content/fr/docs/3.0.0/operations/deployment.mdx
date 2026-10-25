@@ -6,19 +6,19 @@ sidebar:
   order: 100
 ---
 
-## Required secret protection
+## Protection des secrets obligatoire
 
-Configure three independent random 32-byte Base64 values before starting Docker or registering the runtime. Keep the same keys on every node and across restarts. `HMAC_KEY` and `JWT_KEY` remain separate signing secrets. Run `openssl rand -base64 32` separately for each protection key.
+Avant de démarrer Docker ou d’enregistrer le runtime, configurez trois secrets Base64 indépendants de 32 octets aléatoires. Conservez les mêmes clés sur tous les nœuds et après les redémarrages. `HMAC_KEY` et `JWT_KEY` restent des secrets de signature distincts. Exécutez séparément trois fois `openssl rand -base64 32`.
 
-| Docker variable | ASP.NET Core configuration |
+| Variable Docker | Configuration ASP.NET Core |
 | --- | --- |
 | `DB_ENCRYPTION_KEY` | `SecretProtection:DatabasePasswords:Keys:db-1` |
 | `DML_ENCRYPTION_KEY` | `SecretProtection:DmlPayloads:Keys:dml-1` |
 | `DML_FINGERPRINT_KEY` | `SecretProtection:DmlFingerprintKey` |
 
-Set `SecretProtection:DatabasePasswords:ActiveKeyId` to `db-1` and `SecretProtection:DmlPayloads:ActiveKeyId` to `dml-1`. Missing, invalid or reused keys fail startup. Example placeholders are deliberately invalid.
+Définissez `SecretProtection:DatabasePasswords:ActiveKeyId` sur `db-1` et `SecretProtection:DmlPayloads:ActiveKeyId` sur `dml-1`. Une clé absente, invalide ou réutilisée empêche le démarrage. Les valeurs fictives des exemples sont volontairement invalides.
 
-`HsSqlAgent.Hosting` binds `SecretProtection` automatically. Modular hosts must bind it explicitly:
+`HsSqlAgent.Hosting` lie automatiquement `SecretProtection`. Un hôte modulaire doit le faire explicitement :
 
 ```csharp
 hs.AddHsSqlAgentRuntime(options =>
@@ -27,7 +27,7 @@ hs.AddHsSqlAgentRuntime(options =>
 });
 ```
 
-For new bootstrap MCP keys, provide explicit `Bootstrap:Databases:*:McpKeys:*:Key` values; startup does not generate or log them. Existing encrypted database passwords must be re-entered. Read the [upgrade guide](/docs/reference/upgrade-guide) before changing an existing deployment.
+Pour les nouvelles clés MCP d’amorçage, fournissez explicitement `Bootstrap:Databases:*:McpKeys:*:Key`. Le démarrage ne génère plus ces clés et ne les journalise plus. Les mots de passe DB chiffrés existants doivent être saisis à nouveau. Consultez le [guide de mise à niveau](/fr/docs/reference/upgrade-guide) avant de modifier un déploiement existant.
 
 Choisissez la forme de déploiement selon l'entité qui doit posséder le Web Host.
 

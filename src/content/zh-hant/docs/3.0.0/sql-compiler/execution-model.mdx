@@ -6,13 +6,13 @@ sidebar:
   order: 40
 ---
 
-## Bounded compilation and schema evidence
+## 有界編譯與結構描述證據
 
-Compilation rejects input beyond 4,194,304 UTF-16 units, 131,072 non-End lexer tokens, 8,192 grouping levels or the 65,536-node AST budget. Iterative AST traversal and bounded rendering preserve parameter ordering and fail-closed semantics across the six providers; they do not guarantee arbitrary SQL depth.
+輸入超過 4,194,304 個 UTF-16 單位、131,072 個非 End 詞法 token、8,192 層括號分組或 65,536 個 AST 節點時，編譯會拒絕。迭代式 AST 走訪與有界渲染在六種供應者上維持參數順序及無法證明安全即拒絕的原則，不保證任意深度的 SQL 都可接受。
 
-Resource budgets include 8,000,000 work units per stage, 32,000,000 per compilation, 30 seconds per stage, 90 seconds per compilation and 536,870,912 cumulative managed allocation bytes per stage. These are compilation budgets, not database query timeouts or process memory limits. Typed resource diagnostics identify rejected work.
+資源上限包含每階段 8,000,000 工作單位、每次編譯 32,000,000 工作單位、每階段 30 秒、每次編譯 90 秒，以及每階段累計 536,870,912 位元組的受控記憶體配置。這些是編譯限制，不是資料庫查詢逾時或程序記憶體上限；超限會回傳具型別的資源診斷。
 
-An opt-in immutable schema snapshot resolves table/column names and proven type families, including ordered CTE/derived projections, and binds its digest into the plan fingerprint. This is bounded proof, not a full database type checker. Schema-bound DML requires a live freshness verifier; missing or changed schema proof fails closed. The default runtime remains snapshot-free. `AddHsSqlAgentNativeDmlSchemaFreshness()` provides opt-in native support.
+可選的不可變 schema snapshot 解析資料表、欄位名稱及可證明的型別家族，包含具順序的 CTE／衍生查詢投影，並將摘要繫結至計畫指紋。這是有限範圍的證明，並非完整資料庫型別檢查器。帶有 schema 證據的 DML 需要即時 freshness verifier；證據缺失或結構已變更時拒絕執行。預設不擷取快照；`AddHsSqlAgentNativeDmlSchemaFreshness()` 提供需明確啟用的原生支援。
 
 hs-sql-agent 不會把 AI 產生的 SQL 直接當成可信任指令執行。真正執行前，SQL 會先經過解析、驗證、功能支援檢查、存取政策檢查，以及針對目標資料庫的編譯。
 

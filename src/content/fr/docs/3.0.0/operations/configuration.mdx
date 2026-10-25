@@ -6,19 +6,19 @@ sidebar:
   order: 90
 ---
 
-## Required secret protection
+## Protection des secrets obligatoire
 
-Configure three independent random 32-byte Base64 values before starting Docker or registering the runtime. Keep the same keys on every node and across restarts. `HMAC_KEY` and `JWT_KEY` remain separate signing secrets. Run `openssl rand -base64 32` separately for each protection key.
+Avant de démarrer Docker ou d’enregistrer le runtime, configurez trois secrets Base64 indépendants de 32 octets aléatoires. Conservez les mêmes clés sur tous les nœuds et après les redémarrages. `HMAC_KEY` et `JWT_KEY` restent des secrets de signature distincts. Exécutez séparément trois fois `openssl rand -base64 32`.
 
-| Docker variable | ASP.NET Core configuration |
+| Variable Docker | Configuration ASP.NET Core |
 | --- | --- |
 | `DB_ENCRYPTION_KEY` | `SecretProtection:DatabasePasswords:Keys:db-1` |
 | `DML_ENCRYPTION_KEY` | `SecretProtection:DmlPayloads:Keys:dml-1` |
 | `DML_FINGERPRINT_KEY` | `SecretProtection:DmlFingerprintKey` |
 
-Set `SecretProtection:DatabasePasswords:ActiveKeyId` to `db-1` and `SecretProtection:DmlPayloads:ActiveKeyId` to `dml-1`. Missing, invalid or reused keys fail startup. Example placeholders are deliberately invalid.
+Définissez `SecretProtection:DatabasePasswords:ActiveKeyId` sur `db-1` et `SecretProtection:DmlPayloads:ActiveKeyId` sur `dml-1`. Une clé absente, invalide ou réutilisée empêche le démarrage. Les valeurs fictives des exemples sont volontairement invalides.
 
-`HsSqlAgent.Hosting` binds `SecretProtection` automatically. Modular hosts must bind it explicitly:
+`HsSqlAgent.Hosting` lie automatiquement `SecretProtection`. Un hôte modulaire doit le faire explicitement :
 
 ```csharp
 hs.AddHsSqlAgentRuntime(options =>
@@ -27,17 +27,17 @@ hs.AddHsSqlAgentRuntime(options =>
 });
 ```
 
-For new bootstrap MCP keys, provide explicit `Bootstrap:Databases:*:McpKeys:*:Key` values; startup does not generate or log them. Existing encrypted database passwords must be re-entered. Read the [upgrade guide](/docs/reference/upgrade-guide) before changing an existing deployment.
+Pour les nouvelles clés MCP d’amorçage, fournissez explicitement `Bootstrap:Databases:*:McpKeys:*:Key`. Le démarrage ne génère plus ces clés et ne les journalise plus. Les mots de passe DB chiffrés existants doivent être saisis à nouveau. Consultez le [guide de mise à niveau](/fr/docs/reference/upgrade-guide) avant de modifier un déploiement existant.
 
-## Credential storage and rotation
+## Stockage des identifiants et rotation des clés
 
-Database passwords use purpose-bound AES-256-GCM ciphertext tied to the trusted record's `SecretBindingId`; durable payloads are bound to `RequestId`. There is no legacy decryption fallback. `ICryptoService` accepts a context string rather than caller-provided key bytes.
+Les mots de passe DB utilisent AES-256-GCM, lié à la finalité et au `SecretBindingId` de l’enregistrement de confiance. Les charges d’exécution persistantes sont liées au `RequestId`. Aucun déchiffrement de secours de l’ancien format n’est disponible. `ICryptoService` reçoit une chaîne de contexte plutôt que des octets de clé fournis par l’appelant.
 
-To rotate an encryption ring, distribute old and new IDs to every node, switch `ActiveKeyId`, then re-save passwords. Retain old DML keys while pending or historical payloads still require inspection. The independent fingerprint key is not versioned; drain approvals before rotating it and retain prior secrets for historical witness inspection.
+Pour renouveler un trousseau, distribuez les anciennes et nouvelles clés sous des ID distincts à tous les nœuds, changez `ActiveKeyId`, puis enregistrez les mots de passe à nouveau. Gardez les anciennes clés DML tant que des charges en attente ou historiques doivent être inspectées. La clé d’empreinte indépendante n’est pas versionnée : terminez les approbations avant de la changer et conservez les anciens secrets pour l’inspection des témoins historiques.
 
-`ExtraSettings` accepts only JSON booleans `Encrypt` and `TrustServerCertificate`. Unknown/duplicate fields, strings and invalid JSON are rejected. Connection tests and health probes expose generic `DB_CONNECTION_FAILED` messages rather than driver details.
+`ExtraSettings` accepte uniquement les booléens JSON `Encrypt` et `TrustServerCertificate`. Les champs inconnus ou dupliqués, les chaînes et le JSON invalide sont refusés. Tests de connexion et sondes de santé renvoient un message générique `DB_CONNECTION_FAILED` sans détails du pilote.
 
-Doctor check `security.secret-protection` validates key IDs, Base64/length and independence without returning secrets. Public sample keys warn outside Production and error in Production, including retained inactive samples. Invalid placeholders error everywhere; invalid configuration can prevent startup before Doctor is available.
+Le contrôle Doctor `security.secret-protection` valide les ID, le Base64, la longueur et l’indépendance sans renvoyer les secrets. Les clés d’exemple publiques produisent un avertissement hors Production et une erreur en Production, y compris sous des ID inactifs conservés. Les valeurs fictives invalides sont des erreurs partout ; une configuration invalide peut bloquer le démarrage avant que Doctor soit disponible.
 
 hs-sql-agent propose trois modes d'utilisation avec la même frontière de sécurité.
 

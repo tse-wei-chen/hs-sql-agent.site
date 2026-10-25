@@ -6,13 +6,13 @@ sidebar:
   order: 40
 ---
 
-## Bounded compilation and schema evidence
+## Begrenzte Kompilierung und Schemanachweise
 
-Compilation rejects input beyond 4,194,304 UTF-16 units, 131,072 non-End lexer tokens, 8,192 grouping levels or the 65,536-node AST budget. Iterative AST traversal and bounded rendering preserve parameter ordering and fail-closed semantics across the six providers; they do not guarantee arbitrary SQL depth.
+Die Kompilierung weist Eingaben über 4,194,304 UTF-16-Einheiten, 131,072 lexikalischen Token ohne End, 8,192 Gruppierungsebenen oder 65,536 AST-Knoten ab. Iterative AST-Traversierung und begrenzte Ausgabe bewahren Parameterreihenfolge und Ablehnung bei unzureichendem Sicherheitsnachweis für alle sechs Provider. Beliebige SQL-Tiefe wird nicht garantiert.
 
-Resource budgets include 8,000,000 work units per stage, 32,000,000 per compilation, 30 seconds per stage, 90 seconds per compilation and 536,870,912 cumulative managed allocation bytes per stage. These are compilation budgets, not database query timeouts or process memory limits. Typed resource diagnostics identify rejected work.
+Die Budgets betragen 8,000,000 Arbeitseinheiten je Phase, 32,000,000 je Kompilierung, 30 Sekunden je Phase, 90 Sekunden insgesamt und 536,870,912 kumulativ allokierte verwaltete Bytes je Phase. Dies sind Compilerbudgets, keine DB-Abfragezeitlimits oder Prozessspeichergrenzen. Typisierte Ressourcendiagnosen melden Überschreitungen.
 
-An opt-in immutable schema snapshot resolves table/column names and proven type families, including ordered CTE/derived projections, and binds its digest into the plan fingerprint. This is bounded proof, not a full database type checker. Schema-bound DML requires a live freshness verifier; missing or changed schema proof fails closed. The default runtime remains snapshot-free. `AddHsSqlAgentNativeDmlSchemaFreshness()` provides opt-in native support.
+Ein optionaler unveränderlicher Schemasnapshot löst Tabellen-/Spaltennamen und nachweisbare Typfamilien auf, einschließlich geordneter CTE-/abgeleiteter Projektionen. Sein Digest wird an den Planfingerabdruck gebunden. Das ist kein vollständiger DB-Typprüfer. DML mit Schemanachweis benötigt eine aktuelle Frischeprüfung; fehlende oder geänderte Nachweise führen zur Ablehnung. Standardmäßig wird kein Snapshot erfasst. `AddHsSqlAgentNativeDmlSchemaFreshness()` aktiviert die optionale native Unterstützung.
 
 hs-sql-agent behandelt generiertes SQL nicht als vertrauenswürdigen Befehl. Die Ausführungsgrenze ist um Parsing, Validierung, Fähigkeitsprüfungen, Zugriffsrichtlinien und datenbankspezifische Kompilierung aufgebaut.
 

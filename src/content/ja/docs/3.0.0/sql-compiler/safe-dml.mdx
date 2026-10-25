@@ -6,15 +6,15 @@ sidebar:
   order: 50
 ---
 
-## Admission, uncertainty and target evidence
+## 承認の受け入れ、不確定な結果、ターゲット証拠
 
-When selective predicates are required, provably always-true `UPDATE`/`DELETE` filters such as `WHERE 1=1` are denied. Human approval still binds the exact plan and row-set evidence.
+選択的な条件が必要な場合、`WHERE 1=1` のように常に真と証明できる `UPDATE`／`DELETE` 条件は拒否されます。人間の承認は正確な計画と行集合の証拠に結び付けられます。
 
-Custom challenge stores must atomically implement `TryPromoteAsync` for both single and batch operations. Redis and durable resume use versioned envelopes; incompatible challenges need fresh preview and consent. See the [upgrade guide](/docs/reference/upgrade-guide).
+カスタム challenge store は、単文・バッチともに `TryPromoteAsync` をアトミックに実装する必要があります。Redis と永続再開にはバージョン付きエンベロープを使います。互換性のない challenge は新しいプレビューと承認が必要です。[アップグレードガイド](/ja/docs/reference/upgrade-guide)を参照してください。
 
-`dml.commit_outcome_unknown` and `dml.rollback_outcome_unknown` are distinct non-retryable outcomes. Preserve approval and target evidence for independent reconciliation. Neither absent witnesses nor missing Redis keys prove rollback; never automatically replay an uncertain mutation. An audit persistence failure after a known commit must not be reported as a failed mutation.
+`dml.commit_outcome_unknown` と `dml.rollback_outcome_unknown` は異なる、再試行不可の結果です。承認とターゲット証拠を保存し、独立して調査してください。witness や Redis キーがなくてもロールバックの証明にはなりません。不確定な変更を自動再実行してはいけません。コミット確認後の監査保存エラーを変更失敗として報告してはいけません。
 
-`AddHsSqlAgentTargetExecutionFence()` is opt-in and requires target provisioning plus separate proof that old workers lost DML authority. Enrolled commits execute two additional rollback-only readiness transactions on the actual connection and two independent post-commit Admission/Witness reads. Oracle uses READ COMMITTED only for the witness unique-conflict diagnostic; other readiness phases use SERIALIZABLE. Contradictory proof yields an unknown outcome. This does not provide fleet-wide enrollment or automatic live-worker reconciliation.
+`AddHsSqlAgentTargetExecutionFence()` は任意機能です。ターゲットの準備と、旧 worker に DML 権限がないことの別途検証が必要です。対象コミットごとに実接続で追加のロールバック専用検証トランザクションを 2 回実行し、コミット後に Admission と Witness を独立して読み取ります。Oracle は witness の一意性衝突診断のみ READ COMMITTED、それ以外の検証は SERIALIZABLE です。証拠の矛盾は不確定な結果になります。全 worker の登録証明や稼働中 worker の自動照合は提供しません。
 
 DML は Query より厳格な実行経路を使います。実際の commit 時にも、承認内容が**同じ Mutation Evidence**を示している必要があるためです。
 
