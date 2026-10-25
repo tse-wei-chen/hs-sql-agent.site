@@ -1,0 +1,55 @@
+---
+title: Safe DML
+description: Eine oder mehrere Mutationen freigeben, exakte Evidence erneut prüfen und die freigegebene Transaction atomar committen.
+sidebar:
+  group: SQL Compiler
+  order: 50
+---
+
+## Zulassung, ungewisse Ergebnisse und Zielnachweise
+
+Wenn ein selektives Prädikat erforderlich ist, werden nachweislich immer wahre `UPDATE`-/`DELETE`-Filter wie `WHERE 1=1` abgewiesen. Die menschliche Genehmigung bleibt an den exakten Plan und die Zeilenmengennachweise gebunden.
+
+Eigene Challenge-Stores müssen `TryPromoteAsync` für einzelne Anweisungen und Stapel atomar implementieren. Redis und dauerhafte Fortsetzung verwenden versionierte Hüllen. Inkompatible Challenges benötigen eine neue Vorschau und Zustimmung. Siehe [Upgrade-Leitfaden](/de/docs/reference/upgrade-guide).
+
+`dml.commit_outcome_unknown` und `dml.rollback_outcome_unknown` sind unterschiedliche, nicht wiederholbare Ergebnisse. Bewahren Sie Genehmigungs- und Zielnachweise zur unabhängigen Klärung auf. Fehlende Witnesses oder Redis-Schlüssel beweisen keinen Rollback. Wiederholen Sie ungewisse Änderungen niemals automatisch. Ein Audit-Speicherfehler nach bestätigtem Commit darf nicht als fehlgeschlagene Änderung gemeldet werden.
+
+`AddHsSqlAgentTargetExecutionFence()` ist optional und setzt Zielvorbereitung sowie einen separaten Nachweis entzogener DML-Rechte alter Worker voraus. Jeder eingebundene Commit führt auf der tatsächlichen Verbindung zwei zusätzliche, stets zurückgerollte Bereitschaftstransaktionen und danach zwei unabhängige Leseprüfungen von Admission und Witness aus. Oracle verwendet READ COMMITTED nur zur Diagnose des Witness-Eindeutigkeitskonflikts; sonst gilt SERIALIZABLE. Widersprüchliche Beweise ergeben ein ungewisses Ergebnis. Dies zertifiziert weder die Einbindung aller Worker noch eine automatische Klärung laufender Worker.
+
+DML verwendet einen strengeren Ausführungspfad als Queries, weil die Freigabe beim tatsächlichen Commit weiterhin **dieselbe Mutation Evidence** beschreiben muss.
+
+## Ein Tool für einzelne und mehrere Statements
+
+`execute_dml_sql` akzeptiert eine oder mehrere unterstützte `UPDATE`-, `DELETE`- oder `INSERT ... VALUES`-Anweisungen. Mehrere Statements werden durch Semikolons getrennt.
+
+Es gibt kein separates Batch-DML-Tool. Mehrere Statements werden als ein Batch geparst, einmal freigegeben, in Originalreihenfolge ausgeführt und innerhalb einer serverseitig kontrollierten Transaction atomar committet.
+
+Vom Client geliefertes Transaction-control SQL wie `BEGIN`, `COMMIT` oder `ROLLBACK` wird nicht akzeptiert. Die Transaction-Grenzen gehören dem Server.
+
+## Woran die Freigabe gebunden ist
+
+Bei `UPDATE` und `DELETE` bindet die Freigabe an das exakte Primary-Key-Row-Set aus dem Preview. Jedes Statement wird in der Commit Transaction unmittelbar vor seiner Mutation erneut geprüft.
+
+Bei `INSERT ... VALUES` bindet die Freigabe an den unveränderlichen Literal Payload und die exakte kompilierte Command. `INSERT ... SELECT` bleibt gesperrt, bis die Freigabesemantik des Source Row Sets definiert ist.
+
+Verändert ein früheres Statement das freigegebene Row Set eines späteren Statements, schlägt der gesamte Batch fail closed fehl und wird zurückgerollt.
+
+## Freigabe-Provider
+
+MCP Elicitation bleibt der offizielle Standard-Provider. Hosts können außerdem den offiziellen Adapter `HsSqlAgent.Approvals.Webhook` verwenden oder mit `HsSqlAgent.Server` einen eigenen `IDmlApprovalProvider` implementieren.
+
+Der Provider erhält transportneutrale Evidence, keine SQL-Ausführungs-Primitives. Er erhält weder Database Connection noch Transaction, validierten Plan oder Commit-Autorität.
+
+## Durable Pending Approvals
+
+Ein Provider kann für asynchrone Workflows `Pending` zurückgeben. Mit Admin Store speichert hs-sql-agent einen geschützten Resume Intent und Approval Fingerprints.
+
+Bei einer späteren Entscheidung lädt der Server aktuelle Autorisierung und DB-Konfiguration neu, parst und previewt das DML erneut, vergleicht die freigegebene Evidence und erstellt einen neuen kurzlebigen Execution Challenge. Änderungen an Autorisierung, DB-Konfiguration, Policy, Plan, Row Set oder affected-row Evidence machen den Request stale, statt ihn zu committen.
+
+Fortgesetzt wird der**Ausführungs-Intent**, nicht eine alte Database Session.
+
+## Fail-closed-Regeln
+
+Bei Ablehnung, Ablauf, stale Status, Fingerprint-Abweichung, entzogener Berechtigung, aktueller Policy-Verletzung oder nicht reproduzierbarem Row Set wird keine Mutation committet.
+
+Siehe [MCP Tools Reference](/de/docs/mcp/tools-reference), [Konfiguration](/de/docs/operations/configuration) und [ASP.NET-Core-Integration](/de/docs/integration/aspnet-core).

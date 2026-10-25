@@ -1,10 +1,18 @@
 export const productRelease = {
   repository: "tse-wei-chen/hs-sql-agent",
-  version: "2.0.6",
-  tag: "v2.0.6",
-  sourceRef: "e6f289ac183a89a649acaa46c6845c763a9b6c68",
-  historicalTags: ["v2.0.5", "v2.0.4", "v2.0.3", "v2.0.2", "v2.0.1"],
+  version: "3.0.0",
+  tag: "v3.0.0",
+  sourceRef: "c40681699e4b3172c843dd567c5aee21f2f2afad",
+  historicalTags: ["v2.0.6", "v2.0.5", "v2.0.4", "v2.0.3", "v2.0.2", "v2.0.1"],
   sources: {
+    compilerResources:
+      "backend/src/Modules/HsSqlAgent.SqlCore/RewriteResourceBudget.fs",
+    compilerQuality: "docs/sqlcore-quality-gates.md",
+    targetCutover: "docs/v3-target-fence-cutover.md",
+    targetFence: "docs/dml-target-execution-fence.md",
+    compatibility: "docs/v3-compatibility-contract.md",
+    secretProtection: "docs/secret-protection-upgrade.md",
+    migration: "docs/v3-migration.md",
     version: "backend/Directory.Build.props",
     overview: "README.md",
     serverEmbedding: "backend/src/Modules/HsSqlAgent.Server/README.md",

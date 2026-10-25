@@ -1,0 +1,49 @@
+---
+title: "升級指南"
+description: "升級秘密保護、核准協定與管理資料庫。"
+sidebar:
+  group: 參考
+  order: 144
+---
+
+## 2.0.6 → 3.0.0
+
+此主要版本變更秘密保護、核准儲存協定與提交證據。所有具 DML 能力的節點須一起切換，不能混跑新舊版本。
+
+## 升級步驟
+
+1. 備份 Admin Store 與部署秘密，停止新的 DML 預覽，完成或拒絕 Pending 核准，依既有程序釐清 Executing 請求。不可為了通過遷移而把結果不明的執行標成完成。
+2. 升級前完成歷史 witness 檢查。舊格式加密的 resume payload（包含終態紀錄）將無法解密；保留備份與舊程式，供唯讀鑑識使用。
+3. 分別執行三次 `openssl rand -base64 32`，產生三組獨立的 32-byte Base64 隨機秘密，設定 `DB_ENCRYPTION_KEY`、`DML_ENCRYPTION_KEY`、`DML_FINGERPRINT_KEY`。保留 `HMAC_KEY` 以維持既有 MCP Key 可用；保護金鑰也須與 HMAC/JWT 簽署秘密獨立。
+4. 停止所有舊 DML worker，套用 SQLite 或 PostgreSQL Admin Store 遷移，再以相同金鑰環與 fingerprint key 部署所有新節點。缺少、格式錯誤或重複使用的保護金鑰會使啟動失敗。
+5. 透過管理 UI/API 或 bootstrap 重新輸入既有資料庫密碼。沒有舊加密解密 fallback 或自動轉換；供應者使用空密碼的情況仍受支援。
+6. 明確設定 `Bootstrap:Databases:*:McpKeys:*:Key`；啟動時不再產生或記錄 bootstrap key。撤銷曾出現在日誌的金鑰。
+7. 驗證連線、Doctor、MCP 查詢，以及重新預覽並經人工核准的 DML，再恢復流量。
+
+## 核准儲存與遷移
+
+SQLite 與 PostgreSQL 遷移都會拒絕尚有 Pending/Executing 的 durable approval。新增的 `AdmissionProtocolVersion` 預設為 0，資料庫 CHECK 限制只有 protocol 1+ 可進入 Pending/Executing；歷史終態證據保留。這會阻止舊 worker 經 Admin Store 建立新有效核准，但不會撤銷其目標資料庫寫入權限。
+
+自訂 `IDmlApprovalChallengeStore` 必須實作原子、全有或全無的 `TryPromoteAsync`。單一與批次 DML 都使用 aggregate promotion，不可用依序刪除／新增取代。
+
+Redis key 改用 `{dml-approval}:` 與 `hs-sql-agent.dml-challenge` envelope（`SchemaVersion=1`），不相容於舊 key。Durable resume 使用加密且版本化的 `hs-sql-agent.dml-resume`（`SchemaVersion=1`）；version-0 reader 只保留舊旗標，不補造同意，也無法讓舊 ciphertext 重新可解密。未知或損毀格式在執行目標 SQL 前拒絕。缺少 `ApprovalPlanBinding` 須重新預覽及核准；已消耗的 nonce 不可重播。
+
+## SQL 與執行行為
+
+- 要求選擇性條件時，`UPDATE`/`DELETE` 的恆真條件（如 `WHERE 1=1`）會被拒絕；請使用有效條件或明確的全表授權。
+- 輸入上限為 4,194,304 UTF-16 units 與 131,072 個非 End lexer tokens。AST、巢狀深度、輸出大小、階段與總工作量、期限及配置量也有 fail-closed 限制。迭代走訪與有界渲染不代表支援無限深度或新增方言。
+- 可選的 immutable schema snapshot 驗證名稱及可證明的型別，將 digest 納入 plan evidence；帶 schema proof 的 DML 需要提交前驗證即時 schema freshness。預設仍不擷取 snapshot。
+- `dml.commit_outcome_unknown` 與 `dml.rollback_outcome_unknown` 是不同且不可重試的結果，均不代表可安全重播。缺少 Redis key 或 witness 也不能證明已 rollback。
+- 五個內建 MCP 工具、預設四個讀取／查詢工具與 DML opt-in 原則不變；人工核准及提交前重新驗證仍為必要。
+
+## 可選的 target fencing
+
+`AddHsSqlAgentNativeDmlSchemaFreshness()` 與 `AddHsSqlAgentTargetExecutionFence()` 維持 opt-in。啟用前須準備目標表及權限，證明舊憑證與既有 session 已失去寫入能力；SQLite 需要 OS／程序隔離。
+
+每次納管提交都在實際目標連線執行兩個額外的 rollback-only readiness transaction，提交後再獨立讀取 Admission 與 Witness。除 Oracle 刻意測試 witness 唯一鍵衝突時使用 READ COMMITTED，其餘 readiness 使用 SERIALIZABLE。證據缺失或矛盾回報 unknown outcome，不能重播。此機制不等於全 fleet enrollment，也不授權自動處置仍存活 worker 的 Executing 請求。
+
+## 降版
+
+核准 admission 與秘密保護遷移為單向，不可使用 `dotnet ef database update` 反向移除。降版須停止 DML worker、釐清未決核准，並一起還原升級前資料庫、舊程式與部署秘密。
+
+[主專案遷移指南](https://github.com/tse-wei-chen/hs-sql-agent/blob/v3.0.0/docs/v3-migration.md) · [金鑰輪替](https://github.com/tse-wei-chen/hs-sql-agent/blob/v3.0.0/docs/secret-protection-upgrade.md) · [Target fence 切換](https://github.com/tse-wei-chen/hs-sql-agent/blob/v3.0.0/docs/v3-target-fence-cutover.md)

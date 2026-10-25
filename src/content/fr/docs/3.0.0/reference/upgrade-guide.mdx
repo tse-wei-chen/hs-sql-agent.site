@@ -1,0 +1,51 @@
+---
+title: "Guide de mise à niveau"
+description: "Mettre à niveau la protection des secrets, les protocoles d’approbation et la base d’administration."
+sidebar:
+  group: Référence
+  order: 144
+---
+
+## 2.0.6 → 3.0.0
+
+Cette version majeure modifie la protection des secrets, le stockage des approbations et les preuves de commit. Mettez à jour tous les workers DML ensemble : une flotte mixte est dangereuse.
+
+## Avant le déploiement
+
+1. Sauvegardez l’Admin Store et les secrets. Arrêtez les nouveaux aperçus DML, terminez ou refusez les demandes Pending et examinez les demandes Executing selon la procédure existante. Ne marquez jamais une exécution incertaine comme terminée pour passer la migration.
+2. Terminez les inspections de témoins historiques. Les anciennes charges de reprise chiffrées, même dans les enregistrements terminaux, deviennent illisibles. Conservez la sauvegarde et l’ancienne application pour l’analyse en lecture seule.
+3. Exécutez trois fois séparément `openssl rand -base64 32`. Configurez les trois valeurs indépendantes dans `DB_ENCRYPTION_KEY`, `DML_ENCRYPTION_KEY` et `DML_FINGERPRINT_KEY`. Conservez `HMAC_KEY` pour les clés MCP existantes et séparez ces secrets de ceux de signature HMAC/JWT.
+4. Arrêtez tous les anciens workers DML, appliquez les migrations SQLite ou PostgreSQL, puis déployez tous les nœuds avec les mêmes trousseaux et clé d’empreinte. Des clés absentes, invalides ou réutilisées empêchent le démarrage.
+5. Saisissez à nouveau les mots de passe DB via l’UI/API de gestion ou l’amorçage. Aucun déchiffrement ancien ni conversion automatique n’est fourni. Les mots de passe vides restent possibles pour les fournisseurs concernés.
+6. Fournissez explicitement `Bootstrap:Databases:*:McpKeys:*:Key`. Les clés ne sont plus générées ni journalisées au démarrage. Révoquez celles exposées dans des journaux.
+7. Vérifiez connexion, Doctor, requêtes MCP et DML nouvellement prévisualisé et approuvé avant de rétablir le trafic.
+
+## Ruptures de compatibilité des approbations et de l’Admin Store
+
+Les deux fournisseurs refusent la migration s’il reste des approbations persistantes Pending/Executing. `AdmissionProtocolVersion` est ajouté avec la valeur par défaut 0 ; une contrainte CHECK n’autorise que le protocole 1 ou supérieur en Pending/Executing. Les preuves terminales historiques sont préservées. Cela ferme l’ancien chemin d’admission de l’Admin Store, mais ne révoque pas les droits directs sur la DB cible.
+
+Les implémentations personnalisées de `IDmlApprovalChallengeStore` doivent implémenter `TryPromoteAsync` de façon atomique, tout ou rien. Instructions uniques et lots utilisent la promotion agrégée. Une suppression suivie d’un ajout n’est pas sûre.
+
+Redis utilise `{dml-approval}:` et l’enveloppe `hs-sql-agent.dml-challenge` (`SchemaVersion=1`), incompatibles avec les anciennes clés. La reprise persistante utilise une enveloppe chiffrée `hs-sql-agent.dml-resume` (`SchemaVersion=1`). Le lecteur explicite version-0 préserve les anciens indicateurs sans inventer de consentement et ne rend pas l’ancien chiffrement lisible. Les versions inconnues ou endommagées sont refusées avant tout SQL cible. L’absence de `ApprovalPlanBinding` exige un nouvel aperçu et un consentement ; les nonces consommés ne sont jamais rejouables.
+
+## Exécution et compilateur
+
+- Quand un filtre sélectif est requis, `UPDATE`/`DELETE` refusent les prédicats toujours vrais tels que `WHERE 1=1`. Utilisez un vrai filtre ou une autorisation explicite sur toute la table.
+- L’entrée est limitée à 4,194,304 unités UTF-16 et 131,072 jetons hors End. Des budgets typés bornent aussi AST, profondeur, sortie, travail, délais et allocations. Le parcours itératif ne promet ni profondeur illimitée ni nouveau dialecte.
+- Les instantanés immuables facultatifs valident noms et familles de types prouvables, puis lient leur condensat au plan. Un DML lié au schéma exige une vérification de fraîcheur réelle. Aucun instantané n’est capturé par défaut.
+- `dml.commit_outcome_unknown` et `dml.rollback_outcome_unknown` sont distincts et non réessayables. Conservez les preuves et examinez-les indépendamment. L’absence de clé Redis ou de témoin ne prouve pas une annulation.
+- Les cinq outils MCP intégrés, les quatre outils de lecture par défaut, le DML facultatif, l’approbation humaine et la revalidation avant commit restent en place.
+
+## Barrière d’exécution cible facultative
+
+`AddHsSqlAgentNativeDmlSchemaFreshness()` et `AddHsSqlAgentTargetExecutionFence()` doivent être activés explicitement. Préparez tables et droits, puis prouvez que les anciens identifiants et sessions ne peuvent plus modifier les données. SQLite exige une isolation au niveau du système ou des processus.
+
+Chaque commit inscrit effectue deux transactions supplémentaires de vérification annulées sur la connexion réelle, puis lit Admission et Witness indépendamment après commit. Seul le diagnostic Oracle d’unicité du témoin utilise READ COMMITTED ; les autres phases utilisent SERIALIZABLE. Une preuve manquante ou contradictoire donne un résultat incertain, pas une autorisation de rejouer. Ce mécanisme ne certifie pas toute la flotte et n’autorise pas la réconciliation automatique d’un worker Executing actif.
+
+## Retour à une ancienne version
+
+Les migrations d’admission et de protection des secrets sont irréversibles. Ne les annulez pas avec `dotnet ef database update`. Arrêtez les workers DML, résolvez les approbations incertaines, puis restaurez ensemble la sauvegarde compatible antérieure, les anciens binaires et secrets.
+
+- [Migration](https://github.com/tse-wei-chen/hs-sql-agent/blob/v3.0.0/docs/v3-migration.md)
+- [Protection des secrets et rotation](https://github.com/tse-wei-chen/hs-sql-agent/blob/v3.0.0/docs/secret-protection-upgrade.md)
+- [Bascule de la barrière cible](https://github.com/tse-wei-chen/hs-sql-agent/blob/v3.0.0/docs/v3-target-fence-cutover.md)

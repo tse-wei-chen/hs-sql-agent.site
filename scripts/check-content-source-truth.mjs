@@ -192,7 +192,7 @@ async function checkLatestCopy(path) {
   }
 
   let text = await readFile(absolute, "utf8");
-  if (path.startsWith("src/data/marketingLocales/")) {
+  if (path.split(sep).join("/").startsWith("src/data/marketingLocales/")) {
     // This legacy override is intentionally unreachable: marketingCatalog routes
     // integrations/aspnet-core for every locale through marketingAspNetCore.ts.
     // Keep validating every other supplemental marketing entry for stale versions.

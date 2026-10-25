@@ -1,0 +1,51 @@
+---
+title: "アップグレードガイド"
+description: "シークレット保護、承認プロトコル、管理データベースの移行手順。"
+sidebar:
+  group: リファレンス
+  order: 144
+---
+
+## 2.0.6 → 3.0.0
+
+このメジャーリリースはシークレット保護、承認ストレージ、コミット証拠を変更します。DML worker は一斉に更新してください。新旧混在は安全ではありません。
+
+## デプロイ前の準備
+
+1. Admin Store とデプロイ用シークレットをバックアップし、新しい DML プレビューを停止します。Pending を完了または拒否し、Executing を既存の運用手順で調査してください。移行を通すために結果不明の実行を完了扱いにしてはいけません。
+2. 過去の witness 調査を済ませます。旧暗号化 resume ペイロードは終端状態の記録も含め読めなくなります。バックアップと旧アプリを読み取り専用の調査用に保持してください。
+3. `openssl rand -base64 32` を個別に 3 回実行し、独立した 32 バイト Base64 値を `DB_ENCRYPTION_KEY`、`DML_ENCRYPTION_KEY`、`DML_FINGERPRINT_KEY` に設定します。既存 MCP キーのため `HMAC_KEY` を保持し、保護キーと HMAC/JWT 署名シークレットを分離してください。
+4. 旧 DML worker をすべて停止し、SQLite または PostgreSQL の Admin Store 移行を適用します。全ノードに同じキーリングと fingerprint key を設定します。欠落、不正、使い回しは起動エラーです。
+5. 管理 UI/API または bootstrap 設定で既存 DB パスワードを再入力します。旧形式の復号や自動変換はありません。空のパスワードを使用するプロバイダーは引き続き利用できます。
+6. `Bootstrap:Databases:*:McpKeys:*:Key` を明示します。起動時の自動生成とログ出力は廃止されました。ログに漏れたキーは失効させてください。
+7. 接続、Doctor、MCP クエリ、新規プレビューから承認した DML を確認してから通信を再開します。
+
+## 承認と Admin Store の破壊的変更
+
+両 Admin Store は Pending/Executing が残っていると移行を拒否します。`AdmissionProtocolVersion` は既定値 0 で追加され、DB CHECK 制約がプロトコル 1 以上の承認だけを Pending/Executing に許可します。過去の終端証拠は保持されます。これは旧 worker の Admin Store 経由の受付を防ぎますが、ターゲット DB の直接権限は取り消しません。
+
+カスタム `IDmlApprovalChallengeStore` は `TryPromoteAsync` を全件成功または全件不成立のアトミック操作で実装してください。単文とバッチの双方が集約昇格を使用します。逐次の削除・追加では安全ではありません。
+
+Redis は `{dml-approval}:` キーと `hs-sql-agent.dml-challenge` エンベロープ（`SchemaVersion=1`）になり、旧キーとは非互換です。永続再開は暗号化された `hs-sql-agent.dml-resume`（`SchemaVersion=1`）を使用します。明示的な version-0 リーダーは旧フラグを保持するだけで、同意を追加せず、旧暗号文を復号可能にもしません。不明・破損バージョンはターゲット SQL 前に拒否します。`ApprovalPlanBinding` の欠落時は再プレビューと再承認が必要で、消費済み nonce は再利用できません。
+
+## 実行とコンパイラー
+
+- 選択的条件が必要な `UPDATE`／`DELETE` では `WHERE 1=1` などの恒真条件を拒否します。実際の絞り込みか、明示的な全表操作権限が必要です。
+- 入力上限は 4,194,304 UTF-16 単位と 131,072 字句トークンです。AST、深度、出力、作業量、期限、割り当てにも型付きの拒否診断があります。反復走査は無制限の深度や新しい方言の保証ではありません。
+- 任意の不変スキーマスナップショットは名前と証明可能な型を検証し、ダイジェストを計画証拠に含めます。スキーマ証拠付き DML にはライブ鮮度検証が必要です。既定ではスナップショットを取得しません。
+- `dml.commit_outcome_unknown` と `dml.rollback_outcome_unknown` は別々の再試行不可の結果です。証拠を保存して独立に調査してください。Redis キーや witness の欠落はロールバックの証明ではありません。
+- 5 個の組み込み MCP ツール、既定の 4 個の読み取りツール、DML の明示的有効化、人間の承認、コミット前再検証は維持されます。
+
+## 任意のターゲットフェンス
+
+`AddHsSqlAgentNativeDmlSchemaFreshness()` と `AddHsSqlAgentTargetExecutionFence()` は任意です。表と権限を準備し、旧資格情報とセッションが変更できないことを検証します。SQLite は OS／プロセスによる隔離が必要です。
+
+対象コミットごとに実接続で追加のロールバック専用検証を 2 回行い、コミット後に Admission と Witness を独立して読み取ります。Oracle の witness 一意性診断だけ READ COMMITTED、他は SERIALIZABLE です。証拠の欠落・矛盾は不確定な結果であり、再実行の許可ではありません。全 worker の登録を保証せず、稼働中の Executing の自動照合も許可しません。
+
+## ダウングレード
+
+承認受付とシークレット保護の移行は一方向です。`dotnet ef database update` で逆移行してはいけません。DML worker を停止して未解決承認を調査し、互換性のある移行前バックアップ、旧バイナリ、旧シークレットをまとめて復元してください。
+
+- [移行](https://github.com/tse-wei-chen/hs-sql-agent/blob/v3.0.0/docs/v3-migration.md)
+- [シークレット保護とローテーション](https://github.com/tse-wei-chen/hs-sql-agent/blob/v3.0.0/docs/secret-protection-upgrade.md)
+- [ターゲットフェンスの切り替え](https://github.com/tse-wei-chen/hs-sql-agent/blob/v3.0.0/docs/v3-target-fence-cutover.md)

@@ -1,0 +1,98 @@
+---
+title: 設定參考
+description: 設定獨立 Docker、標準 HsSqlAgent.Hosting 或模組化 HsSqlAgent.Server Host。
+sidebar:
+  group: 維運
+  order: 90
+---
+
+## 必要的秘密保護設定
+
+啟動 Docker 或註冊執行階段前，請設定三組獨立、隨機產生的 32-byte Base64 秘密。所有節點須使用相同金鑰，重新啟動後也須保留。`HMAC_KEY` 與 `JWT_KEY` 仍為獨立的簽署秘密。請分別執行三次 `openssl rand -base64 32`。
+
+| Docker 環境變數 | ASP.NET Core 設定 |
+| --- | --- |
+| `DB_ENCRYPTION_KEY` | `SecretProtection:DatabasePasswords:Keys:db-1` |
+| `DML_ENCRYPTION_KEY` | `SecretProtection:DmlPayloads:Keys:dml-1` |
+| `DML_FINGERPRINT_KEY` | `SecretProtection:DmlFingerprintKey` |
+
+將 `SecretProtection:DatabasePasswords:ActiveKeyId` 設為 `db-1`，`SecretProtection:DmlPayloads:ActiveKeyId` 設為 `dml-1`。缺少、無效或重複使用的金鑰會使啟動失敗；範例佔位值刻意設為無效。
+
+`HsSqlAgent.Hosting` 會自動繫結 `SecretProtection`；模組化主機須明確繫結：
+
+```csharp
+hs.AddHsSqlAgentRuntime(options =>
+{
+    builder.Configuration.GetSection("SecretProtection").Bind(options.SecretProtection);
+});
+```
+
+新 bootstrap MCP 金鑰須明確提供 `Bootstrap:Databases:*:McpKeys:*:Key`，啟動時不再產生或記錄金鑰。既有加密資料庫密碼須重新輸入。變更既有部署前，請閱讀[升級指南](/zh-hant/docs/reference/upgrade-guide)。
+
+## 憑證儲存與金鑰輪替
+
+資料庫密碼以 AES-256-GCM 加密，並繫結用途與可信紀錄的 `SecretBindingId`；持久化執行內容則繫結 `RequestId`。不提供舊加密格式的解密備援。`ICryptoService` 改為接收情境字串，而非呼叫端提供的金鑰位元組。
+
+輪替加密金鑰環時，先將新舊金鑰以不同 ID 分發到所有節點，再切換 `ActiveKeyId` 並重新儲存密碼。只要待核准或歷史內容仍需檢查，就須保留舊 DML 金鑰。獨立的 fingerprint key 沒有版本化；輪替前須清空未決核准，並保留舊秘密供歷史 witness 檢查。
+
+`ExtraSettings` 只接受 JSON 布林欄位 `Encrypt` 與 `TrustServerCertificate`。未知或重複欄位、字串值及無效 JSON 都會被拒絕。連線測試與健康探測回傳通用 `DB_CONNECTION_FAILED` 訊息，不暴露驅動程式細節。
+
+Doctor 的 `security.secret-protection` 檢查金鑰 ID、Base64 格式、長度與獨立性，不回傳秘密。公開範例金鑰在非正式環境顯示警告，在 Production 顯示錯誤，包含非作用中的保留金鑰。無效佔位值在所有環境都是錯誤；設定無效時可能在 Doctor 可用前就啟動失敗。
+
+hs-sql-agent 有三種使用方式，但安全邊界一致。
+
+| 方式 | 設定模型 |
+| --- | --- |
+| Docker / ToolBox | `.env.example` 定義的完整獨立服務環境設定 |
+| `HsSqlAgent.Hosting` | 透過 ASP.NET Core configuration 使用相同的標準第一方組合 |
+| `HsSqlAgent.Server` | Host 明確選擇各 Capability 自己的 Options |
+
+## DML 核准
+
+MCP Elicitation 是第一方預設 Provider。獨立 Docker 與 `HsSqlAgent.Hosting` 可切換成官方通用 Webhook adapter，而不改變 SQL 執行 primitive。
+
+| 環境變數 | 用途 |
+| --- | --- |
+| `DML_APPROVAL_PROVIDER` | `McpElicitation` 或 `Webhook` |
+| `DML_APPROVAL_WEBHOOK_ENDPOINT` | 外部核准服務 endpoint |
+| `DML_APPROVAL_WEBHOOK_CALLBACK_URL` | 完成 pending approval 的公開 callback URL |
+| `DML_APPROVAL_WEBHOOK_SIGNING_SECRET` | Webhook 簽章 secret，至少 32 UTF-8 bytes |
+
+ASP.NET Core 對應設定：
+
+```json
+{
+  "DmlApproval": {
+    "Provider": "Webhook",
+    "Webhook": {
+      "Endpoint": "https://approval.example.com/hssqlagent/requests",
+      "CallbackUrl": "https://sql-agent.example.com/api/hs-sql-agent/approvals/webhook",
+      "SigningSecret": "replace-with-a-unique-secret-at-least-32-bytes"
+    }
+  }
+}
+```
+
+未知 Provider 名稱會在啟動時 fail。非同步 Provider 可回傳 `Pending`；Durable Resume 需要 Admin Store，才能保存受保護的 Resume Intent 與 Approval Fingerprint。
+
+模組化 `HsSqlAgent.Server` 可註冊 `HsSqlAgent.Approvals.Webhook` 或自己的 `IDmlApprovalProvider`。核准 Provider 不會取得 Database Connection、Transaction、已驗證 Plan 或 commit primitive。
+
+## 應用程式與 Control Plane
+
+獨立服務設定涵蓋 Application Hosting、Admin Database、MCP HMAC/Public Endpoint、內建 Admin JWT、SMTP/Password Reset、OIDC/MFA、Bootstrap、Audit、Health、Delivery，以及 Cache、Rate Limit、Policy Sync、Outbound Delivery Sync、SQL Concurrency、Prometheus 與 OTLP。
+
+`HMAC_KEY` 與 `JWT_KEY` 必須使用不同且至少 32 bytes 的 secrets。啟用受保護身分狀態時請持久化 `DATA_PROTECTION_KEY_PATH`。
+
+## 單機與分散式 Provider
+
+單機可使用 SQLite Admin Database 與 process-local `Memory` Provider。多 Instance 時，改用共享 Admin Database，並以 Redis-backed Provider 處理 Cache、Rate Limiting、Security Policy Sync、Outbound Delivery Sync 與 SQL Concurrency。
+
+## Observability
+
+Prometheus 使用 `PROMETHEUS_ENABLED`、`PROMETHEUS_HOST`、`PROMETHEUS_PORT` 的獨立 Listener；OTLP 使用 `OTLP_ENDPOINT` 與 `OTEL_SERVICE_NAME`。
+
+## Embedded .NET Host
+
+`HsSqlAgent.Hosting` 掌握完整標準組合；`HsSqlAgent.Server` 從 `AddHsSqlAgentCore()` 開始，只驗證實際選取 Capability 的 Options。Host Authorization 可取代內建 Identity，DML 核准 Provider 也可獨立替換。
+
+另見 [部署](/zh-hant/docs/operations/deployment)、[ASP.NET Core 整合](/zh-hant/docs/integration/aspnet-core)與 [Safe DML](/zh-hant/docs/sql-compiler/safe-dml)。

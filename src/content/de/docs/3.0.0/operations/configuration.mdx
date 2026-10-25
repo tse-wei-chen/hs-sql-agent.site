@@ -1,0 +1,96 @@
+---
+title: Konfigurationsreferenz
+description: Eigenständiges Docker, Standard-HsSqlAgent.Hosting oder einen modularen HsSqlAgent.Server-Host konfigurieren.
+sidebar:
+  group: Betrieb
+  order: 90
+---
+
+## Erforderlicher Schutz von Geheimnissen
+
+Konfigurieren Sie vor dem Docker-Start oder der Runtime-Registrierung drei unabhängige, zufällige 32-Byte-Geheimnisse in Base64. Verwenden Sie auf allen Knoten dieselben Schlüssel und behalten Sie sie nach Neustarts bei. `HMAC_KEY` und `JWT_KEY` bleiben getrennte Signaturgeheimnisse. Führen Sie `openssl rand -base64 32` dreimal separat aus.
+
+| Docker-Variable | ASP.NET-Core-Konfiguration |
+| --- | --- |
+| `DB_ENCRYPTION_KEY` | `SecretProtection:DatabasePasswords:Keys:db-1` |
+| `DML_ENCRYPTION_KEY` | `SecretProtection:DmlPayloads:Keys:dml-1` |
+| `DML_FINGERPRINT_KEY` | `SecretProtection:DmlFingerprintKey` |
+
+Setzen Sie `SecretProtection:DatabasePasswords:ActiveKeyId` auf `db-1` und `SecretProtection:DmlPayloads:ActiveKeyId` auf `dml-1`. Fehlende, ungültige oder mehrfach verwendete Schlüssel verhindern den Start. Die Platzhalter in Beispielen sind absichtlich ungültig.
+
+`HsSqlAgent.Hosting` bindet `SecretProtection` automatisch. Modulare Hosts müssen die Bindung ausdrücklich konfigurieren:
+
+```csharp
+hs.AddHsSqlAgentRuntime(options =>
+{
+    builder.Configuration.GetSection("SecretProtection").Bind(options.SecretProtection);
+});
+```
+
+Geben Sie für neue Bootstrap-MCP-Schlüssel `Bootstrap:Databases:*:McpKeys:*:Key` ausdrücklich an. Beim Start werden keine Schlüssel mehr erzeugt oder protokolliert. Bestehende verschlüsselte DB-Passwörter müssen erneut eingegeben werden. Lesen Sie vor Änderungen an bestehenden Installationen den [Upgrade-Leitfaden](/de/docs/reference/upgrade-guide).
+
+## Speicherung von Zugangsdaten und Schlüsselwechsel
+
+DB-Passwörter werden mit AES-256-GCM verschlüsselt und an Zweck und `SecretBindingId` des vertrauenswürdigen Datensatzes gebunden. Dauerhafte Ausführungsdaten sind an `RequestId` gebunden. Es gibt keine Entschlüsselung des alten Formats als Rückfalloption. `ICryptoService` erhält einen Kontextstring statt vom Aufrufer bereitgestellter Schlüsselbytes.
+
+Verteilen Sie zum Wechsel eines Schlüsselrings alte und neue Schlüssel unter unterschiedlichen IDs an alle Knoten, ändern Sie `ActiveKeyId` und speichern Sie Passwörter erneut. Behalten Sie alte DML-Schlüssel, solange ausstehende oder historische Nutzdaten untersucht werden müssen. Der unabhängige Fingerprint-Schlüssel ist nicht versioniert: Schließen Sie vor dem Wechsel alle Genehmigungen ab und bewahren Sie alte Geheimnisse für historische Witness-Prüfungen auf.
+
+`ExtraSettings` erlaubt nur die JSON-Booleschen Felder `Encrypt` und `TrustServerCertificate`. Unbekannte oder doppelte Felder, Strings und ungültiges JSON werden abgewiesen. Verbindungstests und Zustandsprüfungen liefern allgemeine `DB_CONNECTION_FAILED`-Meldungen ohne Treiberdetails.
+
+Die Doctor-Prüfung `security.secret-protection` validiert IDs, Base64, Länge und Unabhängigkeit, ohne Geheimnisse zurückzugeben. Öffentliche Beispielschlüssel erzeugen außerhalb von Production eine Warnung und in Production einen Fehler, auch unter aufbewahrten inaktiven IDs. Ungültige Platzhalter sind überall Fehler. Ungültige Konfiguration kann den Start verhindern, bevor Doctor verfügbar ist.
+
+hs-sql-agent bietet drei Nutzungswege mit derselben Sicherheitsgrenze.
+
+| Weg | Konfigurationsmodell |
+| --- | --- |
+| Docker / ToolBox | vollständige Standalone-Umgebung aus `.env.example` |
+| `HsSqlAgent.Hosting` | dieselbe offizielle Standardkomposition über ASP.NET-Core-Konfiguration |
+| `HsSqlAgent.Server` | Capability-eigene Options, die der Host ausdrücklich auswählt |
+
+## DML-Freigabe
+
+MCP Elicitation ist der offizielle Standard-Provider. Standalone Docker und `HsSqlAgent.Hosting` können auf den offiziellen generischen Webhook-Adapter wechseln, ohne die SQL-Ausführungsprimitive zu ändern.
+
+| Umgebungsvariable | Zweck |
+| --- | --- |
+| `DML_APPROVAL_PROVIDER` | `McpElicitation` oder `Webhook` |
+| `DML_APPROVAL_WEBHOOK_ENDPOINT` | Endpoint des externen Freigabedienstes |
+| `DML_APPROVAL_WEBHOOK_CALLBACK_URL` | öffentliche Callback URL zum Abschluss einer pending approval |
+| `DML_APPROVAL_WEBHOOK_SIGNING_SECRET` | Webhook Signing Secret, mindestens 32 UTF-8 bytes |
+
+```json
+{
+  "DmlApproval": {
+    "Provider": "Webhook",
+    "Webhook": {
+      "Endpoint": "https://approval.example.com/hssqlagent/requests",
+      "CallbackUrl": "https://sql-agent.example.com/api/hs-sql-agent/approvals/webhook",
+      "SigningSecret": "replace-with-a-unique-secret-at-least-32-bytes"
+    }
+  }
+}
+```
+
+Unbekannte Provider-Namen lassen den Start fehlschlagen. Ein asynchroner Provider kann `Pending` zurückgeben. Durable Resume benötigt den Admin Store zum Speichern von geschütztem Resume Intent und Approval Fingerprints.
+
+Ein modularer `HsSqlAgent.Server`-Host kann `HsSqlAgent.Approvals.Webhook` oder einen eigenen `IDmlApprovalProvider` registrieren. Der Provider erhält weder Database Connection noch Transaction, validierten Plan oder Commit-Primitive.
+
+## Anwendung und Control Plane
+
+Die Standalone-Konfiguration umfasst Application Hosting, Admin Database, MCP HMAC/Public Endpoint, integriertes Admin JWT, SMTP/Password Reset, OIDC/MFA, Bootstrap, Audit, Health, Delivery, Cache, Rate Limit, Policy Sync, Outbound Delivery Sync, SQL Concurrency, Prometheus und OTLP.
+
+`HMAC_KEY` und `JWT_KEY` müssen verschiedene Secrets mit mindestens 32 Bytes sein. Persistieren Sie `DATA_PROTECTION_KEY_PATH`, wenn geschützter Identity State verwendet wird.
+
+## Einzelne Instance und verteilte Provider
+
+Eine einzelne Instance kann SQLite als Admin Database und process-local `Memory` Provider verwenden. Mehrere Instances benötigen eine gemeinsame Admin Database sowie Redis-backed Provider für Cache, Rate Limiting, Security Policy Sync, Outbound Delivery Sync und SQL Concurrency.
+
+## Observability
+
+Prometheus läuft auf einem separaten Listener mit `PROMETHEUS_ENABLED`, `PROMETHEUS_HOST`, `PROMETHEUS_PORT`. OTLP verwendet `OTLP_ENDPOINT` und `OTEL_SERVICE_NAME`.
+
+## Eingebetteter .NET-Host
+
+`HsSqlAgent.Hosting` besitzt die vollständige Standardkomposition. `HsSqlAgent.Server` beginnt mit `AddHsSqlAgentCore()` und validiert nur Options der ausgewählten Capabilities. Host Authorization kann die integrierte Identity ersetzen; der DML-Freigabe-Provider kann unabhängig ausgetauscht werden.
+
+Siehe [Bereitstellung](/de/docs/operations/deployment), [ASP.NET-Core-Integration](/de/docs/integration/aspnet-core) und [Safe DML](/de/docs/sql-compiler/safe-dml).

@@ -1,0 +1,51 @@
+---
+title: "升级指南"
+description: "升级机密保护、审批协议与管理数据库。"
+sidebar:
+  group: 参考
+  order: 144
+---
+
+## 2.0.6 → 3.0.0
+
+此主要版本更改机密保护、审批存储协议与提交证据。所有具备 DML 能力的节点必须同时切换，新旧混跑不安全。
+
+## 部署前准备
+
+1. 备份 Admin Store 和部署机密，停止新的 DML 预览，完成或拒绝 Pending 审批，按现有流程核查 Executing 请求。不得为了通过迁移而将结果不明的执行标记为完成。
+2. 升级前完成历史 witness 检查。旧格式加密的 resume 载荷（含终态记录）将无法解密；保留备份及旧应用，用于只读取证。
+3. 分别运行三次 `openssl rand -base64 32`，生成三组独立的 32 字节 Base64 随机机密，配置 `DB_ENCRYPTION_KEY`、`DML_ENCRYPTION_KEY`、`DML_FINGERPRINT_KEY`。保留 `HMAC_KEY` 以保持现有 MCP 密钥有效；保护密钥必须与 HMAC/JWT 签名机密独立。
+4. 停止所有旧 DML worker，应用 SQLite 或 PostgreSQL Admin Store 迁移，再以相同密钥环及 fingerprint key 部署全部节点。缺失、无效或复用的密钥导致启动失败。
+5. 通过管理 UI/API 或 bootstrap 重新输入现有数据库密码。没有旧加密解密回退或自动转换；提供程序使用空密码的情况仍受支持。
+6. 显式配置 `Bootstrap:Databases:*:McpKeys:*:Key`；启动时不再生成或记录密钥。撤销曾暴露于日志的密钥。
+7. 验证连接、Doctor、MCP 查询，以及经过新预览和人工审批的 DML，再恢复流量。
+
+## 审批与 Admin Store 的不兼容更改
+
+SQLite 与 PostgreSQL 均在有 Pending/Executing 持久化审批时拒绝迁移。新增 `AdmissionProtocolVersion` 默认值为 0，数据库 CHECK 仅允许协议 1 以上的审批进入 Pending/Executing；历史终态证据保留。这阻止旧 worker 经 Admin Store 建立有效审批，但不会撤销目标数据库的直接写权限。
+
+自定义 `IDmlApprovalChallengeStore` 必须原子、全有或全无地实现 `TryPromoteAsync`。单条和批量 DML 都使用聚合提升，不能用依次删除／新增代替。
+
+Redis key 改为 `{dml-approval}:`，使用 `hs-sql-agent.dml-challenge` 信封（`SchemaVersion=1`），不兼容旧 key。持久化续行使用加密 `hs-sql-agent.dml-resume`（`SchemaVersion=1`）；显式 version-0 reader 只保留旧标志，不补造同意，也不能解密旧密文。未知或损坏版本在目标 SQL 前拒绝。缺少 `ApprovalPlanBinding` 时必须重新预览与审批，已消费的 nonce 不可重放。
+
+## 执行与编译器
+
+- 需要选择性条件时，`UPDATE`／`DELETE` 拒绝 `WHERE 1=1` 等恒真条件；使用实际筛选或明确的全表授权。
+- 输入上限为 4,194,304 UTF-16 单元与 131,072 个非 End 词法 token。AST、嵌套、输出、工作量、期限和分配量也有带类型的拒绝诊断。迭代遍历不承诺无限深度或新增方言。
+- 可选不可变 schema snapshot 验证名称和可证明的类型，将摘要绑定到计划证据。带 schema 证明的 DML 必须验证实时结构新鲜度；默认不采集快照。
+- `dml.commit_outcome_unknown` 与 `dml.rollback_outcome_unknown` 是不同且不可重试的结果。保存证据并独立核查；缺失 Redis key 或 witness 不证明已经回滚。
+- 五个内置 MCP 工具、默认四个读取工具、DML 显式启用、人工审批及提交前重验证保持不变。
+
+## 可选目标执行围栏
+
+`AddHsSqlAgentNativeDmlSchemaFreshness()` 与 `AddHsSqlAgentTargetExecutionFence()` 均须显式启用。先准备目标表和权限，并证明旧凭据及现有会话不能再写入。SQLite 必须使用操作系统／进程隔离。
+
+每次受管提交都在实际连接执行两个额外的仅回滚就绪事务，提交后独立读取 Admission 与 Witness。只有 Oracle 的 witness 唯一键诊断使用 READ COMMITTED，其余使用 SERIALIZABLE。证据缺失或矛盾返回不确定结果，不代表允许重放。此机制不保证全体节点已纳管，也不授权自动核查仍存活 worker 的 Executing 请求。
+
+## 降级
+
+审批准入与机密保护迁移是单向的。不可通过 `dotnet ef database update` 反向迁移。先停止 DML worker 并核查未决审批，再一起恢复兼容的升级前数据库备份、旧程序和旧机密。
+
+- [迁移](https://github.com/tse-wei-chen/hs-sql-agent/blob/v3.0.0/docs/v3-migration.md)
+- [机密保护与轮换](https://github.com/tse-wei-chen/hs-sql-agent/blob/v3.0.0/docs/secret-protection-upgrade.md)
+- [目标围栏切换](https://github.com/tse-wei-chen/hs-sql-agent/blob/v3.0.0/docs/v3-target-fence-cutover.md)

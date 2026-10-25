@@ -1,0 +1,51 @@
+---
+title: "Upgrade-Leitfaden"
+description: "Geheimnisschutz, Genehmigungsprotokolle und Verwaltungsdatenbank aktualisieren."
+sidebar:
+  group: Referenz
+  order: 144
+---
+
+## 2.0.6 → 3.0.0
+
+Diese Hauptversion ändert Geheimnisschutz, Genehmigungsspeicher und Commit-Nachweise. Aktualisieren Sie alle DML-Worker gemeinsam. Ein Mischbetrieb alter und neuer Versionen ist unsicher.
+
+## Vor der Bereitstellung
+
+1. Sichern Sie Admin Store und Betriebsgeheimnisse. Stoppen Sie neue DML-Vorschauen, erledigen oder verwerfen Sie Pending-Anfragen und klären Sie Executing-Anfragen nach dem bestehenden Betriebsverfahren. Markieren Sie ungewisse Ausführungen niemals nur für die Migration als abgeschlossen.
+2. Schließen Sie historische Witness-Prüfungen ab. Alte verschlüsselte Fortsetzungsdaten werden auch in abgeschlossenen Datensätzen unlesbar. Bewahren Sie Sicherung und alte Anwendung für ausschließlich lesende Untersuchungen auf.
+3. Führen Sie `openssl rand -base64 32` dreimal separat aus. Setzen Sie die unabhängigen Werte in `DB_ENCRYPTION_KEY`, `DML_ENCRYPTION_KEY` und `DML_FINGERPRINT_KEY`. Behalten Sie `HMAC_KEY` für bestehende MCP-Schlüssel bei und trennen Sie Schutzschlüssel von HMAC-/JWT-Signaturgeheimnissen.
+4. Stoppen Sie alle alten DML-Worker, wenden Sie SQLite- oder PostgreSQL-Migrationen an und stellen Sie alle Knoten mit denselben Schlüsselringen und demselben Fingerprint-Schlüssel bereit. Fehlende, ungültige oder wiederverwendete Schlüssel verhindern den Start.
+5. Geben Sie bestehende DB-Passwörter über Verwaltungs-UI/API oder Bootstrap erneut ein. Alte Entschlüsselung und automatische Konvertierung sind nicht verfügbar. Leere Passwörter bleiben bei entsprechenden Providern unterstützt.
+6. Geben Sie `Bootstrap:Databases:*:McpKeys:*:Key` ausdrücklich an. Startvorgänge erzeugen und protokollieren keine Schlüssel mehr. Widerrufen Sie über Logs offengelegte Schlüssel.
+7. Prüfen Sie Verbindung, Doctor, MCP-Abfragen und neu angezeigtes sowie genehmigtes DML, bevor Sie den Verkehr wieder freigeben.
+
+## Inkompatible Änderungen an Genehmigungen und Admin Store
+
+Beide Provider verweigern die Migration bei dauerhaften Pending-/Executing-Genehmigungen. `AdmissionProtocolVersion` erhält den Standardwert 0; eine DB-CHECK-Bedingung erlaubt Pending/Executing nur ab Protokoll 1. Historische Endzustandsnachweise bleiben erhalten. Dies schließt den alten Zulassungspfad im Admin Store, entzieht aber keine direkten Rechte auf der Ziel-DB.
+
+Eigene `IDmlApprovalChallengeStore`-Implementierungen müssen `TryPromoteAsync` atomar und vollständig oder gar nicht ausführen. Einzelanweisungen und Stapel nutzen die Aggregat-Promotion. Aufeinanderfolgendes Löschen und Hinzufügen ist unsicher.
+
+Redis verwendet `{dml-approval}:` und eine `hs-sql-agent.dml-challenge`-Hülle (`SchemaVersion=1`), inkompatibel mit alten Schlüsseln. Dauerhafte Fortsetzung nutzt die verschlüsselte Hülle `hs-sql-agent.dml-resume` (`SchemaVersion=1`). Ein expliziter Version-0-Leser erhält alte Flags, ohne Zustimmung zu erfinden oder alte Geheimtexte entschlüsselbar zu machen. Unbekannte oder beschädigte Versionen werden vor Ziel-SQL abgewiesen. Fehlendes `ApprovalPlanBinding` erfordert neue Vorschau und Zustimmung. Verbrauchte Nonces dürfen nicht erneut verwendet werden.
+
+## Ausführung und Compiler
+
+- Bei gefordertem selektivem Filter lehnen `UPDATE`/`DELETE` immer wahre Prädikate wie `WHERE 1=1` ab. Verwenden Sie einen tatsächlichen Filter oder eine ausdrückliche Volltabellenberechtigung.
+- Eingaben sind auf 4,194,304 UTF-16-Einheiten und 131,072 Token ohne End begrenzt. Typisierte Ressourcenfehler begrenzen außerdem AST, Tiefe, Ausgabe, Arbeit, Fristen und Allokationen. Iterative Verarbeitung verspricht keine unbegrenzte Tiefe oder neue Dialekte.
+- Optionale unveränderliche Schemasnapshots prüfen Namen und nachweisbare Typfamilien und binden ihren Digest an den Plan. Schemagestütztes DML erfordert eine aktuelle Frischeprüfung. Standardmäßig wird kein Snapshot erfasst.
+- `dml.commit_outcome_unknown` und `dml.rollback_outcome_unknown` sind getrennte, nicht wiederholbare Ergebnisse. Bewahren Sie Nachweise auf und klären Sie sie unabhängig. Fehlende Redis-Schlüssel oder Witnesses beweisen keinen Rollback.
+- Die fünf eingebauten MCP-Tools, vier standardmäßigen Lesetools, optionales DML, menschliche Genehmigung und erneute Prüfung vor Commit bleiben erhalten.
+
+## Optionale Ausführungssperre auf dem Ziel
+
+`AddHsSqlAgentNativeDmlSchemaFreshness()` und `AddHsSqlAgentTargetExecutionFence()` müssen ausdrücklich aktiviert werden. Stellen Sie Tabellen und Rechte bereit und beweisen Sie, dass alte Zugangsdaten und Sitzungen keine Änderungen mehr zulassen. SQLite erfordert Isolation durch Betriebssystem oder Prozesse.
+
+Jeder eingebundene Commit führt auf der tatsächlichen Verbindung zwei zusätzliche, zurückgerollte Bereitschaftstransaktionen aus und liest danach Admission und Witness unabhängig. Nur Oracles Witness-Eindeutigkeitsdiagnose nutzt READ COMMITTED; alle anderen Phasen verwenden SERIALIZABLE. Fehlende oder widersprüchliche Beweise bedeuten ein ungewisses Ergebnis, keine Wiederholungserlaubnis. Das Verfahren garantiert weder die Einbindung aller Worker noch die automatische Klärung eines noch aktiven Executing-Workers.
+
+## Rückkehr zu einer älteren Version
+
+Zulassungs- und Geheimnisschutzmigrationen sind einseitig. Kehren Sie sie nicht mit `dotnet ef database update` um. Stoppen Sie DML-Worker, klären Sie offene Genehmigungen und stellen Sie gemeinsam eine kompatible Sicherung vor dem Upgrade, alte Binärdateien und Geheimnisse wieder her.
+
+- [Migration](https://github.com/tse-wei-chen/hs-sql-agent/blob/v3.0.0/docs/v3-migration.md)
+- [Geheimnisschutz und Schlüsselwechsel](https://github.com/tse-wei-chen/hs-sql-agent/blob/v3.0.0/docs/secret-protection-upgrade.md)
+- [Umstellung der Zielsperre](https://github.com/tse-wei-chen/hs-sql-agent/blob/v3.0.0/docs/v3-target-fence-cutover.md)

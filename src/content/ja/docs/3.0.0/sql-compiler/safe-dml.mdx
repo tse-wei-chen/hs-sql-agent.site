@@ -1,0 +1,55 @@
+---
+title: Safe DML
+description: 1 つ以上の DML を承認し、正確な Evidence を再検証して、承認済み Transaction を原子的に commit します。
+sidebar:
+  group: SQL Compiler
+  order: 50
+---
+
+## 承認の受け入れ、不確定な結果、ターゲット証拠
+
+選択的な条件が必要な場合、`WHERE 1=1` のように常に真と証明できる `UPDATE`／`DELETE` 条件は拒否されます。人間の承認は正確な計画と行集合の証拠に結び付けられます。
+
+カスタム challenge store は、単文・バッチともに `TryPromoteAsync` をアトミックに実装する必要があります。Redis と永続再開にはバージョン付きエンベロープを使います。互換性のない challenge は新しいプレビューと承認が必要です。[アップグレードガイド](/ja/docs/reference/upgrade-guide)を参照してください。
+
+`dml.commit_outcome_unknown` と `dml.rollback_outcome_unknown` は異なる、再試行不可の結果です。承認とターゲット証拠を保存し、独立して調査してください。witness や Redis キーがなくてもロールバックの証明にはなりません。不確定な変更を自動再実行してはいけません。コミット確認後の監査保存エラーを変更失敗として報告してはいけません。
+
+`AddHsSqlAgentTargetExecutionFence()` は任意機能です。ターゲットの準備と、旧 worker に DML 権限がないことの別途検証が必要です。対象コミットごとに実接続で追加のロールバック専用検証トランザクションを 2 回実行し、コミット後に Admission と Witness を独立して読み取ります。Oracle は witness の一意性衝突診断のみ READ COMMITTED、それ以外の検証は SERIALIZABLE です。証拠の矛盾は不確定な結果になります。全 worker の登録証明や稼働中 worker の自動照合は提供しません。
+
+DML は Query より厳格な実行経路を使います。実際の commit 時にも、承認内容が**同じ Mutation Evidence**を示している必要があるためです。
+
+## 1 つの Tool で単一・複数 Statement に対応
+
+`execute_dml_sql` は、1 つ以上の対応 `UPDATE`、`DELETE`、`INSERT ... VALUES` を受け取れます。複数 Statement はセミコロンで区切ります。
+
+専用の batch DML Tool はありません。複数 Statement は 1 つの Batch として Parse され、1 回だけ承認され、元の順序で実行され、1 つのサーバー所有 Transaction で原子的に commit されます。
+
+Client から `BEGIN`、`COMMIT`、`ROLLBACK` などの Transaction-control SQL は受け付けません。Transaction 境界はサーバーが所有します。
+
+## 承認が結び付く Evidence
+
+`UPDATE` / `DELETE` は Preview で観測した正確な Primary Key Row Set に承認を結び付けます。Commit Transaction 内で各 Statement の変更直前に再検証します。
+
+`INSERT ... VALUES` は不変な Literal Payload と正確な Compile 済み Command に結び付けます。`INSERT ... SELECT` は source Row Set の承認意味論が定義されるまで未対応です。
+
+前の Statement が後続 Statement の承認済み Row Set を変えた場合、Batch 全体が fail closed となり rollback します。
+
+## 承認 Provider
+
+第一方の既定は MCP Elicitation です。Host は公式 `HsSqlAgent.Approvals.Webhook` adapter を利用することも、`HsSqlAgent.Server` で `IDmlApprovalProvider` を実装することもできます。
+
+承認 Provider が受け取るのは transport-neutral な Evidence であり、SQL 実行 primitive ではありません。Database Connection、Transaction、検証済み Plan、commit 権限は渡されません。
+
+## Durable Pending Approval
+
+非同期 Workflow の Provider は `Pending` を返せます。Admin Store がある場合、hs-sql-agent は保護された Resume Intent と Approval Fingerprint を保存します。
+
+後から完了 Decision が届くと、現在の認可と DB 設定を再読み込みし、DML を再 Parse / Preview し、承認 Evidence を比較して、新しい短命 Execution Challenge を作成します。認可、DB 設定、Policy、Plan、Row Set、affected-row Evidence のいずれかが変われば stale として扱い commit しません。
+
+再開されるのは**実行 Intent**であり、古い Database Session ではありません。
+
+## Fail-closed ルール
+
+承認拒否、期限切れ、stale、Fingerprint 不一致、権限失効、現在の Policy 違反、承認 Row Set の再現失敗では DML は commit されません。
+
+[MCP Tools Reference](/ja/docs/mcp/tools-reference)、[設定](/ja/docs/operations/configuration)、[ASP.NET Core 統合](/ja/docs/integration/aspnet-core)も参照してください。

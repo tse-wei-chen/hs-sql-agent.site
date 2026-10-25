@@ -1,0 +1,51 @@
+---
+title: "업그레이드 안내"
+description: "비밀 보호, 승인 프로토콜 및 관리 데이터베이스 업그레이드 절차."
+sidebar:
+  group: 참조
+  order: 144
+---
+
+## 2.0.6 → 3.0.0
+
+이번 주요 릴리스는 비밀 정보 보호, 승인 저장 및 커밋 증거를 변경합니다. 모든 DML worker를 함께 전환하세요. 이전 버전과 새 버전의 혼합 운영은 안전하지 않습니다.
+
+## 배포 전 준비
+
+1. Admin Store와 배포 비밀 값을 백업하고 새 DML 미리 보기를 중지합니다. Pending을 완료하거나 거부하고 Executing은 기존 운영 절차로 조사합니다. 마이그레이션을 통과하려고 결과 불명 실행을 완료 처리하지 마세요.
+2. 과거 witness 검사를 마칩니다. 이전 암호화 재개 페이로드는 종료된 레코드도 읽을 수 없게 됩니다. 백업과 이전 앱을 읽기 전용 조사용으로 보관하세요.
+3. `openssl rand -base64 32`를 각각 세 번 실행하여 독립된 32바이트 Base64 값을 `DB_ENCRYPTION_KEY`, `DML_ENCRYPTION_KEY`, `DML_FINGERPRINT_KEY`에 설정합니다. 기존 MCP 키를 위해 `HMAC_KEY`를 유지하고 보호 키와 HMAC/JWT 서명 비밀 값을 분리하세요.
+4. 이전 DML worker를 모두 중지하고 SQLite 또는 PostgreSQL Admin Store 마이그레이션을 적용합니다. 모든 노드에 동일한 키 링과 fingerprint key를 설정합니다. 누락·오류·재사용 키는 시작 실패를 일으킵니다.
+5. 관리 UI/API 또는 bootstrap 설정에서 기존 DB 비밀번호를 다시 입력합니다. 이전 형식 복호화나 자동 변환은 없습니다. 빈 비밀번호를 사용하는 공급자는 계속 지원됩니다.
+6. `Bootstrap:Databases:*:McpKeys:*:Key`를 명시합니다. 시작 시 키를 생성하거나 로그에 남기지 않습니다. 로그로 노출된 키는 폐기하세요.
+7. 연결, Doctor, MCP 쿼리, 새 미리 보기 및 사람의 승인을 거친 DML을 확인하고 트래픽을 재개합니다.
+
+## 승인 및 Admin Store의 호환성 변경
+
+두 공급자는 영속 Pending/Executing 승인이 있으면 마이그레이션을 거부합니다. `AdmissionProtocolVersion`은 기본값 0으로 추가되며 DB CHECK 제약은 프로토콜 1 이상만 Pending/Executing에 허용합니다. 과거 종료 증거는 유지됩니다. 이전 worker의 Admin Store 수락 경로를 차단하지만 대상 DB 직접 권한을 철회하지는 않습니다.
+
+사용자 지정 `IDmlApprovalChallengeStore`는 `TryPromoteAsync`를 모두 성공하거나 모두 실패하는 원자적 연산으로 구현해야 합니다. 단일 문장과 배치 모두 집계 승격을 사용합니다. 순차 삭제/추가는 안전하지 않습니다.
+
+Redis는 `{dml-approval}:` 키와 `hs-sql-agent.dml-challenge` 봉투(`SchemaVersion=1`)를 사용하며 이전 키와 호환되지 않습니다. 영속 재개는 암호화된 `hs-sql-agent.dml-resume`(`SchemaVersion=1`)을 사용합니다. 명시적 version-0 리더는 이전 플래그만 유지하고 동의를 만들어 내거나 이전 암호문을 복호화하지 않습니다. 알 수 없거나 손상된 버전은 대상 SQL 전에 거부됩니다. `ApprovalPlanBinding`이 없으면 새 미리 보기와 동의가 필요하며 소비된 nonce는 재사용할 수 없습니다.
+
+## 실행 및 컴파일러
+
+- 선택적 조건이 필요한 `UPDATE`/`DELETE`에서는 `WHERE 1=1` 같은 항상 참인 조건을 거부합니다. 실제 필터나 명시적 전체 테이블 권한을 사용하세요.
+- 입력은 4,194,304 UTF-16 단위 및 End 제외 131,072 토큰으로 제한됩니다. AST, 중첩, 출력, 작업량, 기한, 할당량도 형식화된 자원 진단으로 제한됩니다. 반복 탐색은 무한 깊이나 새로운 방언을 약속하지 않습니다.
+- 선택적 불변 스키마 스냅샷은 이름과 입증 가능한 유형을 검사하고 다이제스트를 계획 증거에 결합합니다. 스키마 증거가 있는 DML에는 실제 최신 상태 검증이 필요합니다. 기본값은 스냅샷 미수집입니다.
+- `dml.commit_outcome_unknown`과 `dml.rollback_outcome_unknown`은 별개의 재시도 불가 결과입니다. 증거를 보관하고 독립적으로 조사하세요. Redis 키나 witness의 부재는 롤백 증거가 아닙니다.
+- 다섯 개 내장 MCP 도구, 기본 네 개 읽기 도구, DML의 선택적 활성화, 사람의 승인 및 커밋 전 재검증은 유지됩니다.
+
+## 선택적 대상 실행 펜스
+
+`AddHsSqlAgentNativeDmlSchemaFreshness()`와 `AddHsSqlAgentTargetExecutionFence()`는 명시적으로 활성화해야 합니다. 대상 테이블과 권한을 준비하고 이전 자격 증명과 세션이 더 이상 변경할 수 없음을 입증하세요. SQLite는 OS/프로세스 격리가 필요합니다.
+
+등록된 커밋마다 실제 연결에서 추가 롤백 전용 검증 트랜잭션 두 개를 실행하고, 커밋 후 Admission과 Witness를 독립적으로 읽습니다. Oracle witness 고유성 진단만 READ COMMITTED이며 나머지는 SERIALIZABLE입니다. 증거 누락이나 모순은 불확실한 결과이지 재실행 허가가 아닙니다. 모든 worker 등록을 입증하거나 살아 있는 Executing worker의 자동 조정을 허용하지 않습니다.
+
+## 다운그레이드
+
+승인 수락 및 비밀 보호 마이그레이션은 단방향입니다. `dotnet ef database update`로 되돌리지 마세요. DML worker를 중지하고 미해결 승인을 조사한 뒤 호환 가능한 업그레이드 전 DB 백업, 이전 바이너리 및 비밀 값을 함께 복원해야 합니다.
+
+- [마이그레이션](https://github.com/tse-wei-chen/hs-sql-agent/blob/v3.0.0/docs/v3-migration.md)
+- [비밀 보호 및 키 교체](https://github.com/tse-wei-chen/hs-sql-agent/blob/v3.0.0/docs/secret-protection-upgrade.md)
+- [대상 펜스 전환](https://github.com/tse-wei-chen/hs-sql-agent/blob/v3.0.0/docs/v3-target-fence-cutover.md)
