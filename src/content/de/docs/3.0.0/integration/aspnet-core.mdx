@@ -228,3 +228,37 @@ builder.Services.AddSingleton<IDdlApprovalProvider, MyIndependentDdlApprovalProv
 ```
 
 Die Sitzungssperre koordiniert ausschließlich Anforderungen dieses Dienstes; sie **sperrt keine fremden DDL-Clients**. Ist das Ergebnis nach Ausführungsbeginn nicht mehr nachweisbar, lautet der Zustand outcome_unknown. Nicht automatisch wiederholen, sondern zuerst den Datenbankzustand abgleichen. Eine DML-Freigabe berechtigt niemals zu DDL. Die vier vorausgewählten lesenden Werkzeuge und die nicht ausgewählten DML-/DDL-Werkzeuge bleiben unverändert.
+
+## G5: Oracle-26ai-Schemaänderungen (nur nach ausdrücklicher Freigabe)
+
+Oracle führt **vor und nach jeder DDL-Anweisung einen impliziten COMMIT** aus. Eine erfolgreich angelegte Tabelle lässt sich selbst bei einem späteren Fehler nicht durch ein ROLLBACK der Anwendung entfernen. Das vorhandene Werkzeug `execute_ddl_sql` bleibt standardmäßig verborgen. Erforderlich sind eine gesonderte Oracle-Aktivierung, eine ausdrückliche MCP-Schlüsselberechtigung und eine unabhängige DDL-Freigabe.
+
+Ausführbar ist ausschließlich ein einzelnes CREATE TABLE **im eigenen Schema ohne Schemapräfix**, mit 1 bis 16 einfachen INTEGER-Spalten. Constraints, Standardwerte, ALTER, INDEX, DROP, CREATE TABLE AS SELECT und Mehrfachanweisungen werden abgelehnt.
+
+```csharp
+using HsSqlAgent.Server.Extensions;
+using HsSqlAgent.Server.Services;
+
+builder.Services.AddHsSqlAgentOracleDdl(new OracleDdlExecutionOptions
+{
+    Enabled = true,
+    AllowCreateTable = true,
+    AllowedPdbNames = new HashSet<string>(StringComparer.Ordinal) { "FREEPDB1" },
+    AllowedSchemas = new HashSet<string>(StringComparer.Ordinal) { "SQLCORE" },
+    PolicyRevision = "oracle26ai-ddl-governance-v1"
+});
+builder.Services.AddSingleton<IDdlApprovalProvider, MyIndependentDdlApprovalProvider>();
+// Also explicitly grant execute_ddl_sql to the relevant MCP access key.
+```
+
+```sql
+-- DBA-run setup for the designated SQLCORE account in the target PDB.
+GRANT SELECT ON SYS.V_$DATABASE TO SQLCORE;
+GRANT SELECT ON SYS.V_$PDBS TO SQLCORE;
+GRANT SELECT ON SYS.DBA_TRIGGERS TO SQLCORE;
+GRANT EXECUTE ON SYS.DBMS_LOCK TO SQLCORE;
+```
+
+Der Host muss die tatsächliche Oracle-26ai-Version (Kernel ab 23.26), eine schreibbare primäre PDB, die freigegebene PDB und das Benutzerschema, vollständige Sicht auf DDL-Trigger sowie einen noch nicht vorhandenen Objektnamen nachweisen. Die Vorschau schreibt nichts. Nach der Freigabe nimmt der Host eine nur für eigene Anforderungen wirksame Sitzungssperre, prüft die Metadaten erneut, führt genau einmal das von SqlCore kompilierte SQL aus und kontrolliert die Spalten. **Fremde DDL-Clients werden dadurch nicht ausgeschlossen.**
+
+Ist das Ergebnis nach dem Senden der DDL nicht nachweisbar, meldet der Host `outcome_unknown`. **Niemals automatisch wiederholen**; zuerst muss ein DBA den tatsächlichen PDB-Zustand prüfen. Die vier vorausgewählten Lesewerkzeuge bleiben ausgewählt, DML und DDL bleiben abgewählt.

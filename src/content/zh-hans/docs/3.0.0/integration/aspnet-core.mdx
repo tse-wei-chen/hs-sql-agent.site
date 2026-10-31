@@ -228,3 +228,37 @@ builder.Services.AddSingleton<IDdlApprovalProvider, MyIndependentDdlApprovalProv
 ```
 
 专用会话锁只协调本服务的请求，**不能阻止其他客户端修改结构**。执行开始后若无法确认结果，将返回 outcome_unknown；禁止自动重试，应先核对数据库实际状态。数据修改审批不能替代结构变更审批；四个默认只读工具及 DML／DDL 默认不勾选的行为保持不变。
+
+## G5：Oracle 26ai 结构变更（必须明确启用）
+
+Oracle 会在结构变更语句**执行前后隐式提交事务**。即使后续操作失败，也无法通过应用程序 ROLLBACK 撤销已创建的数据表。`execute_ddl_sql` 仍默认隐藏；必须单独启用 Oracle，向 MCP 访问密钥明确授予工具权限，并配置独立的结构变更审批人。
+
+当前仅允许在登录用户自己的模式中执行**单条、不带模式前缀的 CREATE TABLE**，包含 1–16 个基本 INTEGER 字段。约束、默认值、ALTER、INDEX、DROP、查询建表和多语句全部拒绝。
+
+```csharp
+using HsSqlAgent.Server.Extensions;
+using HsSqlAgent.Server.Services;
+
+builder.Services.AddHsSqlAgentOracleDdl(new OracleDdlExecutionOptions
+{
+    Enabled = true,
+    AllowCreateTable = true,
+    AllowedPdbNames = new HashSet<string>(StringComparer.Ordinal) { "FREEPDB1" },
+    AllowedSchemas = new HashSet<string>(StringComparer.Ordinal) { "SQLCORE" },
+    PolicyRevision = "oracle26ai-ddl-governance-v1"
+});
+builder.Services.AddSingleton<IDdlApprovalProvider, MyIndependentDdlApprovalProvider>();
+// Also explicitly grant execute_ddl_sql to the relevant MCP access key.
+```
+
+```sql
+-- DBA-run setup for the designated SQLCORE account in the target PDB.
+GRANT SELECT ON SYS.V_$DATABASE TO SQLCORE;
+GRANT SELECT ON SYS.V_$PDBS TO SQLCORE;
+GRANT SELECT ON SYS.DBA_TRIGGERS TO SQLCORE;
+GRANT EXECUTE ON SYS.DBMS_LOCK TO SQLCORE;
+```
+
+宿主必须验证真实的 Oracle 26ai（23.26 及以上内核）、可写入的主 PDB、许可的 PDB 和用户模式、完整的 DDL 触发器字典权限，以及目标不存在。预览不会修改数据库。审批后使用仅协调本服务请求的会话锁，再次核对实体元数据，只执行一次 SqlCore 编译的原生 SQL，并检查实际字段；**不能排除其他客户端的并发变更**。
+
+语句发送后若无法确认结果，将返回 `outcome_unknown`，**禁止自动重试**，应由数据库管理员先核对真实状态。四个默认只读工具继续选中，DML／DDL 默认仍不选中。

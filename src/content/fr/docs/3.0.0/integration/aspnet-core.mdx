@@ -228,3 +228,37 @@ builder.Services.AddSingleton<IDdlApprovalProvider, MyIndependentDdlApprovalProv
 ```
 
 Le verrou de session coordonne uniquement les demandes de ce service ; il **n'exclut pas les clients DDL externes**. Si le résultat devient invérifiable après le début de l'exécution, l'état est outcome_unknown. Ne jamais relancer automatiquement : examiner d'abord la base réelle. Une approbation DML ne peut pas autoriser une DDL. Les quatre outils de lecture sélectionnés par défaut et les choix DML/DDL non cochés restent inchangés.
+
+## G5 : modifications de schéma Oracle 26ai (activation explicite)
+
+Oracle effectue une **validation implicite avant et après chaque instruction DDL**. Une table créée ne peut donc pas être annulée par un ROLLBACK applicatif, même si une étape ultérieure échoue. L'outil `execute_ddl_sql` reste masqué par défaut. Il faut activer Oracle séparément, accorder explicitement l'accès à la clé MCP et faire approuver la DDL par une autorité indépendante.
+
+Seule une instruction CREATE TABLE **dans le schéma de l'utilisateur connecté, sans préfixe de schéma**, comportant 1 à 16 colonnes INTEGER simples, peut être exécutée. Contraintes, valeurs par défaut, ALTER, INDEX, DROP, création par SELECT et suites d'instructions sont refusés.
+
+```csharp
+using HsSqlAgent.Server.Extensions;
+using HsSqlAgent.Server.Services;
+
+builder.Services.AddHsSqlAgentOracleDdl(new OracleDdlExecutionOptions
+{
+    Enabled = true,
+    AllowCreateTable = true,
+    AllowedPdbNames = new HashSet<string>(StringComparer.Ordinal) { "FREEPDB1" },
+    AllowedSchemas = new HashSet<string>(StringComparer.Ordinal) { "SQLCORE" },
+    PolicyRevision = "oracle26ai-ddl-governance-v1"
+});
+builder.Services.AddSingleton<IDdlApprovalProvider, MyIndependentDdlApprovalProvider>();
+// Also explicitly grant execute_ddl_sql to the relevant MCP access key.
+```
+
+```sql
+-- DBA-run setup for the designated SQLCORE account in the target PDB.
+GRANT SELECT ON SYS.V_$DATABASE TO SQLCORE;
+GRANT SELECT ON SYS.V_$PDBS TO SQLCORE;
+GRANT SELECT ON SYS.DBA_TRIGGERS TO SQLCORE;
+GRANT EXECUTE ON SYS.DBMS_LOCK TO SQLCORE;
+```
+
+L'hôte doit vérifier la version Oracle 26ai réelle (noyau 23.26 ou supérieur), la PDB primaire accessible en écriture, la PDB et le schéma autorisés, la visibilité complète des déclencheurs DDL et l'absence de l'objet. L'aperçu reste en lecture seule. Après approbation, un verrou de session coordonne les requêtes de ce service, les métadonnées sont revérifiées, puis seule l'instruction SQL compilée par SqlCore est exécutée une fois. Les colonnes physiques sont contrôlées. **Ce verrou n'exclut pas les autres clients Oracle.**
+
+Si le résultat devient invérifiable après l'envoi de la DDL, l'état est `outcome_unknown` : **ne jamais relancer automatiquement**. Un administrateur doit d'abord vérifier l'état réel de la PDB. Les quatre outils de lecture restent cochés par défaut et DML/DDL restent décochés.

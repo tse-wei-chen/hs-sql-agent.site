@@ -228,3 +228,37 @@ builder.Services.AddSingleton<IDdlApprovalProvider, MyIndependentDdlApprovalProv
 ```
 
 セッション単位のロックは本サービス内の要求だけを協調させ、**外部クライアントを排除するものではありません**。実行開始後に結果を確認できなくなった場合は outcome_unknown を返します。自動再試行せず、実際のデータベース状態を確認してください。DML の承認は DDL の承認には使えません。既定の４つの読み取り専用ツールと DML／DDL の非選択状態は変わりません。
+
+## G5：Oracle 26ai のスキーマ変更（明示的な有効化が必要）
+
+Oracle は DDL の**実行前と実行後に暗黙的な COMMIT** を行います。作成に成功した表は、後続の処理が失敗してもアプリケーションの ROLLBACK では元に戻せません。`execute_ddl_sql` は既定で非表示・拒否のままです。Oracle 専用の有効化、MCP アクセスキーへの明示的な権限付与、独立した DDL 承認者が必要です。
+
+実行可能なのは、ログインユーザー自身のスキーマに対する、スキーマ名を付けない単一の CREATE TABLE（基本的な INTEGER 列 1～16 個）だけです。制約、既定値、ALTER、INDEX、DROP、SELECT からの作成、複数文は拒否します。
+
+```csharp
+using HsSqlAgent.Server.Extensions;
+using HsSqlAgent.Server.Services;
+
+builder.Services.AddHsSqlAgentOracleDdl(new OracleDdlExecutionOptions
+{
+    Enabled = true,
+    AllowCreateTable = true,
+    AllowedPdbNames = new HashSet<string>(StringComparer.Ordinal) { "FREEPDB1" },
+    AllowedSchemas = new HashSet<string>(StringComparer.Ordinal) { "SQLCORE" },
+    PolicyRevision = "oracle26ai-ddl-governance-v1"
+});
+builder.Services.AddSingleton<IDdlApprovalProvider, MyIndependentDdlApprovalProvider>();
+// Also explicitly grant execute_ddl_sql to the relevant MCP access key.
+```
+
+```sql
+-- DBA-run setup for the designated SQLCORE account in the target PDB.
+GRANT SELECT ON SYS.V_$DATABASE TO SQLCORE;
+GRANT SELECT ON SYS.V_$PDBS TO SQLCORE;
+GRANT SELECT ON SYS.DBA_TRIGGERS TO SQLCORE;
+GRANT EXECUTE ON SYS.DBMS_LOCK TO SQLCORE;
+```
+
+Oracle 26ai（カーネル 23.26 以降）、書き込み可能なプライマリ PDB、許可された PDB とスキーマ、DDL トリガーを網羅できるデータディクショナリ権限、対象オブジェクトが存在しないことを実際の接続で確認します。プレビューでは変更しません。承認後は本サービス内の要求だけを調整するセッションロックを使い、再確認してから SqlCore がコンパイルした SQL を一度だけ実行し、実際の列を照合します。**外部クライアントの変更は排除できません**。
+
+DDL 送信後の結果が確定しなければ `outcome_unknown` を返し、**自動再試行は禁止**です。先に DBA が実際の PDB を照合してください。既定の４つの読み取り専用ツールは選択したまま、DML／DDL は未選択のままです。
