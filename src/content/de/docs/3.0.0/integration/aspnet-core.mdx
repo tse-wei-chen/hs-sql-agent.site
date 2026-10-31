@@ -262,3 +262,25 @@ GRANT EXECUTE ON SYS.DBMS_LOCK TO SQLCORE;
 Der Host muss die tatsächliche Oracle-26ai-Version (Kernel ab 23.26), eine schreibbare primäre PDB, die freigegebene PDB und das Benutzerschema, vollständige Sicht auf DDL-Trigger sowie einen noch nicht vorhandenen Objektnamen nachweisen. Die Vorschau schreibt nichts. Nach der Freigabe nimmt der Host eine nur für eigene Anforderungen wirksame Sitzungssperre, prüft die Metadaten erneut, führt genau einmal das von SqlCore kompilierte SQL aus und kontrolliert die Spalten. **Fremde DDL-Clients werden dadurch nicht ausgeschlossen.**
 
 Ist das Ergebnis nach dem Senden der DDL nicht nachweisbar, meldet der Host `outcome_unknown`. **Niemals automatisch wiederholen**; zuerst muss ein DBA den tatsächlichen PDB-Zustand prüfen. Die vier vorausgewählten Lesewerkzeuge bleiben ausgewählt, DML und DDL bleiben abgewählt.
+
+## G6: PostgreSQL – Löschen einer nachweislich leeren Tabelle (separate Freigabe)
+
+Das bestehende Werkzeug `execute_ddl_sql` erlaubt genau eine destruktive Ausnahme: ein unabhängig genehmigtes `DROP TABLE schema.table RESTRICT` unter PostgreSQL. Diese Funktion ist **standardmäßig deaktiviert** und erbt weder additive DDL- noch DML-Berechtigungen. Nach COMMIT ist die Tabellendefinition dauerhaft gelöscht; Tabellen mit Daten dürfen nicht gelöscht werden.
+
+
+```csharp
+using HsSqlAgent.Server.Extensions;
+using HsSqlAgent.Server.Services;
+
+services.AddHsSqlAgentPostgresDdl(new PostgresDdlExecutionOptions
+{
+    Enabled = true,
+    AllowedSchemas = new HashSet<string>(StringComparer.Ordinal) { "staging_cleanup" },
+    AllowDropEmptyTable = true, // false by default; separate destructive opt-in
+    PolicyRevision = "postgres-g6-destructive-governance-v1"
+});
+services.AddSingleton<IDdlApprovalProvider, MyIndependentDdlApprovalProvider>();
+// Separately grant execute_ddl_sql on the target MCP access key.
+```
+
+Vor der Ausführung prüft der PostgreSQL-Host das erlaubte Schema, den direkten Tabelleneigentümer, eine gewöhnliche permanente Tabelle mit 1–16 INTEGER-Spalten und das **Fehlen von Zeilen, Indizes, Constraints, abhängigen Views, Triggern, Row-Level-Security, Standardwerten, Vererbung, Publikationen und nicht nachgewiesenen Effekten**. Die Vorschau ist ausschließlich lesend. Nach unabhängiger menschlicher Freigabe nimmt die Transaktion eine `ACCESS EXCLUSIVE`-Sperre, prüft Tabellen-OID und Bedingungen erneut, führt nur das kompilierte `RESTRICT`-DDL aus und bestätigt das Entfernen vor COMMIT. Nur ein bestätigter Rollback beweist den Nichtabschluss. Bei unklarem COMMIT oder Rollback lautet das Ergebnis `outcome_unknown`; **niemals automatisch erneut ausführen**. `CASCADE`, `IF EXISTS`, nichtleere Tabellen, andere Datenbanken und DDL-Batches bleiben gesperrt. Die vier schreibgeschützten Standardwerkzeuge bleiben unverändert vorausgewählt.

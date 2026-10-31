@@ -262,3 +262,25 @@ GRANT EXECUTE ON SYS.DBMS_LOCK TO SQLCORE;
 宿主必須證明實際使用 Oracle 26ai（23.26 以上核心）、可寫入的主要 PDB、受允許的 PDB 與使用者結構描述、完整的結構變更觸發器查閱權限，以及目標物件確實不存在。預覽僅查詢實體資訊。獲得核准後，宿主使用只協調本服務的連線階段鎖，重新驗證後僅執行一次 SqlCore 編譯的原生 SQL，並核對欄位；**不保證排除其他客戶端的並行變更**。
 
 指令送出後若結果無法確認，回報 `outcome_unknown`，**禁止自動重試**，應由資料庫管理者先核對實際狀態。原有四個預設唯讀工具維持勾選，DML／DDL 維持預設未勾選。
+
+## G6：PostgreSQL 高風險刪除空資料表（須獨立啟用）
+
+既有的 `execute_ddl_sql` 工具僅新增一項**具破壞性的例外操作**：在 PostgreSQL 上，經獨立核准後執行明確指定結構描述的 `DROP TABLE schema.table RESTRICT`。此功能**預設關閉**，不繼承新增結構或資料修改權限。交易提交後，資料表定義便會永久刪除；含有資料的表一律禁止刪除。
+
+
+```csharp
+using HsSqlAgent.Server.Extensions;
+using HsSqlAgent.Server.Services;
+
+services.AddHsSqlAgentPostgresDdl(new PostgresDdlExecutionOptions
+{
+    Enabled = true,
+    AllowedSchemas = new HashSet<string>(StringComparer.Ordinal) { "staging_cleanup" },
+    AllowDropEmptyTable = true, // false by default; separate destructive opt-in
+    PolicyRevision = "postgres-g6-destructive-governance-v1"
+});
+services.AddSingleton<IDdlApprovalProvider, MyIndependentDdlApprovalProvider>();
+// Separately grant execute_ddl_sql on the target MCP access key.
+```
+
+PostgreSQL 主機還須證明目前使用者為資料表擁有者、結構描述位於允許清單內，且目標是包含 1–16 個 INTEGER 欄位的普通永久資料表，**不存在資料列、索引、約束、相依檢視、觸發器、資料列層級安全政策、預設值、繼承、發佈或其他未證明的影響**。預覽只讀取實體中繼資料，不會變更資料庫。獨立人工核准後，主機在 PostgreSQL 交易中取得 `ACCESS EXCLUSIVE` 鎖、重新確認實體資料表 OID 與全部前置條件、僅執行已編譯的 `RESTRICT` 指令、驗證資料表已不存在，最後提交交易。已確認的回滾代表未提交；提交或回滾結果不明時回報 `outcome_unknown`，**禁止自動重試**。`CASCADE`、`IF EXISTS`、非空表、其他資料庫與多語句 DDL 仍不開放。前端預設仍僅勾選四個唯讀工具，DML 與 DDL 均不預選。

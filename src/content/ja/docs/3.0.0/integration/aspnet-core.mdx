@@ -262,3 +262,25 @@ GRANT EXECUTE ON SYS.DBMS_LOCK TO SQLCORE;
 Oracle 26ai（カーネル 23.26 以降）、書き込み可能なプライマリ PDB、許可された PDB とスキーマ、DDL トリガーを網羅できるデータディクショナリ権限、対象オブジェクトが存在しないことを実際の接続で確認します。プレビューでは変更しません。承認後は本サービス内の要求だけを調整するセッションロックを使い、再確認してから SqlCore がコンパイルした SQL を一度だけ実行し、実際の列を照合します。**外部クライアントの変更は排除できません**。
 
 DDL 送信後の結果が確定しなければ `outcome_unknown` を返し、**自動再試行は禁止**です。先に DBA が実際の PDB を照合してください。既定の４つの読み取り専用ツールは選択したまま、DML／DDL は未選択のままです。
+
+## G6：PostgreSQL の空テーブル削除（高リスク・個別の有効化が必要）
+
+既存の `execute_ddl_sql` では、PostgreSQL に限り、独立した承認を得た `DROP TABLE schema.table RESTRICT` を例外的に実行できます。**初期状態では無効**であり、追加型 DDL やデータ更新の権限を引き継ぎません。コミット後はテーブル定義が完全に削除されます。データの入ったテーブルは実行できません。
+
+
+```csharp
+using HsSqlAgent.Server.Extensions;
+using HsSqlAgent.Server.Services;
+
+services.AddHsSqlAgentPostgresDdl(new PostgresDdlExecutionOptions
+{
+    Enabled = true,
+    AllowedSchemas = new HashSet<string>(StringComparer.Ordinal) { "staging_cleanup" },
+    AllowDropEmptyTable = true, // false by default; separate destructive opt-in
+    PolicyRevision = "postgres-g6-destructive-governance-v1"
+});
+services.AddSingleton<IDdlApprovalProvider, MyIndependentDdlApprovalProvider>();
+// Separately grant execute_ddl_sql on the target MCP access key.
+```
+
+実行前には、許可されたスキーマ、所有者本人の権限、1～16 個の INTEGER 列を持つ通常の永続テーブルであること、さらに**行・索引・制約・依存ビュー・トリガー・行レベルセキュリティ・デフォルト値・継承・レプリケーション対象などが存在しないこと**を実データベースで検証します。プレビューは読み取り専用です。独立した人的承認後、PostgreSQL のトランザクション内で `ACCESS EXCLUSIVE` ロックを取得し、テーブル OID と全条件を再確認してからコンパイル済みの `RESTRICT` 文のみを実行し、削除を確認してコミットします。ロールバックを確認できた場合だけ未コミットと判定します。コミット／ロールバック結果が不明なら `outcome_unknown` を返し、**自動再実行は禁止**です。`CASCADE`、`IF EXISTS`、データのあるテーブル、他 DB と複数 DDL 文は未対応です。既定で選択されるのは従来どおり四つの読み取り専用ツールのみです。
