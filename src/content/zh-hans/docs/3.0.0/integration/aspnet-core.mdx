@@ -290,3 +290,36 @@ services.AddSingleton<IDdlApprovalProvider, MyIndependentDdlApprovalProvider>();
 实际认证的 MCP 密钥身份还必须列入 `AllowedDropPrincipals`；只有普通的 `execute_ddl_sql` 权限**不能**授权破坏性删除。允许名单变更会使尚未执行的审批失效。
 
 PostgreSQL 主机还必须证明当前用户为表所有者、模式在允许名单内，并且目标是包含 1–16 个 INTEGER 列的普通永久表，**不存在数据行、索引、约束、依赖视图、触发器、行级安全策略、默认值、继承、发布或其他未证实的影响**。预览仅读取实际元数据，不修改数据库。独立人工审批后，主机在 PostgreSQL 事务内取得 `ACCESS EXCLUSIVE` 锁，重新核实实际表 OID 和全部前置条件，只执行已编译的 `RESTRICT` 指令，确认表已不存在后提交。已确认的回滚意味着未提交；提交或回滚结果不明时返回 `outcome_unknown`，**禁止自动重试**。`CASCADE`、`IF EXISTS`、非空表、其他数据库和多语句 DDL 仍不开放。前端默认仍只选中四个只读工具；DML 和 DDL 均不预选。
+
+## G6／S16：PostgreSQL 原子 DDL 批处理（须单独启用）
+
+现有 `execute_ddl_sql` 工具只在 PostgreSQL 12 及以上版本支持 **2–4 条互不依赖、明确指定模式的 CREATE TABLE 语句**，统一绑定一个有序且不可变的计划、**一次**独立人工审批和**一个**真实数据库事务。普通单语句 DDL 权限不会自动开放批处理；这不是任意 SQL 脚本执行器。
+
+```csharp
+using HsSqlAgent.Server.Extensions;
+using HsSqlAgent.Server.Services;
+
+services.AddHsSqlAgentPostgresDdl(new PostgresDdlExecutionOptions
+{
+    Enabled = true,
+    AllowCreateTable = true,
+    AllowCreateTableBatch = true, // false by default
+    AllowedBatchPrincipals = new HashSet<string>(StringComparer.Ordinal)
+    {
+        "mcp-key:123" // authenticated MCP key ID
+    },
+    AllowedSchemas = new HashSet<string>(StringComparer.Ordinal)
+    {
+        "staging_cleanup"
+    },
+    PolicyRevision = "postgres-g6-atomic-batch-v1"
+});
+services.AddSingleton<IDdlApprovalProvider, MyIndependentDdlApprovalProvider>();
+// Separately grant execute_ddl_sql to the key.
+```
+
+```sql
+CREATE TABLE staging_cleanup.import_a (id INTEGER NOT NULL);
+CREATE TABLE staging_cleanup.import_b (id INTEGER NOT NULL);
+```
+实际认证的 MCP 密钥必须另外列入 `AllowedBatchPrincipals`，并明确获得 `execute_ddl_sql` 权限。只读预览会显示按顺序编译的 SQL、各目标的真实 Before 状态及整批变更摘要。经一次独立人工审批后，主机重新核查所有目标不存在、PostgreSQL 集群及模式身份，取得协作锁，只执行编译后的语句并逐一核对新表，再提交**一个事务**。已确认的回滚保证不会留下部分变更。若提交或回滚状态不明，返回 `outcome_unknown`，**禁止自动重试**。跨语句 ALTER／INDEX 依赖、DROP、DML、CTAS、重复或跨模式目标、MySQL／Oracle 隐式提交批处理和其他 Provider 批处理均被拒绝。默认仍只选中四个只读工具，DML 与 DDL 不预选。

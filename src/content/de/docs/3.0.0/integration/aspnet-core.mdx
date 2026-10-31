@@ -290,3 +290,36 @@ services.AddSingleton<IDdlApprovalProvider, MyIndependentDdlApprovalProvider>();
 Die Kennung des authentifizierten MCP-Schlüssels muss zusätzlich in `AllowedDropPrincipals` eingetragen sein. Eine gewöhnliche `execute_ddl_sql`-Freigabe berechtigt nicht zum destruktiven Löschen; Änderungen dieser Liste machen ausstehende Genehmigungen ungültig.
 
 Vor der Ausführung prüft der PostgreSQL-Host das erlaubte Schema, den direkten Tabelleneigentümer, eine gewöhnliche permanente Tabelle mit 1–16 INTEGER-Spalten und das **Fehlen von Zeilen, Indizes, Constraints, abhängigen Views, Triggern, Row-Level-Security, Standardwerten, Vererbung, Publikationen und nicht nachgewiesenen Effekten**. Die Vorschau ist ausschließlich lesend. Nach unabhängiger menschlicher Freigabe nimmt die Transaktion eine `ACCESS EXCLUSIVE`-Sperre, prüft Tabellen-OID und Bedingungen erneut, führt nur das kompilierte `RESTRICT`-DDL aus und bestätigt das Entfernen vor COMMIT. Nur ein bestätigter Rollback beweist den Nichtabschluss. Bei unklarem COMMIT oder Rollback lautet das Ergebnis `outcome_unknown`; **niemals automatisch erneut ausführen**. `CASCADE`, `IF EXISTS`, nichtleere Tabellen, andere Datenbanken und DDL-Batches bleiben gesperrt. Die vier schreibgeschützten Standardwerkzeuge bleiben unverändert vorausgewählt.
+
+## G6/S16: atomarer PostgreSQL-DDL-Batch (separate Aktivierung)
+
+Das bestehende Werkzeug `execute_ddl_sql` unterstützt unter PostgreSQL 12+ **2–4 unabhängige, schemaqualifizierte CREATE-TABLE-Anweisungen** mit einem geordneten unveränderlichen Plan, **einer** unabhängigen menschlichen Genehmigung und **einer** tatsächlichen Datenbanktransaktion. Eine Einzel-DDL-Berechtigung aktiviert keine Batch-Ausführung. Dies ist kein universeller SQL-Skriptexecutor.
+
+```csharp
+using HsSqlAgent.Server.Extensions;
+using HsSqlAgent.Server.Services;
+
+services.AddHsSqlAgentPostgresDdl(new PostgresDdlExecutionOptions
+{
+    Enabled = true,
+    AllowCreateTable = true,
+    AllowCreateTableBatch = true, // false by default
+    AllowedBatchPrincipals = new HashSet<string>(StringComparer.Ordinal)
+    {
+        "mcp-key:123" // authenticated MCP key ID
+    },
+    AllowedSchemas = new HashSet<string>(StringComparer.Ordinal)
+    {
+        "staging_cleanup"
+    },
+    PolicyRevision = "postgres-g6-atomic-batch-v1"
+});
+services.AddSingleton<IDdlApprovalProvider, MyIndependentDdlApprovalProvider>();
+// Separately grant execute_ddl_sql to the key.
+```
+
+```sql
+CREATE TABLE staging_cleanup.import_a (id INTEGER NOT NULL);
+CREATE TABLE staging_cleanup.import_b (id INTEGER NOT NULL);
+```
+Der authentifizierte MCP-Schlüssel muss zusätzlich in `AllowedBatchPrincipals` stehen und ausdrücklich `execute_ddl_sql` erhalten. Die schreibgeschützte Vorschau zeigt die geordneten kompilierten SQL-Anweisungen, jeden tatsächlichen Anfangszustand und die Batch-Gesamtdifferenz. Nach einer unabhängigen Freigabe prüft der Host PostgreSQL-Cluster und Schema sowie das Nichtvorhandensein aller Ziele erneut, nimmt kooperative Sperren, führt ausschließlich kompiliertes SQL aus und überprüft jede neue Tabelle vor dem COMMIT **einer einzigen Transaktion**. Ein bestätigter Rollback verhindert Teilergebnisse. Bei unklarem COMMIT oder Rollback ist `outcome_unknown` zu melden; **niemals automatisch wiederholen**. Abhängige ALTER-/INDEX-Folgeschritte, DROP, DML, CTAS, doppelte/schemaübergreifende Ziele, MySQL-/Oracle-Batches mit implizitem COMMIT und andere Datenbanken bleiben gesperrt. Vier schreibgeschützte Standardwerkzeuge bleiben vorausgewählt.
