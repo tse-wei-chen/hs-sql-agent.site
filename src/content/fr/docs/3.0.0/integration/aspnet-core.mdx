@@ -290,3 +290,36 @@ services.AddSingleton<IDdlApprovalProvider, MyIndependentDdlApprovalProvider>();
 L’identifiant de la clé MCP authentifiée doit également figurer dans `AllowedDropPrincipals`. L’autorisation ordinaire `execute_ddl_sql` ne suffit pas pour une suppression destructrice ; toute modification de cette liste invalide les approbations en attente.
 
 Avant toute exécution, l’hôte vérifie dans PostgreSQL le schéma autorisé, la propriété directe de la table, son caractère permanent et ordinaire (1 à 16 colonnes INTEGER), ainsi que l’**absence de lignes, index, contraintes, vues dépendantes, déclencheurs, règles RLS, valeurs par défaut, héritage, publications ou effets non prouvés**. L’aperçu ne fait aucune écriture. Après approbation humaine indépendante, une transaction acquiert un verrou `ACCESS EXCLUSIVE`, revérifie l’OID physique et toutes les conditions, exécute uniquement la commande `RESTRICT` compilée, confirme la disparition de la table, puis valide. Un rollback confirmé signifie que la suppression n’a pas été validée ; si COMMIT ou rollback est incertain, le résultat est `outcome_unknown` et **aucune relance automatique n’est autorisée**. `CASCADE`, `IF EXISTS`, tables non vides, autres SGBD et lots DDL restent interdits. Les quatre outils en lecture seule demeurent seuls présélectionnés.
+
+## G6/S16 : lot DDL atomique PostgreSQL (activation distincte)
+
+L’outil existant `execute_ddl_sql` accepte, sous PostgreSQL 16, **2 à 4 commandes CREATE TABLE indépendantes et qualifiées par schéma**, au moyen d’un plan immuable ordonné, d’**une** approbation humaine indépendante et d’**une** transaction réelle. L’autorisation d’exécuter une seule commande DDL ne donne pas accès aux lots. Ce n’est pas un exécuteur général de scripts SQL.
+
+```csharp
+using HsSqlAgent.Server.Extensions;
+using HsSqlAgent.Server.Services;
+
+services.AddHsSqlAgentPostgresDdl(new PostgresDdlExecutionOptions
+{
+    Enabled = true,
+    AllowCreateTable = true,
+    AllowCreateTableBatch = true, // false by default
+    AllowedBatchPrincipals = new HashSet<string>(StringComparer.Ordinal)
+    {
+        "mcp-key:123" // authenticated MCP key ID
+    },
+    AllowedSchemas = new HashSet<string>(StringComparer.Ordinal)
+    {
+        "staging_cleanup"
+    },
+    PolicyRevision = "postgres-g6-atomic-batch-v1"
+});
+services.AddSingleton<IDdlApprovalProvider, MyIndependentDdlApprovalProvider>();
+// Separately grant execute_ddl_sql to the key.
+```
+
+```sql
+CREATE TABLE staging_cleanup.import_a (id INTEGER NOT NULL);
+CREATE TABLE staging_cleanup.import_b (id INTEGER NOT NULL);
+```
+La clé MCP authentifiée doit figurer séparément dans `AllowedBatchPrincipals` et recevoir l’autorisation explicite `execute_ddl_sql`. L’aperçu en lecture seule affiche le SQL compilé ordonné, chaque état physique initial et la différence globale. Après une approbation indépendante, l’hôte vérifie à nouveau l’identité du cluster et du schéma ainsi que l’absence de tous les objets, prend les verrous coopératifs, exécute uniquement le SQL compilé et vérifie chaque nouvelle table avant de valider **une seule transaction**. Un rollback confirmé évite toute application partielle. Si COMMIT ou rollback est incertain, le résultat est `outcome_unknown` : **aucun nouvel essai automatique**. Les dépendances ALTER／INDEX entre instructions, DROP, DML, CTAS, noms dupliqués ou inter-schémas, lots MySQL／Oracle à COMMIT implicite et autres bases sont rejetés. Les quatre outils en lecture seule restent seuls présélectionnés.

@@ -290,3 +290,36 @@ services.AddSingleton<IDdlApprovalProvider, MyIndependentDdlApprovalProvider>();
 認証済み MCP キーの識別子を `AllowedDropPrincipals` にも登録する必要があります。通常の `execute_ddl_sql` 権限だけでは破壊的な削除は許可されず、許可リストを変更すると保留中の承認は無効になります。
 
 実行前には、許可されたスキーマ、所有者本人の権限、1～16 個の INTEGER 列を持つ通常の永続テーブルであること、さらに**行・索引・制約・依存ビュー・トリガー・行レベルセキュリティ・デフォルト値・継承・レプリケーション対象などが存在しないこと**を実データベースで検証します。プレビューは読み取り専用です。独立した人的承認後、PostgreSQL のトランザクション内で `ACCESS EXCLUSIVE` ロックを取得し、テーブル OID と全条件を再確認してからコンパイル済みの `RESTRICT` 文のみを実行し、削除を確認してコミットします。ロールバックを確認できた場合だけ未コミットと判定します。コミット／ロールバック結果が不明なら `outcome_unknown` を返し、**自動再実行は禁止**です。`CASCADE`、`IF EXISTS`、データのあるテーブル、他 DB と複数 DDL 文は未対応です。既定で選択されるのは従来どおり四つの読み取り専用ツールのみです。
+
+## G6／S16：PostgreSQL の原子的 DDL バッチ（個別の有効化が必要）
+
+既存の `execute_ddl_sql` ツールは、PostgreSQL 16で**互いに依存しない 2～4 件のスキーマ修飾 CREATE TABLE 文**を、一つの順序付き不変計画、**一回**の独立した人的承認、**一つ**の実データベーストランザクションとして実行します。単文の DDL 権限からバッチ権限は引き継がれません。任意の SQL スクリプトは実行できません。
+
+```csharp
+using HsSqlAgent.Server.Extensions;
+using HsSqlAgent.Server.Services;
+
+services.AddHsSqlAgentPostgresDdl(new PostgresDdlExecutionOptions
+{
+    Enabled = true,
+    AllowCreateTable = true,
+    AllowCreateTableBatch = true, // false by default
+    AllowedBatchPrincipals = new HashSet<string>(StringComparer.Ordinal)
+    {
+        "mcp-key:123" // authenticated MCP key ID
+    },
+    AllowedSchemas = new HashSet<string>(StringComparer.Ordinal)
+    {
+        "staging_cleanup"
+    },
+    PolicyRevision = "postgres-g6-atomic-batch-v1"
+});
+services.AddSingleton<IDdlApprovalProvider, MyIndependentDdlApprovalProvider>();
+// Separately grant execute_ddl_sql to the key.
+```
+
+```sql
+CREATE TABLE staging_cleanup.import_a (id INTEGER NOT NULL);
+CREATE TABLE staging_cleanup.import_b (id INTEGER NOT NULL);
+```
+認証済み MCP キーを `AllowedBatchPrincipals` に個別登録し、`execute_ddl_sql` も明示的に許可する必要があります。読み取り専用プレビューでは順序付きコンパイル済み SQL、各対象の実際の Before 状態、バッチ全体の差分を表示します。一度の独立承認後、PostgreSQL クラスター・スキーマの識別子と全対象の不在を再検証し、協調ロックを取得してコンパイル済み SQL のみを実行します。全表を確認して**一つのトランザクション**をコミットします。確認済みロールバックにより部分適用は残りません。COMMIT／ロールバックが不明なら `outcome_unknown` を返し、**自動再実行は禁止**です。文間 ALTER／INDEX 依存、DROP、DML、CTAS、重複・スキーマ混在、MySQL／Oracle の暗黙 COMMIT バッチ、他 DB バッチは拒否します。既定の選択は読み取り専用の四つのツールのみです。

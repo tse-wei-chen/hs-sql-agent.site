@@ -290,3 +290,36 @@ services.AddSingleton<IDdlApprovalProvider, MyIndependentDdlApprovalProvider>();
 The authenticated MCP key ID must also appear in `AllowedDropPrincipals`. A normal `execute_ddl_sql` grant alone cannot authorize destructive DROP; changing the list invalidates pending approvals.
 
 The PostgreSQL Host additionally requires direct table ownership, an allowlisted schema, a normal permanent table with 1–16 INTEGER columns, and **no rows, indexes, constraints, view dependencies, triggers, RLS, defaults, inheritance, publications or other unproven effects**. Preview reads metadata but never mutates. After independent human approval, the Host takes a PostgreSQL `ACCESS EXCLUSIVE` transaction lock, rechecks the physical table OID and all preconditions, executes only compiled `RESTRICT` DDL, confirms physical absence and commits. Verified rollback means failure; uncertain COMMIT or rollback means `outcome_unknown` and **must not be retried automatically**. `CASCADE`, `IF EXISTS`, nonempty tables, other providers and multi-DDL batches remain forbidden. The four default read-only tools are unchanged; DML and DDL remain unselected.
+
+## G6/S16: PostgreSQL atomic DDL Batch (separate opt-in)
+
+The existing `execute_ddl_sql` tool permits **2–4 independent, schema-qualified CREATE TABLE statements** on PostgreSQL 16 with a single ordered immutable plan, **one** independent human approval and **one** actual database transaction. A single-DDL grant does not enable batching. This is not a general SQL script executor.
+
+```csharp
+using HsSqlAgent.Server.Extensions;
+using HsSqlAgent.Server.Services;
+
+services.AddHsSqlAgentPostgresDdl(new PostgresDdlExecutionOptions
+{
+    Enabled = true,
+    AllowCreateTable = true,
+    AllowCreateTableBatch = true, // false by default
+    AllowedBatchPrincipals = new HashSet<string>(StringComparer.Ordinal)
+    {
+        "mcp-key:123" // authenticated MCP key ID
+    },
+    AllowedSchemas = new HashSet<string>(StringComparer.Ordinal)
+    {
+        "staging_cleanup"
+    },
+    PolicyRevision = "postgres-g6-atomic-batch-v1"
+});
+services.AddSingleton<IDdlApprovalProvider, MyIndependentDdlApprovalProvider>();
+// Separately grant execute_ddl_sql to the key.
+```
+
+```sql
+CREATE TABLE staging_cleanup.import_a (id INTEGER NOT NULL);
+CREATE TABLE staging_cleanup.import_b (id INTEGER NOT NULL);
+```
+The authenticated MCP key must be separately listed in `AllowedBatchPrincipals` and granted `execute_ddl_sql`. Read-only Preview includes ordered compiled SQL, each physical Before state and the full batch diff. After one human approval, the Host rechecks all original absent objects and PostgreSQL cluster/schema identity, obtains cooperative locks, executes only compiled statements and verifies every table before committing **one transaction**. A confirmed rollback prevents partial application. If COMMIT/rollback is uncertain, return `outcome_unknown`: **never retry automatically**. Cross-statement ALTER/INDEX dependencies, DROP, DML, CTAS, duplicate/cross-schema targets, MySQL/Oracle implicit-commit batches and other Provider batches are rejected. Default four read-only tools remain selected; DML and DDL remain unselected.
