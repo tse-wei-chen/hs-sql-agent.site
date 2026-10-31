@@ -206,3 +206,26 @@ Existing package consumers may continue to use `AddHsSqlAgent()` and `UseHsSqlAg
 - [Deployment](/docs/operations/deployment)
 - [Configuration](/docs/operations/configuration)
 - [Safe DML](/docs/sql-compiler/safe-dml)
+
+## G5: MySQL 8.4 schema changes (explicit opt-in)
+
+MySQL InnoDB **atomic DDL is not transactional DDL**: a regular CREATE TABLE implicitly commits and cannot be undone with application ROLLBACK. The existing execute_ddl_sql tool is hidden and denied unless this particular provider is opted in, its MCP key explicitly grants the tool, and an independent DDL approval provider is configured.
+
+Only one unqualified CREATE TABLE with 1–16 simple signed INT columns is supported. No TEMPORARY, CTAS, DEFAULT, constraints, ALTER, INDEX, DROP, batches or Oracle execution. Preview reads live metadata without writing; approved execution verifies the real server UUID, MySQL 8.4 version, selected allowlisted database, exact-case names, InnoDB engine and object absence on a new connection. It uses a cooperative Host session lock—not a global lock against unrelated clients—then executes only SqlCore-compiled native SQL once and verifies the physical columns afterward.
+
+```csharp
+using HsSqlAgent.Server.Extensions;
+using HsSqlAgent.Server.Services;
+
+builder.Services.AddHsSqlAgentMySqlDdl(new MySqlDdlExecutionOptions
+{
+    Enabled = true,
+    AllowCreateTable = true,
+    AllowedDatabases = new HashSet<string>(StringComparer.Ordinal) { "app_database" },
+    PolicyRevision = "mysql84-ddl-governance-v1"
+});
+builder.Services.AddSingleton<IDdlApprovalProvider, MyIndependentDdlApprovalProvider>();
+// The access key must also explicitly allow execute_ddl_sql.
+```
+
+The result may be outcome_unknown if the server reply or postcondition becomes unprovable after execution begins. **Never retry automatically**; reconcile the real database first. DML approval cannot approve DDL. The four default read-only tools and the default-unselected DML/DDL choices are unchanged.
