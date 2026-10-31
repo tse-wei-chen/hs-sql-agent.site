@@ -225,7 +225,6 @@ builder.Services.AddHsSqlAgentMySqlDdl(new MySqlDdlExecutionOptions
     PolicyRevision = "mysql84-ddl-governance-v1"
 });
 builder.Services.AddSingleton<IDdlApprovalProvider, MyIndependentDdlApprovalProvider>();
-// The access key must also explicitly allow execute_ddl_sql.
 ```
 
 Die Sitzungssperre koordiniert ausschließlich Anforderungen dieses Dienstes; sie **sperrt keine fremden DDL-Clients**. Ist das Ergebnis nach Ausführungsbeginn nicht mehr nachweisbar, lautet der Zustand outcome_unknown. Nicht automatisch wiederholen, sondern zuerst den Datenbankzustand abgleichen. Eine DML-Freigabe berechtigt niemals zu DDL. Die vier vorausgewählten lesenden Werkzeuge und die nicht ausgewählten DML-/DDL-Werkzeuge bleiben unverändert.
