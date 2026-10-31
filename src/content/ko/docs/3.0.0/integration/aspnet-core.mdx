@@ -225,7 +225,6 @@ builder.Services.AddHsSqlAgentMySqlDdl(new MySqlDdlExecutionOptions
     PolicyRevision = "mysql84-ddl-governance-v1"
 });
 builder.Services.AddSingleton<IDdlApprovalProvider, MyIndependentDdlApprovalProvider>();
-// The access key must also explicitly allow execute_ddl_sql.
 ```
 
 세션 잠금은 이 서비스의 요청끼리만 조정하며 **외부 클라이언트의 변경을 차단하지 않습니다**. 실행이 시작된 뒤 결과를 증명할 수 없으면 outcome_unknown을 반환합니다. 자동 재시도하지 말고 실제 데이터베이스 상태를 확인해야 합니다. DML 승인은 DDL 승인으로 대체할 수 없습니다. 기본 읽기 전용 도구 4개와 DML/DDL 미선택 상태는 그대로 유지됩니다.
