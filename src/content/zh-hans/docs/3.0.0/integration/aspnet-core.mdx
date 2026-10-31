@@ -225,7 +225,6 @@ builder.Services.AddHsSqlAgentMySqlDdl(new MySqlDdlExecutionOptions
     PolicyRevision = "mysql84-ddl-governance-v1"
 });
 builder.Services.AddSingleton<IDdlApprovalProvider, MyIndependentDdlApprovalProvider>();
-// The access key must also explicitly allow execute_ddl_sql.
 ```
 
 专用会话锁只协调本服务的请求，**不能阻止其他客户端修改结构**。执行开始后若无法确认结果，将返回 outcome_unknown；禁止自动重试，应先核对数据库实际状态。数据修改审批不能替代结构变更审批；四个默认只读工具及 DML／DDL 默认不勾选的行为保持不变。
