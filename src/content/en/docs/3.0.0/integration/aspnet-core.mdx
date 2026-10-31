@@ -323,3 +323,37 @@ CREATE TABLE staging_cleanup.import_a (id INTEGER NOT NULL);
 CREATE TABLE staging_cleanup.import_b (id INTEGER NOT NULL);
 ```
 The authenticated MCP key must be separately listed in `AllowedBatchPrincipals` and granted `execute_ddl_sql`. Read-only Preview includes ordered compiled SQL, each physical Before state and the full batch diff. After one human approval, the Host rechecks all original absent objects and PostgreSQL cluster/schema identity, obtains cooperative locks, executes only compiled statements and verifies every table before committing **one transaction**. A confirmed rollback prevents partial application. If COMMIT/rollback is uncertain, return `outcome_unknown`: **never retry automatically**. Cross-statement ALTER/INDEX dependencies, DROP, DML, CTAS, duplicate/cross-schema targets, MySQL/Oracle implicit-commit batches and other Provider batches are rejected. Default four read-only tools remain selected; DML and DDL remain unselected.
+
+## PostgreSQL 16: dependent DDL batch (additional explicit permission)
+
+The same `execute_ddl_sql` tool can now execute a **single newly created table's dependent changes** in one PostgreSQL transaction: `CREATE TABLE`, then one or two nullable `ADD COLUMN` steps, optionally followed by one ordinary `CREATE INDEX` on columns already created. Two to four statements are allowed; no existing table can be changed by this feature.
+
+```csharp
+services.AddHsSqlAgentPostgresDdl(new PostgresDdlExecutionOptions
+{
+    Enabled = true,
+    AllowCreateTable = true,
+    AllowAddColumn = true,
+    AllowCreateIndex = true,
+    AllowCreateTableBatch = true,
+    AllowDependentDdlBatch = true, // false by default
+    AllowedBatchPrincipals = new HashSet<string>(StringComparer.Ordinal)
+    {
+        "mcp-key:123"
+    },
+    AllowedSchemas = new HashSet<string>(StringComparer.Ordinal)
+    {
+        "staging_cleanup"
+    },
+    PolicyRevision = "g6-dependent-chain-approval-v1"
+});
+services.AddSingleton<IDdlApprovalProvider, MyIndependentDdlApprovalProvider>();
+// Separately grant execute_ddl_sql to this MCP key.
+```
+
+```sql
+CREATE TABLE staging_cleanup.new_data (id INTEGER NOT NULL);
+ALTER TABLE staging_cleanup.new_data ADD COLUMN extra INTEGER NULL;
+CREATE INDEX ix_new_data_extra ON staging_cleanup.new_data(extra);
+```
+In addition to the existing batch permission and independently granted `execute_ddl_sql`, explicitly enable `AllowDependentDdlBatch`, `AllowAddColumn` and, for an index step, `AllowCreateIndex`. The authenticated MCP key must be in `AllowedBatchPrincipals`, and the schema must be allowlisted. Preview reads actual PostgreSQL metadata but labels intermediate schema states as **hypothetical projections**. One independent approval covers the exact ordered plan. On execution, the Host verifies each newly materialized state using real PostgreSQL metadata inside the same transaction, then checks the full final table before COMMIT. Confirmed rollback prevents partially applied changes; uncertain results are `outcome_unknown` and **must never be retried automatically**. Multi-table dependency graphs, existing-table ALTER, DROP, CONCURRENTLY indexes and all five other databases remain denied. The four default read-only tools remain selected; DML and DDL stay unselected.

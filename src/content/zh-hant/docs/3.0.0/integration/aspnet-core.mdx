@@ -323,3 +323,37 @@ CREATE TABLE staging_cleanup.import_a (id INTEGER NOT NULL);
 CREATE TABLE staging_cleanup.import_b (id INTEGER NOT NULL);
 ```
 實際驗證的 MCP 金鑰必須另外列入 `AllowedBatchPrincipals`，並明確取得 `execute_ddl_sql` 權限。唯讀預覽會顯示依序編譯的 SQL、各個實體 Before 狀態與整批變更摘要。經一次獨立人工核准後，主機重新確認所有目標不存在、PostgreSQL 叢集與結構描述身分，取得協同鎖定，只執行已編譯的指令並逐一驗證新表，再提交**一個交易**。已確認的回滾保證不會留下部分變更。若 COMMIT 或回滾狀態不明，回報 `outcome_unknown`，**禁止自動重試**。跨語句 ALTER／INDEX 相依、DROP、DML、CTAS、重複或跨結構描述目標、MySQL／Oracle 隱式提交批次及其餘 Provider 批次一律拒絕。預設仍僅勾選四個唯讀工具；DML 和 DDL 不預選。
+
+## PostgreSQL 16：具有語句依賴關係的結構變更批次（須額外授權）
+
+既有的 `execute_ddl_sql` 工具現在可以在**同一個 PostgreSQL 交易**中，依序建立一張全新資料表、新增一至兩個可為空值的欄位，最後可選擇建立一個僅使用已存在欄位的普通索引。整批須有二至四個語句，**不能以這項功能修改既有資料表**。
+
+```csharp
+services.AddHsSqlAgentPostgresDdl(new PostgresDdlExecutionOptions
+{
+    Enabled = true,
+    AllowCreateTable = true,
+    AllowAddColumn = true,
+    AllowCreateIndex = true,
+    AllowCreateTableBatch = true,
+    AllowDependentDdlBatch = true, // false by default
+    AllowedBatchPrincipals = new HashSet<string>(StringComparer.Ordinal)
+    {
+        "mcp-key:123"
+    },
+    AllowedSchemas = new HashSet<string>(StringComparer.Ordinal)
+    {
+        "staging_cleanup"
+    },
+    PolicyRevision = "g6-dependent-chain-approval-v1"
+});
+services.AddSingleton<IDdlApprovalProvider, MyIndependentDdlApprovalProvider>();
+// Separately grant execute_ddl_sql to this MCP key.
+```
+
+```sql
+CREATE TABLE staging_cleanup.new_data (id INTEGER NOT NULL);
+ALTER TABLE staging_cleanup.new_data ADD COLUMN extra INTEGER NULL;
+CREATE INDEX ix_new_data_extra ON staging_cleanup.new_data(extra);
+```
+除了既有的批次授權與獨立核發的 `execute_ddl_sql` 權限，還須另外啟用 `AllowDependentDdlBatch`、`AllowAddColumn`，若有建立索引則也須啟用 `AllowCreateIndex`。經身分驗證的 MCP 金鑰必須列在 `AllowedBatchPrincipals`，目標結構描述也必須位於允許清單。預覽只讀取 PostgreSQL 的**真實實體中繼資料**；中途每個步驟的預計狀態會明確標示為**假設性推演**。一次獨立人工核准綁定整批語句及順序。正式執行時，每一步都在同一個交易內重新查核真實中繼資料，提交前再驗證整張表的最終狀態。已確認的回滾不會留下部分變更；結果不明則回報 `outcome_unknown`，**嚴禁自動重試**。多資料表依賴、修改既有資料表、刪表、並行建立索引與其餘五種資料庫均不開放。前端仍預設只勾選四個唯讀工具，DML 和 DDL 均不預選。
