@@ -293,7 +293,7 @@ PostgreSQL 主機還須證明目前使用者為資料表擁有者、結構描述
 
 ## G6／S16：PostgreSQL 原子化 DDL 批次（須獨立啟用）
 
-既有 `execute_ddl_sql` 工具僅在 PostgreSQL 12 以上版本支援 **2–4 個彼此獨立、明確指定結構描述的 CREATE TABLE 語句**，以同一個依序綁定的不可變計畫、**一次**獨立人工核准及**一個**真實資料庫交易執行。一般單語句 DDL 權限不會自動開放批次；這不是任意 SQL 腳本執行器。
+既有 `execute_ddl_sql` 工具僅在 PostgreSQL 16支援 **2–4 個彼此獨立、明確指定結構描述的 CREATE TABLE 語句**，以同一個依序綁定的不可變計畫、**一次**獨立人工核准及**一個**真實資料庫交易執行。一般單語句 DDL 權限不會自動開放批次；這不是任意 SQL 腳本執行器。
 
 ```csharp
 using HsSqlAgent.Server.Extensions;

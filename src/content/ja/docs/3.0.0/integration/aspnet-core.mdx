@@ -293,7 +293,7 @@ services.AddSingleton<IDdlApprovalProvider, MyIndependentDdlApprovalProvider>();
 
 ## G6／S16：PostgreSQL の原子的 DDL バッチ（個別の有効化が必要）
 
-既存の `execute_ddl_sql` ツールは、PostgreSQL 12 以降で**互いに依存しない 2～4 件のスキーマ修飾 CREATE TABLE 文**を、一つの順序付き不変計画、**一回**の独立した人的承認、**一つ**の実データベーストランザクションとして実行します。単文の DDL 権限からバッチ権限は引き継がれません。任意の SQL スクリプトは実行できません。
+既存の `execute_ddl_sql` ツールは、PostgreSQL 16で**互いに依存しない 2～4 件のスキーマ修飾 CREATE TABLE 文**を、一つの順序付き不変計画、**一回**の独立した人的承認、**一つ**の実データベーストランザクションとして実行します。単文の DDL 権限からバッチ権限は引き継がれません。任意の SQL スクリプトは実行できません。
 
 ```csharp
 using HsSqlAgent.Server.Extensions;

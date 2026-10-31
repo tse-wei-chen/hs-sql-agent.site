@@ -293,7 +293,7 @@ Vor der Ausführung prüft der PostgreSQL-Host das erlaubte Schema, den direkten
 
 ## G6/S16: atomarer PostgreSQL-DDL-Batch (separate Aktivierung)
 
-Das bestehende Werkzeug `execute_ddl_sql` unterstützt unter PostgreSQL 12+ **2–4 unabhängige, schemaqualifizierte CREATE-TABLE-Anweisungen** mit einem geordneten unveränderlichen Plan, **einer** unabhängigen menschlichen Genehmigung und **einer** tatsächlichen Datenbanktransaktion. Eine Einzel-DDL-Berechtigung aktiviert keine Batch-Ausführung. Dies ist kein universeller SQL-Skriptexecutor.
+Das bestehende Werkzeug `execute_ddl_sql` unterstützt unter PostgreSQL 16 **2–4 unabhängige, schemaqualifizierte CREATE-TABLE-Anweisungen** mit einem geordneten unveränderlichen Plan, **einer** unabhängigen menschlichen Genehmigung und **einer** tatsächlichen Datenbanktransaktion. Eine Einzel-DDL-Berechtigung aktiviert keine Batch-Ausführung. Dies ist kein universeller SQL-Skriptexecutor.
 
 ```csharp
 using HsSqlAgent.Server.Extensions;

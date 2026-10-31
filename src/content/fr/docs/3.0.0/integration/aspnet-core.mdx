@@ -293,7 +293,7 @@ Avant toute exécution, l’hôte vérifie dans PostgreSQL le schéma autorisé,
 
 ## G6/S16 : lot DDL atomique PostgreSQL (activation distincte)
 
-L’outil existant `execute_ddl_sql` accepte, sous PostgreSQL 12+, **2 à 4 commandes CREATE TABLE indépendantes et qualifiées par schéma**, au moyen d’un plan immuable ordonné, d’**une** approbation humaine indépendante et d’**une** transaction réelle. L’autorisation d’exécuter une seule commande DDL ne donne pas accès aux lots. Ce n’est pas un exécuteur général de scripts SQL.
+L’outil existant `execute_ddl_sql` accepte, sous PostgreSQL 16, **2 à 4 commandes CREATE TABLE indépendantes et qualifiées par schéma**, au moyen d’un plan immuable ordonné, d’**une** approbation humaine indépendante et d’**une** transaction réelle. L’autorisation d’exécuter une seule commande DDL ne donne pas accès aux lots. Ce n’est pas un exécuteur général de scripts SQL.
 
 ```csharp
 using HsSqlAgent.Server.Extensions;

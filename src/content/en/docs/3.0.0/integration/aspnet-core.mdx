@@ -293,7 +293,7 @@ The PostgreSQL Host additionally requires direct table ownership, an allowlisted
 
 ## G6/S16: PostgreSQL atomic DDL Batch (separate opt-in)
 
-The existing `execute_ddl_sql` tool permits **2–4 independent, schema-qualified CREATE TABLE statements** on PostgreSQL 12+ with a single ordered immutable plan, **one** independent human approval and **one** actual database transaction. A single-DDL grant does not enable batching. This is not a general SQL script executor.
+The existing `execute_ddl_sql` tool permits **2–4 independent, schema-qualified CREATE TABLE statements** on PostgreSQL 16 with a single ordered immutable plan, **one** independent human approval and **one** actual database transaction. A single-DDL grant does not enable batching. This is not a general SQL script executor.
 
 ```csharp
 using HsSqlAgent.Server.Extensions;

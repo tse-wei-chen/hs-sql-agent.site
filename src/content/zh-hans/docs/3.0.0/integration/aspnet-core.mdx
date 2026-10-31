@@ -293,7 +293,7 @@ PostgreSQL 主机还必须证明当前用户为表所有者、模式在允许名
 
 ## G6／S16：PostgreSQL 原子 DDL 批处理（须单独启用）
 
-现有 `execute_ddl_sql` 工具只在 PostgreSQL 12 及以上版本支持 **2–4 条互不依赖、明确指定模式的 CREATE TABLE 语句**，统一绑定一个有序且不可变的计划、**一次**独立人工审批和**一个**真实数据库事务。普通单语句 DDL 权限不会自动开放批处理；这不是任意 SQL 脚本执行器。
+现有 `execute_ddl_sql` 工具只在 PostgreSQL 16支持 **2–4 条互不依赖、明确指定模式的 CREATE TABLE 语句**，统一绑定一个有序且不可变的计划、**一次**独立人工审批和**一个**真实数据库事务。普通单语句 DDL 权限不会自动开放批处理；这不是任意 SQL 脚本执行器。
 
 ```csharp
 using HsSqlAgent.Server.Extensions;
