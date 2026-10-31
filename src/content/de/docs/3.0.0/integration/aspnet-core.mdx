@@ -323,3 +323,37 @@ CREATE TABLE staging_cleanup.import_a (id INTEGER NOT NULL);
 CREATE TABLE staging_cleanup.import_b (id INTEGER NOT NULL);
 ```
 Der authentifizierte MCP-Schlüssel muss zusätzlich in `AllowedBatchPrincipals` stehen und ausdrücklich `execute_ddl_sql` erhalten. Die schreibgeschützte Vorschau zeigt die geordneten kompilierten SQL-Anweisungen, jeden tatsächlichen Anfangszustand und die Batch-Gesamtdifferenz. Nach einer unabhängigen Freigabe prüft der Host PostgreSQL-Cluster und Schema sowie das Nichtvorhandensein aller Ziele erneut, nimmt kooperative Sperren, führt ausschließlich kompiliertes SQL aus und überprüft jede neue Tabelle vor dem COMMIT **einer einzigen Transaktion**. Ein bestätigter Rollback verhindert Teilergebnisse. Bei unklarem COMMIT oder Rollback ist `outcome_unknown` zu melden; **niemals automatisch wiederholen**. Abhängige ALTER-/INDEX-Folgeschritte, DROP, DML, CTAS, doppelte/schemaübergreifende Ziele, MySQL-/Oracle-Batches mit implizitem COMMIT und andere Datenbanken bleiben gesperrt. Vier schreibgeschützte Standardwerkzeuge bleiben vorausgewählt.
+
+## PostgreSQL 16: DDL-Batch mit abhängigen Anweisungen (zusätzliche Freigabe)
+
+Das bestehende Werkzeug `execute_ddl_sql` kann innerhalb **einer PostgreSQL-Transaktion** eine neue Tabelle anlegen, danach ein bis zwei NULL-fähige Spalten hinzufügen und optional am Ende einen normalen Index auf bereits angelegte Spalten erstellen. Ein Batch umfasst zwei bis vier Anweisungen und **darf keine bestehende Tabelle verändern**.
+
+```csharp
+services.AddHsSqlAgentPostgresDdl(new PostgresDdlExecutionOptions
+{
+    Enabled = true,
+    AllowCreateTable = true,
+    AllowAddColumn = true,
+    AllowCreateIndex = true,
+    AllowCreateTableBatch = true,
+    AllowDependentDdlBatch = true, // false by default
+    AllowedBatchPrincipals = new HashSet<string>(StringComparer.Ordinal)
+    {
+        "mcp-key:123"
+    },
+    AllowedSchemas = new HashSet<string>(StringComparer.Ordinal)
+    {
+        "staging_cleanup"
+    },
+    PolicyRevision = "g6-dependent-chain-approval-v1"
+});
+services.AddSingleton<IDdlApprovalProvider, MyIndependentDdlApprovalProvider>();
+// Separately grant execute_ddl_sql to this MCP key.
+```
+
+```sql
+CREATE TABLE staging_cleanup.new_data (id INTEGER NOT NULL);
+ALTER TABLE staging_cleanup.new_data ADD COLUMN extra INTEGER NULL;
+CREATE INDEX ix_new_data_extra ON staging_cleanup.new_data(extra);
+```
+Zusätzlich zu den bisherigen Batch-Rechten und der gesonderten `execute_ddl_sql`-Berechtigung müssen `AllowDependentDdlBatch` und `AllowAddColumn` aktiviert sein; für einen Indexschritt zusätzlich `AllowCreateIndex`. Der authentifizierte MCP-Schlüssel muss in `AllowedBatchPrincipals` stehen und das Schema auf der Freigabeliste. Die Vorschau liest **tatsächliche PostgreSQL-Metadaten**; Zwischenzustände werden ausdrücklich als **hypothetische Projektionen** gekennzeichnet. Eine unabhängige menschliche Genehmigung umfasst den gesamten geordneten Plan. Während der Transaktion wird jeder tatsächlich materialisierte Zustand anhand echter Metadaten überprüft; vor COMMIT folgt die Abschlussprüfung der ganzen Tabelle. Ein bestätigter Rollback verhindert Teilergebnisse. Unklare Ergebnisse heißen `outcome_unknown` und dürfen **nie automatisch erneut ausgeführt werden**. Tabellenübergreifende Abhängigkeiten, Änderungen bestehender Tabellen, DROP, konkurrierende Indizes und die fünf anderen Datenbanken bleiben gesperrt. Standardmäßig werden weiterhin nur die vier schreibgeschützten Werkzeuge ausgewählt.

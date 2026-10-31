@@ -323,3 +323,37 @@ CREATE TABLE staging_cleanup.import_a (id INTEGER NOT NULL);
 CREATE TABLE staging_cleanup.import_b (id INTEGER NOT NULL);
 ```
 实际认证的 MCP 密钥必须另外列入 `AllowedBatchPrincipals`，并明确获得 `execute_ddl_sql` 权限。只读预览会显示按顺序编译的 SQL、各目标的真实 Before 状态及整批变更摘要。经一次独立人工审批后，主机重新核查所有目标不存在、PostgreSQL 集群及模式身份，取得协作锁，只执行编译后的语句并逐一核对新表，再提交**一个事务**。已确认的回滚保证不会留下部分变更。若提交或回滚状态不明，返回 `outcome_unknown`，**禁止自动重试**。跨语句 ALTER／INDEX 依赖、DROP、DML、CTAS、重复或跨模式目标、MySQL／Oracle 隐式提交批处理和其他 Provider 批处理均被拒绝。默认仍只选中四个只读工具，DML 与 DDL 不预选。
+
+## PostgreSQL 16：具有语句依赖关系的结构变更批处理（须额外授权）
+
+现有的 `execute_ddl_sql` 工具现在可以在**同一个 PostgreSQL 事务**中，依次创建一张全新表、新增一到两个允许空值的列，最后可选择创建一个仅引用已存在列的普通索引。整个批处理必须包含两到四条语句，**不能借此修改现有的表**。
+
+```csharp
+services.AddHsSqlAgentPostgresDdl(new PostgresDdlExecutionOptions
+{
+    Enabled = true,
+    AllowCreateTable = true,
+    AllowAddColumn = true,
+    AllowCreateIndex = true,
+    AllowCreateTableBatch = true,
+    AllowDependentDdlBatch = true, // false by default
+    AllowedBatchPrincipals = new HashSet<string>(StringComparer.Ordinal)
+    {
+        "mcp-key:123"
+    },
+    AllowedSchemas = new HashSet<string>(StringComparer.Ordinal)
+    {
+        "staging_cleanup"
+    },
+    PolicyRevision = "g6-dependent-chain-approval-v1"
+});
+services.AddSingleton<IDdlApprovalProvider, MyIndependentDdlApprovalProvider>();
+// Separately grant execute_ddl_sql to this MCP key.
+```
+
+```sql
+CREATE TABLE staging_cleanup.new_data (id INTEGER NOT NULL);
+ALTER TABLE staging_cleanup.new_data ADD COLUMN extra INTEGER NULL;
+CREATE INDEX ix_new_data_extra ON staging_cleanup.new_data(extra);
+```
+除已有的批处理授权与单独授予的 `execute_ddl_sql` 权限外，还须额外启用 `AllowDependentDdlBatch`、`AllowAddColumn`；如要创建索引，还须启用 `AllowCreateIndex`。经过身份验证的 MCP 密钥必须列入 `AllowedBatchPrincipals`，目标模式也须在允许名单中。预览仅查询 PostgreSQL 的**真实物理元数据**；中间步骤的预计状态会明确标记为**假设性推演**。一次独立人工审批绑定整批语句及其顺序。执行时，每一步都在同一事务内通过真实元数据重新核验，提交前再验证整张表的最终状态。已确认的回滚不会留下部分变更；结果不明则返回 `outcome_unknown`，**禁止自动重试**。多表依赖、修改现有表、删除表、并发创建索引及其他五种数据库均不开放。前端默认仍只勾选四个只读工具，DML 与 DDL 均不预选。

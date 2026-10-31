@@ -323,3 +323,37 @@ CREATE TABLE staging_cleanup.import_a (id INTEGER NOT NULL);
 CREATE TABLE staging_cleanup.import_b (id INTEGER NOT NULL);
 ```
 La clé MCP authentifiée doit figurer séparément dans `AllowedBatchPrincipals` et recevoir l’autorisation explicite `execute_ddl_sql`. L’aperçu en lecture seule affiche le SQL compilé ordonné, chaque état physique initial et la différence globale. Après une approbation indépendante, l’hôte vérifie à nouveau l’identité du cluster et du schéma ainsi que l’absence de tous les objets, prend les verrous coopératifs, exécute uniquement le SQL compilé et vérifie chaque nouvelle table avant de valider **une seule transaction**. Un rollback confirmé évite toute application partielle. Si COMMIT ou rollback est incertain, le résultat est `outcome_unknown` : **aucun nouvel essai automatique**. Les dépendances ALTER／INDEX entre instructions, DROP, DML, CTAS, noms dupliqués ou inter-schémas, lots MySQL／Oracle à COMMIT implicite et autres bases sont rejetés. Les quatre outils en lecture seule restent seuls présélectionnés.
+
+## PostgreSQL 16 : lot DDL avec dépendances entre instructions (autorisation supplémentaire)
+
+L’outil existant `execute_ddl_sql` peut désormais, dans **une seule transaction PostgreSQL**, créer une nouvelle table, lui ajouter une ou deux colonnes acceptant NULL, puis éventuellement créer un index ordinaire ne référençant que des colonnes déjà créées. Le lot contient deux à quatre instructions et **ne peut modifier aucune table existante**.
+
+```csharp
+services.AddHsSqlAgentPostgresDdl(new PostgresDdlExecutionOptions
+{
+    Enabled = true,
+    AllowCreateTable = true,
+    AllowAddColumn = true,
+    AllowCreateIndex = true,
+    AllowCreateTableBatch = true,
+    AllowDependentDdlBatch = true, // false by default
+    AllowedBatchPrincipals = new HashSet<string>(StringComparer.Ordinal)
+    {
+        "mcp-key:123"
+    },
+    AllowedSchemas = new HashSet<string>(StringComparer.Ordinal)
+    {
+        "staging_cleanup"
+    },
+    PolicyRevision = "g6-dependent-chain-approval-v1"
+});
+services.AddSingleton<IDdlApprovalProvider, MyIndependentDdlApprovalProvider>();
+// Separately grant execute_ddl_sql to this MCP key.
+```
+
+```sql
+CREATE TABLE staging_cleanup.new_data (id INTEGER NOT NULL);
+ALTER TABLE staging_cleanup.new_data ADD COLUMN extra INTEGER NULL;
+CREATE INDEX ix_new_data_extra ON staging_cleanup.new_data(extra);
+```
+En plus des droits de lot et de `execute_ddl_sql` accordés séparément, il faut activer `AllowDependentDdlBatch` et `AllowAddColumn`, ainsi que `AllowCreateIndex` si le lot crée un index. La clé MCP authentifiée doit figurer dans `AllowedBatchPrincipals` et le schéma dans la liste autorisée. L’aperçu lit les **métadonnées réelles** de PostgreSQL, mais désigne les états intermédiaires comme des **projections hypothétiques**. Une approbation humaine indépendante couvre l’intégralité du plan ordonné. Pendant la transaction, chaque état matérialisé est vérifié par les métadonnées réelles, puis la table entière est revérifiée avant COMMIT. Un rollback confirmé écarte toute application partielle ; si le résultat est incertain, il est `outcome_unknown` et **ne doit jamais être retenté automatiquement**. Les dépendances entre tables, les modifications de tables existantes, DROP, les index concurrents et les cinq autres bases restent interdits. Seuls les quatre outils en lecture seule demeurent présélectionnés.

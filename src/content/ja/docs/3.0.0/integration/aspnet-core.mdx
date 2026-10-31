@@ -323,3 +323,37 @@ CREATE TABLE staging_cleanup.import_a (id INTEGER NOT NULL);
 CREATE TABLE staging_cleanup.import_b (id INTEGER NOT NULL);
 ```
 認証済み MCP キーを `AllowedBatchPrincipals` に個別登録し、`execute_ddl_sql` も明示的に許可する必要があります。読み取り専用プレビューでは順序付きコンパイル済み SQL、各対象の実際の Before 状態、バッチ全体の差分を表示します。一度の独立承認後、PostgreSQL クラスター・スキーマの識別子と全対象の不在を再検証し、協調ロックを取得してコンパイル済み SQL のみを実行します。全表を確認して**一つのトランザクション**をコミットします。確認済みロールバックにより部分適用は残りません。COMMIT／ロールバックが不明なら `outcome_unknown` を返し、**自動再実行は禁止**です。文間 ALTER／INDEX 依存、DROP、DML、CTAS、重複・スキーマ混在、MySQL／Oracle の暗黙 COMMIT バッチ、他 DB バッチは拒否します。既定の選択は読み取り専用の四つのツールのみです。
+
+## PostgreSQL 16：文の依存関係を持つ DDL バッチ（追加の許可が必要）
+
+既存の `execute_ddl_sql` では、**一つの PostgreSQL トランザクション**内で新しいテーブルを作成し、NULL を許容する列を一～二個追加し、必要であれば作成済み列だけを参照する通常の索引を最後に追加できます。実行する文は二～四件に限り、**既存のテーブルを変更することはできません**。
+
+```csharp
+services.AddHsSqlAgentPostgresDdl(new PostgresDdlExecutionOptions
+{
+    Enabled = true,
+    AllowCreateTable = true,
+    AllowAddColumn = true,
+    AllowCreateIndex = true,
+    AllowCreateTableBatch = true,
+    AllowDependentDdlBatch = true, // false by default
+    AllowedBatchPrincipals = new HashSet<string>(StringComparer.Ordinal)
+    {
+        "mcp-key:123"
+    },
+    AllowedSchemas = new HashSet<string>(StringComparer.Ordinal)
+    {
+        "staging_cleanup"
+    },
+    PolicyRevision = "g6-dependent-chain-approval-v1"
+});
+services.AddSingleton<IDdlApprovalProvider, MyIndependentDdlApprovalProvider>();
+// Separately grant execute_ddl_sql to this MCP key.
+```
+
+```sql
+CREATE TABLE staging_cleanup.new_data (id INTEGER NOT NULL);
+ALTER TABLE staging_cleanup.new_data ADD COLUMN extra INTEGER NULL;
+CREATE INDEX ix_new_data_extra ON staging_cleanup.new_data(extra);
+```
+従来のバッチ権限と個別に付与された `execute_ddl_sql` 権限に加え、`AllowDependentDdlBatch` と `AllowAddColumn`、索引を作成する場合は `AllowCreateIndex` を明示的に有効にしてください。認証済み MCP キーは `AllowedBatchPrincipals` に、対象スキーマは許可リストに登録する必要があります。プレビューが読み取るのは PostgreSQL の**実際のメタデータ**です。途中の状態は**仮想的な予測**と明示し、実在するテーブルとはみなしません。独立した人的承認一回で順序を含む全計画を許可します。実行時には各段階で実メタデータを確認し、コミット前にテーブル全体の最終状態を検証します。ロールバックを確認できれば部分適用は残りません。不明な結果は `outcome_unknown` とし、**自動再試行は禁止**です。複数テーブル間の依存、既存テーブルの変更、DROP、同時実行型索引、その他五種類のデータベースは対象外です。初期選択は従来の四つの読み取り専用ツールのみです。

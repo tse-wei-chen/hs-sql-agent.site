@@ -323,3 +323,37 @@ CREATE TABLE staging_cleanup.import_a (id INTEGER NOT NULL);
 CREATE TABLE staging_cleanup.import_b (id INTEGER NOT NULL);
 ```
 인증된 MCP 키를 `AllowedBatchPrincipals`에 별도로 등록하고 `execute_ddl_sql`도 명시적으로 허용해야 합니다. 읽기 전용 미리보기는 순서대로 컴파일된 SQL, 각 대상의 실제 Before 상태, 일괄 변경 요약을 표시합니다. 한 번의 독립 승인 후 PostgreSQL 클러스터·스키마 신원과 모든 대상의 부재를 재검증하고 협조 잠금을 획득하여 컴파일된 문만 실행합니다. 각 새 테이블을 검증한 다음 **하나의 트랜잭션**을 커밋합니다. 확인된 롤백은 부분 적용을 남기지 않습니다. 커밋이나 롤백이 불확실하면 `outcome_unknown`을 반환하며 **자동 재시도하지 않습니다**. 문 간 ALTER／INDEX 의존, DROP, DML, CTAS, 중복·다른 스키마 이름, MySQL／Oracle 암묵적 커밋 배치와 다른 DB 배치는 차단됩니다. 읽기 전용 기본 도구 네 개만 선택됩니다.
+
+## PostgreSQL 16: 문 간 의존성이 있는 스키마 변경 일괄 실행(추가 권한 필요)
+
+기존 `execute_ddl_sql` 도구에서 **하나의 PostgreSQL 트랜잭션**으로 새로운 테이블을 만든 후 NULL을 허용하는 열을 한두 개 추가하고, 필요하면 이미 생성된 열만 사용하는 일반 인덱스를 마지막에 생성할 수 있습니다. 문은 두 개에서 네 개까지만 허용되며 **기존 테이블은 수정할 수 없습니다**.
+
+```csharp
+services.AddHsSqlAgentPostgresDdl(new PostgresDdlExecutionOptions
+{
+    Enabled = true,
+    AllowCreateTable = true,
+    AllowAddColumn = true,
+    AllowCreateIndex = true,
+    AllowCreateTableBatch = true,
+    AllowDependentDdlBatch = true, // false by default
+    AllowedBatchPrincipals = new HashSet<string>(StringComparer.Ordinal)
+    {
+        "mcp-key:123"
+    },
+    AllowedSchemas = new HashSet<string>(StringComparer.Ordinal)
+    {
+        "staging_cleanup"
+    },
+    PolicyRevision = "g6-dependent-chain-approval-v1"
+});
+services.AddSingleton<IDdlApprovalProvider, MyIndependentDdlApprovalProvider>();
+// Separately grant execute_ddl_sql to this MCP key.
+```
+
+```sql
+CREATE TABLE staging_cleanup.new_data (id INTEGER NOT NULL);
+ALTER TABLE staging_cleanup.new_data ADD COLUMN extra INTEGER NULL;
+CREATE INDEX ix_new_data_extra ON staging_cleanup.new_data(extra);
+```
+기존 일괄 실행 권한과 별도로 부여한 `execute_ddl_sql` 권한에 더해 `AllowDependentDdlBatch`, `AllowAddColumn`을 명시적으로 활성화해야 합니다. 인덱스를 생성할 때는 `AllowCreateIndex`도 필요합니다. 인증된 MCP 키는 `AllowedBatchPrincipals`에, 대상 스키마는 허용 목록에 있어야 합니다. 미리보기는 PostgreSQL의 **실제 메타데이터**만 읽고 중간 스키마 상태는 **가상의 예상 결과**라고 명확히 표시합니다. 한 번의 독립적인 사람 승인으로 순서까지 포함한 전체 계획을 승인합니다. 실행 시 같은 트랜잭션 안에서 각 단계의 실제 메타데이터를 확인하고 커밋 전에 최종 테이블 전체를 검증합니다. 확인된 롤백은 부분 변경을 남기지 않습니다. 결과가 불확실하면 `outcome_unknown`으로 표시하며 **자동 재시도하지 않습니다**. 여러 테이블 사이의 의존, 기존 테이블 변경, DROP, 동시 인덱스 생성 및 다른 다섯 DB는 허용하지 않습니다. 기본 선택은 기존의 읽기 전용 도구 네 개 그대로입니다.
