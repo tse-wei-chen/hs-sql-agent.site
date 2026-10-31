@@ -225,7 +225,6 @@ builder.Services.AddHsSqlAgentMySqlDdl(new MySqlDdlExecutionOptions
     PolicyRevision = "mysql84-ddl-governance-v1"
 });
 builder.Services.AddSingleton<IDdlApprovalProvider, MyIndependentDdlApprovalProvider>();
-// The access key must also explicitly allow execute_ddl_sql.
 ```
 
 The result may be outcome_unknown if the server reply or postcondition becomes unprovable after execution begins. **Never retry automatically**; reconcile the real database first. DML approval cannot approve DDL. The four default read-only tools and the default-unselected DML/DDL choices are unchanged.
