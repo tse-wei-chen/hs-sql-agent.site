@@ -277,10 +277,16 @@ services.AddHsSqlAgentPostgresDdl(new PostgresDdlExecutionOptions
     Enabled = true,
     AllowedSchemas = new HashSet<string>(StringComparer.Ordinal) { "staging_cleanup" },
     AllowDropEmptyTable = true, // false by default; separate destructive opt-in
+    AllowedDropPrincipals = new HashSet<string>(StringComparer.Ordinal)
+    {
+        "mcp-key:123" // replace with authenticated MCP key identity
+    },
     PolicyRevision = "postgres-g6-destructive-governance-v1"
 });
 services.AddSingleton<IDdlApprovalProvider, MyIndependentDdlApprovalProvider>();
 // Separately grant execute_ddl_sql on the target MCP access key.
 ```
+
+Die Kennung des authentifizierten MCP-Schlüssels muss zusätzlich in `AllowedDropPrincipals` eingetragen sein. Eine gewöhnliche `execute_ddl_sql`-Freigabe berechtigt nicht zum destruktiven Löschen; Änderungen dieser Liste machen ausstehende Genehmigungen ungültig.
 
 Vor der Ausführung prüft der PostgreSQL-Host das erlaubte Schema, den direkten Tabelleneigentümer, eine gewöhnliche permanente Tabelle mit 1–16 INTEGER-Spalten und das **Fehlen von Zeilen, Indizes, Constraints, abhängigen Views, Triggern, Row-Level-Security, Standardwerten, Vererbung, Publikationen und nicht nachgewiesenen Effekten**. Die Vorschau ist ausschließlich lesend. Nach unabhängiger menschlicher Freigabe nimmt die Transaktion eine `ACCESS EXCLUSIVE`-Sperre, prüft Tabellen-OID und Bedingungen erneut, führt nur das kompilierte `RESTRICT`-DDL aus und bestätigt das Entfernen vor COMMIT. Nur ein bestätigter Rollback beweist den Nichtabschluss. Bei unklarem COMMIT oder Rollback lautet das Ergebnis `outcome_unknown`; **niemals automatisch erneut ausführen**. `CASCADE`, `IF EXISTS`, nichtleere Tabellen, andere Datenbanken und DDL-Batches bleiben gesperrt. Die vier schreibgeschützten Standardwerkzeuge bleiben unverändert vorausgewählt.

@@ -277,10 +277,16 @@ services.AddHsSqlAgentPostgresDdl(new PostgresDdlExecutionOptions
     Enabled = true,
     AllowedSchemas = new HashSet<string>(StringComparer.Ordinal) { "staging_cleanup" },
     AllowDropEmptyTable = true, // false by default; separate destructive opt-in
+    AllowedDropPrincipals = new HashSet<string>(StringComparer.Ordinal)
+    {
+        "mcp-key:123" // replace with authenticated MCP key identity
+    },
     PolicyRevision = "postgres-g6-destructive-governance-v1"
 });
 services.AddSingleton<IDdlApprovalProvider, MyIndependentDdlApprovalProvider>();
 // Separately grant execute_ddl_sql on the target MCP access key.
 ```
+
+認証済み MCP キーの識別子を `AllowedDropPrincipals` にも登録する必要があります。通常の `execute_ddl_sql` 権限だけでは破壊的な削除は許可されず、許可リストを変更すると保留中の承認は無効になります。
 
 実行前には、許可されたスキーマ、所有者本人の権限、1～16 個の INTEGER 列を持つ通常の永続テーブルであること、さらに**行・索引・制約・依存ビュー・トリガー・行レベルセキュリティ・デフォルト値・継承・レプリケーション対象などが存在しないこと**を実データベースで検証します。プレビューは読み取り専用です。独立した人的承認後、PostgreSQL のトランザクション内で `ACCESS EXCLUSIVE` ロックを取得し、テーブル OID と全条件を再確認してからコンパイル済みの `RESTRICT` 文のみを実行し、削除を確認してコミットします。ロールバックを確認できた場合だけ未コミットと判定します。コミット／ロールバック結果が不明なら `outcome_unknown` を返し、**自動再実行は禁止**です。`CASCADE`、`IF EXISTS`、データのあるテーブル、他 DB と複数 DDL 文は未対応です。既定で選択されるのは従来どおり四つの読み取り専用ツールのみです。

@@ -277,10 +277,16 @@ services.AddHsSqlAgentPostgresDdl(new PostgresDdlExecutionOptions
     Enabled = true,
     AllowedSchemas = new HashSet<string>(StringComparer.Ordinal) { "staging_cleanup" },
     AllowDropEmptyTable = true, // false by default; separate destructive opt-in
+    AllowedDropPrincipals = new HashSet<string>(StringComparer.Ordinal)
+    {
+        "mcp-key:123" // replace with authenticated MCP key identity
+    },
     PolicyRevision = "postgres-g6-destructive-governance-v1"
 });
 services.AddSingleton<IDdlApprovalProvider, MyIndependentDdlApprovalProvider>();
 // Separately grant execute_ddl_sql on the target MCP access key.
 ```
+
+实际认证的 MCP 密钥身份还必须列入 `AllowedDropPrincipals`；只有普通的 `execute_ddl_sql` 权限**不能**授权破坏性删除。允许名单变更会使尚未执行的审批失效。
 
 PostgreSQL 主机还必须证明当前用户为表所有者、模式在允许名单内，并且目标是包含 1–16 个 INTEGER 列的普通永久表，**不存在数据行、索引、约束、依赖视图、触发器、行级安全策略、默认值、继承、发布或其他未证实的影响**。预览仅读取实际元数据，不修改数据库。独立人工审批后，主机在 PostgreSQL 事务内取得 `ACCESS EXCLUSIVE` 锁，重新核实实际表 OID 和全部前置条件，只执行已编译的 `RESTRICT` 指令，确认表已不存在后提交。已确认的回滚意味着未提交；提交或回滚结果不明时返回 `outcome_unknown`，**禁止自动重试**。`CASCADE`、`IF EXISTS`、非空表、其他数据库和多语句 DDL 仍不开放。前端默认仍只选中四个只读工具；DML 和 DDL 均不预选。

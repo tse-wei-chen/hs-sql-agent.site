@@ -277,10 +277,16 @@ services.AddHsSqlAgentPostgresDdl(new PostgresDdlExecutionOptions
     Enabled = true,
     AllowedSchemas = new HashSet<string>(StringComparer.Ordinal) { "staging_cleanup" },
     AllowDropEmptyTable = true, // false by default; separate destructive opt-in
+    AllowedDropPrincipals = new HashSet<string>(StringComparer.Ordinal)
+    {
+        "mcp-key:123" // replace with authenticated MCP key identity
+    },
     PolicyRevision = "postgres-g6-destructive-governance-v1"
 });
 services.AddSingleton<IDdlApprovalProvider, MyIndependentDdlApprovalProvider>();
 // Separately grant execute_ddl_sql on the target MCP access key.
 ```
+
+L’identifiant de la clé MCP authentifiée doit également figurer dans `AllowedDropPrincipals`. L’autorisation ordinaire `execute_ddl_sql` ne suffit pas pour une suppression destructrice ; toute modification de cette liste invalide les approbations en attente.
 
 Avant toute exécution, l’hôte vérifie dans PostgreSQL le schéma autorisé, la propriété directe de la table, son caractère permanent et ordinaire (1 à 16 colonnes INTEGER), ainsi que l’**absence de lignes, index, contraintes, vues dépendantes, déclencheurs, règles RLS, valeurs par défaut, héritage, publications ou effets non prouvés**. L’aperçu ne fait aucune écriture. Après approbation humaine indépendante, une transaction acquiert un verrou `ACCESS EXCLUSIVE`, revérifie l’OID physique et toutes les conditions, exécute uniquement la commande `RESTRICT` compilée, confirme la disparition de la table, puis valide. Un rollback confirmé signifie que la suppression n’a pas été validée ; si COMMIT ou rollback est incertain, le résultat est `outcome_unknown` et **aucune relance automatique n’est autorisée**. `CASCADE`, `IF EXISTS`, tables non vides, autres SGBD et lots DDL restent interdits. Les quatre outils en lecture seule demeurent seuls présélectionnés.

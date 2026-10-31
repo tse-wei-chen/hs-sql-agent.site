@@ -277,10 +277,16 @@ services.AddHsSqlAgentPostgresDdl(new PostgresDdlExecutionOptions
     Enabled = true,
     AllowedSchemas = new HashSet<string>(StringComparer.Ordinal) { "staging_cleanup" },
     AllowDropEmptyTable = true, // false by default; separate destructive opt-in
+    AllowedDropPrincipals = new HashSet<string>(StringComparer.Ordinal)
+    {
+        "mcp-key:123" // replace with authenticated MCP key identity
+    },
     PolicyRevision = "postgres-g6-destructive-governance-v1"
 });
 services.AddSingleton<IDdlApprovalProvider, MyIndependentDdlApprovalProvider>();
 // Separately grant execute_ddl_sql on the target MCP access key.
 ```
+
+The authenticated MCP key ID must also appear in `AllowedDropPrincipals`. A normal `execute_ddl_sql` grant alone cannot authorize destructive DROP; changing the list invalidates pending approvals.
 
 The PostgreSQL Host additionally requires direct table ownership, an allowlisted schema, a normal permanent table with 1–16 INTEGER columns, and **no rows, indexes, constraints, view dependencies, triggers, RLS, defaults, inheritance, publications or other unproven effects**. Preview reads metadata but never mutates. After independent human approval, the Host takes a PostgreSQL `ACCESS EXCLUSIVE` transaction lock, rechecks the physical table OID and all preconditions, executes only compiled `RESTRICT` DDL, confirms physical absence and commits. Verified rollback means failure; uncertain COMMIT or rollback means `outcome_unknown` and **must not be retried automatically**. `CASCADE`, `IF EXISTS`, nonempty tables, other providers and multi-DDL batches remain forbidden. The four default read-only tools are unchanged; DML and DDL remain unselected.
