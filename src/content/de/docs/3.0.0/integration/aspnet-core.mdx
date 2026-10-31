@@ -206,3 +206,25 @@ Bestehende Nutzer können `AddHsSqlAgent()` und `UseHsSqlAgent()` weiter verwend
 - [Bereitstellung](/de/docs/operations/deployment)
 - [Konfiguration](/de/docs/operations/configuration)
 - [Sicheres DML](/de/docs/sql-compiler/safe-dml)
+
+## G5: MySQL-8.4-Schemaänderungen (nur nach ausdrücklicher Freigabe)
+
+**Atomare InnoDB-DDL ist keine durch die Anwendung rücknehmbare Transaktion.** Ein reguläres CREATE TABLE löst einen impliziten COMMIT aus und lässt sich nicht durch ROLLBACK rückgängig machen. Das vorhandene Werkzeug execute_ddl_sql bleibt standardmäßig verborgen und gesperrt. Erforderlich sind die gesonderte MySQL-Aktivierung, die ausdrückliche Berechtigung des MCP-Zugriffsschlüssels und eine unabhängige DDL-Freigabe.
+
+Zugelassen ist zunächst nur ein einzelnes CREATE TABLE ohne Datenbankpräfix mit 1 bis 16 einfachen vorzeichenbehafteten INT-Spalten. Temporäre Tabellen, Tabellen aus Abfragen, Vorgabewerte, Constraints, ALTER, INDEX, DROP und mehrere Anweisungen bleiben gesperrt. Die Vorschau liest nur echte Metadaten. Vor der Ausführung prüft eine neue Verbindung die MySQL-8.4-Serveridentität, die zugelassene Datenbank, Groß-/Kleinschreibung, InnoDB und das Fehlen des Zielobjekts. Anschließend wird ausschließlich die von SqlCore kompilierte SQL-Anweisung einmal ausgeführt und das tatsächliche Spaltenschema geprüft.
+
+```csharp
+using HsSqlAgent.Server.Extensions;
+using HsSqlAgent.Server.Services;
+
+builder.Services.AddHsSqlAgentMySqlDdl(new MySqlDdlExecutionOptions
+{
+    Enabled = true,
+    AllowCreateTable = true,
+    AllowedDatabases = new HashSet<string>(StringComparer.Ordinal) { "app_database" },
+    PolicyRevision = "mysql84-ddl-governance-v1"
+});
+builder.Services.AddSingleton<IDdlApprovalProvider, MyIndependentDdlApprovalProvider>();
+```
+
+Die Sitzungssperre koordiniert ausschließlich Anforderungen dieses Dienstes; sie **sperrt keine fremden DDL-Clients**. Ist das Ergebnis nach Ausführungsbeginn nicht mehr nachweisbar, lautet der Zustand outcome_unknown. Nicht automatisch wiederholen, sondern zuerst den Datenbankzustand abgleichen. Eine DML-Freigabe berechtigt niemals zu DDL. Die vier vorausgewählten lesenden Werkzeuge und die nicht ausgewählten DML-/DDL-Werkzeuge bleiben unverändert.
