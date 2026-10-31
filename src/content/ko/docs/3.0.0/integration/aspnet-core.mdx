@@ -206,3 +206,26 @@ hs.AddHsSqlAgentBuiltInAuth(options =>
 - [배포](/ko/docs/operations/deployment)
 - [구성](/ko/docs/operations/configuration)
 - [Safe DML](/ko/docs/sql-compiler/safe-dml)
+
+## G5: MySQL 8.4 스키마 변경(명시적 활성화 필요)
+
+MySQL InnoDB의 **단일 DDL 원자성은 애플리케이션 트랜잭션으로 되돌릴 수 있다는 뜻이 아닙니다**. 일반 CREATE TABLE은 암묵적으로 커밋되며 ROLLBACK으로 취소할 수 없습니다. 기존 execute_ddl_sql 도구는 기본적으로 숨겨지고 거부됩니다. MySQL 전용 활성화, MCP 접근 키에 대한 명시적 도구 권한 및 독립적인 DDL 승인 서비스가 모두 필요합니다.
+
+최초 지원 범위는 데이터베이스 접두사가 없는 단일 CREATE TABLE과 기본 부호 있는 INT 열 1~16개뿐입니다. 임시 테이블, 조회 결과로 테이블 만들기, 기본값, 제약 조건, ALTER, INDEX, DROP 및 여러 문장은 허용하지 않습니다. 미리보기는 실제 메타데이터만 읽습니다. 승인 후 새 연결에서 MySQL 8.4 서버 식별자, 허용된 데이터베이스, 대소문자 규칙, InnoDB 엔진 및 대상 부재를 다시 확인합니다. SqlCore가 컴파일한 원본 SQL을 한 번만 실행하고 실제 열을 검증합니다.
+
+```csharp
+using HsSqlAgent.Server.Extensions;
+using HsSqlAgent.Server.Services;
+
+builder.Services.AddHsSqlAgentMySqlDdl(new MySqlDdlExecutionOptions
+{
+    Enabled = true,
+    AllowCreateTable = true,
+    AllowedDatabases = new HashSet<string>(StringComparer.Ordinal) { "app_database" },
+    PolicyRevision = "mysql84-ddl-governance-v1"
+});
+builder.Services.AddSingleton<IDdlApprovalProvider, MyIndependentDdlApprovalProvider>();
+// The access key must also explicitly allow execute_ddl_sql.
+```
+
+세션 잠금은 이 서비스의 요청끼리만 조정하며 **외부 클라이언트의 변경을 차단하지 않습니다**. 실행이 시작된 뒤 결과를 증명할 수 없으면 outcome_unknown을 반환합니다. 자동 재시도하지 말고 실제 데이터베이스 상태를 확인해야 합니다. DML 승인은 DDL 승인으로 대체할 수 없습니다. 기본 읽기 전용 도구 4개와 DML/DDL 미선택 상태는 그대로 유지됩니다.
