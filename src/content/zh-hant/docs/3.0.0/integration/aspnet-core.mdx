@@ -206,3 +206,26 @@ hs.AddHsSqlAgentBuiltInAuth(options =>
 - [部署](/zh-hant/docs/operations/deployment)
 - [設定](/zh-hant/docs/operations/configuration)
 - [安全 DML](/zh-hant/docs/sql-compiler/safe-dml)
+
+## G5：MySQL 8.4 結構變更（須明確啟用）
+
+MySQL InnoDB 的**單一結構變更原子性，不等於可由應用程式交易回滾**。一般 CREATE TABLE 會隱含提交，無法靠 ROLLBACK 撤銷。既有 execute_ddl_sql 工具預設隱藏且拒絕執行；須個別啟用 MySQL、授予 MCP 存取金鑰工具權限，並設定獨立的結構變更核准服務。
+
+第一階段僅支援單一、未加資料庫前綴的 CREATE TABLE，且只能有 1–16 個基本帶符號 INT 欄位。不支援暫存表、查詢建表、預設值、約束、資料表調整、索引建立、刪除或多語句操作。預覽只讀取實體結構資訊；核准後會重新驗證 MySQL 8.4 伺服器識別碼、允許的目標資料庫、名稱大小寫規則、InnoDB 引擎及物件不存在，僅執行一次經 SqlCore 編譯的原生指令，最後核對實際欄位。
+
+```csharp
+using HsSqlAgent.Server.Extensions;
+using HsSqlAgent.Server.Services;
+
+builder.Services.AddHsSqlAgentMySqlDdl(new MySqlDdlExecutionOptions
+{
+    Enabled = true,
+    AllowCreateTable = true,
+    AllowedDatabases = new HashSet<string>(StringComparer.Ordinal) { "app_database" },
+    PolicyRevision = "mysql84-ddl-governance-v1"
+});
+builder.Services.AddSingleton<IDdlApprovalProvider, MyIndependentDdlApprovalProvider>();
+// The access key must also explicitly allow execute_ddl_sql.
+```
+
+專屬連線鎖僅協調本服務的請求，**不保證阻擋其他客戶端的結構變更**。若指令開始執行後無法證明結果，會回報 outcome_unknown；禁止自動重試，應先比對資料庫實際狀態。資料變更核准不能代替結構變更核准；原有四個預設唯讀工具與 DML／DDL 預設未勾選狀態維持不變。
