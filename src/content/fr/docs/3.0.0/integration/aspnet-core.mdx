@@ -225,7 +225,6 @@ builder.Services.AddHsSqlAgentMySqlDdl(new MySqlDdlExecutionOptions
     PolicyRevision = "mysql84-ddl-governance-v1"
 });
 builder.Services.AddSingleton<IDdlApprovalProvider, MyIndependentDdlApprovalProvider>();
-// The access key must also explicitly allow execute_ddl_sql.
 ```
 
 Le verrou de session coordonne uniquement les demandes de ce service ; il **n'exclut pas les clients DDL externes**. Si le résultat devient invérifiable après le début de l'exécution, l'état est outcome_unknown. Ne jamais relancer automatiquement : examiner d'abord la base réelle. Une approbation DML ne peut pas autoriser une DDL. Les quatre outils de lecture sélectionnés par défaut et les choix DML/DDL non cochés restent inchangés.
