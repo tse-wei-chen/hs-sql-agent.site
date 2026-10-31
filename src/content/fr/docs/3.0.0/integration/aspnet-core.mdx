@@ -206,3 +206,26 @@ Les consommateurs existants peuvent continuer à utiliser `AddHsSqlAgent()` et `
 - [Déploiement](/fr/docs/operations/deployment)
 - [Configuration](/fr/docs/operations/configuration)
 - [DML sécurisé](/fr/docs/sql-compiler/safe-dml)
+
+## G5 : modifications de schéma MySQL 8.4 (activation explicite)
+
+**Une instruction DDL atomique InnoDB n'est pas une transaction annulable par l'application.** Un CREATE TABLE ordinaire provoque une validation implicite et ne peut pas être annulé par ROLLBACK. L'outil existant execute_ddl_sql reste masqué et refusé par défaut. Il faut activer MySQL séparément, autoriser explicitement l'outil pour la clé d'accès MCP et configurer une approbation DDL indépendante.
+
+La première version accepte uniquement un CREATE TABLE sans préfixe de base, avec 1 à 16 colonnes INT signées simples. Les tables temporaires, la création à partir d'une requête, les valeurs par défaut, contraintes, ALTER, INDEX, DROP et scripts multiples restent interdits. L'aperçu ne lit que les métadonnées réelles. Après approbation, une nouvelle connexion revérifie l'identité MySQL 8.4, la base autorisée, la sensibilité à la casse, le moteur InnoDB et l'absence de l'objet. Une seule instruction SQL compilée par SqlCore est exécutée, puis la structure physique est contrôlée.
+
+```csharp
+using HsSqlAgent.Server.Extensions;
+using HsSqlAgent.Server.Services;
+
+builder.Services.AddHsSqlAgentMySqlDdl(new MySqlDdlExecutionOptions
+{
+    Enabled = true,
+    AllowCreateTable = true,
+    AllowedDatabases = new HashSet<string>(StringComparer.Ordinal) { "app_database" },
+    PolicyRevision = "mysql84-ddl-governance-v1"
+});
+builder.Services.AddSingleton<IDdlApprovalProvider, MyIndependentDdlApprovalProvider>();
+// The access key must also explicitly allow execute_ddl_sql.
+```
+
+Le verrou de session coordonne uniquement les demandes de ce service ; il **n'exclut pas les clients DDL externes**. Si le résultat devient invérifiable après le début de l'exécution, l'état est outcome_unknown. Ne jamais relancer automatiquement : examiner d'abord la base réelle. Une approbation DML ne peut pas autoriser une DDL. Les quatre outils de lecture sélectionnés par défaut et les choix DML/DDL non cochés restent inchangés.
