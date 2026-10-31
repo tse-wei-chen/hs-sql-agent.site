@@ -206,3 +206,26 @@ hs.AddHsSqlAgentBuiltInAuth(options =>
 - [部署](/zh-hans/docs/operations/deployment)
 - [配置](/zh-hans/docs/operations/configuration)
 - [安全 DML](/zh-hans/docs/sql-compiler/safe-dml)
+
+## G5：MySQL 8.4 结构变更（必须明确启用）
+
+MySQL InnoDB 的**单条结构变更原子性，不等于应用事务可以回滚**。普通 CREATE TABLE 会隐式提交，无法使用 ROLLBACK 撤销。现有 execute_ddl_sql 工具默认隐藏并拒绝执行；必须单独启用 MySQL，向 MCP 访问密钥明确授予工具权限，并配置独立的结构变更审批服务。
+
+首阶段只允许单条、不带数据库前缀的 CREATE TABLE，包含 1–16 个基本有符号 INT 字段。不支持临时表、查询建表、默认值、约束、修改表、创建索引、删除或多语句执行。预览仅读取真实元数据；审批通过后重新验证 MySQL 8.4 服务器标识、许可的目标数据库、大小写规则、InnoDB 引擎和目标不存在的条件。随后只执行一次由 SqlCore 编译的原生语句，并核对实际字段。
+
+```csharp
+using HsSqlAgent.Server.Extensions;
+using HsSqlAgent.Server.Services;
+
+builder.Services.AddHsSqlAgentMySqlDdl(new MySqlDdlExecutionOptions
+{
+    Enabled = true,
+    AllowCreateTable = true,
+    AllowedDatabases = new HashSet<string>(StringComparer.Ordinal) { "app_database" },
+    PolicyRevision = "mysql84-ddl-governance-v1"
+});
+builder.Services.AddSingleton<IDdlApprovalProvider, MyIndependentDdlApprovalProvider>();
+// The access key must also explicitly allow execute_ddl_sql.
+```
+
+专用会话锁只协调本服务的请求，**不能阻止其他客户端修改结构**。执行开始后若无法确认结果，将返回 outcome_unknown；禁止自动重试，应先核对数据库实际状态。数据修改审批不能替代结构变更审批；四个默认只读工具及 DML／DDL 默认不勾选的行为保持不变。
