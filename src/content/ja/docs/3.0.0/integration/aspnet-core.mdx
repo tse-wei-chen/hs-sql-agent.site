@@ -206,3 +206,26 @@ hs.AddHsSqlAgentBuiltInAuth(options =>
 - [デプロイ](/ja/docs/operations/deployment)
 - [設定](/ja/docs/operations/configuration)
 - [Safe DML](/ja/docs/sql-compiler/safe-dml)
+
+## G5：MySQL 8.4 のスキーマ変更（明示的な有効化が必要）
+
+MySQL InnoDB の**単一 DDL の原子性は、アプリケーション側でロールバックできることを意味しません**。通常の CREATE TABLE は暗黙的にコミットされ、ROLLBACK では取り消せません。既存の execute_ddl_sql は既定で非表示・拒否されます。MySQL 専用の有効化、MCP アクセスキーへの明示的な権限付与、独立した DDL 承認サービスが必要です。
+
+最初の対応範囲は、データベース名を付けない単一の CREATE TABLE と、1～16 個の基本的な符号付き INT 列のみです。一時テーブル、SELECT からのテーブル作成、既定値、制約、ALTER、INDEX、DROP、複数文は対象外です。プレビューは読み取り専用です。承認後は新しい接続で MySQL 8.4 のサーバー識別子、許可済みデータベース、大文字小文字の規則、InnoDB、対象が存在しないことを再検証します。SqlCore がコンパイルした SQL を一度だけ実行し、実際の列構成を照合します。
+
+```csharp
+using HsSqlAgent.Server.Extensions;
+using HsSqlAgent.Server.Services;
+
+builder.Services.AddHsSqlAgentMySqlDdl(new MySqlDdlExecutionOptions
+{
+    Enabled = true,
+    AllowCreateTable = true,
+    AllowedDatabases = new HashSet<string>(StringComparer.Ordinal) { "app_database" },
+    PolicyRevision = "mysql84-ddl-governance-v1"
+});
+builder.Services.AddSingleton<IDdlApprovalProvider, MyIndependentDdlApprovalProvider>();
+// The access key must also explicitly allow execute_ddl_sql.
+```
+
+セッション単位のロックは本サービス内の要求だけを協調させ、**外部クライアントを排除するものではありません**。実行開始後に結果を確認できなくなった場合は outcome_unknown を返します。自動再試行せず、実際のデータベース状態を確認してください。DML の承認は DDL の承認には使えません。既定の４つの読み取り専用ツールと DML／DDL の非選択状態は変わりません。
