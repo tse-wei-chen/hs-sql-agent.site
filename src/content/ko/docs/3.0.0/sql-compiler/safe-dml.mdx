@@ -69,3 +69,12 @@ SQL Server의 각 CTE 단계에서는 **행 수가 늘지 않는다고 증명된
 승인 거절, 만료, stale, Fingerprint 불일치, 권한 철회, 현재 Policy 위반, 승인 Row Set 재현 실패 시 DML을 commit하지 않습니다.
 
 [MCP Tools Reference](/ko/docs/mcp/tools-reference), [설정](/ko/docs/operations/configuration), [ASP.NET Core 통합](/ko/docs/integration/aspnet-core)을 참고하세요.
+
+## 미출시: G9/M04 정확한 정수 키 튜플(SQL Server)
+
+**개발 버전 전용 설명이며 현재 공식 릴리스에는 포함되지 않습니다.** SQL Server의 제한된 CTE UPDATE／DELETE 증명은 하나 또는 두 개의 열로 된 순서 지정 물리 UNIQUE 키에 대해 기본 `INT` 및 `BIGINT` 형식을 허용합니다. `(BIGINT, INT)`처럼 섞어 쓸 수 있지만 **원본 인덱스의 각 순서별 실제 SQL 형식과 대상 비교 열의 형식이 반드시 같아야** 실행 증명을 받을 수 있습니다.
+
+Host는 SQL Server 시스템 카탈로그에서 활성화되고 필터가 없으며 계산되지 않고 NULL을 허용하지 않는 UNIQUE 인덱스를 직접 검사합니다. F# 컴파일러는 키의 직접 투영, 필수 `AND`／`=` 비교, 제한된 추가 열 및 행 수를 늘리지 않는 JOIN을 별도로 검증합니다. 읽기 전용 미리보기, 독립적인 사람 승인, 트랜잭션 내 재검증은 필수입니다. SQL Server 2022 실제 테스트에는 32비트 범위를 넘는 키 값도 포함됩니다.
+
+**계속 거부:** 원본 `INT`와 대상 `BIGINT` 간 암묵적 변환, `DECIMAL`／`NUMERIC`, `SMALLINT`, `FLOAT`, `UNIQUEIDENTIFIER`, 계산 열, NULL 허용 키, 증명되지 않은 일반 JOIN, 나머지 다섯 DB. MCP 도구 및 기본 권한은 변경하지 않습니다.
+

@@ -69,3 +69,12 @@ SQL Server の各 CTE 段では、**行数が増えないことを構文から�
 承認拒否、期限切れ、stale、Fingerprint 不一致、権限失効、現在の Policy 違反、承認 Row Set の再現失敗では DML は commit されません。
 
 [MCP Tools Reference](/ja/docs/mcp/tools-reference)、[設定](/ja/docs/operations/configuration)、[ASP.NET Core 統合](/ja/docs/integration/aspnet-core)も参照してください。
+
+## 未リリース：G9／M04 厳密な整数キー組（SQL Server）
+
+**開発版のみの説明であり、現在の正式リリースには含まれません。** SQL Server の制限付き CTE UPDATE／DELETE は、一～二列の順序付き物理 UNIQUE キーを扱えます。列の型は組み込み `INT` または `BIGINT` に限定され、`(BIGINT, INT)` のような混合キーでも、**ソース索引の各位置と対応する更新対象列の実際の SQL 型が完全一致**する必要があります。
+
+Host は SQL Server のシステムカタログから、有効・無フィルター・非計算・NOT NULL の UNIQUE 索引を実際に検査します。F# コンパイラもキーの直接投影、必須の `AND`／`=` 比較、制限付き追加列、行数を増やさない JOIN を別途検証します。読み取り専用プレビュー、独立した人的承認、トランザクション内の再検証は必須です。SQL Server 2022 の実テストでは 32 ビット整数の範囲を超える値も使用します。
+
+**引き続き拒否：** ソース `INT` と対象 `BIGINT` の暗黙変換、`DECIMAL`／`NUMERIC`、`SMALLINT`、`FLOAT`、`UNIQUEIDENTIFIER`、計算・NULL 許容キー、基数が証明されない JOIN、他の五つのデータベース。MCP ツールや既定の権限は増やしません。
+

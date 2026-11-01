@@ -69,3 +69,12 @@ Als zweite eng begrenzte Form ist ein **INNER-/LEFT-Selbst-JOIN derselben physis
 Bei Ablehnung, Ablauf, stale Status, Fingerprint-Abweichung, entzogener Berechtigung, aktueller Policy-Verletzung oder nicht reproduzierbarem Row Set wird keine Mutation committet.
 
 Siehe [MCP Tools Reference](/de/docs/mcp/tools-reference), [Konfiguration](/de/docs/operations/configuration) und [ASP.NET-Core-Integration](/de/docs/integration/aspnet-core).
+
+## Noch nicht veröffentlicht: G9/M04 exakt typisierte Ganzzahlschlüssel (SQL Server)
+
+**Nur Entwicklungsdokumentation, nicht Bestandteil der aktuellen öffentlichen Version.** Der begrenzte SQL-Server-Nachweis für CTE UPDATE／DELETE erlaubt einen geordneten physischen UNIQUE-Schlüssel mit einer oder zwei Spalten vom integrierten Typ `INT` oder `BIGINT`. Gemischte Schlüssel wie `(BIGINT, INT)` sind nur zulässig, wenn **jede Schlüsselposition des Quellindex genau denselben physischen SQL-Typ wie die zugehörige Zielspalte** hat.
+
+Der Host prüft im SQL-Server-Systemkatalog einen aktiven, ungefilterten, nicht berechneten UNIQUE-Index mit NOT-NULL-Schlüsselspalten. Der F#-Compiler kontrolliert unabhängig direkte Schlüsselprojektionen, erforderliche `AND`／`=`-Gleichheiten, begrenzte zusätzliche Spalten und JOINs mit nachgewiesener Kardinalität. Schreibgeschützte Vorschau, unabhängige Genehmigung und erneute Prüfung innerhalb der Transaktion bleiben Pflicht. Echte SQL Server 2022-Tests verwenden auch Werte oberhalb der 32-Bit-Grenze.
+
+**Weiterhin gesperrt:** implizite Konvertierung von Quell-`INT` zu Ziel-`BIGINT`, `DECIMAL`／`NUMERIC`, `SMALLINT`, `FLOAT`, `UNIQUEIDENTIFIER`, berechnete oder NULL-fähige Schlüssel, JOINs ohne Kardinalitätsnachweis und fünf andere Datenbanken. Keine neuen MCP-Werkzeuge oder Standardrechte.
+
