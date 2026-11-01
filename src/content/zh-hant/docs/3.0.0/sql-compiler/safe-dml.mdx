@@ -77,6 +77,12 @@ SQL Server 的 CTE `UPDATE`／`DELETE` 可以在第一層 CTE 的 `WHERE` 使用
 SQL Server 的 CTE `UPDATE`／`DELETE` 實體唯一鍵證明，現在除了 `INT`、`BIGINT`，也接受內建 `TINYINT`（無號 8 位元）與 `SMALLINT`（有號 16 位元）。一至兩欄的實體唯一鍵，來源欄位、目標比對欄位及經獨立驗證的 JOIN 欄位，**在每個索引鍵位置都必須具有完全相同的實體 SQL Server 型別**。整數型別自動轉換、自訂別名型別與虛擬目錄都不能取代實體證據。既有的受限 CTE 鍵傳遞、避免資料列倍增的 JOIN 證明、受影響資料列預覽、獨立核准、不可變計畫指紋及提交交易內的索引重新驗證仍不可省略。SQL Server 2022 測試涵蓋更新、刪除、混合鍵型別與索引撤銷。此功能並未開放 DECIMAL、UUID、可為 NULL 的唯一鍵、任意 JOIN 或其他資料庫的執行權限。
 
 
+### UNIQUEIDENTIFIER 實體鍵的精確證明（G9／M04，僅 develop）
+
+SQL Server 的 CTE `UPDATE`／`DELETE` 現在可證明**內建 128 位元 `UNIQUEIDENTIFIER` 鍵**。`Uuid` 是獨立的 Schema 值型別，**不能冒充 Numeric、文字或二進位鍵**。Host 從實際 `sys.tables`、`sys.columns`、`sys.types` 讀取來源表、目標表，以及可選的第二個經獨立驗證的 JOIN 來源鍵型別。F# 封閉型別會再次驗證完整 UNIQUE 索引鍵位置，以及 Snapshot 與實體型別是否一致。絕不能藉由隱含轉型，把 `UNIQUEIDENTIFIER` 與 `INT`、`DECIMAL`、`VARCHAR`、`BINARY(16)` 的比對當成可執行證明。
+
+單欄或兩欄複合鍵可以混用 UUID 與經精確驗證的整數／小數鍵；原有 1～3 層受限 CTE、避免資料列倍增的 JOIN、變更預覽、獨立核准與提交交易內 `IsCurrent` 重新驗證仍是必要條件。ProofIdentity 更新至 v6，舊版待核准證明不得重用。SQL Server 2022 實體測試涵蓋 UUID 新增資料列以外的 UPDATE／DELETE、主鍵與唯一索引、Host 自動偵測、跨表 JOIN、預覽後撤銷索引及錯誤型別拒絕。此功能不增加 MCP 工具、預設 DML 勾選、任意 JOIN 權限，也不改變其他五種資料庫。
+
 ### DECIMAL／NUMERIC 實體鍵的精確證明（G9／M04，僅 develop）
 
 SQL Server 的 CTE `UPDATE`／`DELETE` 實體唯一鍵證明，現在也接受內建 `DECIMAL(p,s)` 與 `NUMERIC(p,s)`，其中 `1 ≤ p ≤ 38`、`0 ≤ s ≤ p`。兩者在 SQL Server 是同義型別，但來源鍵、目標比對欄位，以及經獨立驗證的 JOIN 來源鍵，**每一個索引鍵位置的有效位數與小數位數都必須完全一致**。`DECIMAL(12,2)` 不能藉由隱含轉型來證明與 `DECIMAL(13,2)`、`DECIMAL(12,3)` 或整數鍵等價。
