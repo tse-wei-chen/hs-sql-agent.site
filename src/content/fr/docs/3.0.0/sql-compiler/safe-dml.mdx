@@ -48,12 +48,6 @@ Lorsqu'une décision finale arrive, le serveur recharge l'autorisation et la con
 
 La reprise concerne**l'Intent d'exécution**, pas une ancienne Database Session.
 
-## SQL Server : clés INT composites dans les mutations avec CTE
-
-Un UPDATE ou DELETE explicitement autorisé sur SQL Server peut lire une table source physique à travers une à trois CTE linéaires non récursives si un **index unique ou une clé primaire réelle, composée de deux colonnes INT non nulles**, a été vérifié. Les deux clés doivent être projetées sans modification et dans l'ordre de l'index physique à chaque étape. La mutation doit comparer les deux colonnes INT correspondantes de la cible au moyen de conditions obligatoires `AND` et `=`. Avant toute exécution, le serveur vérifie le catalogue réel, prévisualise les lignes concernées, lie l'approbation au plan puis recontrôle les métadonnées dans la transaction effective.
-
-Les clés manquantes ou permutées, `OR`, les conversions de type, les clés nullables ou calculées, les index filtrés ou désactivés et les jointures qui multiplient les lignes sont refusés. Cette capacité ne s'étend pas aux autres bases.
-
 ## Règles fail closed
 
 Une mutation n'est pas commit si l'approbation est refusée, expirée, stale, si le Fingerprint ne correspond plus, si l'autorisation est retirée, si la Policy courante la refuse ou si le Row Set approuvé ne peut pas être reproduit.

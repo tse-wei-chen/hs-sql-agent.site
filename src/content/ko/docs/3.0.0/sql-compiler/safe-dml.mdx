@@ -48,12 +48,6 @@ Client가 보내는 `BEGIN`, `COMMIT`, `ROLLBACK` 같은 Transaction-control SQL
 
 재개되는 것은**실행 Intent**이지 오래된 Database Session이 아닙니다.
 
-## SQL Server: CTE 기반 수정 작업의 복합 INT 키
-
-SQL Server UPDATE 또는 DELETE는 실제 원본 테이블에 **NULL을 허용하지 않는 두 개의 INT 열로 구성된 기본 키 또는 고유 인덱스**가 확인된 경우에만 명시적 허가를 받아 1~3단계의 비재귀 선형 CTE를 사용할 수 있습니다. 두 키 열은 물리적 인덱스 순서를 유지하며 각 CTE를 통해 변경 없이 전달되어야 합니다. 대상 테이블의 해당 INT 열마다 필수 `AND` 조건과 일반 `=` 비교가 있어야 합니다. 실행 전에는 실제 시스템 카탈로그 확인, 변경 대상 행 미리보기, 승인 내용 연결 및 동일 트랜잭션 내 메타데이터 재검증이 필요합니다.
-
-키 누락·순서 변경, `OR`, 형 변환, NULL 허용 또는 계산 열, 필터링되거나 비활성화된 인덱스, 행 수를 늘리는 조인은 거부됩니다. 다른 데이터베이스의 실행 범위는 확대되지 않습니다.
-
 ## Fail-closed 규칙
 
 승인 거절, 만료, stale, Fingerprint 불일치, 권한 철회, 현재 Policy 위반, 승인 Row Set 재현 실패 시 DML을 commit하지 않습니다.
