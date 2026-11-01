@@ -54,6 +54,13 @@ An explicitly opted-in SQL Server UPDATE or DELETE may read a physical source th
 
 Missing or reordered keys, OR-only conditions, casts, nullable or computed keys, filtered/disabled indexes and multiplying joins remain unsupported. This does not expand other providers or authorize arbitrary multi-column joins.
 
+### Nullable SQL Server UNIQUE keys with ordinary equality (G9/M05, develop only)
+
+A SQL Server source key can now contain a nullable column **only when an actual enabled, unfiltered physical UNIQUE index covers the entire ordered 1–2-column tuple**. The bounded CTE `UPDATE`/`DELETE` proof must retain mandatory ordinary `AND`/`=` predicates against the target and a live session with `ANSI_NULLS ON` (checked through `@@OPTIONS`). A NULL source component makes ordinary equality UNKNOWN, so **it never joins a target row**. This is not NULL-safe comparison or an exception for arbitrary nullable table scans. The target-side composite proof still requires nonnullable keys, and the non-joined `VerifyLive` API cannot certify nullable source keys.
+
+The closed F# null-semantics proof is bound to the original complete UNIQUE index, built-in exact physical types, actual source nullability, immutable metadata digest and ProofIdentity **v8**. The real commit connection and transaction recheck `ANSI_NULLS ON` along with index/schema identity using held locks. Filtered UNIQUE indexes (including `WHERE key IS NOT NULL`), disabled or nonunique indexes, `OR`, `COALESCE`, computed keys, casts, NULL-safe operators and a virtual Catalog never grant authority. Live SQL Server 2022 tests cover nullable BIGINT, DECIMAL, UUID and BIN2 VARCHAR composite keys, 1–3 CTE hops, UPDATE/DELETE, Preview→Approval→Commit, source NULL nonmatches and invalidation after index revocation. Other five providers and the default MCP tool permissions remain unchanged.
+
+
 ### Exact BIN2 VARCHAR/NVARCHAR physical keys (G9/M04, develop only)
 
 SQL Server CTE `UPDATE`/`DELETE` live uniqueness assurance now supports built-in bounded `VARCHAR(n)` and `NVARCHAR(n)` **only under the exact `Latin1_General_100_BIN2` collation**. The source UNIQUE index key, target comparison column and any independently attested second physical JOIN key must agree at **every key ordinal** on the native SQL type, maximum length and physical collation. `NVARCHAR` length is checked using `sys.columns.max_length` in bytes before converting to the declared character count. This is not a blanket text-equality permission: `VARCHAR(MAX)`, `NVARCHAR(MAX)`, `CHAR`, `NCHAR`, differing lengths, Unicode-to-non-Unicode conversions, other binary or case-insensitive collations, user-defined aliases and nullable source keys remain denied.

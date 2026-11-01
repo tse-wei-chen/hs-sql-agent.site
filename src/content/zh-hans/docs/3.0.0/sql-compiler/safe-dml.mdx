@@ -54,6 +54,13 @@ SQL Server 的 UPDATE／DELETE 在明确授权的前提下，可以通过 1～3 
 
 缺少或颠倒键列、仅通过 `OR` 匹配、类型转换、可空或计算列、筛选或禁用的索引，以及会增加匹配行数的连接，都会被拒绝。该能力不会扩展其他数据库的可执行范围。
 
+### 可空 SQL Server UNIQUE 物理键与普通等号证明（G9／M05，仅 develop）
+
+SQL Server 源键现在允许可空列，但必须由**实际启用、无筛选条件、覆盖完整 1～2 列有序键元组的物理 UNIQUE 索引**保护。受限 CTE `UPDATE`／`DELETE` 仍需具备对目标的完整 `AND`／普通 `=` 等值关系，而且实际数据库连接必须为 `ANSI_NULLS ON`（通过 `@@OPTIONS` 验证）。源键任何部分为 NULL 时，普通等号返回 UNKNOWN，**不会匹配目标行**。这不表示允许 NULL 安全比较或任意可空表扫描。复合目标键仍要求不可空；缺少目标等值图的旧 `VerifyLive` 不得证明可空源键。
+
+F# 封闭的 NULL 比较语义证明绑定完整 UNIQUE 索引、内置精确物理类型、源键可空元数据、不可变摘要及 **v8 ProofIdentity**。真实 Commit 连接与事务持锁再次验证 `ANSI_NULLS ON`、索引及 Schema 身份。**筛选唯一索引**（包括 `WHERE key IS NOT NULL`）、停用／非唯一索引、`OR`、`COALESCE`、计算键、类型转换、NULL 安全运算符和虚拟 Catalog 都不能授权执行。SQL Server 2022 实测覆盖可空 BIGINT、DECIMAL、UUID 与 BIN2 VARCHAR 复合键、1～3 层 CTE、UPDATE／DELETE、Preview→审批→Commit、源 NULL 不匹配，以及预览后撤销索引的拒绝。其他五个数据库与 MCP 默认工具权限不变。
+
+
 ### BIN2 VARCHAR／NVARCHAR 物理文本键的精确证明（G9／M04，仅 develop）
 
 SQL Server CTE `UPDATE`／`DELETE` 的物理唯一键证明新增有限长度的内置 `VARCHAR(n)` 和 `NVARCHAR(n)`，**仅允许实际排序规则 `Latin1_General_100_BIN2`**。来源 UNIQUE 索引、目标比较列以及独立验证的第二个 JOIN 来源，必须在**每个键位置**同时匹配 SQL 原生类型、最大长度和排序规则。`NVARCHAR` 先按照 `sys.columns.max_length` 的字节数验证，再换算为声明字符数。此能力并不允许所有文本键：`VARCHAR(MAX)`、`NVARCHAR(MAX)`、`CHAR`、`NCHAR`、长度差异、Unicode/非 Unicode 隐式转换、其他二进制或不区分大小写的排序规则、自定义别名类型和可空来源键均会被拒绝。
