@@ -64,6 +64,10 @@ Pro SQL-Server-CTE-Stufe ist nun **höchstens ein JOIN mit nachweislich nicht st
 
 Als zweite eng begrenzte Form ist ein **INNER-/LEFT-Selbst-JOIN derselben physischen Quelltabelle** unter zwei verschiedenen Aliasnamen möglich. Im ON-Prädikat müssen dabei **alle Komponenten des in der echten Datenbank bestätigten eindeutigen INT-Schlüssels** durch gewöhnliche Gleichheiten mit AND verknüpft werden. Der zweite Alias kann so pro Quellzeile höchstens eine Zeile liefern. Fehlende Schlüssel, ausschließlich OR-verknüpfte Vergleiche, berechnete/konvertierte Schlüssel und JOINs zu anderen Tabellen bleiben gesperrt.
 
+### JOIN zwischen zwei physischen Tabellen mit unabhängig geprüften UNIQUE-Schlüsseln (M07)
+
+Eine SQL-Server-CTE kann nun genau einen **INNER JOIN** oder **LEFT JOIN** mit einer zweiten, anderen physischen Tabelle ausführen. Beide Quelltabellen benötigen jeweils einen eigenständig am echten Datenbankkatalog bestätigten eindeutigen Schlüssel aus ein oder zwei nicht nullbaren `INT`-/`BIGINT`-Spalten; der Index muss aktiv und ungefiltert sein. Die `ON`-Bedingung muss alle Schlüsselspalten über erforderliche gewöhnliche Gleichheiten mit `AND` verbinden, wobei die physischen Typen je Position exakt übereinstimmen. Ein virtueller Katalog, implizite Umwandlung, unvollständige Schlüsselgleichheit oder gefilterter Index ist kein Nachweis. Beide Indexidentitäten werden an Plan und Freigabe gebunden und in der tatsächlichen Commit-Transaktion erneut geprüft; der Wegfall eines Nachweises nach der Vorschau verhindert den Commit. Eine dritte physische Quelle, Viele-zu-viele-JOINs, `RIGHT`-/`FULL JOIN`, Cross-Provider-Übersetzung und beliebige JOINs bleiben gesperrt.
+
 ## Fail-closed-Regeln
 
 Bei Ablehnung, Ablauf, stale Status, Fingerprint-Abweichung, entzogener Berechtigung, aktueller Policy-Verletzung oder nicht reproduzierbarem Row Set wird keine Mutation committet.

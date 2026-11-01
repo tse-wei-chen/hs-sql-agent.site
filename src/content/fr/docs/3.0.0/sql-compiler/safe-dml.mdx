@@ -64,6 +64,10 @@ Chaque étape CTE de SQL Server peut désormais contenir **une seule jointure do
 
 Une seconde forme, tout aussi limitée, autorise une **auto-jointure INNER ou LEFT sur la même table source physique** sous deux alias distincts, à condition que le prédicat ON compare par égalités ordinaires reliées avec AND **toutes les colonnes de la clé INT unique vérifiée en base**. Le second alias fournit alors au plus une ligne par ligne source. Toute clé manquante, comparaison OR seule, clé calculée ou convertie, ou jointure avec une autre table est refusée.
 
+### Jointure de deux tables physiques avec preuves d'unicité indépendantes (M07)
+
+Une CTE SQL Server peut désormais effectuer une seule **INNER JOIN** ou **LEFT JOIN** vers une autre table physique. Chacune des deux sources doit posséder sa propre clé unique physique vérifiée en base, composée d'une ou deux colonnes `INT`/`BIGINT` non nullables, sur un index actif et non filtré. Le prédicat `ON` doit lier toutes les colonnes par des égalités ordinaires obligatoires avec `AND`, avec correspondance exacte des types physiques à chaque position. Un catalogue virtuel, une conversion implicite, une partie de la clé ou un index filtré ne constituent pas une preuve. Les deux index sont liés au plan et à l'approbation puis revérifiés dans la transaction réelle lors du commit, y compris après une modification d'index postérieure à l'aperçu. Cette extension n'autorise ni troisième source physique, ni jointures plusieurs-à-plusieurs, ni `RIGHT`/`FULL JOIN`, ni conversion entre moteurs, ni jointures arbitraires.
+
 ## Règles fail closed
 
 Une mutation n'est pas commit si l'approbation est refusée, expirée, stale, si le Fingerprint ne correspond plus, si l'autorisation est retirée, si la Policy courante la refuse ou si le Row Set approuvé ne peut pas être reproduit.

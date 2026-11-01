@@ -64,6 +64,10 @@ SQL Server may now use **one nonmultiplying JOIN per CTE hop** when the joined s
 
 A separate, equally narrow form permits an **INNER or LEFT self-JOIN of the same physical source table** under two distinct aliases, but only when the ON predicate contains ordinary AND-connected equality for **every component of its live-verified unique INT key**. The second alias then contributes at most one row per source row. Missing keys, OR-only matches, computed/cast keys and joins to another table still fail closed.
 
+### Distinct physical-table JOIN with two live unique-key proofs (M07)
+
+A SQL Server CTE may now use one **INNER** or **LEFT JOIN** against a second, different physical table. Both sources require an independently live-verified, enabled, unfiltered, nonnullable unique `INT`/`BIGINT` key tuple of one or two columns. Every source key must be matched by an ordinary, mandatory `AND`/`=` comparison to the corresponding second-table key. The physical types must match exactly per ordinal; a virtual catalog, implicit cast, partial-key equality or filtered index cannot establish uniqueness. Both index identities participate in plan/approval evidence and are rechecked on the actual commit transaction, including post-preview index revocation. This does not authorize a third physical source, many-to-many joins, `RIGHT`/`FULL JOIN`, cross-provider lowering or general arbitrary JOINs.
+
 ## Fail-closed rules
 
 A mutation is not committed when approval is rejected, expires, becomes stale, has a mismatched fingerprint, loses authorization, violates current policy, or cannot reproduce the approved row-set evidence.
