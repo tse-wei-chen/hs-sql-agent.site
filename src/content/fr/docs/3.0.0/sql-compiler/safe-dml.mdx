@@ -69,3 +69,12 @@ Une seconde forme, tout aussi limitée, autorise une **auto-jointure INNER ou LE
 Une mutation n'est pas commit si l'approbation est refusée, expirée, stale, si le Fingerprint ne correspond plus, si l'autorisation est retirée, si la Policy courante la refuse ou si le Row Set approuvé ne peut pas être reproduit.
 
 Voir [Référence des outils MCP](/fr/docs/mcp/tools-reference), [Configuration](/fr/docs/operations/configuration) et [Intégration ASP.NET Core](/fr/docs/integration/aspnet-core).
+
+## Non publié : G9/M04 clés entières de types exacts (SQL Server)
+
+**Documentation de développement uniquement ; fonctionnalité absente de la version publique actuelle.** La preuve physique des UPDATE／DELETE avec CTE sous SQL Server accepte une clé UNIQUE ordonnée d'une ou deux colonnes de types natifs `INT` ou `BIGINT`. Une paire mixte `(BIGINT, INT)` reste possible uniquement si **chaque colonne de l'index source et la colonne cible correspondante ont exactement le même type physique SQL**.
+
+Le Host inspecte réellement les catalogues système SQL Server et exige un index unique actif, non filtré, non calculé et sans NULL. Le compilateur F# contrôle indépendamment les projections directes des clés, les égalités obligatoires `AND`／`=`, les colonnes supplémentaires bornées et les JOIN dont la cardinalité est démontrée. L'aperçu en lecture seule, l'approbation indépendante et la revérification transactionnelle sont obligatoires. Les tests SQL Server 2022 utilisent des entiers dépassant les limites 32 bits.
+
+**Toujours refusés :** conversion implicite de `INT` source vers `BIGINT` cible, `DECIMAL`／`NUMERIC`, `SMALLINT`, `FLOAT`, `UNIQUEIDENTIFIER`, clés calculées ou nullables, JOIN à cardinalité non prouvée et cinq autres SGBD. Aucun nouvel outil MCP ni droit implicite.
+

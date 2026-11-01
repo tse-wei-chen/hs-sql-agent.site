@@ -69,3 +69,12 @@ SQL Server 的每层 CTE 现在最多可以额外使用一个**可证明不会�
 审批被拒绝、过期、stale、Fingerprint 不匹配、权限被撤销、违反当前 Policy，或无法重现审批 Row Set 时，都不会提交 DML。
 
 另见 [MCP Tools 参考](/zh-hans/docs/mcp/tools-reference)、[配置参考](/zh-hans/docs/operations/configuration)和 [ASP.NET Core 集成](/zh-hans/docs/integration/aspnet-core)。
+
+## 尚未发布：G9／M04 精确整数键组（SQL Server）
+
+**仅用于开发预览，不属于当前正式发布版本。** SQL Server 受限 CTE UPDATE／DELETE 的实际数据库证明现可使用由一个或两个列组成的有序 UNIQUE 键；列类型仅限内置 `INT` 和 `BIGINT`。例如混合键 `(BIGINT, INT)`，必须确保**来源索引每一位置的真实数据类型与目标比较列完全相同**，才能取得执行证明。
+
+Host 直接从 SQL Server 系统目录验证已启用、无筛选、非计算且不可为 NULL 的唯一索引。F# 编译器独立验证键的直接投影、必需的 `AND`／`=` 比较、受限附加列及不会增加行数的 JOIN。只读预览、独立人工审批和事务内重新核验均不可省略；SQL Server 2022 真实测试覆盖超过 32 位整数范围的键值。
+
+**仍然拒绝：** 来源 `INT` 到目标 `BIGINT` 的隐式转换、`DECIMAL`／`NUMERIC`、`SMALLINT`、`FLOAT`、`UNIQUEIDENTIFIER`、计算列、允许空值的键、未证明基数的任意 JOIN，以及其他五种数据库。不新增 MCP 工具，也不更改默认权限。
+

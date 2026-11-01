@@ -69,3 +69,12 @@ A separate, equally narrow form permits an **INNER or LEFT self-JOIN of the same
 A mutation is not committed when approval is rejected, expires, becomes stale, has a mismatched fingerprint, loses authorization, violates current policy, or cannot reproduce the approved row-set evidence.
 
 See [MCP Tools Reference](/docs/mcp/tools-reference), [Configuration](/docs/operations/configuration), and [ASP.NET Core integration](/docs/integration/aspnet-core).
+
+## Unreleased: G9/M04 exact integer KeyTuple (SQL Server)
+
+**Development preview only — not part of the current public release.** The bounded SQL Server CTE UPDATE/DELETE proof can use an ordered one- or two-component physical UNIQUE key whose columns are built-in `INT` or `BIGINT`. Mixed pairs such as `(BIGINT, INT)` are allowed only where **each source index component and its corresponding target comparison column have exactly the same physical SQL type**.
+
+The Host reads enabled, unfiltered, noncomputed, nonnullable unique-index keys from SQL Server system catalogs. The F# compiler separately validates direct key projection, mandatory ordinary `AND`/`=` equalities, bounded payload and proven nonmultiplying JOIN shapes. Preview, independent approval and transaction-held physical revalidation remain required. Actual 64-bit values above the 32-bit limit are covered by SQL Server 2022 live tests.
+
+**Still rejected:** source `INT` to target `BIGINT` implicit promotion, `DECIMAL`/`NUMERIC`, `SMALLINT`, `FLOAT`, `UNIQUEIDENTIFIER`, computed/nullable key components, unverified arbitrary JOIN cardinality and all other database providers. No MCP tool or default permission changes.
+
