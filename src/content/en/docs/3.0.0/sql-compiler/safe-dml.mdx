@@ -77,6 +77,13 @@ SQL Server CTE-based UPDATE/DELETE can use an **EXISTS** (semi-join) or **NOT EX
 The SQL Server CTE UPDATE/DELETE live proof now accepts built-in `TINYINT` (unsigned 8-bit) and `SMALLINT` (signed 16-bit) alongside `INT` and `BIGINT`. For a one- or two-column physical unique key, each corresponding source, target and independently joined key must have **the same actual SQL Server type at its index ordinal**. A wider integer, implicit cast, user-defined alias type or virtual catalog is not proof. The existing bounded CTE lineage, nonmultiplying JOIN checks, row preview, separate approval, immutable fingerprint and same-transaction index recheck remain mandatory. SQL Server 2022 tests cover update/delete, mixed key types and index revocation. This change does not enable decimal, UUID, nullable unique keys, arbitrary JOINs or any additional database provider.
 
 
+### Exact DECIMAL / NUMERIC physical key proof (G9 / M04, develop only)
+
+The SQL Server CTE UPDATE/DELETE live proof now also supports built-in `DECIMAL(p,s)` and `NUMERIC(p,s)`, where `1 ≤ p ≤ 38` and `0 ≤ s ≤ p`. These two SQL Server names are synonyms, but their **physical precision and scale must match at each ordered unique-key component** across source, target and any separately verified physical JOIN source. A `DECIMAL(12,2)` key does not prove a match to `DECIMAL(13,2)`, `DECIMAL(12,3)` or an integer key; SQL implicit conversion is not proof.
+
+The Host reads actual `sys.columns` and `sys.types` metadata and verifies every column of the original UNIQUE index **without discarding unsupported alias-type columns**: a unique `(a,b)` index never establishes uniqueness for `a` alone. The sealed F# physical key-kind model includes the exact precision/scale. Existing 1–3 bounded CTE hops, nonmultiplying JOIN predicates, rowset preview, independent approval, versioned proof identity and same-transaction re-attestation are unchanged. SQL Server 2022 live tests cover fractional values, mixed integer/decimal keys, dual-physical JOINs, index revocation and precision/scale mismatch. UUID/text keys, nullable uniqueness, arbitrary joins and the other five providers remain unsupported in this proof.
+
+
 ## Fail-closed rules
 
 A mutation is not committed when approval is rejected, expires, becomes stale, has a mismatched fingerprint, loses authorization, violates current policy, or cannot reproduce the approved row-set evidence.

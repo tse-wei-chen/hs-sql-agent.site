@@ -77,6 +77,13 @@ SQL Server 的 CTE `UPDATE`／`DELETE` 可以在第一层 CTE 的 `WHERE` 使用
 SQL Server 的 CTE `UPDATE`／`DELETE` 物理唯一键证明，现在除了 `INT`、`BIGINT`，也支持内置 `TINYINT`（无符号 8 位）和 `SMALLINT`（有符号 16 位）。对于一列或两列的物理唯一键，来源列、目标比较列以及独立验证的 JOIN 列，**在每个索引键位置的实际 SQL Server 类型必须完全一致**。整数类型的隐式转换、自定义别名类型或虚拟目录都不能替代物理证据。原有的受限 CTE 键传递、不会增加行数的 JOIN 证明、影响行预览、独立审批、不可变计划指纹以及实际提交事务中的索引重新验证仍然必需。SQL Server 2022 测试覆盖更新、删除、混合键类型和索引撤销。本次扩展不开放 DECIMAL、UUID、可空唯一键、任意 JOIN 或其他数据库的执行权限。
 
 
+### DECIMAL／NUMERIC 物理键的精确证明（G9／M04，仅 develop）
+
+SQL Server 的 CTE `UPDATE`／`DELETE` 物理唯一键证明现在也支持内置 `DECIMAL(p,s)` 和 `NUMERIC(p,s)`，其中 `1 ≤ p ≤ 38`、`0 ≤ s ≤ p`。这两个名称在 SQL Server 中是同义类型，但来源键、目标比较列以及经过独立验证的 JOIN 来源键，**在每个索引键位置的精度与小数位数必须完全一致**。`DECIMAL(12,2)` 不能通过隐式转换证明与 `DECIMAL(13,2)`、`DECIMAL(12,3)` 或整数键等价。
+
+Host 会读取实际 `sys.columns` 与 `sys.types` 元数据，并完整检查原始 UNIQUE 索引中的**所有键列**；即使某列使用不支持的自定义别名类型，也绝不能把 `UNIQUE(a,b)` 错当作 `UNIQUE(a)`。F# 封闭类型保留精确精度和小数位数。原有的 1～3 层受限 CTE、不会增加行数的 JOIN 证明、受影响行预览、独立审批、带版本的证明身份以及实际提交事务中的重新验证都不变。SQL Server 2022 实测覆盖小数值、混合整数／小数键、跨物理表 JOIN、索引撤销和精度／位数不匹配拒绝。此证明不开放 UUID／文本键、可空唯一键、任意 JOIN 或其他五种数据库的执行权限。
+
+
 ## Fail-closed 规则
 
 审批被拒绝、过期、stale、Fingerprint 不匹配、权限被撤销、违反当前 Policy，或无法重现审批 Row Set 时，都不会提交 DML。

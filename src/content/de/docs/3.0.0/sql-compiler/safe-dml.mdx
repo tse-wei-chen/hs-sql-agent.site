@@ -77,6 +77,13 @@ Ein SQL-Server-UPDATE/DELETE mit CTE darf in der WHERE-Klausel der ersten CTE **
 Die physisch verifizierte CTE-`UPDATE`-/`DELETE`-Ausführung in SQL Server unterstützt jetzt neben `INT` und `BIGINT` auch die integrierten Typen `TINYINT` (vorzeichenlos, 8 Bit) und `SMALLINT` (vorzeichenbehaftet, 16 Bit). Bei einem physischen eindeutigen Schlüssel mit einer oder zwei Spalten müssen Quell-, Ziel- und unabhängig verifizierte JOIN-Schlüssel **an jeder Indexposition exakt denselben tatsächlichen SQL-Server-Typ** besitzen. Implizite Ganzzahlkonvertierung, benutzerdefinierte Alias-Typen oder ein virtueller Katalog liefern keinen Nachweis. Die begrenzte CTE-Schlüsselweitergabe, JOIN-Kardinalitätsprüfung, Vorschau betroffener Zeilen, separate Freigabe, unveränderlicher Plan-Fingerabdruck und erneute Indexprüfung in derselben Commit-Transaktion bleiben vorgeschrieben. SQL-Server-2022-Tests prüfen UPDATE/DELETE, gemischte Schlüsseltypen und Indexentzug. DECIMAL, UUID, nullbare eindeutige Schlüssel, beliebige JOINs und andere Datenbanken werden nicht freigeschaltet.
 
 
+### Exakter Nachweis physischer DECIMAL-/NUMERIC-Schlüssel (G9/M04, nur develop)
+
+Die physisch geprüfte CTE-`UPDATE`-/`DELETE`-Ausführung in SQL Server unterstützt jetzt auch die integrierten Typen `DECIMAL(p,s)` und `NUMERIC(p,s)` (`1 ≤ p ≤ 38`, `0 ≤ s ≤ p`). Die beiden Namen sind Synonyme; Quell-, Ziel- und unabhängig geprüfte JOIN-Schlüssel müssen aber **an jeder Indexposition exakt dieselbe Präzision und Dezimalstellenzahl** haben. Eine implizite Konvertierung zwischen `DECIMAL(12,2)` und `DECIMAL(13,2)`, `DECIMAL(12,3)` oder einem ganzzahligen Typ genügt nicht.
+
+Der Host liest echte `sys.columns`- und `sys.types`-Metadaten und prüft **sämtliche Schlüsselspalten** des ursprünglichen UNIQUE-Index. Eine nicht unterstützte benutzerdefinierte Alias-Spalte darf `UNIQUE(a,b)` niemals zu einem vermeintlichen `UNIQUE(a)` verkürzen. Der geschlossene F#-Typ bewahrt Präzision und Dezimalstellenzahl. Die bisherigen maximal drei begrenzten CTE-Stufen, kardinalitätserhaltenden JOIN-Prüfungen, Vorschau betroffener Zeilen, unabhängige Freigabe, versionierte Nachweisidentität und erneute Prüfung in derselben Commit-Transaktion bleiben erforderlich. Reale SQL-Server-2022-Tests decken Dezimalwerte, gemischte Integer-/Dezimalkomponenten, physische JOINs, Indexentzug und Abweichungen bei Präzision oder Dezimalstellen ab. UUID-/Textschlüssel, nullable UNIQUE, beliebige JOINs und fünf weitere Datenbanksysteme bleiben ausgeschlossen.
+
+
 ## Fail-closed-Regeln
 
 Bei Ablehnung, Ablauf, stale Status, Fingerprint-Abweichung, entzogener Berechtigung, aktueller Policy-Verletzung oder nicht reproduzierbarem Row Set wird keine Mutation committet.
