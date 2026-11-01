@@ -58,6 +58,10 @@ Fehlende oder vertauschte Schlüssel, `OR`, Typumwandlungen, nullbare oder berec
 
 Die ein bis drei CTE-Stufen dürfen neben dem erforderlichen ein- oder zweispaltigen INT-Schlüssel auch **weitere direkt gelesene Quellspalten** projizieren (höchstens 32 Spalten je Stufe). Beispielsweise kann auf `SELECT k1 AS a, payload AS extra, k2 AS b` ein `SELECT a, extra, b` folgen. Jeder Schlüssel muss in jeder Stufe genau einmal vorkommen, die relative Reihenfolge des physischen eindeutigen Index bewahren und durch zwingende `AND`- und normale `=`-Vergleiche gebunden sein. Doppelte, berechnete oder umgewandelte Schlüssel, mehrdeutige Aliase, mehrere Quellen und zeilenvervielfachende JOINs bleiben ausgeschlossen. Physische Indexprüfung, Vorschau, Freigabe und erneute Prüfung in der Commit-Transaktion bleiben unverändert. Allgemeine JOINs oder weitere Datenbanken werden dadurch nicht freigeschaltet.
 
+### Sichere JOINs mit genau einer abgeleiteten Zeile (G8 / M07, begrenzt)
+
+Pro SQL-Server-CTE-Stufe ist nun **höchstens ein JOIN mit nachweislich nicht steigender Zeilenzahl** zulässig. Die JOIN-Quelle muss eine unabhängige abgeleitete Abfrage wie `SELECT 1 AS marker` ohne `FROM`, `WHERE`, `UNION`, Gruppierung oder weitere Zeilen sein. `CROSS JOIN (SELECT 1 AS marker) AS one` erhält die Kardinalität; `INNER JOIN` und `LEFT JOIN` mit einem literalen Vergleich `ON 1 = 1` können sie nicht vergrößern. Physischer eindeutiger INT-Schlüssel, direkte Schlüsselprojektion, Vorschau, Freigabe und erneute Transaktionsprüfung bleiben erforderlich. **JOINs mit physischen Tabellen, APPLY, korrelierte Abfragen, mehrzeilige Quellen und allgemeine JOINs werden nicht freigeschaltet.**
+
 ## Fail-closed-Regeln
 
 Bei Ablehnung, Ablauf, stale Status, Fingerprint-Abweichung, entzogener Berechtigung, aktueller Policy-Verletzung oder nicht reproduzierbarem Row Set wird keine Mutation committet.

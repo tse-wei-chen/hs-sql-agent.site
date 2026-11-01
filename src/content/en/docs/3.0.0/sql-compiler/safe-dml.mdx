@@ -58,6 +58,10 @@ Missing or reordered keys, OR-only conditions, casts, nullable or computed keys,
 
 Each of the one to three CTEs may also project **direct non-key source columns** alongside the required one- or two-column INT key (up to 32 direct columns per hop). For example, `SELECT k1 AS a, payload AS extra, k2 AS b` may be followed by `SELECT a, extra, b`. Keys must retain their relative physical index order, appear exactly once at every hop and be matched with mandatory `AND`/`=` predicates. Duplicate or transformed keys, ambiguous aliases, computed expressions, multi-source or multiplying JOINs still fail closed. Physical unique-index checks, preview, approval and transaction-time revalidation are unchanged; this does not authorize general JOINs or affect other databases.
 
+### Singleton-derived JOIN safety proof (G8 / M07, limited subset)
+
+SQL Server may now use **one nonmultiplying JOIN per CTE hop** when the joined source is an uncorrelated derived `SELECT 1 AS marker` with **no FROM, WHERE, UNION, grouping or other rows**. A `CROSS JOIN (SELECT 1 AS marker) AS one` preserves the row count; `INNER JOIN` and `LEFT JOIN` with literal-equality `ON 1 = 1` cannot increase it. The physical INT unique-key tuple, direct key projection, bounded preview, approval and same-transaction live proof are still required. **This does not authorize joins against physical tables, APPLY, correlated queries, multi-row derived sources or general JOIN cardinality.**
+
 ## Fail-closed rules
 
 A mutation is not committed when approval is rejected, expires, becomes stale, has a mismatched fingerprint, loses authorization, violates current policy, or cannot reproduce the approved row-set evidence.
