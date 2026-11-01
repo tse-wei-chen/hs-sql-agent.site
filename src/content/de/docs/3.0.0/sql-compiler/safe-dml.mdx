@@ -60,7 +60,9 @@ Die ein bis drei CTE-Stufen dürfen neben dem erforderlichen ein- oder zweispalt
 
 ### Sichere JOINs mit genau einer abgeleiteten Zeile (G8 / M07, begrenzt)
 
-Pro SQL-Server-CTE-Stufe ist nun **höchstens ein JOIN mit nachweislich nicht steigender Zeilenzahl** zulässig. Die JOIN-Quelle muss eine unabhängige abgeleitete Abfrage wie `SELECT 1 AS marker` ohne `FROM`, `WHERE`, `UNION`, Gruppierung oder weitere Zeilen sein. `CROSS JOIN (SELECT 1 AS marker) AS one` erhält die Kardinalität; `INNER JOIN` und `LEFT JOIN` mit einem literalen Vergleich `ON 1 = 1` können sie nicht vergrößern. Physischer eindeutiger INT-Schlüssel, direkte Schlüsselprojektion, Vorschau, Freigabe und erneute Transaktionsprüfung bleiben erforderlich. **JOINs mit physischen Tabellen, APPLY, korrelierte Abfragen, mehrzeilige Quellen und allgemeine JOINs werden nicht freigeschaltet.**
+Pro SQL-Server-CTE-Stufe ist nun **höchstens ein JOIN mit nachweislich nicht steigender Zeilenzahl** zulässig. Die JOIN-Quelle muss eine unabhängige abgeleitete Abfrage wie `SELECT 1 AS marker` ohne `FROM`, `WHERE`, `UNION`, Gruppierung oder weitere Zeilen sein. `CROSS JOIN (SELECT 1 AS marker) AS one` erhält die Kardinalität; `INNER JOIN` und `LEFT JOIN` mit einem literalen Vergleich `ON 1 = 1` können sie nicht vergrößern. Physischer eindeutiger INT-Schlüssel, direkte Schlüsselprojektion, Vorschau, Freigabe und erneute Transaktionsprüfung bleiben erforderlich. **JOINs mit anderen physischen Tabellen, APPLY, korrelierte Abfragen, mehrzeilige Quellen und allgemeine JOINs werden nicht freigeschaltet.**
+
+Als zweite eng begrenzte Form ist ein **INNER-/LEFT-Selbst-JOIN derselben physischen Quelltabelle** unter zwei verschiedenen Aliasnamen möglich. Im ON-Prädikat müssen dabei **alle Komponenten des in der echten Datenbank bestätigten eindeutigen INT-Schlüssels** durch gewöhnliche Gleichheiten mit AND verknüpft werden. Der zweite Alias kann so pro Quellzeile höchstens eine Zeile liefern. Fehlende Schlüssel, ausschließlich OR-verknüpfte Vergleiche, berechnete/konvertierte Schlüssel und JOINs zu anderen Tabellen bleiben gesperrt.
 
 ## Fail-closed-Regeln
 

@@ -60,7 +60,9 @@ SQL Server 的 UPDATE／DELETE 在明确授权的前提下，可以通过 1～3 
 
 ### 单行 JOIN 的安全证明（G8／M07，受限子集）
 
-SQL Server 的每层 CTE 现在最多可以额外使用一个**可证明不会增加行数的 JOIN**：连接来源必须是完全独立的 `SELECT 1 AS marker` 派生查询，不包含 `FROM`、`WHERE`、`UNION`、分组或其他行。`CROSS JOIN (SELECT 1 AS marker) AS one` 保持源行数；使用常量等式 `ON 1 = 1` 的 `INNER JOIN`／`LEFT JOIN` 同样不会增加行数。物理 INT 唯一键、原样键列投影、预览、审批和提交事务内的实时证明仍然必需。**这不意味着支持一般物理表 JOIN、APPLY、相关子查询、多行派生源或任意 JOIN。**
+SQL Server 的每层 CTE 现在最多可以额外使用一个**可证明不会增加行数的 JOIN**：连接来源必须是完全独立的 `SELECT 1 AS marker` 派生查询，不包含 `FROM`、`WHERE`、`UNION`、分组或其他行。`CROSS JOIN (SELECT 1 AS marker) AS one` 保持源行数；使用常量等式 `ON 1 = 1` 的 `INNER JOIN`／`LEFT JOIN` 同样不会增加行数。物理 INT 唯一键、原样键列投影、预览、审批和提交事务内的实时证明仍然必需。**这不意味着支持连接其他物理表、APPLY、相关子查询、多行派生源或任意 JOIN。**
+
+另一种受限形式允许**同一物理源表使用不同别名进行 INNER／LEFT 自连接**，但 ON 条件必须通过必要的 AND 和普通等式完整匹配**在实际数据库中验证的每个 INT 唯一键列**。因此第二个别名对每行源数据最多匹配一行。缺少键列、仅通过 OR、计算或转换键，以及连接其他表均会被拒绝。
 
 ## Fail-closed 规则
 
