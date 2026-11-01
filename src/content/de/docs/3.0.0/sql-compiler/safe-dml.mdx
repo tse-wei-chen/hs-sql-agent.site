@@ -72,6 +72,11 @@ Eine SQL-Server-CTE kann nun genau einen **INNER JOIN** oder **LEFT JOIN** mit e
 
 Ein SQL-Server-UPDATE/DELETE mit CTE darf in der WHERE-Klausel der ersten CTE **EXISTS** (Semi-JOIN) oder **NOT EXISTS** (Anti-JOIN) verwenden, wenn die Unterabfrage **dieselbe bereits physisch geprüfte Quelltabelle** mit einem anderen Alias liest. Die Unterabfrage darf nur ein Literal projizieren und weder zusätzliche JOINs, Gruppierungen, Sortierungen noch Mengenoperationen enthalten. Alle ein oder zwei `INT`-/`BIGINT`-Komponenten des eindeutigen Schlüssels müssen über verpflichtende gewöhnliche `AND`-/`=`-Vergleiche korreliert sein; weitere direkte Vergleiche einer inneren Spalte mit einem Literal dürfen das Ergebnis einschränken. Der Filter kann Zeilen entfernen, aber nie vervielfachen. Physischer Indexnachweis, Vorschau, Freigabeidentität und erneute Transaktionsprüfung bleiben erforderlich. **Beliebige Unterabfragen, ungeprüfte andere Tabellen und allgemeine Anti-JOIN-Ausführungsrechte werden nicht freigeschaltet.**
 
+### Exakte physische TINYINT- und SMALLINT-Schlüssel (G9/M04, nur develop)
+
+Die physisch verifizierte CTE-`UPDATE`-/`DELETE`-Ausführung in SQL Server unterstützt jetzt neben `INT` und `BIGINT` auch die integrierten Typen `TINYINT` (vorzeichenlos, 8 Bit) und `SMALLINT` (vorzeichenbehaftet, 16 Bit). Bei einem physischen eindeutigen Schlüssel mit einer oder zwei Spalten müssen Quell-, Ziel- und unabhängig verifizierte JOIN-Schlüssel **an jeder Indexposition exakt denselben tatsächlichen SQL-Server-Typ** besitzen. Implizite Ganzzahlkonvertierung, benutzerdefinierte Alias-Typen oder ein virtueller Katalog liefern keinen Nachweis. Die begrenzte CTE-Schlüsselweitergabe, JOIN-Kardinalitätsprüfung, Vorschau betroffener Zeilen, separate Freigabe, unveränderlicher Plan-Fingerabdruck und erneute Indexprüfung in derselben Commit-Transaktion bleiben vorgeschrieben. SQL-Server-2022-Tests prüfen UPDATE/DELETE, gemischte Schlüsseltypen und Indexentzug. DECIMAL, UUID, nullbare eindeutige Schlüssel, beliebige JOINs und andere Datenbanken werden nicht freigeschaltet.
+
+
 ## Fail-closed-Regeln
 
 Bei Ablehnung, Ablauf, stale Status, Fingerprint-Abweichung, entzogener Berechtigung, aktueller Policy-Verletzung oder nicht reproduzierbarem Row Set wird keine Mutation committet.

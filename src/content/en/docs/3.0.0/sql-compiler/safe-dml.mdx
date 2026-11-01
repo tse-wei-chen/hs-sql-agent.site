@@ -72,6 +72,11 @@ A SQL Server CTE may now use one **INNER** or **LEFT JOIN** against a second, di
 
 SQL Server CTE-based UPDATE/DELETE can use an **EXISTS** (semi-join) or **NOT EXISTS** (anti-join) in the first CTE's WHERE clause when it reads the **same already live-attested physical source table** under a different alias. The subquery must project a literal, perform no extra joins, grouping, ordering or set operations, and correlate **every 1–2 INT/BIGINT unique-key component** by mandatory ordinary `AND` / `=` predicates. Additional direct inner-column comparisons to literals may narrow the rows. These predicates can only filter, never multiply cardinality; the existing source-index attestation, bounded preview, approval identity and same-transaction metadata recheck remain mandatory. This does **not** permit arbitrary nested queries, another unverified table, JOIN multiplication, or general SQL Server EXISTS/anti-join execution authorization.
 
+### Exact TINYINT and SMALLINT physical keys (G9 / M04, develop only)
+
+The SQL Server CTE UPDATE/DELETE live proof now accepts built-in `TINYINT` (unsigned 8-bit) and `SMALLINT` (signed 16-bit) alongside `INT` and `BIGINT`. For a one- or two-column physical unique key, each corresponding source, target and independently joined key must have **the same actual SQL Server type at its index ordinal**. A wider integer, implicit cast, user-defined alias type or virtual catalog is not proof. The existing bounded CTE lineage, nonmultiplying JOIN checks, row preview, separate approval, immutable fingerprint and same-transaction index recheck remain mandatory. SQL Server 2022 tests cover update/delete, mixed key types and index revocation. This change does not enable decimal, UUID, nullable unique keys, arbitrary JOINs or any additional database provider.
+
+
 ## Fail-closed rules
 
 A mutation is not committed when approval is rejected, expires, becomes stale, has a mismatched fingerprint, loses authorization, violates current policy, or cannot reproduce the approved row-set evidence.
