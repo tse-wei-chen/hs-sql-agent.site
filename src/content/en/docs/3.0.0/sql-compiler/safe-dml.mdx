@@ -48,12 +48,6 @@ When a later completion arrives, hs-sql-agent reloads current authorization and 
 
 The completion path therefore resumes **intent**, not an old database session.
 
-## SQL Server: composite INT keys in CTE-based mutations
-
-An explicitly opted-in SQL Server UPDATE or DELETE may read a physical source through one to three linear, nonrecursive CTEs when the source has a verified **two-column, non-null INT primary key or unique index**. Both key columns must be projected unchanged and in physical index order through each CTE. The final mutation must match both distinct target INT columns using mandatory `AND` and ordinary `=` predicates. A real SQL Server catalog check, a bounded row-set preview, approval binding and a same-transaction metadata recheck are required before execution. A parsed query or virtual catalog is not execution evidence.
-
-Missing or reordered keys, OR-only conditions, casts, nullable or computed keys, filtered/disabled indexes and multiplying joins remain unsupported. This does not expand other providers or authorize arbitrary multi-column joins.
-
 ## Fail-closed rules
 
 A mutation is not committed when approval is rejected, expires, becomes stale, has a mismatched fingerprint, loses authorization, violates current policy, or cannot reproduce the approved row-set evidence.

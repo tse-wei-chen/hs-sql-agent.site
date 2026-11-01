@@ -48,12 +48,6 @@ Bei einer späteren Entscheidung lädt der Server aktuelle Autorisierung und DB-
 
 Fortgesetzt wird der**Ausführungs-Intent**, nicht eine alte Database Session.
 
-## SQL Server: zusammengesetzte INT-Schlüssel bei CTE-Mutationen
-
-Ein ausdrücklich freigegebenes UPDATE oder DELETE in SQL Server darf eine physische Quelltabelle über ein bis drei lineare, nicht rekursive CTEs lesen, wenn ein tatsächlich geprüfter **zweispaltiger, nicht nullbarer INT-Primärschlüssel oder eindeutiger Index** existiert. Beide Schlüsselspalten müssen unverändert und in der Reihenfolge des physischen Index durch alle CTEs weitergegeben werden. Zwei zwingende Vergleiche mit `AND` und normalem `=` müssen die entsprechenden INT-Zielspalten binden. Vor der Ausführung sind eine Prüfung des echten SQL-Server-Katalogs, eine begrenzte Vorschau der betroffenen Zeilen, eine Freigabe und die erneute Prüfung innerhalb derselben Transaktion erforderlich.
-
-Fehlende oder vertauschte Schlüssel, `OR`, Typumwandlungen, nullbare oder berechnete Schlüssel, gefilterte/deaktivierte Indizes und vervielfachende Joins bleiben ausgeschlossen. Andere Datenbanken erhalten dadurch keine neue Ausführungsberechtigung.
-
 ## Fail-closed-Regeln
 
 Bei Ablehnung, Ablauf, stale Status, Fingerprint-Abweichung, entzogener Berechtigung, aktueller Policy-Verletzung oder nicht reproduzierbarem Row Set wird keine Mutation committet.
