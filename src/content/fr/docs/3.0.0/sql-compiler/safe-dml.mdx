@@ -54,6 +54,10 @@ Un UPDATE ou DELETE explicitement autorisé sur SQL Server peut lire une table s
 
 Les clés manquantes ou permutées, `OR`, les conversions de type, les clés nullables ou calculées, les index filtrés ou désactivés et les jointures qui multiplient les lignes sont refusés. Cette capacité ne s'étend pas aux autres bases.
 
+### Projection de colonnes supplémentaires dans les CTE (G8 / M03)
+
+Les une à trois CTE peuvent désormais projeter, en plus de la clé INT obligatoire à une ou deux colonnes, **des colonnes supplémentaires directement issues de la source** (32 colonnes maximum par étape). Par exemple, `SELECT k1 AS a, payload AS extra, k2 AS b` peut être suivi de `SELECT a, extra, b`. Chaque clé doit être présente une seule fois à chaque étape, conserver l'ordre relatif de l'index physique et être liée par les comparaisons obligatoires `AND` et `=`. Les clés dupliquées, calculées ou transformées, les alias ambigus, les sources multiples et les JOIN qui multiplient les lignes restent refusés. La vérification de l'index réel, l'aperçu, l'approbation et la revalidation pendant le commit restent inchangés. Aucun JOIN général ni autre moteur n'est autorisé par cette extension.
+
 ## Règles fail closed
 
 Une mutation n'est pas commit si l'approbation est refusée, expirée, stale, si le Fingerprint ne correspond plus, si l'autorisation est retirée, si la Policy courante la refuse ou si le Row Set approuvé ne peut pas être reproduit.

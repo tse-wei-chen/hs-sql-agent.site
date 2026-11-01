@@ -54,6 +54,10 @@ An explicitly opted-in SQL Server UPDATE or DELETE may read a physical source th
 
 Missing or reordered keys, OR-only conditions, casts, nullable or computed keys, filtered/disabled indexes and multiplying joins remain unsupported. This does not expand other providers or authorize arbitrary multi-column joins.
 
+### Additional non-key columns in the CTE projection (G8 / M03)
+
+Each of the one to three CTEs may also project **direct non-key source columns** alongside the required one- or two-column INT key (up to 32 direct columns per hop). For example, `SELECT k1 AS a, payload AS extra, k2 AS b` may be followed by `SELECT a, extra, b`. Keys must retain their relative physical index order, appear exactly once at every hop and be matched with mandatory `AND`/`=` predicates. Duplicate or transformed keys, ambiguous aliases, computed expressions, multi-source or multiplying JOINs still fail closed. Physical unique-index checks, preview, approval and transaction-time revalidation are unchanged; this does not authorize general JOINs or affect other databases.
+
 ## Fail-closed rules
 
 A mutation is not committed when approval is rejected, expires, becomes stale, has a mismatched fingerprint, loses authorization, violates current policy, or cannot reproduce the approved row-set evidence.

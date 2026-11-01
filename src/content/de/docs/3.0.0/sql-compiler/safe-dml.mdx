@@ -54,6 +54,10 @@ Ein ausdrücklich freigegebenes UPDATE oder DELETE in SQL Server darf eine physi
 
 Fehlende oder vertauschte Schlüssel, `OR`, Typumwandlungen, nullbare oder berechnete Schlüssel, gefilterte/deaktivierte Indizes und vervielfachende Joins bleiben ausgeschlossen. Andere Datenbanken erhalten dadurch keine neue Ausführungsberechtigung.
 
+### Zusätzliche Nichtschlüsselspalten in CTE-Projektionen (G8 / M03)
+
+Die ein bis drei CTE-Stufen dürfen neben dem erforderlichen ein- oder zweispaltigen INT-Schlüssel auch **weitere direkt gelesene Quellspalten** projizieren (höchstens 32 Spalten je Stufe). Beispielsweise kann auf `SELECT k1 AS a, payload AS extra, k2 AS b` ein `SELECT a, extra, b` folgen. Jeder Schlüssel muss in jeder Stufe genau einmal vorkommen, die relative Reihenfolge des physischen eindeutigen Index bewahren und durch zwingende `AND`- und normale `=`-Vergleiche gebunden sein. Doppelte, berechnete oder umgewandelte Schlüssel, mehrdeutige Aliase, mehrere Quellen und zeilenvervielfachende JOINs bleiben ausgeschlossen. Physische Indexprüfung, Vorschau, Freigabe und erneute Prüfung in der Commit-Transaktion bleiben unverändert. Allgemeine JOINs oder weitere Datenbanken werden dadurch nicht freigeschaltet.
+
 ## Fail-closed-Regeln
 
 Bei Ablehnung, Ablauf, stale Status, Fingerprint-Abweichung, entzogener Berechtigung, aktueller Policy-Verletzung oder nicht reproduzierbarem Row Set wird keine Mutation committet.
