@@ -54,6 +54,13 @@ SQL Server の UPDATE／DELETE では、実在するソース表に**NULL 不可
 
 キーの欠落・順序入れ替え、`OR`、型変換、NULL 許容・計算列、フィルター付き／無効なインデックス、行数を増やす結合は拒否されます。他のデータベースでの実行能力は変わりません。
 
+### 単層 Derived Table の一意キー保持証明（G9/M06、develop のみ）
+
+SQL Server の限定 CTE `UPDATE`／`DELETE` は、既存の 1～3 段 CTE の手前に、**単一の物理テーブルだけを読み取る非 LATERAL の Derived Table を一段**追加できます。派生 SELECT と各 CTE は、たとえば `FROM (SELECT s.k1 AS x, s.k2 AS y FROM dbo.Source AS s) AS d` に続く `SELECT d.x AS a, d.y AS b` のように、完全な順序付き UNIQUE キーを直接改名できます。F# の件数証明と Host の実カタログ証明は独立して列の出自を検証し、実行には完全な物理 UNIQUE インデックス、ソースとターゲットの型・NULL・照合順序の一致が必要です。仮想 Catalog や派生表の名前では更新を許可しません。
+
+これは**任意の派生表や複数分岐の CTE DAG に対応するものではありません**。JOIN、WHERE、DISTINCT、GROUP/HAVING、集約、ORDER、LIMIT/TOP/OFFSET、UNION、入れ子の派生表／CTE、LATERAL、CAST／計算キー、重複別名や一意キーの欠落は拒否します。プレビュー→独立承認→コミット、対象行集合の同一性、コミットトランザクション内のロック付き `IsCurrent` は継続し、プレビュー後のインデックス失効も拒否します。SQL Server 2022 の実テストで 1～3 段の CTE、整数／小数／UUID／文字列の複合キーと UPDATE／DELETE を確認します。他の五つの DB と既定の MCP 権限は変更しません。
+
+
 ### 言語照合順序と UNIQUE 比較の厳密な証明（G9／M05、develop のみ）
 
 SQL Server の限定 CTE UPDATE／DELETE では、長さが制限された組み込み `VARCHAR(n)`／`NVARCHAR(n)` の**四つの区別された比較規則**を証明できます。従来の `Latin1_General_100_BIN2`（バイナリ）に加え、`Latin1_General_100_CI_AS`（大文字小文字を区別せず、アクセントは区別）、`Latin1_General_100_CI_AI`（両方を区別せず）、`Latin1_General_100_CS_AS`（両方を区別）を対象とします。ソース UNIQUE インデックス、更新先の比較列、独立検証した第二 JOIN テーブルは、**各キー位置で実際の SQL 型・長さ・照合順序が一致**する必要があります。Text 型のスナップショットだけでは実行を許可せず、F# の閉じた型が実際の列とインデックスを検証します。

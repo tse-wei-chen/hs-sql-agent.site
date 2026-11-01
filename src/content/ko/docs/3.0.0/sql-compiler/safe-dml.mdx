@@ -54,6 +54,13 @@ SQL Server UPDATE 또는 DELETE는 실제 원본 테이블에 **NULL을 허용�
 
 키 누락·순서 변경, `OR`, 형 변환, NULL 허용 또는 계산 열, 필터링되거나 비활성화된 인덱스, 행 수를 늘리는 조인은 거부됩니다. 다른 데이터베이스의 실행 범위는 확대되지 않습니다.
 
+### 단일 Derived Table의 UNIQUE 키 보존 증명 (G9/M06, develop 전용)
+
+SQL Server의 제한된 CTE `UPDATE`/`DELETE`는 기존 1~3단 CTE 앞에 **실제 물리 테이블 하나만 읽는 비 LATERAL Derived Table 한 단계**를 허용합니다. 파생 SELECT와 후속 CTE는 `FROM (SELECT s.k1 AS x, s.k2 AS y FROM dbo.Source AS s) AS d`, `SELECT d.x AS a, d.y AS b`처럼 정렬된 전체 UNIQUE 키 열을 직접 다시 이름 붙일 수 있습니다. F# 카디널리티 증명과 Host의 실제 인덱스 검증은 각자 열 출처를 독립적으로 확인합니다. 실행 권한에는 실제 전체 UNIQUE 인덱스 및 원본/대상 SQL 타입·NULL 비교·정렬 규칙 일치가 필요하며, 가상 Catalog나 별칭은 권한이 아닙니다.
+
+이는 **임의의 Derived Table 또는 다중 분기 CTE DAG를 허용하지 않습니다**. 파생 계층의 JOIN, WHERE, DISTINCT, GROUP/HAVING, 집계, ORDER, LIMIT/TOP/OFFSET, UNION, 중첩 파생 테이블/CTE, LATERAL, CAST/계산 키, 중복 별칭 및 누락된 고유 키는 계속 거부합니다. 미리 보기→독립 승인→커밋, 정확한 행 집합과 동일 커밋 트랜잭션의 잠금 기반 `IsCurrent`가 필요하며 인덱스 철회 후 승인도 차단됩니다. 실제 SQL Server 2022 테스트는 1~3단 CTE, 정수/소수/UUID/텍스트 복합 키 및 UPDATE/DELETE를 다룹니다. 나머지 5개 DB 및 기본 MCP/DML 권한은 변경하지 않습니다.
+
+
 ### 언어별 정렬 규칙과 UNIQUE 동등 비교의 정확한 증명 (G9/M05, develop 전용)
 
 SQL Server의 제한된 CTE UPDATE/DELETE는 길이가 지정된 기본 제공 `VARCHAR(n)`/`NVARCHAR(n)`에 대해 **서로 구분되는 네 가지 비교 계약**을 검증합니다. 기존 `Latin1_General_100_BIN2`(이진 코드 포인트)에 더해 `Latin1_General_100_CI_AS`(대소문자 무시, 악센트 구분), `Latin1_General_100_CI_AI`(모두 무시), `Latin1_General_100_CS_AS`(모두 구분)를 지원합니다. 원본 UNIQUE 인덱스, 대상 비교 열 및 별도로 검증한 두 번째 JOIN 테이블은 **모든 키 위치에서 네이티브 SQL 타입, 길이, 실제 열 정렬 규칙이 동일**해야 합니다. 단순한 Text 스냅샷은 실행 권한이 아니며, F# 폐쇄형 모델이 실제 열과 인덱스를 검증합니다.

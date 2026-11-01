@@ -54,6 +54,13 @@ SQL Server 的 UPDATE／DELETE 在明確授權下，可透過 1～3 層線性、
 
 缺少或交換鍵欄位、僅靠 `OR` 匹配、型別轉換、可為 NULL 或計算欄位、篩選或停用的索引，以及造成匹配資料列倍增的 JOIN，都會被拒絕。這項能力不會擴大其他資料庫的可執行範圍。
 
+### 單層 Derived Table 的唯一鍵傳遞證明（G9／M06，僅 develop）
+
+SQL Server 受限 CTE `UPDATE`／`DELETE` 現可在原有 1～3 層 CTE 前，加入一層**只讀取單一實體來源表、非 LATERAL 的 Derived Table**。內層與外層 CTE 都可直接重新命名完整有序唯一鍵，例如 `FROM (SELECT s.k1 AS x, s.k2 AS y FROM dbo.Source AS s) AS d`，再以 `SELECT d.x AS a, d.y AS b` 投影。F# 的 mutation cardinality analyzer 和 Host 的實體證明探索會**各自獨立**追溯欄位與鍵位置；真正的執行權限仍需來源表的完整實體 UNIQUE 索引、目標型別一致、NULL 等號與定序規則驗證。Derived Table 別名或虛擬 Catalog 不能當成授權。
+
+這**並非開放任意 Derived Table 或多分支 CTE DAG**。內層不接受 JOIN、WHERE、DISTINCT、GROUP／HAVING、聚合、ORDER、LIMIT／TOP／OFFSET、UNION、巢狀 Derived／CTE、LATERAL、計算／CAST 鍵、重複別名或遺漏唯一鍵欄位。預覽→獨立核准→提交、精確行集身分及提交交易內持鎖的 `IsCurrent` 重新驗證均保留，預覽後撤銷索引仍拒絕。SQL Server 2022 實測涵蓋 1～3 層 CTE、整數／小數／UUID／文字複合鍵與 UPDATE／DELETE。其他五種資料庫、預設四個唯讀 MCP 工具及 DML 預設關閉均不變。
+
+
 ### 語系定序與 UNIQUE 等號比較的精確證明（G9／M05，僅 develop）
 
 SQL Server 受限 CTE UPDATE／DELETE 的實體鍵證明，現在可針對內建且長度受限的 `VARCHAR(n)`／`NVARCHAR(n)` 驗證四種**明確區分的比較語意**：既有的 `Latin1_General_100_BIN2`（二進位碼點），新增 `Latin1_General_100_CI_AS`（不區分大小寫、區分重音）、`Latin1_General_100_CI_AI`（大小寫與重音均不區分），以及 `Latin1_General_100_CS_AS`（大小寫與重音均區分）。來源 UNIQUE 索引、目標比較欄位，以及經獨立證明的第二個 JOIN 來源，必須在**每個鍵位置**具有相同的 SQL 實體型別、長度與實際欄位定序。Snapshot 標記為 Text 並不構成授權；F# 使用封閉型別區分比較語意，重新查驗真實資料庫欄位與索引。
