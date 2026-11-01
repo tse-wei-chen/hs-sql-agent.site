@@ -23,6 +23,17 @@ pnpm run build
 
 The production build runs `astro check`, generates the static site, and builds the Pagefind search index. `content:check` independently verifies current content against the pinned product release manifest.
 
+## Branch and release workflow
+
+The documentation site follows the same **development-first** workflow as the [main hs-sql-agent repository](https://github.com/tse-wei-chen/hs-sql-agent):
+
+- **`develop`** is the integration branch for unreleased site and product-documentation changes. Open feature, fix, localization, and documentation PRs against `develop`; do not target `main`.
+- **`main`** is the **published production branch**. Cloudflare production deployment is coupled to changes on `main`; merging a PR there can immediately publish the site.
+- **Release only:** After verifying the intended product release and content-source mapping, explicitly open a release PR from `develop` to `main`. Review the site diff and deployment impact before merging. Never auto-merge `develop` into `main`.
+- **Emergency hotfix:** Use a reviewed `hotfix/*` PR against `main` only to restore or repair an already-published site, and carry that fix back into `develop` if applicable.
+
+CI validates pull requests targeting `develop` or `main`, and pushes to those integration/release branches. A branch-policy job rejects ordinary feature PRs targeting `main`. The GitHub PR base must still be checked before clicking Merge, and Cloudflare's production branch should remain explicitly configured to `main`.
+
 ## Information architecture
 
 The default English locale is completely unprefixed. Non-default locales remain locale-prefixed:
@@ -160,7 +171,7 @@ Before publishing, ensure the configured `site.url` matches the real production 
 
 ## GitHub Actions
 
-`.github/workflows/ci.yml` runs on pushes and pull requests. The Quality job checks changed-file formatting, runs the product source-of-truth validation, and runs ESLint. The Build job runs the production static build.
+`.github/workflows/ci.yml` runs on `develop`/`main` pushes and PRs targeting those branches. The Branch policy job rejects feature PRs targeting production `main`; the Quality job checks changed-file formatting, source-of-truth validation, visual contracts, and ESLint; the Build job runs the production static build.
 
 The source-of-truth validation is intentionally read-only: CI may reject stale or untraceable content, but it does not rewrite documentation or push commits back to a branch.
 
