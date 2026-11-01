@@ -54,6 +54,13 @@ SQL Server 的 UPDATE／DELETE 在明確授權下，可透過 1～3 層線性、
 
 缺少或交換鍵欄位、僅靠 `OR` 匹配、型別轉換、可為 NULL 或計算欄位、篩選或停用的索引，以及造成匹配資料列倍增的 JOIN，都會被拒絕。這項能力不會擴大其他資料庫的可執行範圍。
 
+### BIN2 VARCHAR／NVARCHAR 實體文字鍵的精確證明（G9／M04，僅 develop）
+
+SQL Server CTE `UPDATE`／`DELETE` 的實體唯一鍵證明，新增有限長度的內建 `VARCHAR(n)` 與 `NVARCHAR(n)`，**僅接受實體定序 `Latin1_General_100_BIN2`**。來源 UNIQUE 索引、目標比較欄位及經獨立查驗的第二個 JOIN 來源，必須在**每一個鍵位置**同時符合 SQL 原生型別、最大長度與定序。`NVARCHAR` 會先按 `sys.columns.max_length` 的位元組數驗證，再換算為宣告字元數。此能力**不代表所有文字鍵都安全**：`VARCHAR(MAX)`、`NVARCHAR(MAX)`、`CHAR`、`NCHAR`、長度不符、Unicode 與非 Unicode 隱含轉換、其他 BIN2 或不區分大小寫的定序、自訂別名型別及可為 NULL 的來源鍵均拒絕。
+
+Host 以現有的 `SqlSchemaValueKind.Text` 表示實體文字家族，但 **Snapshot 的 Text 宣告本身絕無執行授權**。F# 封閉鍵型別會獨立查驗實體欄位長度與定序、內建型別身分、完整且啟用的無篩選 UNIQUE 索引，以及受限 CTE／JOIN 中必要的普通等號關聯。Preview→獨立 Approval→Commit 仍會在實際提交交易持鎖重新驗證實體 metadata；ProofIdentity 升至 v7，舊核准不可沿用。SQL Server 2022 實體測試涵蓋文字與 UUID／整數／小數混合鍵、UPDATE／DELETE、1～3 層 CTE、self／跨表 JOIN、核准後提交及索引撤銷，並測試定序與長度不一致的拒絕。其他五種資料庫、MCP 工具與預設權限均未改變。
+
+
 ### CTE 投影可包含非鍵欄位（G8／M03）
 
 1～3 層 CTE 除了必要的 1～2 欄 INT 鍵，也能同時投影**直接來自來源資料列的其他欄位**，每層最多 32 欄。例如先使用 `SELECT k1 AS a, payload AS extra, k2 AS b`，再使用 `SELECT a, extra, b`。鍵欄位在每一層都必須各出現一次，維持實體唯一索引的相對順序，最終仍須以必要的 `AND` 和一般 `=` 比對。鍵值重複、轉換或計算、別名歧義、多來源及可能增加資料列的 JOIN 一律拒絕。實體唯一索引驗證、預覽、核准與提交交易內的再次檢查均不變；這項擴充不代表支援一般 JOIN，也不影響其他資料庫。
