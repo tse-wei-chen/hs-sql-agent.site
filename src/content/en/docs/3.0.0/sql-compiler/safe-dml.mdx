@@ -54,6 +54,13 @@ An explicitly opted-in SQL Server UPDATE or DELETE may read a physical source th
 
 Missing or reordered keys, OR-only conditions, casts, nullable or computed keys, filtered/disabled indexes and multiplying joins remain unsupported. This does not expand other providers or authorize arbitrary multi-column joins.
 
+### Exact linguistic collation and UNIQUE comparison (G9/M05, develop only)
+
+SQL Server's physical CTE UPDATE/DELETE proof now supports bounded built-in `VARCHAR(n)` and `NVARCHAR(n)` under four **independently identified comparison contracts**: `Latin1_General_100_BIN2` (binary, existing), `Latin1_General_100_CI_AS` (case-insensitive/accent-sensitive), `Latin1_General_100_CI_AI` (case/accent-insensitive), and `Latin1_General_100_CS_AS` (case/accent-sensitive). The source UNIQUE index, target comparison column and any separately attested physical JOIN table must match **the exact native type, bounded length and actual column collation at every key ordinal**. A typed Text snapshot alone grants no permission; F# closes the equality classes into distinct key cases and checks actual `sys.columns`/`sys.indexes` evidence.
+
+Real SQL Server 2022 tests compare whether inserting case- or accent-variant duplicates violates the UNIQUE index with whether ordinary `=` matches the same values. UPDATE/DELETE with 1–3 CTE steps, complete AND key relationships, mixed text/UUID/numeric keys, independent Preview→Approval→Commit, and transaction-held `IsCurrent` still apply. Nullable source UNIQUE remains conditional on `ANSI_NULLS ON`. A new **v9 ProofIdentity** invalidates older approvals. Different collations (including supported-but-mismatched classes), explicit `COLLATE` overrides, implicit VARCHAR/NVARCHAR conversion, unproven CS_AI, _SC and _UTF8, CHAR/MAX, filtered/disabled indexes and incomplete equality stay fail-closed. No new MCP tools, privileges or capability grants to the other five databases.
+
+
 ### Nullable SQL Server UNIQUE keys with ordinary equality (G9/M05, develop only)
 
 A SQL Server source key can now contain a nullable column **only when an actual enabled, unfiltered physical UNIQUE index covers the entire ordered 1–2-column tuple**. The bounded CTE `UPDATE`/`DELETE` proof must retain mandatory ordinary `AND`/`=` predicates against the target and a live session with `ANSI_NULLS ON` (checked through `@@OPTIONS`). A NULL source component makes ordinary equality UNKNOWN, so **it never joins a target row**. This is not NULL-safe comparison or an exception for arbitrary nullable table scans. The target-side composite proof still requires nonnullable keys, and the non-joined `VerifyLive` API cannot certify nullable source keys.
