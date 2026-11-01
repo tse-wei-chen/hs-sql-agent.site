@@ -54,6 +54,13 @@ SQL Server 的 UPDATE／DELETE 在明确授权的前提下，可以通过 1～3 
 
 缺少或颠倒键列、仅通过 `OR` 匹配、类型转换、可空或计算列、筛选或禁用的索引，以及会增加匹配行数的连接，都会被拒绝。该能力不会扩展其他数据库的可执行范围。
 
+### 语言排序规则与 UNIQUE 等值比较的精确证明（G9／M05，仅 develop）
+
+SQL Server 受限 CTE UPDATE／DELETE 的物理键证明现可处理内置且长度受限的 `VARCHAR(n)`／`NVARCHAR(n)`，并明确区分四类**经验证的比较语义**：已有的 `Latin1_General_100_BIN2`（二进制码点），新增 `Latin1_General_100_CI_AS`（不区分大小写、区分重音）、`Latin1_General_100_CI_AI`（均不区分）和 `Latin1_General_100_CS_AS`（均区分）。源 UNIQUE 索引、目标比较列以及独立证明的第二张 JOIN 表，必须在**每个键位置**采用完全一致的原生 SQL 类型、长度及实际列排序规则。Text 类型快照不构成执行授权；F# 使用封闭类型分别证明比较语义，并读取真实列和索引信息。
+
+SQL Server 2022 实测同时检查**大小写／重音变化是否触发唯一索引冲突**及普通 `=` 是否认为两值相等，而不只依赖排序规则名称。原有 1～3 层 CTE、完整 AND 键关联、文本／UUID／数值复合键、预览→独立审批→提交及事务内 `IsCurrent` 均保留；可空源 UNIQUE 仍要求 `ANSI_NULLS ON`。ProofIdentity 升至 **v9**，旧审批无效。不同列排序规则、显式 `COLLATE` 覆写、VARCHAR/NVARCHAR 隐式转换、未证明的 CS_AI／_SC／_UTF8、CHAR／MAX、筛选或停用索引及不完整等值比较继续拒绝。不增加 MCP 工具、权限或其他五个数据库的能力。
+
+
 ### 可空 SQL Server UNIQUE 物理键与普通等号证明（G9／M05，仅 develop）
 
 SQL Server 源键现在允许可空列，但必须由**实际启用、无筛选条件、覆盖完整 1～2 列有序键元组的物理 UNIQUE 索引**保护。受限 CTE `UPDATE`／`DELETE` 仍需具备对目标的完整 `AND`／普通 `=` 等值关系，而且实际数据库连接必须为 `ANSI_NULLS ON`（通过 `@@OPTIONS` 验证）。源键任何部分为 NULL 时，普通等号返回 UNKNOWN，**不会匹配目标行**。这不表示允许 NULL 安全比较或任意可空表扫描。复合目标键仍要求不可空；缺少目标等值图的旧 `VerifyLive` 不得证明可空源键。

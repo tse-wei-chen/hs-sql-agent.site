@@ -54,6 +54,13 @@ SQL Server 的 UPDATE／DELETE 在明確授權下，可透過 1～3 層線性、
 
 缺少或交換鍵欄位、僅靠 `OR` 匹配、型別轉換、可為 NULL 或計算欄位、篩選或停用的索引，以及造成匹配資料列倍增的 JOIN，都會被拒絕。這項能力不會擴大其他資料庫的可執行範圍。
 
+### 語系定序與 UNIQUE 等號比較的精確證明（G9／M05，僅 develop）
+
+SQL Server 受限 CTE UPDATE／DELETE 的實體鍵證明，現在可針對內建且長度受限的 `VARCHAR(n)`／`NVARCHAR(n)` 驗證四種**明確區分的比較語意**：既有的 `Latin1_General_100_BIN2`（二進位碼點），新增 `Latin1_General_100_CI_AS`（不區分大小寫、區分重音）、`Latin1_General_100_CI_AI`（大小寫與重音均不區分），以及 `Latin1_General_100_CS_AS`（大小寫與重音均區分）。來源 UNIQUE 索引、目標比較欄位，以及經獨立證明的第二個 JOIN 來源，必須在**每個鍵位置**具有相同的 SQL 實體型別、長度與實際欄位定序。Snapshot 標記為 Text 並不構成授權；F# 使用封閉型別區分比較語意，重新查驗真實資料庫欄位與索引。
+
+SQL Server 2022 實體測試會比對**大小寫／重音變體是否觸發唯一索引衝突**與普通 `=` 的實際配對結果，而非僅根據定序名稱推論。既有 1～3 層 CTE、完整 AND 鍵關聯、文字／UUID／數值複合鍵、預覽→獨立核准→提交及交易內 `IsCurrent` 均保留；nullable 來源 UNIQUE 仍須 `ANSI_NULLS ON`。ProofIdentity 升至 **v9**，舊核准無法沿用。來源／目標定序不一致、明確 `COLLATE` 覆寫、VARCHAR 與 NVARCHAR 隱含轉型、未驗證的 CS_AI／_SC／_UTF8、CHAR／MAX、篩選或停用索引以及不完整的等號關聯，仍一律拒絕。沒有增加 MCP 工具、權限，也不影響其他五種資料庫。
+
+
 ### 可為 NULL 的 SQL Server UNIQUE 實體鍵與普通等號證明（G9／M05，僅 develop）
 
 SQL Server 來源鍵現在可以有 NULL 欄位，但前提是**完整的 1～2 欄有序鍵組合具有實際啟用、未經篩選的實體 UNIQUE 索引**。受限 CTE `UPDATE`／`DELETE` 仍須具備對目標欄位的完整 `AND`／普通 `=` 等號關聯，且實體連線必須為 `ANSI_NULLS ON`（使用 `@@OPTIONS` 驗證）。來源鍵只要有一個欄位為 NULL，普通等號的結果即為 UNKNOWN，**不能配對任何目標資料列**。這不是 NULL-safe equality 的放行，也不允許任意 nullable 資料表掃描。複合目標鍵仍要求不可為 NULL；沒有目標等號證明的 `VerifyLive` 也不得核發 nullable 來源鍵授權。
