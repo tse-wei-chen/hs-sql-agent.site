@@ -54,6 +54,13 @@ SQL Server UPDATE 또는 DELETE는 실제 원본 테이블에 **NULL을 허용�
 
 키 누락·순서 변경, `OR`, 형 변환, NULL 허용 또는 계산 열, 필터링되거나 비활성화된 인덱스, 행 수를 늘리는 조인은 거부됩니다. 다른 데이터베이스의 실행 범위는 확대되지 않습니다.
 
+### NULL 허용 SQL Server UNIQUE 키와 일반 동등 비교의 증명 (G9/M05, develop 전용)
+
+SQL Server 원본 키에 NULL 허용 열을 포함할 수 있는 경우는 **순서가 지정된 전체 1~2개 키 열을 보호하는, 실제 활성 상태이며 필터가 없는 물리 UNIQUE 인덱스가 존재할 때뿐**입니다. 제한된 CTE `UPDATE`/`DELETE`에는 대상과 연결되는 모든 `AND`/일반 `=` 조건과 실제 접속의 `ANSI_NULLS ON`(`@@OPTIONS`로 검사)이 필요합니다. 원본 키에 NULL이 하나라도 포함되면 일반 동등 비교의 결과는 UNKNOWN이므로 **대상 행과 일치하지 않습니다**. NULL 안전 비교나 임의의 NULL 허용 테이블 스캔을 승인하는 것이 아닙니다. 복합 대상 키는 계속 NOT NULL이어야 하며, 대상 동등 비교가 없는 `VerifyLive`는 NULL 허용 원본 키를 증명할 수 없습니다.
+
+F#의 폐쇄형 NULL 비교 증명은 전체 UNIQUE 인덱스, 실제 기본 제공 물리 타입, 원본 NULL 허용 정보, 변경할 수 없는 메타데이터 요약 및 **v8 ProofIdentity**에 결합됩니다. 실제 Commit 연결과 트랜잭션에서 잠금을 유지하면서 `ANSI_NULLS ON`, 인덱스 및 스키마를 다시 확인합니다. `WHERE key IS NOT NULL`을 포함하는 필터 UNIQUE, 비활성/비고유 인덱스, `OR`, `COALESCE`, 계산된 키, CAST, NULL 안전 연산자, 가상 Catalog는 실행 증명이 아닙니다. 실제 SQL Server 2022 테스트는 NULL 허용 BIGINT/DECIMAL/UUID/BIN2 VARCHAR 복합 키, 1~3단 CTE, UPDATE/DELETE, Preview→독립 승인→Commit, NULL 비일치 및 인덱스 철회 시 차단을 확인합니다. 다른 5개 DB와 MCP 기본 권한은 변경하지 않습니다.
+
+
 ### BIN2 VARCHAR／NVARCHAR 물리 문자열 키의 정확한 검증 (G9/M04, develop 전용)
 
 SQL Server CTE `UPDATE`/`DELETE`의 물리 고유성 증명은 길이가 제한된 기본 제공 `VARCHAR(n)`과 `NVARCHAR(n)`을 지원합니다. 단, **실제 데이터베이스 정렬 규칙이 정확히 `Latin1_General_100_BIN2`인 경우에만** 허용합니다. 원본 UNIQUE 인덱스, 대상 비교 열 및 별도로 검증된 두 번째 JOIN 테이블의 키는 **모든 키 순서에서 네이티브 SQL 타입, 최대 길이 및 정렬 규칙이 동일**해야 합니다. `NVARCHAR`는 `sys.columns.max_length`의 바이트 수를 검증한 뒤 문자 길이로 환산합니다. `MAX`, `CHAR`/`NCHAR`, 길이 불일치, Unicode와 비 Unicode 간 암시적 변환, 다른 BIN2 또는 대소문자를 구분하지 않는 정렬 규칙, 사용자 정의 별칭, NULL 허용 원본 키는 거부됩니다.
