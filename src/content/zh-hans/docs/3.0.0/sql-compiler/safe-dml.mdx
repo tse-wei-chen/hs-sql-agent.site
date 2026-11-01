@@ -54,6 +54,13 @@ SQL Server 的 UPDATE／DELETE 在明确授权的前提下，可以通过 1～3 
 
 缺少或颠倒键列、仅通过 `OR` 匹配、类型转换、可空或计算列、筛选或禁用的索引，以及会增加匹配行数的连接，都会被拒绝。该能力不会扩展其他数据库的可执行范围。
 
+### BIN2 VARCHAR／NVARCHAR 物理文本键的精确证明（G9／M04，仅 develop）
+
+SQL Server CTE `UPDATE`／`DELETE` 的物理唯一键证明新增有限长度的内置 `VARCHAR(n)` 和 `NVARCHAR(n)`，**仅允许实际排序规则 `Latin1_General_100_BIN2`**。来源 UNIQUE 索引、目标比较列以及独立验证的第二个 JOIN 来源，必须在**每个键位置**同时匹配 SQL 原生类型、最大长度和排序规则。`NVARCHAR` 先按照 `sys.columns.max_length` 的字节数验证，再换算为声明字符数。此能力并不允许所有文本键：`VARCHAR(MAX)`、`NVARCHAR(MAX)`、`CHAR`、`NCHAR`、长度差异、Unicode/非 Unicode 隐式转换、其他二进制或不区分大小写的排序规则、自定义别名类型和可空来源键均会被拒绝。
+
+Host 使用已有的 `SqlSchemaValueKind.Text` 记录真实文本类型，但**快照中的 Text 声明绝不能单独授权执行**。F# 封闭键类型独立验证实际列长度与排序规则、内置类型身份、完整且启用的无筛选 UNIQUE 索引，以及受限 CTE／JOIN 的必要普通等号关系。Preview→独立 Approval→Commit 仍在实际提交事务中持锁重新验证物理元数据；ProofIdentity 升至 v7，旧审批不可重用。SQL Server 2022 实测覆盖文本与 UUID／整数／小数复合键、UPDATE／DELETE、1～3 层 CTE、self/跨表 JOIN、审批提交及索引撤销，并验证排序规则或长度不匹配必须拒绝。其他五个数据库、MCP 工具和默认权限不变。
+
+
 ### CTE 投影可以包含非键列（G8／M03）
 
 1～3 层 CTE 除了必需的 1～2 列 INT 键，也可以同时投影**直接来自源数据行的其他列**，每层最多 32 列。例如先使用 `SELECT k1 AS a, payload AS extra, k2 AS b`，再使用 `SELECT a, extra, b`。键列在每一层都必须各出现一次，保持物理唯一索引中的相对顺序，最终仍须使用必要的 `AND` 和普通 `=` 匹配。重复、转换或计算键、别名歧义、多来源以及可能增加行数的 JOIN 均被拒绝。真实唯一索引检查、预览、审批和提交事务中的重新验证保持不变；此功能不等于支持普通 JOIN，也不改变其他数据库的执行范围。
