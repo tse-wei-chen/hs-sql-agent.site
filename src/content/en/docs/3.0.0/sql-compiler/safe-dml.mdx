@@ -68,6 +68,10 @@ A separate, equally narrow form permits an **INNER or LEFT self-JOIN of the same
 
 A SQL Server CTE may now use one **INNER** or **LEFT JOIN** against a second, different physical table. Both sources require an independently live-verified, enabled, unfiltered, nonnullable unique `INT`/`BIGINT` key tuple of one or two columns. Every source key must be matched by an ordinary, mandatory `AND`/`=` comparison to the corresponding second-table key. The physical types must match exactly per ordinal; a virtual catalog, implicit cast, partial-key equality or filtered index cannot establish uniqueness. Both index identities participate in plan/approval evidence and are rechecked on the actual commit transaction, including post-preview index revocation. This does not authorize a third physical source, many-to-many joins, `RIGHT`/`FULL JOIN`, cross-provider lowering or general arbitrary JOINs.
 
+### Key-correlated EXISTS / NOT EXISTS filters (M07, bounded phase)
+
+SQL Server CTE-based UPDATE/DELETE can use an **EXISTS** (semi-join) or **NOT EXISTS** (anti-join) in the first CTE's WHERE clause when it reads the **same already live-attested physical source table** under a different alias. The subquery must project a literal, perform no extra joins, grouping, ordering or set operations, and correlate **every 1–2 INT/BIGINT unique-key component** by mandatory ordinary `AND` / `=` predicates. Additional direct inner-column comparisons to literals may narrow the rows. These predicates can only filter, never multiply cardinality; the existing source-index attestation, bounded preview, approval identity and same-transaction metadata recheck remain mandatory. This does **not** permit arbitrary nested queries, another unverified table, JOIN multiplication, or general SQL Server EXISTS/anti-join execution authorization.
+
 ## Fail-closed rules
 
 A mutation is not committed when approval is rejected, expires, becomes stale, has a mismatched fingerprint, loses authorization, violates current policy, or cannot reproduce the approved row-set evidence.
