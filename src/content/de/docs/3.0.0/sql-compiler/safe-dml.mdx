@@ -20,7 +20,7 @@ DML verwendet einen strengeren Ausführungspfad als Queries, weil die Freigabe b
 
 ## Ein Tool für einzelne und mehrere Statements
 
-`execute_dml_sql` akzeptiert eine oder mehrere unterstützte `UPDATE`-, `DELETE`- oder `INSERT ... VALUES`-Anweisungen. Mehrere Statements werden durch Semikolons getrennt.
+`execute_dml_sql` akzeptiert eine oder mehrere unterstützte `UPDATE`-, `DELETE`- oder `INSERT ... VALUES`-Anweisungen. Mehrere Statements werden durch Semikolons getrennt. Ein begrenztes SQLite-`INSERT ... SELECT` ist ebenfalls zulässig, aber **nur als einzelne Anweisung**, niemals innerhalb eines Stapels.
 
 Es gibt kein separates Batch-DML-Tool. Mehrere Statements werden als ein Batch geparst, einmal freigegeben, in Originalreihenfolge ausgeführt und innerhalb einer serverseitig kontrollierten Transaction atomar committet.
 
