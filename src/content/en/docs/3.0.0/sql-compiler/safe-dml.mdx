@@ -167,3 +167,9 @@ WHERE dbo.Target.k1 = seed.a AND dbo.Target.k2 = seed.b
 ```
 
 The F# sealed mutation gate, static cardinality, Host physical index attestation, row-set Preview→Approval and same-transaction `IsCurrent` all remain required. Missing/reversed/computed/OR keys, an unverified or third physical source, weakened index, implicit coercion or cross-provider lowering fail closed. This is the first bounded multi-source mutation shape, **not general arbitrary multi-source DML**; defaults remain four read-only tools with DML disabled.
+
+### M09: SQLite INSERT SELECT from a second physical table (develop only)
+
+SQLite may insert **directly selected rows from one distinct `main` source table** into an explicitly named `main` target table, subject to the same single-statement approval workflow. Each table has an **independent live schema and DDL/index/trigger attestation**; approval binds the complete pair, the compiled INSERT and preview SELECT, the full multiset of projected values, the affected-row cap and the security policy. Commit reserves the SQLite writer, rechecks both physical schemas and all projected values inside the same transaction, then inserts exactly once.
+
+Example: `INSERT INTO main.users (name) SELECT name FROM main.other_users WHERE id = 1`. The source and target must both be actual `main` tables; explicit, unique target columns map to direct unaliased source columns and the sole WHERE is `column = non-NULL literal`. CTE, JOIN, aggregates, expressions, paging, `RETURNING`, conflict/upsert, attached schemas, other providers, multi-statement DML and unapproved source drift remain blocked. Default four read-only tools and DML disabled are unchanged.
