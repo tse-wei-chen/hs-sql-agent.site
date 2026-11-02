@@ -184,3 +184,5 @@ PostgreSQL 可在單一語句執行受限的 `INSERT INTO schema.target (欄位)
 提交要求明確的 **SERIALIZABLE InnoDB 交易**，以鎖定讀取保護來源資料，交易持有的 Metadata Lock 則阻擋競爭性 DDL。不可使用會造成隱式提交的 `LOCK TABLES`。為確實證明沒有隱藏的 Trigger，目前也要求執行身分具有**全域 Trigger 中繼資料可見性**；兩張表不得有 Trigger、外鍵或 MyISAM 等非交易性引擎。這個模式**不支援 `RETURNING`**，仍拒絕 CTE、JOIN、Upsert、計算投影、同表來源、多語句批次及未證明的 Provider。
 
 範例：`INSERT INTO app.users (name) SELECT name FROM app.import_users WHERE id = 1`。此功能仍須額外開啟 DML，並未新增 MCP 工具；前端預設只選四個唯讀工具、DML 關閉。
+
+此證明也綁定實際 InnoDB `TABLE_ID` 和 MySQL `@@server_uuid`：即使重建的表名、DDL 和來源資料完全相同，舊核准仍會失效。讀取 `INNODB_TABLES` 需要 `PROCESS` 權限，因此執行身分必須同時具有全域 `PROCESS` 與 `TRIGGER` 可見性；缺少中繼資料時直接拒絕。

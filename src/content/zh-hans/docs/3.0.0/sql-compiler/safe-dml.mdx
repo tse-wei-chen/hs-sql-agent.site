@@ -184,3 +184,5 @@ PostgreSQL 允许单条语句执行受限的 `INSERT INTO schema.target (列) SE
 提交需要明确的 **SERIALIZABLE InnoDB 事务**，利用锁定读取保护源行，并由事务内 Metadata Lock 防止竞争性 DDL。禁止使用可能导致隐式提交的 `LOCK TABLES`。为证明不存在不可见的触发器，目前还要求执行账号具有**全局 Trigger 元数据可见性**；两张表不得有 Trigger、外键或 MyISAM 等非事务引擎。本模式**不支持 `RETURNING`**，CTE、JOIN、Upsert、计算投影、同表来源、多语句批处理及未经证明的数据库仍被拒绝。
 
 示例：`INSERT INTO app.users (name) SELECT name FROM app.import_users WHERE id = 1`。仍需显式开启 DML，没有新增 MCP 工具；默认仅选择四个只读工具，DML 保持关闭。
+
+证明同时绑定实际 InnoDB `TABLE_ID` 和 MySQL `@@server_uuid`：即便重建表的名称、DDL 和源数据完全相同，原审批也会失效。读取 `INNODB_TABLES` 需要 `PROCESS` 权限，因此执行账号须同时具有全局 `PROCESS` 与 `TRIGGER` 可见性；无法核验元数据就拒绝执行。

@@ -184,3 +184,5 @@ PostgreSQL은 제한된 단일 문장 `INSERT INTO schema.target (열) SELECT �
 커밋에서는 명시적 **SERIALIZABLE InnoDB 트랜잭션**과 잠금 읽기 및 트랜잭션 유지 메타데이터 잠금으로 소스와 DDL 변경을 보호합니다. 암묵적 커밋을 유발하는 `LOCK TABLES` 는 사용하지 않습니다. 숨겨진 Trigger 부재를 확인할 수 있도록 실행 계정에 **전역 Trigger 메타데이터 가시성**도 요구합니다. 양쪽 테이블에 Trigger·외래 키·MyISAM 같은 비트랜잭션 엔진이 있으면 거부합니다. 이 모드는 **`RETURNING` 미지원**이며 CTE, JOIN, UPSERT, 계산 투영, 동일 테이블 소스, 다중 문장 및 미검증 데이터베이스도 거부합니다.
 
 예: `INSERT INTO app.users (name) SELECT name FROM app.import_users WHERE id = 1`. MCP 도구는 늘리지 않고 기본 읽기 전용 도구 4개만 선택되며 DML 은 비활성화 상태입니다.
+
+증명에는 실제 InnoDB `TABLE_ID` 와 MySQL `@@server_uuid` 도 묶습니다. 이름·DDL·원본 행이 같더라도 테이블이 재생성되면 이전 승인은 무효입니다. `INNODB_TABLES` 조회에는 `PROCESS` 권한이 필요하므로 전역 `PROCESS` 와 `TRIGGER` 메타데이터 가시성이 모두 필수이며 확인할 수 없으면 거부합니다.
