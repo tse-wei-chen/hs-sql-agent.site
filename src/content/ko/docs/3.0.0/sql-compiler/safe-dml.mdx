@@ -193,6 +193,8 @@ PostgreSQL은 제한된 단일 문장 `INSERT INTO schema.target (열) SELECT �
 
 ### M09: 제한된 AND 소스 조건 (develop 전용)
 
+**이전 범위:** 아래 AND 전용 조건은 M09 초기 제한입니다. 페이지 끝의 제한된 IN/OR 확장은 네 가지 네이티브 INSERT SELECT에만 이 제한을 대체합니다. 다른 CTE/JOIN의 OR 금지 조건은 유지됩니다.
+
 기존 **SQLite, PostgreSQL, MySQL 8.4 InnoDB** 네이티브 `INSERT SELECT` 소스 행 승인에서 `WHERE` 절에 `AND` 로만 연결한 **1~4개**의 직접 `열 = NULL이 아닌 리터럴` 조건을 사용할 수 있습니다. 예: `INSERT INTO app.users (name) SELECT name FROM app.import_users WHERE id = 1 AND name = 'Carol'`. 소스/대상 실제 테이블 식별, 버전별 기능, 영향 행 수 제한, 권한, 승인 및 트랜잭션 요구 사항은 그대로 유지합니다. 커밋 전에 승인된 소스 행 전체와 실제 Catalog를 다시 검증합니다. 임의 SQL을 허용하는 것은 아닙니다.
 
 조건 5개 이상, `OR`, `NOT`, 함수, 계산식, NULL 비교, 하위 쿼리, JOIN, CTE, UPSERT 및 검증되지 않은 Provider는 계속 거부됩니다. PostgreSQL/SQLite RETURNING은 기존에 증명된 제한을 따르며 MySQL RETURNING은 미지원입니다. 새 MCP 도구나 공개 API는 없고 DML은 기본 비활성화입니다.
@@ -212,3 +214,9 @@ SQL Server 2022는 동일 데이터베이스 내 **서로 다른 두 영구 실�
 ### M09: SQL Server 2022 승인된 INSERT SELECT의 네이티브 OUTPUT INSERTED (develop 전용)
 
 기존에 실제 소스가 증명된 같은 테이블 또는 두 테이블 `INSERT SELECT` 에 INSERT 열 목록 뒤 `OUTPUT INSERTED.id` 또는 `OUTPUT INSERTED.id, INSERTED.name` 을 사용할 수 있습니다. 실제 삽입된 대상 값은 **커밋 성공 후** 반환되며 미리 보기에서 IDENTITY 생성 ID를 꾸며내지 않습니다. SERIALIZABLE 트랜잭션의 유지되는 배타적 테이블 잠금 아래 전체 소스 행과 스키마를 재확인하고 네이티브 INSERT 한 번의 행 수 일치를 확인합니다. 1~32개 중복 없는 직접 대상 열만 허용하며 와일드카드, 별칭, 계산식, 중복, `OUTPUT INTO`, 잘못된 행 이미지는 거부합니다. 실제 Catalog와 트리거 부재 확인, 소스 변경·행 제한·승인 재사용 거부가 필수입니다. MCP 도구 추가 없이 기본 읽기 전용 네 개 선택 및 DML 비활성화를 유지합니다.
+
+### M09: 제한된 IN/OR 소스 행 조건 (develop 전용)
+
+실제 테이블이 검증된 **SQLite, PostgreSQL, MySQL 8.4 InnoDB, SQL Server 2022** 네이티브 `INSERT SELECT` 에서 `WHERE id IN (1,2)`, `WHERE id = 1 OR id = 2`, `WHERE (id = 1 OR id = 2) AND name IN ('Carol','Dave')` 를 허용합니다. 직접 `열 = NULL이 아닌 리터럴` 과 `열 IN (NULL이 아닌 리터럴, ...)` 을 합산하여 **비교 리터럴 최대 네 개**, 불리언 트리 노드 최대 일곱 개입니다. 괄호로 `AND`/`OR`를 조합할 수 있지만 각 원자 조건은 한정자가 없는 직접 열만 참조해야 합니다. 이전 M09 AND 전용 범위는 이 확장으로 대체되며 다른 CTE/JOIN의 OR 금지는 변하지 않습니다.
+
+`OR 1=1`, `NOT`/`NOT IN`, IN 내부 NULL, IN 하위 쿼리, 계산식, 다섯 개 이상의 비교 값, 임의 OR, CTE, JOIN, 다른 Provider DML은 계속 거부됩니다. 소스/대상의 실제 Catalog 증명과 유한한 양수 행 수 제한은 그대로입니다. 미리 보기는 **선택한 소스 행 전체**를 승인하고 커밋은 기존 트랜잭션 잠금 아래 스키마 및 모든 소스 값을 다시 검증한 뒤 실제 영향 행 수를 대조합니다. PostgreSQL/SQLite RETURNING 및 SQL Server OUTPUT INSERTED 는 커밋 성공 후 실제 생성된 대상 값을 반환하며 MySQL에는 RETURNING이 없습니다. MCP 도구나 공개 API 추가 없이 기본 읽기 전용 네 개 선택과 DML 비활성화를 유지합니다.
