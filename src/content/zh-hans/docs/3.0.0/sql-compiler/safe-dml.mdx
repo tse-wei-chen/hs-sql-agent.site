@@ -20,7 +20,7 @@ DML 比 Query 使用更严格的执行路径，因为真正 commit 时，审批�
 
 ## 一个 Tool，同时支持单语句与多语句
 
-`execute_dml_sql` 可以接受一个或多个受支持的 `UPDATE`、`DELETE`、`INSERT ... VALUES`，多个 Statement 用分号分隔。
+`execute_dml_sql` 可以接受一个或多个受支持的 `UPDATE`、`DELETE`、`INSERT ... VALUES`，多个 Statement 用分号分隔。 另可执行受限的 SQLite `INSERT ... SELECT`，但**只能作为单条语句**，不可放进多语句批处理。
 
 没有额外的 batch DML Tool。多语句输入会解析成一个 Batch，只审批一次，按原始顺序执行，最后在一个由服务器掌握的 Transaction 中原子提交。
 
@@ -34,9 +34,9 @@ Client 不能传入 `BEGIN`、`COMMIT`、`ROLLBACK` 等 Transaction-control SQL�
 
 ### SQLite 单语句源数据行审批（G9／M09，仅 develop）
 
-仅 SQLite 允许受限的 `INSERT ... SELECT`：读取源表与写入目标必须是**同一张明确指定的 `main` 实体表**，且使用明确的目标列、直接列投影和 `WHERE 列 = 常量` 条件。必须设置正整数且有限的 DML 行数上限，并启用 `AddHsSqlAgentNativeDmlSchemaFreshness()`。
+仅 SQLite 允许受限的 `INSERT ... SELECT`。唯一直接来源和插入目标必须是真实且明确限定的 `main` 表（可以是同一张表，也可以是两张不同的表）；不同表须分别通过实际表结构验证。明确且唯一的目标列、直接源列投影、`WHERE 列 = 非 NULL 常量`、正整数且有限的行数上限，以及 `AddHsSqlAgentNativeDmlSchemaFreshness()` 仍为必要条件。
 
-预览绑定**完整源列值**，而不只是行数。提交时先取得 SQLite IMMEDIATE 写入保留锁，再检查实际表结构及源数据行是否仍与审批时一致；发生变化即拒绝或回滚。CTE、JOIN、聚合、计算列、UPSERT、RETURNING、附加数据库、多语句批处理及其他数据库仍不支持；原有 DML 权限与独立审批要求不变。
+预览绑定**所有源投影值**，不会提前伪造目标表自动生成的 ID。提交时先取得 SQLite 写入保留锁，在同一事务中重新验证实际表结构及源数据行，然后仅执行一次编译后的 INSERT。SQLite **3.35+** 还可以使用 `RETURNING`，但只允许明确、无别名且不重复的目标列；**成功提交后**才返回真实插入行，这与源数据预览不同。RETURNING 通配符、表达式或别名、CTE、JOIN、UPSERT、附加数据库、多语句批处理及其他数据库仍被拒绝。DML 权限与独立审批不变。
 
 如果前一个 Statement 改变了后一个 Statement 原本获批的 Row Set，整个 Batch 会 fail closed 并 rollback。
 
@@ -164,4 +164,7 @@ F# 静态基数及封闭式写入准入、Host 实体双索引校验、预览→
 
 SQLite 现在可以从**另一张独立的 `main` 实体来源表**直接选取数据行，插入明确指定的 `main` 目标表，并沿用单语句预览／审批流程。来源与目标表**分别验证实际 schema、DDL、索引和触发器**；审批同时绑定两张表、编译后的 INSERT 和预览 SELECT、全部投影值的多重集合指纹、影响行数上限及安全策略。提交时先保留 SQLite 写锁，在同一事务内重新验证两张表及全部来源投影值，再执行一次插入。
 
-例如 `INSERT INTO main.users (name) SELECT name FROM main.other_users WHERE id = 1`。两侧都必须是真实 `main` 表；明确、唯一的目标列只能映射未使用别名的直接来源列，WHERE 仅允许「列＝非 NULL 常量」。CTE、JOIN、聚合、计算式、分页、`RETURNING`、冲突处理、附加数据库、其他 DB、批量写入及审批后来源漂移仍被拒绝。默认四个只读工具和 DML 关闭不变。
+例如 `INSERT INTO main.users (name) SELECT name FROM main.other_users WHERE id = 1`。两侧都必须是真实 `main` 表；明确、唯一的目标列只能映射未使用别名的直接来源列，WHERE 仅允许「列＝非 NULL 常量」。CTE、JOIN、聚合、计算式、分页、RETURNING 通配符、表达式与别名、冲突处理、附加数据库、其他 DB、批量写入及审批后来源漂移仍被拒绝。默认四个只读工具和 DML 关闭不变。
+
+
+SQLite 3.35+ 示例：`INSERT INTO main.users (name) SELECT name FROM main.other_users WHERE id = 1 RETURNING id, name`。预览批准源列 `name` 和数据行数；仅成功提交后才返回新行的 `id` 和 `name`。源数据变化时回滚，且不返回结果行。

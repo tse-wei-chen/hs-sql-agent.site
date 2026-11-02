@@ -20,7 +20,7 @@ DML verwendet einen strengeren Ausführungspfad als Queries, weil die Freigabe b
 
 ## Ein Tool für einzelne und mehrere Statements
 
-`execute_dml_sql` akzeptiert eine oder mehrere unterstützte `UPDATE`-, `DELETE`- oder `INSERT ... VALUES`-Anweisungen. Mehrere Statements werden durch Semikolons getrennt.
+`execute_dml_sql` akzeptiert eine oder mehrere unterstützte `UPDATE`-, `DELETE`- oder `INSERT ... VALUES`-Anweisungen. Mehrere Statements werden durch Semikolons getrennt. Ein begrenztes SQLite-`INSERT ... SELECT` ist ebenfalls zulässig, aber **nur als einzelne Anweisung**, niemals innerhalb eines Stapels.
 
 Es gibt kein separates Batch-DML-Tool. Mehrere Statements werden als ein Batch geparst, einmal freigegeben, in Originalreihenfolge ausgeführt und innerhalb einer serverseitig kontrollierten Transaction atomar committet.
 
@@ -34,9 +34,9 @@ Bei `INSERT ... VALUES` bindet die Freigabe an den unveränderlichen Literal Pay
 
 ### SQLite: Freigabe der Quellzeilen für eine Einzelanweisung (G9/M09, nur develop)
 
-Ein eng begrenztes `INSERT ... SELECT` ist **nur mit SQLite** zulässig, wenn Quelle und Einfügeziel dieselbe explizit qualifizierte physische `main`-Tabelle sind. Erforderlich sind eine ausdrückliche Zielspaltenliste, direkte Spaltenprojektionen, ein Prädikat `WHERE Spalte = Literal`, ein positiver endlicher DML-Zeilengrenzwert und `AddHsSqlAgentNativeDmlSchemaFreshness()`.
+Ein streng begrenztes `INSERT ... SELECT` ist **nur mit SQLite** zulässig. Die direkte Quelle und das Einfügeziel müssen echte, explizit qualifizierte `main`-Tabellen sein (dieselbe oder zwei unterschiedliche Tabellen); unterschiedliche physische Schemas werden unabhängig geprüft. Ausdrückliche eindeutige Zielspalten, direkte Quellspalten, `WHERE Spalte = Nicht-NULL-Literal`, ein positiver endlicher Zeilengrenzwert und `AddHsSqlAgentNativeDmlSchemaFreshness()` bleiben Pflicht.
 
-Die Vorschau bindet **sämtliche projizierten Quellwerte**, nicht nur deren Anzahl. Beim Commit wird zuerst die SQLite-IMMEDIATE-Schreibreservierung erworben; danach werden das reale Schema und die Quellzeilen erneut geprüft. Abweichungen führen zur Ablehnung oder zum Rollback. CTE, JOIN, Aggregate, berechnete Ausdrücke, UPSERT, RETURNING, angehängte Datenbanken, mehrere Anweisungen und andere Datenbanken bleiben ausgeschlossen. DML-Berechtigung und separate Freigabe bleiben erforderlich.
+Die Vorschau bindet **alle projizierten Quellwerte**, ohne automatisch erzeugte Ziel-IDs vorzutäuschen. Beim Commit wird zuerst die SQLite-Schreibreservierung erworben, dann werden in derselben Transaktion die echten Schemas und Quellzeilen erneut geprüft und der kompilierte INSERT einmal ausgeführt. SQLite **ab 3.35** erlaubt zusätzlich `RETURNING` mit eindeutigen, unqualifizierten direkten Zielspalten ohne Alias. Die tatsächlichen eingefügten Zeilen werden **erst nach erfolgreichem Commit** zurückgegeben und gehören nicht zu den Quellvorschauzeilen. Wildcards, Ausdrücke und Aliase bei RETURNING, CTE, JOIN, UPSERT, angehängte Datenbanken, mehrere Anweisungen und andere Provider bleiben gesperrt. DML-Rechte und gesonderte Freigabe bleiben unverändert.
 
 Verändert ein früheres Statement das freigegebene Row Set eines späteren Statements, schlägt der gesamte Batch fail closed fehl und wird zurückgerollt.
 
@@ -164,4 +164,7 @@ Statischer F#-Kardinalitätsbeweis und Schreibzulassung, echte Host-Prüfung bei
 
 SQLite darf nun **direkt ausgewählte Zeilen aus einer anderen physischen `main`-Tabelle** in eine explizit bezeichnete `main`-Zieltabelle einfügen. Für beide Tabellen werden reale Schemas, DDL, Indizes und Trigger **unabhängig attestiert**. Die Freigabe bindet beide Tabellen, das kompilierte INSERT und die Vorschau-SELECT-Abfrage, das vollständige Multiset projizierter Werte, die Zeilenobergrenze und die Sicherheitsrichtlinie. Beim Commit wird die SQLite-Schreibreservierung gehalten und beides samt allen Werten in derselben Transaktion erneut geprüft, bevor einmal eingefügt wird.
 
-Beispiel: `INSERT INTO main.users (name) SELECT name FROM main.other_users WHERE id = 1`. Beide Tabellen müssen echte `main`-Tabellen sein; explizite eindeutige Zielspalten erhalten nur direkt referenzierte Quellspalten ohne Alias. WHERE erlaubt nur „Spalte = Nicht-NULL-Literal“. CTEs, JOINs, Aggregate, Berechnungen, Paging, `RETURNING`, UPSERT, angehängte Datenbanken, andere Provider, mehrere Anweisungen und geänderte Quellwerte nach der Freigabe bleiben gesperrt. Vier Lese-Tools und deaktiviertes DML bleiben der Standard.
+Beispiel: `INSERT INTO main.users (name) SELECT name FROM main.other_users WHERE id = 1`. Beide Tabellen müssen echte `main`-Tabellen sein; explizite eindeutige Zielspalten erhalten nur direkt referenzierte Quellspalten ohne Alias. WHERE erlaubt nur „Spalte = Nicht-NULL-Literal“. CTEs, JOINs, Aggregate, Berechnungen, Paging, RETURNING-Wildcards, -Ausdrücke und -Aliase, UPSERT, angehängte Datenbanken, andere Provider, mehrere Anweisungen und geänderte Quellwerte nach der Freigabe bleiben gesperrt. Vier Lese-Tools und deaktiviertes DML bleiben der Standard.
+
+
+Beispiel für SQLite ab 3.35: `INSERT INTO main.users (name) SELECT name FROM main.other_users WHERE id = 1 RETURNING id, name`. Die Vorschau genehmigt `name` und die Zeilenzahl aus der Quelle; erst nach dem Commit werden `id` und `name` der neuen Zeile zurückgegeben. Ändert sich die Quelle, wird abgebrochen und es werden keine Ergebniszeilen zurückgegeben.

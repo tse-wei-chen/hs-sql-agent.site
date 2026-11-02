@@ -20,7 +20,7 @@ DML 比 Query 使用更嚴格的執行路徑，因為真正 commit 時，核准�
 
 ## 一個 Tool，同時支援單語句與多語句
 
-`execute_dml_sql` 可接受一個或多個受支援的 `UPDATE`、`DELETE`、`INSERT ... VALUES`，多個 Statement 以分號分隔。
+`execute_dml_sql` 可接受一個或多個受支援的 `UPDATE`、`DELETE`、`INSERT ... VALUES`，多個 Statement 以分號分隔。 另外也接受受限的 SQLite `INSERT ... SELECT`，但**只能單語句執行**，不可混入多語句批次。
 
 沒有額外的 batch DML Tool。多語句輸入會解析成一個 Batch，只核准一次，依原始順序執行，最後在一個由伺服器掌握的 Transaction 中原子提交。
 
@@ -34,9 +34,9 @@ Client 不可送入 `BEGIN`、`COMMIT`、`ROLLBACK` 等 Transaction-control SQL�
 
 ### SQLite 單語句來源資料列核准（G9／M09，僅 develop）
 
-僅 SQLite 開放受限的 `INSERT ... SELECT`：讀取來源與寫入目標必須是**同一張明確指定的 `main` 實體資料表**，並且使用明確目標欄位、直接欄位投影及 `WHERE 欄位 = 常值` 條件。必須設定正整數且有限的 DML 筆數上限，並啟用 `AddHsSqlAgentNativeDmlSchemaFreshness()`。
+僅 SQLite 開放受限的 `INSERT ... SELECT`。唯一直接來源與插入目標必須是明確指定的真實 `main` 資料表（可為同表或兩張不同表）；不同表須各自通過實體結構證明。明確且不重複的目標欄位、直接來源欄位投影、`WHERE 欄位 = 非 NULL 常值`、正整數且有限的筆數上限，以及 `AddHsSqlAgentNativeDmlSchemaFreshness()` 仍為必要條件。
 
-預覽會綁定**完整來源欄位值**，不是只有筆數。提交時先取得 SQLite IMMEDIATE 寫入保留鎖，再確認實體結構及來源資料列是否與核准時一致；一旦改變就拒絕或回復。CTE、JOIN、彙總、計算欄位、UPSERT、RETURNING、附加資料庫、多語句批次與其他資料庫仍不開放；既有 DML 權限與獨立核准照常要求。
+預覽綁定**全部來源投影值**，不會預先捏造目標表自動產生的 ID。提交時先取得 SQLite 寫入保留鎖，在同一交易內重驗實體結構與來源行集，再執行一次編譯後的 INSERT。SQLite **3.35+** 另可使用 `RETURNING`，但只允許明確、無別名且不重複的目標欄位；**成功提交後**才回傳真實插入列，與來源預覽資料不同。RETURNING 萬用字元、運算式或別名、CTE、JOIN、UPSERT、附加資料庫、多語句批次和其他資料庫仍拒絕。DML 權限與人工核准維持不變。
 
 若前一個 Statement 改變了後一個 Statement 原先核准的 Row Set，整個 Batch 會 fail closed 並 rollback。
 
@@ -164,4 +164,7 @@ F# 靜態基數與封閉式寫入准入、Host 實體雙索引查核、預覽→
 
 SQLite 現可從**另一張獨立的 `main` 實體來源表**直接選取資料列，插入明確指定的 `main` 目標表，並沿用單語句預覽／核准流程。來源與目標表**各自驗證實際 schema、DDL、索引與觸發器**；核准證據同時綁定兩張表、已編譯的 INSERT 與預覽 SELECT、全部投影值的多重集合指紋、影響列數上限及安全政策。提交時先保留 SQLite 寫入權，在同一交易內重新驗證兩張表及全部來源投影值，再執行一次插入。
 
-例如 `INSERT INTO main.users (name) SELECT name FROM main.other_users WHERE id = 1`。兩側均須為真實 `main` 資料表；明確且不重複的目標欄位只能對應未使用別名的直接來源欄位，WHERE 只能是「欄位＝非 NULL 常值」。CTE、JOIN、聚合、計算式、分頁、`RETURNING`、衝突處理、附加資料庫、其他 DB、批次寫入及核准後來源漂移仍拒絕。預設四個唯讀工具、DML 不勾選不變。
+例如 `INSERT INTO main.users (name) SELECT name FROM main.other_users WHERE id = 1`。兩側均須為真實 `main` 資料表；明確且不重複的目標欄位只能對應未使用別名的直接來源欄位，WHERE 只能是「欄位＝非 NULL 常值」。CTE、JOIN、聚合、計算式、分頁、RETURNING 萬用字元、運算式與別名、衝突處理、附加資料庫、其他 DB、批次寫入及核准後來源漂移仍拒絕。預設四個唯讀工具、DML 不勾選不變。
+
+
+SQLite 3.35+ 範例：`INSERT INTO main.users (name) SELECT name FROM main.other_users WHERE id = 1 RETURNING id, name`。預覽核准來源的 `name` 和資料列數；真正成功提交後，才回傳新增資料列的 `id` 和 `name`。來源發生變更時回復，且不回傳任何結果列。
