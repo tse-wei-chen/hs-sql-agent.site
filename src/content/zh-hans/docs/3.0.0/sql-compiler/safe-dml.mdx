@@ -190,3 +190,9 @@ PostgreSQL 允许单条语句执行受限的 `INSERT INTO schema.target (列) SE
 #### 同表来源：一份实体身份凭据（仅 develop）
 
 现也允许受限的 `INSERT INTO app.users (name) SELECT name FROM app.users WHERE id = 1`。来源与目标是**同一张真实 InnoDB 表**，不制造两份虚假的目录证明。预览与提交核验一份 `TABLE_ID`、`@@server_uuid`、DDL 和完整已批准源行集。SERIALIZABLE 事务通过锁定读取和持有至提交的元数据锁保护同一张表。来源值或索引漂移、相同 DDL 的删表重建、并发写入、较弱隔离级别、重复使用审批均被拒绝；`RETURNING`、CTE、JOIN、UPSERT 仍不支持。
+
+### M09：有界 AND 来源筛选条件（仅 develop）
+
+现有 **SQLite、PostgreSQL、MySQL 8.4 InnoDB** 原生 `INSERT SELECT` 来源行集审批，现在允许 `WHERE` 包含**一至四个**只用 `AND` 连接的直接 `列 = 非 NULL 常量` 比较。例如：`INSERT INTO app.users (name) SELECT name FROM app.import_users WHERE id = 1 AND name = 'Carol'`。来源及目标的实际身份、版本能力、最大影响行数、权限、审批和事务要求均保持不变。提交前仍核验完整已批准的来源行集及实体 Catalog；不代表开放任意 SQL。
+
+五个以上条件、`OR`、`NOT`、函数、计算表达式、NULL 比较、子查询、JOIN、CTE、UPSERT 和未经证明的数据库仍拒绝。PostgreSQL／SQLite 的 RETURNING 继续遵循各自已证明的限制；MySQL 不支持 RETURNING。不新增 MCP 工具或公共 API，DML 默认关闭。

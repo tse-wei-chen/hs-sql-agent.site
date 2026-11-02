@@ -190,3 +190,9 @@ PostgreSQL은 제한된 단일 문장 `INSERT INTO schema.target (열) SELECT �
 #### 동일 테이블을 소스로 사용하는 경우: 하나의 실제 엔터티 증명 (develop 전용)
 
 제한된 `INSERT INTO app.users (name) SELECT name FROM app.users WHERE id = 1` 도 허용합니다. 소스와 대상은 **같은 실제 InnoDB 테이블**이며 가짜 이중 스키마 증명을 만들지 않습니다. 미리 보기와 커밋은 하나의 `TABLE_ID`, `@@server_uuid`, 테이블 DDL 및 승인된 전체 소스 행 집합을 검증합니다. SERIALIZABLE 트랜잭션은 잠금 읽기와 메타데이터 잠금을 유지합니다. 소스 값·인덱스 변경, 동일 DDL로 테이블 재생성, 경합 쓰기, 약한 격리 수준, 승인 재사용은 모두 거부합니다. `RETURNING`, CTE, JOIN, UPSERT는 여전히 지원하지 않습니다.
+
+### M09: 제한된 AND 소스 조건 (develop 전용)
+
+기존 **SQLite, PostgreSQL, MySQL 8.4 InnoDB** 네이티브 `INSERT SELECT` 소스 행 승인에서 `WHERE` 절에 `AND` 로만 연결한 **1~4개**의 직접 `열 = NULL이 아닌 리터럴` 조건을 사용할 수 있습니다. 예: `INSERT INTO app.users (name) SELECT name FROM app.import_users WHERE id = 1 AND name = 'Carol'`. 소스/대상 실제 테이블 식별, 버전별 기능, 영향 행 수 제한, 권한, 승인 및 트랜잭션 요구 사항은 그대로 유지합니다. 커밋 전에 승인된 소스 행 전체와 실제 Catalog를 다시 검증합니다. 임의 SQL을 허용하는 것은 아닙니다.
+
+조건 5개 이상, `OR`, `NOT`, 함수, 계산식, NULL 비교, 하위 쿼리, JOIN, CTE, UPSERT 및 검증되지 않은 Provider는 계속 거부됩니다. PostgreSQL/SQLite RETURNING은 기존에 증명된 제한을 따르며 MySQL RETURNING은 미지원입니다. 새 MCP 도구나 공개 API는 없고 DML은 기본 비활성화입니다.

@@ -190,3 +190,9 @@ PostgreSQL では、限定的な単文 `INSERT INTO schema.target (列) SELECT �
 #### 同一テーブルをソースにする場合：実体の証明は 1 つ（develop 限定）
 
 限定的な `INSERT INTO app.users (name) SELECT name FROM app.users WHERE id = 1` にも対応します。ソースと対象は**同一の実 InnoDB テーブル**であり、カタログ証明を二重に作りません。プレビューとコミットで単一の `TABLE_ID`、`@@server_uuid`、DDL、承認済みソース行集合を検証します。SERIALIZABLE トランザクションはロック読み取りとメタデータロックを保持し、実体スキーマの再検証後に一度だけ挿入します。行・索引の変更、同一 DDL による再作成、競合書き込み、弱い分離レベル、承認の再利用は拒否します。`RETURNING`、CTE、JOIN、UPSERT は引き続き非対応です。
+
+### M09：上限付き AND ソース条件（develop 限定）
+
+既存の **SQLite、PostgreSQL、MySQL 8.4 InnoDB** のネイティブ `INSERT SELECT` ソース行承認では、`WHERE` に **1～4 個**の直接的な `列 = NULL 以外のリテラル` 比較を `AND` だけで結合できます。例：`INSERT INTO app.users (name) SELECT name FROM app.import_users WHERE id = 1 AND name = 'Carol'`。ソースと対象の実体 ID、バージョン別能力、行数上限、権限・承認・トランザクションの要件は変わりません。コミット直前に承認済みソース行集合全体と物理 Catalog を再検証します。任意の SQL を許可するものではありません。
+
+5 条件以上、`OR`、`NOT`、関数、計算式、NULL 比較、サブクエリ、JOIN、CTE、UPSERT、未検証の Provider は拒否します。PostgreSQL／SQLite の RETURNING は各自の既存の制限に従い、MySQL の RETURNING は非対応です。MCP ツールと公開 API は増やさず、DML は既定で無効です。

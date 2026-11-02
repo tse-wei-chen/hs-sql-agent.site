@@ -198,3 +198,9 @@ The proof additionally binds the real InnoDB `TABLE_ID` and MySQL `@@server_uuid
 #### Same-table source: one physical identity (develop only)
 
 For the additional bounded `INSERT INTO app.users (name) SELECT name FROM app.users WHERE id = 1` shape, source and target are **one actual InnoDB table**, not two synthetic catalog entries. Preview and commit attest **one** real `TABLE_ID`, `@@server_uuid`, table DDL and selected source-row multiset. The explicit SERIALIZABLE transaction pins the same source once with a locking read and transaction-held metadata lock before live schema revalidation; index/source drift, identical-DDL recreation, concurrent writes, weaker isolation and replay deny the mutation. No `RETURNING`, CTE, JOIN, UPSERT or additional MCP tool.
+
+### M09: Bounded conjunctive INSERT SELECT source filters (develop only)
+
+For existing **SQLite, PostgreSQL and MySQL 8.4 InnoDB** native source-row approval, the source `WHERE` may contain **one to four** direct `column = non-NULL literal` comparisons joined only by `AND`. Example: `INSERT INTO app.users (name) SELECT name FROM app.import_users WHERE id = 1 AND name = 'Carol'`. The source and target identity, native provider/version gates, maximum affected rows and approval/transaction requirements above still apply. The exact selected source-row multiset and native physical catalog are revalidated before commit; this does not authorize any other SQL shape.
+
+Five or more terms, `OR`, `NOT`, functions, computed predicates, NULL comparisons, subqueries, JOINs, CTEs, UPSERT and unproven providers still fail closed. PostgreSQL/SQLite retain their individually proven RETURNING rules; MySQL RETURNING remains unsupported. No new MCP tool or API; DML stays disabled by default.
