@@ -201,10 +201,14 @@ PostgreSQL では、限定的な単文 `INSERT INTO schema.target (列) SELECT �
 
 SQL Server 2022 は、同じデータベース内の**異なる 2 つの永続実テーブル**に限定し、単文 `INSERT INTO dbo.target (name) SELECT name FROM dbo.source WHERE id = 1` を承認できます。ソース条件は `AND` のみで結合した 1～4 個の直接 `列 = NULL 以外のリテラル` 比較、明示的な列投影と有限の正の行数上限に制限します。ソースの READ と対象の INSERT の独立した権限に加え、排他ロックの読み取りには対象テーブルの SELECT 権限も必要です。SqlCore ネイティブコンパイラ、物理 Catalog 身元、全ソース値の承認、使い捨て Challenge と最新スキーマ検証が必要です。
 
-コミット時は最初の Catalog 読み取りより前に、**ソースと対象の排他テーブルロックを同一トランザクションで取得し、終了まで保持**します。競合する書き込みや DDL を遮断し、承認済みソース行を再検証して 1 回だけ INSERT します。他の DML をブロックする可能性がある、意図的に厳しい安全方式です。`VIEW DEFINITION` 不足、証明できない実体構造、トリガー、外部キー、Temporal／Ledger／Graph テーブル、索引・行の変化、ロック競合は拒否・ロールバックします。SQL Server `OUTPUT`、CTE、JOIN、UPSERT、計算投影や未検証 Provider は非対応です。MCP ツールは増やさず、読み取り専用 4 ツールが既定選択、DML は無効のままです。
+コミット時は最初の Catalog 読み取りより前に、**ソースと対象の排他テーブルロックを同一トランザクションで取得し、終了まで保持**します。競合する書き込みや DDL を遮断し、承認済みソース行を再検証して 1 回だけ INSERT します。他の DML をブロックする可能性がある、意図的に厳しい安全方式です。`VIEW DEFINITION` 不足、証明できない実体構造、トリガー、外部キー、Temporal／Ledger／Graph テーブル、索引・行の変化、ロック競合は拒否・ロールバックします。SQL Server `OUTPUT` のワイルドカード／別名／式／`INTO`、CTE、JOIN、UPSERT、計算投影や未検証 Provider は非対応です。MCP ツールは増やさず、読み取り専用 4 ツールが既定選択、DML は無効のままです。
 
 ### M09：SQL Server 2022 の同一実テーブル INSERT SELECT（develop 限定）
 
 制限された `INSERT INTO dbo.users (name) SELECT name FROM dbo.users WHERE id = 1`、すなわち**1 つの普通の永続実テーブルをソースと挿入先の両方に使用**する形も許可します。プレビューは実際の SQL Server オブジェクト ID とテーブル・インデックス・制約の完全なダイジェストを**1 つだけ**検証し、架空の 2 つのカタログ証明は作りません。直接列の投影、`AND` のみで結ぶ 1～4 個の `列 = NULL 以外のリテラル` 条件、有限の正の行数上限が必要です。対象テーブルの SELECT／INSERT と `VIEW DEFINITION`、ネイティブスキーマ再検証、独立した使い捨て DML 承認は必須です。
 
-コミットでは SERIALIZABLE トランザクションを開始し、**最初の Catalog 参照前に同一テーブルの TABLOCKX／HOLDLOCK 排他ロックを 1 つ取得し、終了まで保持**します。保持中に実体 ID・DDL・承認済みソース列値全体を再検証してから一度だけ INSERT し、実際の行数を照合します。生成予定の ID をプレビューで偽造しません。ソース行・索引の変更、同一 DDL による再作成、競合書き込み、行数上限超過や承認再利用は拒否・ロールバックします。他の書き込みがブロックされる場合があります。`OUTPUT`、CTE、JOIN、UPSERT、計算投影、未検証 Provider は引き続き禁止。新たな MCP ツールはなく、読み取り専用 4 ツール選択・DML 既定無効もそのままです。
+コミットでは SERIALIZABLE トランザクションを開始し、**最初の Catalog 参照前に同一テーブルの TABLOCKX／HOLDLOCK 排他ロックを 1 つ取得し、終了まで保持**します。保持中に実体 ID・DDL・承認済みソース列値全体を再検証してから一度だけ INSERT し、実際の行数を照合します。生成予定の ID をプレビューで偽造しません。ソース行・索引の変更、同一 DDL による再作成、競合書き込み、行数上限超過や承認再利用は拒否・ロールバックします。他の書き込みがブロックされる場合があります。`OUTPUT` のワイルドカード／別名／式／`INTO`、CTE、JOIN、UPSERT、計算投影、未検証 Provider は引き続き禁止。新たな MCP ツールはなく、読み取り専用 4 ツール選択・DML 既定無効もそのままです。
+
+### M09：SQL Server 2022 の承認済み INSERT SELECT にネイティブ OUTPUT INSERTED（develop 限定）
+
+物理ソースを検証済みの同一／別テーブルの `INSERT SELECT` に `OUTPUT INSERTED.id` または `OUTPUT INSERTED.id, INSERTED.name` を INSERT 列リスト直後に追加できます。実際に挿入された対象列は**コミット成功後**のみ返され、プレビューはソース行のみを承認して IDENTITY 値を捏造しません。従来の SERIALIZABLE トランザクションと保持中の排他ロックでソース行集合およびスキーマを再検証し、1 回の INSERT と行数一致を確認します。1～32 個の重複しない直接対象列だけを認め、ワイルドカード、式、別名、重複、`OUTPUT INTO`、誤った行イメージは拒否します。物理 Catalog とトリガー不在のライブ証明、行数上限・承認再使用の拒否は必須です。MCP ツールは増やさず、読み取り専用 4 ツールと DML 無効を維持します。
