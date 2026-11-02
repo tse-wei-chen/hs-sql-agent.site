@@ -135,3 +135,9 @@ Host 會查驗實際 `sys.columns` 與 `sys.types` 中繼資料，並保留實�
 核准被拒絕、過期、stale、Fingerprint 不符、權限被撤銷、違反目前 Policy，或無法重現核准 Row Set 時，都不會提交 DML。
 
 另見 [MCP Tools 參考](/zh-hant/docs/mcp/tools-reference)、[設定參考](/zh-hant/docs/operations/configuration)與 [ASP.NET Core 整合](/zh-hant/docs/integration/aspnet-core)。
+
+### 雙分支 CTE 合流的直接資料欄位（G9／M06，僅 develop）
+
+兩個來源分支與合流 CTE，可在完整、有序的雙欄 UNIQUE 鍵之外保留**額外的直接資料欄位**。每層最多 32 欄、欄位參照不可重複或含糊；合流僅能直接投影左側分支。**資料欄位不能當成唯一性證明**。
+
+SQL Server 仍需完整雙欄 INNER JOIN 等號、目標完整鍵、獨立的 F# 基數與寫入准入證明、Host 實體唯一索引查核、預覽、核准及交易持鎖 IsCurrent。計算或重複資料、別名覆蓋、CAST、合流取用右分支資料、缺鍵或不同實體來源全部拒絕；其他資料庫及 MCP 預設值不變。

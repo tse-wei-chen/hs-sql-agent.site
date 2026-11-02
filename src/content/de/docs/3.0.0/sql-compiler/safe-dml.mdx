@@ -135,3 +135,9 @@ Der Host liest echte `sys.columns`- und `sys.types`-Metadaten und prüft **sämt
 Bei Ablehnung, Ablauf, stale Status, Fingerprint-Abweichung, entzogener Berechtigung, aktueller Policy-Verletzung oder nicht reproduzierbarem Row Set wird keine Mutation committet.
 
 Siehe [MCP Tools Reference](/de/docs/mcp/tools-reference), [Konfiguration](/de/docs/operations/configuration) und [ASP.NET-Core-Integration](/de/docs/integration/aspnet-core).
+
+### Direkte Daten im zweizweigigen CTE-Verbund (G9/M06, nur develop)
+
+Beide Zweige und die Zusammenführung dürfen neben dem vollständigen geordneten UNIQUE-Schlüssel aus zwei Spalten **weitere direkte Datenspalten** behalten. Jede Projektion ist auf 32 eindeutige direkte Spalten begrenzt; die Zusammenführung projiziert nur den linken Zweig. **Nutzdaten sind kein Eindeutigkeitsbeweis**.
+
+SQL Server verlangt weiterhin beide INNER JOIN-Schlüsselgleichheiten, den vollständigen Zielschlüssel, unabhängige F#-Beweise, reale Host-Indexprüfung, Vorschau, Freigabe und IsCurrent in derselben gesperrten Transaktion. Berechnete oder doppelte Spalten, Aliaskollisionen, CAST, direkte rechte Daten im Merge, fehlende Schlüssel oder andere physische Quellen werden abgelehnt. Andere Datenbanken und MCP-Standards ändern sich nicht.

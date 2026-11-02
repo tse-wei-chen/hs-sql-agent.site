@@ -135,3 +135,9 @@ Host 会读取实际 `sys.columns` 与 `sys.types` 元数据，并完整检查�
 审批被拒绝、过期、stale、Fingerprint 不匹配、权限被撤销、违反当前 Policy，或无法重现审批 Row Set 时，都不会提交 DML。
 
 另见 [MCP Tools 参考](/zh-hans/docs/mcp/tools-reference)、[配置参考](/zh-hans/docs/operations/configuration)和 [ASP.NET Core 集成](/zh-hans/docs/integration/aspnet-core)。
+
+### 双分支 CTE 合流的直接数据列（G9／M06，仅 develop）
+
+两个来源分支与合流 CTE 可以在完整、有序的双列 UNIQUE 键外保留**额外的直接数据列**。每层最多投影 32 列，列引用不得重复或含糊；合流只能直接投影左侧分支。**数据列不能作为唯一性证明**。
+
+SQL Server 仍需完整双列 INNER JOIN 等号、目标完整键、独立的 F# 基数与写入准入证明、Host 实体唯一索引校验、预览、审批与事务内持锁 IsCurrent。计算或重复数据、别名覆盖、CAST、合流使用右分支数据、缺键或不同实体来源均被拒绝；其他数据库及 MCP 默认配置不变。

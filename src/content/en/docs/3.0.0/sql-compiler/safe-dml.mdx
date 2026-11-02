@@ -135,3 +135,9 @@ The Host reads actual `sys.columns` and `sys.types` metadata and verifies every 
 A mutation is not committed when approval is rejected, expires, becomes stale, has a mismatched fingerprint, loses authorization, violates current policy, or cannot reproduce the approved row-set evidence.
 
 See [MCP Tools Reference](/docs/mcp/tools-reference), [Configuration](/docs/operations/configuration), and [ASP.NET Core integration](/docs/integration/aspnet-core).
+
+### Direct payload through a bounded CTE diamond (G9/M06, develop only)
+
+Two independent CTE branches and the merge may retain **extra directly selected payload** around the original, ordered two-column UNIQUE key. Each projection must have at most 32 unambiguous, input-unique direct columns. The merge can select direct fields from the left branch only. Payload is **never proof of uniqueness**.
+
+SQL Server still requires the exact two-key INNER JOIN, both target equalities, independent F# cardinality and admission proofs, real Host UNIQUE-index verification, Preview, Approval and transaction-held IsCurrent. Computed/duplicated payload, alias shadowing, CAST, a right-branch payload in the merge, missing keys or another physical source fail closed; no other database or MCP default is affected.
