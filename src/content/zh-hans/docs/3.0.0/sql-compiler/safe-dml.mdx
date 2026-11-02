@@ -164,7 +164,7 @@ F# 静态基数及封闭式写入准入、Host 实体双索引校验、预览→
 
 SQLite 现在可以从**另一张独立的 `main` 实体来源表**直接选取数据行，插入明确指定的 `main` 目标表，并沿用单语句预览／审批流程。来源与目标表**分别验证实际 schema、DDL、索引和触发器**；审批同时绑定两张表、编译后的 INSERT 和预览 SELECT、全部投影值的多重集合指纹、影响行数上限及安全策略。提交时先保留 SQLite 写锁，在同一事务内重新验证两张表及全部来源投影值，再执行一次插入。
 
-例如 `INSERT INTO main.users (name) SELECT name FROM main.other_users WHERE id = 1`。两侧都必须是真实 `main` 表；明确、唯一的目标列只能映射未使用别名的直接来源列，WHERE 仅允许「列＝非 NULL 常量」。CTE、JOIN、聚合、计算式、分页、RETURNING の式・別名・ワイルドカード、冲突处理、附加数据库、其他 DB、批量写入及审批后来源漂移仍被拒绝。默认四个只读工具和 DML 关闭不变。
+例如 `INSERT INTO main.users (name) SELECT name FROM main.other_users WHERE id = 1`。两侧都必须是真实 `main` 表；明确、唯一的目标列只能映射未使用别名的直接来源列，WHERE 仅允许「列＝非 NULL 常量」。CTE、JOIN、聚合、计算式、分页、RETURNING 通配符、表达式与别名、冲突处理、附加数据库、其他 DB、批量写入及审批后来源漂移仍被拒绝。默认四个只读工具和 DML 关闭不变。
 
 
 SQLite 3.35+ 示例：`INSERT INTO main.users (name) SELECT name FROM main.other_users WHERE id = 1 RETURNING id, name`。预览批准源列 `name` 和数据行数；仅成功提交后才返回新行的 `id` 和 `name`。源数据变化时回滚，且不返回结果行。
