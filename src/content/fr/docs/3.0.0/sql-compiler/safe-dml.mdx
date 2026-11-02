@@ -54,6 +54,12 @@ Un UPDATE ou DELETE explicitement autorisé sur SQL Server peut lire une table s
 
 Les clés manquantes ou permutées, `OR`, les conversions de type, les clés nullables ou calculées, les index filtrés ou désactivés et les jointures qui multiplient les lignes sont refusés. Cette capacité ne s'étend pas aux autres bases.
 
+### Traçabilité de la clé UNIQUE physique sur deux niveaux dérivés (G9/M06, develop uniquement)
+
+Les mutations CTE `UPDATE`/`DELETE` limitées de SQL Server autorisent désormais **au plus deux niveaux de Derived Table non latérale avec projection directe de colonnes** avant les 1 à 3 CTE existantes. Chaque niveau conserve la clé UNIQUE physique complète et ordonnée, par exemple `FROM (SELECT mid.x AS x, mid.y AS y FROM (SELECT s.k1 AS x, s.k2 AS y FROM dbo.Source AS s) AS mid) AS d`, suivi de `SELECT d.x AS a, d.y AS b`. Il s'agit d'une extension du cas à un niveau décrit ci-dessous, **pas** d'une prise en charge des DAG CTE à branches multiples.
+
+La cardinalité F#, l'admission d'écriture F# et la vérification Host de l'index réel contrôlent séparément la provenance des clés. L'index UNIQUE physique, les types et collations exacts, les égalités complètes avec la cible, la prévisualisation→approbation indépendante→commit et `IsCurrent` sous verrou dans la même transaction restent obligatoires. Un troisième niveau, une autre source, JOIN, WHERE, DISTINCT, regroupement, tri, pagination, clé calculée ou convertie, alias en double, clé manquante ou permutée sont refusés. Les cinq autres bases, les quatre outils de lecture cochés par défaut et la désactivation initiale de DML ne changent pas.
+
 ### Provenance des clés préservée dans une Derived Table à un niveau (G9/M06, develop uniquement)
 
 Les mutations CTE `UPDATE`/`DELETE` limitées de SQL Server acceptent maintenant **une Derived Table non latérale qui lit une seule table physique** avant les 1 à 3 étapes CTE déjà validées. La projection dérivée et les CTE suivantes peuvent renommer directement chaque composante de la clé UNIQUE ordonnée et complète, par exemple `FROM (SELECT s.k1 AS x, s.k2 AS y FROM dbo.Source AS s) AS d` puis `SELECT d.x AS a, d.y AS b`. L'analyse F# de cardinalité et la découverte Host vérifient indépendamment l'origine des colonnes. Une exécution DML exige toujours l'index UNIQUE réel complet et l'équivalence exacte des types, de NULL et des collations source/cible. Ni un alias ni le Catalog virtuel ne donnent de droits.

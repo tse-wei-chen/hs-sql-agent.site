@@ -54,6 +54,12 @@ SQL Server 的 UPDATE／DELETE 在明確授權下，可透過 1～3 層線性、
 
 缺少或交換鍵欄位、僅靠 `OR` 匹配、型別轉換、可為 NULL 或計算欄位、篩選或停用的索引，以及造成匹配資料列倍增的 JOIN，都會被拒絕。這項能力不會擴大其他資料庫的可執行範圍。
 
+### 雙層衍生資料表的實體唯一鍵追溯（G9／M06，僅 develop）
+
+SQL Server 受限 CTE `UPDATE`／`DELETE` 現可在既有 1～3 層 CTE 之前，經過**兩層非 LATERAL、只投影原始欄位的衍生資料表**，逐層傳遞完整、順序不變的實體 UNIQUE 鍵。例如 `FROM (SELECT mid.x AS x, mid.y AS y FROM (SELECT s.k1 AS x, s.k2 AS y FROM dbo.Source AS s) AS mid) AS d`，再交由 `SELECT d.x AS a, d.y AS b` 使用。這是下方單層能力的擴充，**不是任意多分支 CTE DAG 的放行**。
+
+F# 基數證明、F# 實際寫入准入證明及 Host 實體索引驗證會分別追溯鍵來源；仍須具備真實 UNIQUE 索引、精確型別與定序、完整目標等號條件、預覽→獨立核准→提交，以及交易內持鎖的 `IsCurrent`。第三層巢狀、額外來源、JOIN、WHERE、DISTINCT、分組、排序、分頁、計算或轉型鍵、重複別名、缺漏或交換鍵欄位都會拒絕。其他五種資料庫、預設四個唯讀工具與 DML 預設關閉均不變。
+
 ### 單層 Derived Table 的唯一鍵傳遞證明（G9／M06，僅 develop）
 
 SQL Server 受限 CTE `UPDATE`／`DELETE` 現可在原有 1～3 層 CTE 前，加入一層**只讀取單一實體來源表、非 LATERAL 的 Derived Table**。內層與外層 CTE 都可直接重新命名完整有序唯一鍵，例如 `FROM (SELECT s.k1 AS x, s.k2 AS y FROM dbo.Source AS s) AS d`，再以 `SELECT d.x AS a, d.y AS b` 投影。F# 的 mutation cardinality analyzer 和 Host 的實體證明探索會**各自獨立**追溯欄位與鍵位置；真正的執行權限仍需來源表的完整實體 UNIQUE 索引、目標型別一致、NULL 等號與定序規則驗證。Derived Table 別名或虛擬 Catalog 不能當成授權。
