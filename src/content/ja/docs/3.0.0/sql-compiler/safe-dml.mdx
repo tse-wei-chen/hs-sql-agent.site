@@ -196,3 +196,9 @@ PostgreSQL では、限定的な単文 `INSERT INTO schema.target (列) SELECT �
 既存の **SQLite、PostgreSQL、MySQL 8.4 InnoDB** のネイティブ `INSERT SELECT` ソース行承認では、`WHERE` に **1～4 個**の直接的な `列 = NULL 以外のリテラル` 比較を `AND` だけで結合できます。例：`INSERT INTO app.users (name) SELECT name FROM app.import_users WHERE id = 1 AND name = 'Carol'`。ソースと対象の実体 ID、バージョン別能力、行数上限、権限・承認・トランザクションの要件は変わりません。コミット直前に承認済みソース行集合全体と物理 Catalog を再検証します。任意の SQL を許可するものではありません。
 
 5 条件以上、`OR`、`NOT`、関数、計算式、NULL 比較、サブクエリ、JOIN、CTE、UPSERT、未検証の Provider は拒否します。PostgreSQL／SQLite の RETURNING は各自の既存の制限に従い、MySQL の RETURNING は非対応です。MCP ツールと公開 API は増やさず、DML は既定で無効です。
+
+### M09：SQL Server 2022 の実体 2 テーブル INSERT SELECT 承認（develop 限定）
+
+SQL Server 2022 は、同じデータベース内の**異なる 2 つの永続実テーブル**に限定し、単文 `INSERT INTO dbo.target (name) SELECT name FROM dbo.source WHERE id = 1` を承認できます。ソース条件は `AND` のみで結合した 1～4 個の直接 `列 = NULL 以外のリテラル` 比較、明示的な列投影と有限の正の行数上限に制限します。ソースの READ と対象の INSERT の独立した権限、SqlCore ネイティブコンパイラ、物理 Catalog 身元、全ソース値の承認、使い捨て Challenge と最新スキーマ検証が必要です。
+
+コミット時は最初の Catalog 読み取りより前に、**ソースと対象の排他テーブルロックを同一トランザクションで取得し、終了まで保持**します。競合する書き込みや DDL を遮断し、承認済みソース行を再検証して 1 回だけ INSERT します。他の DML をブロックする可能性がある、意図的に厳しい安全方式です。`VIEW DEFINITION` 不足、証明できない実体構造、トリガー、外部キー、Temporal／Ledger／Graph テーブル、索引・行の変化、ロック競合は拒否・ロールバックします。SQL Server `OUTPUT`、同一テーブルソース、CTE、JOIN、UPSERT、計算投影や未検証 Provider は非対応です。MCP ツールは増やさず、読み取り専用 4 ツールが既定選択、DML は無効のままです。
