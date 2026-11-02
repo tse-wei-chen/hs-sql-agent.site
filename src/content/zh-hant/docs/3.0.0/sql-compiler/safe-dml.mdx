@@ -199,6 +199,6 @@ PostgreSQL 可在單一語句執行受限的 `INSERT INTO schema.target (欄位)
 
 ### M09：SQL Server 2022 雙實體表 INSERT SELECT 核准（僅 develop）
 
-SQL Server 2022 現在支援受限的單語句 `INSERT INTO dbo.target (name) SELECT name FROM dbo.source WHERE id = 1`，僅限**同一資料庫內兩張不同的永久實體表**。來源篩選只能使用一至四個由 `AND` 連接的直接 `欄位 = 非 NULL 常值` 條件、直接欄位投影與明確目標欄位，且必須有有限正整數筆數上限。來源 READ 與目標 INSERT 分別授權，沿用原生 SqlCore 編譯、實體 Catalog 身分、完整來源行集核准、一次性 Challenge 與即時 Schema 重驗。
+SQL Server 2022 現在支援受限的單語句 `INSERT INTO dbo.target (name) SELECT name FROM dbo.source WHERE id = 1`，僅限**同一資料庫內兩張不同的永久實體表**。來源篩選只能使用一至四個由 `AND` 連接的直接 `欄位 = 非 NULL 常值` 條件、直接欄位投影與明確目標欄位，且必須有有限正整數筆數上限。來源 READ 與目標 INSERT 分別授權；目標表的排他鎖讀取另外需要 SELECT 權限。沿用原生 SqlCore 編譯、實體 Catalog 身分、完整來源行集核准、一次性 Challenge 與即時 Schema 重驗。
 
 提交在查閱實體 Catalog 前，必須於同一交易**取得來源與目標兩張表並持有至結束的排他表鎖**，阻擋來源寫入與競爭性 DDL，再重驗全部已核准來源值後執行一次 INSERT。這是刻意採取的高安全、可能阻塞其他 DML 的選用模式。缺少 `VIEW DEFINITION`、無法證明實體結構、Trigger、外鍵、Temporal／Ledger／Graph 表、索引或資料漂移、鎖競爭均拒絕或回復。SQL Server `OUTPUT`、來源與目標同表、CTE、JOIN、UPSERT、計算投影和未證明的 Provider 仍不支援此 Host 執行模式。沒有新增 MCP 工具，前端預設四個唯讀工具、DML 關閉。
