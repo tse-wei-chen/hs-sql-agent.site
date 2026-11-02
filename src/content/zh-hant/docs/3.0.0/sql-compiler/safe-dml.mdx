@@ -201,10 +201,14 @@ PostgreSQL 可在單一語句執行受限的 `INSERT INTO schema.target (欄位)
 
 SQL Server 2022 現在支援受限的單語句 `INSERT INTO dbo.target (name) SELECT name FROM dbo.source WHERE id = 1`，僅限**同一資料庫內兩張不同的永久實體表**。來源篩選只能使用一至四個由 `AND` 連接的直接 `欄位 = 非 NULL 常值` 條件、直接欄位投影與明確目標欄位，且必須有有限正整數筆數上限。來源 READ 與目標 INSERT 分別授權；目標表的排他鎖讀取另外需要 SELECT 權限。沿用原生 SqlCore 編譯、實體 Catalog 身分、完整來源行集核准、一次性 Challenge 與即時 Schema 重驗。
 
-提交在查閱實體 Catalog 前，必須於同一交易**取得來源與目標兩張表並持有至結束的排他表鎖**，阻擋來源寫入與競爭性 DDL，再重驗全部已核准來源值後執行一次 INSERT。這是刻意採取的高安全、可能阻塞其他 DML 的選用模式。缺少 `VIEW DEFINITION`、無法證明實體結構、Trigger、外鍵、Temporal／Ledger／Graph 表、索引或資料漂移、鎖競爭均拒絕或回復。SQL Server `OUTPUT`、CTE、JOIN、UPSERT、計算投影和未證明的 Provider 仍不支援此 Host 執行模式。沒有新增 MCP 工具，前端預設四個唯讀工具、DML 關閉。
+提交在查閱實體 Catalog 前，必須於同一交易**取得來源與目標兩張表並持有至結束的排他表鎖**，阻擋來源寫入與競爭性 DDL，再重驗全部已核准來源值後執行一次 INSERT。這是刻意採取的高安全、可能阻塞其他 DML 的選用模式。缺少 `VIEW DEFINITION`、無法證明實體結構、Trigger、外鍵、Temporal／Ledger／Graph 表、索引或資料漂移、鎖競爭均拒絕或回復。SQL Server `OUTPUT` 萬用字元／別名／運算式／`INTO`、CTE、JOIN、UPSERT、計算投影和未證明的 Provider 仍不支援此 Host 執行模式。沒有新增 MCP 工具，前端預設四個唯讀工具、DML 關閉。
 
 ### M09：SQL Server 2022 同一實體表 INSERT SELECT（僅 develop）
 
 額外開放受限的 `INSERT INTO dbo.users (name) SELECT name FROM dbo.users WHERE id = 1`，亦即**一張既有、一般永久實體表同時作為來源與目標**。預覽只核驗**一個**真正的 SQL Server 物件 ID、完整表結構、索引和約束摘要，不虛構來源與目標兩份 Catalog 證明。仍只允許直接欄位投影、一至四個由 `AND` 連接的 `欄位 = 非 NULL 常值` 條件、有限正整數影響筆數上限。執行身分須有該表 SELECT／INSERT 和 `VIEW DEFINITION` 權限，並啟用原生 Schema 重驗和一次性 DML 核准。
 
-提交先開始 SERIALIZABLE 交易，在**首次讀取 Catalog 前取得一個持有至交易結束的 TABLOCKX／HOLDLOCK 排他表鎖**。持鎖重新查驗唯一實體身分、DDL 及全部已核准來源投影值，最後執行一次原生 INSERT，核對實際寫入筆數才提交；預覽不捏造自動產生的目標 ID。來源資料或索引漂移、相同 DDL 刪除重建、競爭寫入、超過筆數上限和重複核准都會拒絕或回復。同表排他鎖可能阻塞其他寫入。 `OUTPUT`、CTE、JOIN、UPSERT、計算投影及未經安全驗證的 Provider 仍拒絕；無新增 MCP 工具，維持預設四個唯讀工具和 DML 關閉。
+提交先開始 SERIALIZABLE 交易，在**首次讀取 Catalog 前取得一個持有至交易結束的 TABLOCKX／HOLDLOCK 排他表鎖**。持鎖重新查驗唯一實體身分、DDL 及全部已核准來源投影值，最後執行一次原生 INSERT，核對實際寫入筆數才提交；預覽不捏造自動產生的目標 ID。來源資料或索引漂移、相同 DDL 刪除重建、競爭寫入、超過筆數上限和重複核准都會拒絕或回復。同表排他鎖可能阻塞其他寫入。 `OUTPUT` 萬用字元／別名／運算式／`INTO`、CTE、JOIN、UPSERT、計算投影及未經安全驗證的 Provider 仍拒絕；無新增 MCP 工具，維持預設四個唯讀工具和 DML 關閉。
+
+### M09：SQL Server 2022 已核准 INSERT SELECT 的原生 OUTPUT INSERTED（僅 develop）
+
+既有單表或雙實體表來源核准現在可在 INSERT 欄位清單後指定 `OUTPUT INSERTED.id` 或 `OUTPUT INSERTED.id, INSERTED.name`，**成功提交後**才回傳實際寫入的目標欄位。預覽只核准實體來源行集，不會虛構 IDENTITY 產生的 ID。SERIALIZABLE 交易持有既有排他表鎖，重驗來源資料全集與 Schema，僅執行一次 INSERT，核對實際影響筆數並成功提交後才回傳結果。僅允許一至三十二個不重複的直接目標欄位；萬用字元、別名、運算式、重複欄位、`OUTPUT INTO` 或錯誤的資料影像仍拒絕。實體 Catalog 與無 Trigger 的原生 Metadata 證明不可省略；資料漂移、重複核准、筆數超限仍拒絕。不新增 MCP 工具，前端仍預設四個唯讀工具、DML 關閉。
