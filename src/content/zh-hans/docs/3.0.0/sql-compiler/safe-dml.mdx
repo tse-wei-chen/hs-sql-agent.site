@@ -201,4 +201,10 @@ PostgreSQL 允许单条语句执行受限的 `INSERT INTO schema.target (列) SE
 
 SQL Server 2022 现在支持受限的单条 `INSERT INTO dbo.target (name) SELECT name FROM dbo.source WHERE id = 1`，仅限**同一数据库中两张不同的永久实体表**。来源筛选只能包含一至四个由 `AND` 连接的直接 `列 = 非 NULL 常量` 比较，投影及目标列必须明确，影响行数必须有有限的正整数上限。来源读取与目标插入权限独立审批，目标表的排他锁读取还需要 SELECT 权限，并要求原生 SqlCore 编译、实体 Catalog 身份、全部来源值审批、一次性 Challenge 和实时结构复核。
 
-提交在首次读取实体 Catalog 之前，于同一事务**对来源和目标取得保持到事务结束的排他表锁**，禁止来源写入和竞争性 DDL，复核所有已批准的数据后仅执行一次 INSERT。这种高安全模式可能阻塞其他 DML。缺少 `VIEW DEFINITION`、无法验证实体约束、触发器、外键、Temporal／Ledger／Graph 表、索引或数据漂移、锁争用都将拒绝或回滚。SQL Server `OUTPUT`、同表来源、CTE、JOIN、UPSERT、计算投影及未经证明的 Provider 仍不开放执行。不新增 MCP 工具；四个只读工具默认选中，DML 默认关闭。
+提交在首次读取实体 Catalog 之前，于同一事务**对来源和目标取得保持到事务结束的排他表锁**，禁止来源写入和竞争性 DDL，复核所有已批准的数据后仅执行一次 INSERT。这种高安全模式可能阻塞其他 DML。缺少 `VIEW DEFINITION`、无法验证实体约束、触发器、外键、Temporal／Ledger／Graph 表、索引或数据漂移、锁争用都将拒绝或回滚。SQL Server `OUTPUT`、CTE、JOIN、UPSERT、计算投影及未经证明的 Provider 仍不开放执行。不新增 MCP 工具；四个只读工具默认选中，DML 默认关闭。
+
+### M09：SQL Server 2022 同一实体表 INSERT SELECT（仅 develop）
+
+现额外允许受限的 `INSERT INTO dbo.users (name) SELECT name FROM dbo.users WHERE id = 1`：**一张现有的普通永久实体表同时充当来源和目标**。预览只核验**一个**真实 SQL Server 对象 ID 及完整表结构、索引和约束摘要，不会虚构两份实体 Catalog 凭据。仍只支持直接列投影、一至四个由 `AND` 连接的 `列 = 非 NULL 常量` 条件及有限的正整数影响行数上限。执行账号需要此表的 SELECT／INSERT 和 `VIEW DEFINITION` 权限，必须启用原生 Schema 复核和一次性 DML 审批。
+
+提交先开启 SERIALIZABLE 事务，在**首次读取 Catalog 前取得一把维持至事务结束的 TABLOCKX／HOLDLOCK 排他表锁**。持锁复核唯一实体身份、DDL 和全部获批来源列值，随后执行一次原生 INSERT，核验实际写入行数才提交；预览不会伪造自动生成的目标 ID。来源数据或索引变化、相同 DDL 删表重建、并发写入、超限匹配及重复审批都会拒绝或回滚。同表排他锁可能阻塞其他写入。 `OUTPUT`、CTE、JOIN、UPSERT、计算投影和未经验证的 Provider 仍拒绝；不新增 MCP 工具，默认四个只读工具选中且 DML 关闭。
