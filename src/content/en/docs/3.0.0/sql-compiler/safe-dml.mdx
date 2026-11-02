@@ -20,7 +20,7 @@ DML uses a stricter execution path than queries because approval must still desc
 
 ## One tool, single or multi-statement
 
-`execute_dml_sql` accepts one or more supported `UPDATE`, `DELETE`, or `INSERT ... VALUES` statements. Multiple statements are separated by semicolons.
+`execute_dml_sql` accepts one or more supported `UPDATE`, `DELETE`, or `INSERT ... VALUES` statements. Multiple statements are separated by semicolons. A bounded SQLite `INSERT ... SELECT` is also accepted, but **only as one statement**, never as part of a batch.
 
 There is no separate batch-DML tool. A multi-statement request is parsed as one batch, approved once, executed in its original order, and committed atomically inside one server-owned transaction.
 
