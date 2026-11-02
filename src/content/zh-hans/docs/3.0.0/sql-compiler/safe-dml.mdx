@@ -220,3 +220,9 @@ SQL Server 2022 现在支持受限的单条 `INSERT INTO dbo.target (name) SELEC
 已验证的原生 **SQLite、PostgreSQL、MySQL 8.4 InnoDB、SQL Server 2022** `INSERT SELECT` 现支持 `WHERE id IN (1,2)`、`WHERE id = 1 OR id = 2` 及 `WHERE (id = 1 OR id = 2) AND name IN ('Carol','Dave')`。直接 `列 = 非 NULL 常量` 和 `列 IN (非 NULL 常量, ...)` 合计**最多四个比较常量**，布尔表达式树不超过七个节点。允许括号组合 `AND`／`OR`，但原子条件必须使用未限定的直接列。这取代前述 M09 初期的 `AND` 限制；与 CTE／JOIN 有关的 `OR` 限制不变。
 
 `OR 1=1`、`NOT`／`NOT IN`、NULL IN 项、IN 子查询、表达式、五个以上比较常量、任意 OR、CTE、JOIN 和跨 Provider DML 仍拒绝。来源及目标继续要求真实物理 Catalog 证明，有限正数行数限制不变。预览绑定**完整已选来源行集**，提交时保持原有事务锁，复核结构与来源值，核对实际行数。PostgreSQL／SQLite 的 RETURNING 与 SQL Server OUTPUT INSERTED 仅在提交成功后返回真实目标列；MySQL 不支持 RETURNING。不增加 MCP 工具或公开 API，默认四个只读工具选中且 DML 关闭。
+
+### M09：有界 BETWEEN 原生来源筛选（仅 develop）
+
+已验证物理来源的 **SQLite、PostgreSQL、MySQL 8.4 InnoDB 和 SQL Server 2022** 原生 `INSERT SELECT` 可使用 `WHERE id BETWEEN 1 AND 2`、`WHERE id BETWEEN 1 AND 2 AND name IN ('Carol','Dave')` 或 `WHERE id BETWEEN 1 AND 1 OR id = 2`。`BETWEEN` 两端必须是直接非 NULL 常量，左侧只能是未限定的直接列。每个 `BETWEEN` 计入**两个比较常量**；与原有 `=` 和 `IN` **总计最多四个**，整个布尔 AST 不超过七个节点，`AND`／`OR` 也计入节点上限。继续使用 F# 类型化解析和 Host 实体来源证明。
+
+`NOT BETWEEN`、NULL／表达式边界、列对列区间、纯常量永真条件、五个以上比较值、子查询、JOIN、CTE 及未证明形状仍拒绝。预览绑定完整来源行集和有限正数行数上限，实际 Catalog、独立权限、事务内锁、一次性审批、提交前完整数据与结构复核以及实际影响行数检查仍必需。SQLite／PostgreSQL RETURNING 和 SQL Server OUTPUT INSERTED 仅在成功提交后返回真实目标行；MySQL 不支持 RETURNING。无新 MCP 工具、驱动或公共 API；默认四个只读工具选中，DML 关闭。
