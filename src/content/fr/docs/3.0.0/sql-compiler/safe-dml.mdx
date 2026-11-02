@@ -141,3 +141,9 @@ Voir [Référence des outils MCP](/fr/docs/mcp/tools-reference), [Configuration]
 Les deux branches et leur CTE de fusion peuvent conserver **des colonnes de données directement référencées** en plus de la clé UNIQUE complète et ordonnée à deux colonnes. Chaque projection est limitée à 32 colonnes directes, sans doublon ni ambiguïté. La fusion ne projette directement que la branche gauche. **Les données ne prouvent pas l’unicité**.
 
 SQL Server exige toujours les deux égalités INNER JOIN, la clé cible complète, les preuves F# indépendantes, la vérification Host de l’index réel, la prévisualisation, l’approbation et IsCurrent dans la même transaction verrouillée. Calculs, doublons, collisions d’alias, CAST, données de la branche droite en sortie, clé manquante ou autre table sont refusés. Les autres moteurs et réglages MCP restent inchangés.
+
+### Filtres semi-jointure et anti-jointure corrélés dans les branches CTE (M07, develop uniquement)
+
+Dans une fusion SQL Server à trois CTE, chacune des branches sources physiques peut utiliser `EXISTS` ou `NOT EXISTS`. La sous-requête doit toutefois lire **la même table physique vérifiée** et corréler les deux colonnes de la clé UNIQUE d'origine par des égalités ordinaires réunies avec `AND`. Une égalité supplémentaire entre colonne interne et littéral peut filtrer les lignes. La fusion `INNER JOIN` et la condition de la cible DML doivent toujours comparer la clé complète.
+
+La preuve de cardinalité F#, l'admission indépendante d'écriture F#, la vérification de l'index réel par l'hôte, l'identité des lignes entre prévisualisation et approbation, et `IsCurrent` sous transaction restent obligatoires. Autre table source, clé incomplète, `OR`, colonne calculée, jointure supplémentaire ou alias ambigu sont refusés. Cela n'autorise ni DAG CTE arbitraire, ni écriture multi-source, ni extension des autres moteurs.
