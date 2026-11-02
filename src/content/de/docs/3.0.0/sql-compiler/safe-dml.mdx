@@ -54,6 +54,13 @@ Ein ausdrücklich freigegebenes UPDATE oder DELETE in SQL Server darf eine physi
 
 Fehlende oder vertauschte Schlüssel, `OR`, Typumwandlungen, nullbare oder berechnete Schlüssel, gefilterte/deaktivierte Indizes und vervielfachende Joins bleiben ausgeschlossen. Andere Datenbanken erhalten dadurch keine neue Ausführungsberechtigung.
 
+### Schlüsselbewahrende Ableitung einer einstufigen Derived Table (G9/M06, nur develop)
+
+SQL-Server-CTE-`UPDATE`/`DELETE` erlaubt vor den bisherigen 1–3 CTE-Stufen nun **eine nicht-laterale Derived Table über genau einer physischen Quelltabelle**. Die abgeleitete SELECT-Projektion und die folgenden CTEs können jede Spalte des vollständigen geordneten UNIQUE-Schlüssels direkt umbenennen, etwa `FROM (SELECT s.k1 AS x, s.k2 AS y FROM dbo.Source AS s) AS d`, gefolgt von `SELECT d.x AS a, d.y AS b`. F#-Kardinalitätsanalyse und Host-Katalogprüfung verfolgen die Schlüsselherkunft unabhängig. Für DML sind weiterhin der vollständige echte UNIQUE-Index sowie identische physische Typen, NULL-Semantik und Kollationen erforderlich. Ein Alias oder virtueller Catalog begründet keine Ausführungsbefugnis.
+
+Dies ist **keine allgemeine Freigabe für Derived Tables oder mehrzweigige CTE-DAGs**. JOIN, WHERE, DISTINCT, GROUP/HAVING, Aggregate, ORDER, LIMIT/TOP/OFFSET, UNION, verschachtelte Derived Tables/CTEs, LATERAL, CAST/berechnete Schlüssel, doppelte Aliasnamen oder fehlende UNIQUE-Spalten sind ausgeschlossen. Vorschau→unabhängige Freigabe→Commit, die exakte Zeilenmenge und `IsCurrent` mit Sperren in derselben Commit-Transaktion bleiben Pflicht; ein entzogener Index verhindert den Commit. Echte SQL-Server-2022-Tests decken 1–3 CTE-Stufen, zusammengesetzte Ganzzahl-/Dezimal-/UUID-/Textschlüssel und UPDATE/DELETE ab. Die anderen fünf Datenbanksysteme und Standard-MCP-/DML-Rechte ändern sich nicht.
+
+
 ### Exakter Nachweis sprachabhängiger Kollationen und UNIQUE-Gleichheit (G9/M05, nur develop)
 
 Der begrenzte SQL-Server-CTE-UPDATE/DELETE-Nachweis unterstützt nun **vier getrennte Vergleichsverträge** für integrierte `VARCHAR(n)`- und `NVARCHAR(n)`-Schlüssel mit fester Länge: das bisherige `Latin1_General_100_BIN2` (binär), `Latin1_General_100_CI_AS` (ohne Groß-/Kleinschreibung, mit Akzenten), `Latin1_General_100_CI_AI` (beides ignoriert) und `Latin1_General_100_CS_AS` (beides unterschieden). Quell-UNIQUE-Index, Zielvergleichsspalte und unabhängig nachgewiesene zweite JOIN-Tabelle müssen **an jeder Schlüsselposition dieselben nativen SQL-Typen, Längen und tatsächlichen Spaltenkollationen** verwenden. Ein Text-Snapshot allein autorisiert keine Änderung; geschlossene F#-Typen und echte Index- und Spaltenmetadaten bestimmen die Vergleichssemantik.
