@@ -54,6 +54,12 @@ SQL Server 的 UPDATE／DELETE 在明确授权的前提下，可以通过 1～3 
 
 缺少或颠倒键列、仅通过 `OR` 匹配、类型转换、可空或计算列、筛选或禁用的索引，以及会增加匹配行数的连接，都会被拒绝。该能力不会扩展其他数据库的可执行范围。
 
+### 双层派生表的实体唯一键溯源（G9／M06，仅 develop）
+
+SQL Server 的受限 CTE `UPDATE`／`DELETE` 现在可以在原有 1～3 层 CTE 之前，经过**两层非 LATERAL、仅直接投影原始列的派生表**，逐层保留完整且顺序不变的实体 UNIQUE 键。例如 `FROM (SELECT mid.x AS x, mid.y AS y FROM (SELECT s.k1 AS x, s.k2 AS y FROM dbo.Source AS s) AS mid) AS d`，再由 `SELECT d.x AS a, d.y AS b` 使用。这扩展了下方的单层能力，**并不开放任意多分支 CTE DAG**。
+
+F# 基数证明、F# 写入准入证明和 Host 实体索引校验会分别验证键溯源；仍必须满足真实 UNIQUE 索引、精确类型与排序规则、完整目标等值条件、预览→独立审批→提交，以及事务内持锁的 `IsCurrent`。第三层嵌套、额外来源、JOIN、WHERE、DISTINCT、分组、排序、分页、计算或转换键、重复别名、缺失或颠倒键列均会拒绝。其他五个数据库、默认四个只读工具以及 DML 默认关闭保持不变。
+
 ### 单层 Derived Table 的唯一键传递证明（G9／M06，仅 develop）
 
 SQL Server 的受限 CTE `UPDATE`／`DELETE` 现在可在原有 1～3 层 CTE 前加入一层**仅从单张物理表读取、非 LATERAL 的 Derived Table**。该派生查询与后续 CTE 可逐列直接重命名完整有序 UNIQUE 键，例如 `FROM (SELECT s.k1 AS x, s.k2 AS y FROM dbo.Source AS s) AS d`，再投影 `SELECT d.x AS a, d.y AS b`。F# 变更行数证明与 Host 实体键发现分别独立追踪来源字段；执行授权仍需要真实完整的 UNIQUE 索引、原生源/目标类型、NULL 比较和排序规则完全匹配。别名和虚拟 Catalog 不能授权变更。

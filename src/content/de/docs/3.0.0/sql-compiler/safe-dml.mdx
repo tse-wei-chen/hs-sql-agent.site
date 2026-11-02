@@ -54,6 +54,12 @@ Ein ausdrücklich freigegebenes UPDATE oder DELETE in SQL Server darf eine physi
 
 Fehlende oder vertauschte Schlüssel, `OR`, Typumwandlungen, nullbare oder berechnete Schlüssel, gefilterte/deaktivierte Indizes und vervielfachende Joins bleiben ausgeschlossen. Andere Datenbanken erhalten dadurch keine neue Ausführungsberechtigung.
 
+### Physische UNIQUE-Schlüssel über zwei Derived-Table-Stufen (G9/M06, nur develop)
+
+SQL-Server-CTE-`UPDATE`/`DELETE` darf vor den bisherigen 1–3 CTE-Stufen nun **höchstens zwei nicht-laterale Derived Tables mit direkter Spaltenprojektion** durchlaufen. Der vollständige physische UNIQUE-Schlüssel muss in derselben Reihenfolge erhalten bleiben, z. B. mit `FROM (SELECT mid.x AS x, mid.y AS y FROM (SELECT s.k1 AS x, s.k2 AS y FROM dbo.Source AS s) AS mid) AS d` und anschließend `SELECT d.x AS a, d.y AS b`. Dies erweitert den unten beschriebenen einstufigen Fall, **nicht** beliebige mehrzweigige CTE-DAGs.
+
+F#-Kardinalitätsprüfung, F#-Ausführungsfreigabe und Host-Prüfung des realen Indexes bestätigen die Herkunft unabhängig. Ein echter UNIQUE-Index, identische Typen und Kollationen, vollständige Zielgleichheiten, Vorschau→unabhängige Freigabe→Commit sowie `IsCurrent` unter Sperren derselben Transaktion bleiben zwingend. Eine dritte Ableitungsstufe, zusätzliche Quellen, JOIN, WHERE, DISTINCT, Gruppierung, Sortierung, Paging, berechnete oder konvertierte Schlüssel, doppelte Aliase sowie fehlende/vertauschte Schlüssel werden abgelehnt. Die anderen fünf Datenbanken, vier standardmäßig lesenden Werkzeuge und die deaktivierte DML-Vorgabe bleiben unverändert.
+
 ### Schlüsselbewahrende Ableitung einer einstufigen Derived Table (G9/M06, nur develop)
 
 SQL-Server-CTE-`UPDATE`/`DELETE` erlaubt vor den bisherigen 1–3 CTE-Stufen nun **eine nicht-laterale Derived Table über genau einer physischen Quelltabelle**. Die abgeleitete SELECT-Projektion und die folgenden CTEs können jede Spalte des vollständigen geordneten UNIQUE-Schlüssels direkt umbenennen, etwa `FROM (SELECT s.k1 AS x, s.k2 AS y FROM dbo.Source AS s) AS d`, gefolgt von `SELECT d.x AS a, d.y AS b`. F#-Kardinalitätsanalyse und Host-Katalogprüfung verfolgen die Schlüsselherkunft unabhängig. Für DML sind weiterhin der vollständige echte UNIQUE-Index sowie identische physische Typen, NULL-Semantik und Kollationen erforderlich. Ein Alias oder virtueller Catalog begründet keine Ausführungsbefugnis.
