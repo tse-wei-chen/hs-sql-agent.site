@@ -34,9 +34,9 @@ Client から `BEGIN`、`COMMIT`、`ROLLBACK` などの Transaction-control SQL 
 
 ### SQLite の単文・ソース行承認（G9/M09、develop 限定）
 
-限定的な `INSERT ... SELECT` は **SQLite のみ**で利用でき、読み取り元と挿入先が同じ、スキーマを明記した `main` の実テーブルである必要があります。挿入先の列を明示し、列の直接投影と `WHERE 列 = リテラル` 条件だけを使用できます。正の有限な DML 行数上限と `AddHsSqlAgentNativeDmlSchemaFreshness()` の有効化が必須です。
+限定的な `INSERT ... SELECT` は **SQLite のみ**で利用できます。直接参照するソースと挿入先は、同じ表または異なる 2 つの実在する `main` テーブルで、どちらもスキーマ名を明記する必要があります。異なる表では両方の実スキーマを個別に検証します。重複しない明示的な対象列、直接的な列投影、`WHERE 列 = NULL 以外のリテラル`、正の有限な行数上限、`AddHsSqlAgentNativeDmlSchemaFreshness()` が必須です。
 
-プレビューでは行数だけでなく、**投影された全ソース値**を承認に結び付けます。コミット時に SQLite の IMMEDIATE 書き込み予約を取得し、実スキーマとソース行を再検証してからコンパイル済み INSERT を実行します。差異があれば拒否またはロールバックします。CTE、JOIN、集約、計算式、UPSERT、RETURNING、アタッチされた DB、複数文、他の DB は未対応です。従来の DML 権限と独立承認は引き続き必要です。
+プレビューは**投影された全ソース値**を承認に結び付け、生成予定の対象 ID を作り出しません。コミット時に SQLite の書き込み権を確保し、同じトランザクションで実スキーマとソース行を再確認した後、コンパイル済み INSERT を一度だけ実行します。SQLite **3.35 以降**では、重複しない、別名なしの対象列名のみを指定する `RETURNING` も使用できます。実際の挿入行は**コミット成功後のみ**返し、ソースのプレビュー行とは区別します。RETURNING のワイルドカード・式・別名、CTE、JOIN、UPSERT、追加 DB、複数文、他 DB は引き続き拒否します。DML 権限と独立承認は変わりません。
 
 前の Statement が後続 Statement の承認済み Row Set を変えた場合、Batch 全体が fail closed となり rollback します。
 
@@ -164,4 +164,7 @@ F# の静的な件数証明と書き込み許可判定、Host の 2 つの実イ
 
 SQLite では、**別の `main` 実テーブル**から直接選択した行を、指定した `main` の対象表に挿入できます。両方の表の実スキーマ、DDL、インデックス、トリガーを**独立して検証**し、承認は表の組、コンパイルされた INSERT とプレビュー SELECT、全投影値の多重集合、最大行数、セキュリティポリシーに紐付きます。コミットでは SQLite の書き込み権を確保し、同じトランザクション内で両表と投影値を再検証してから一度だけ挿入します。
 
-例: `INSERT INTO main.users (name) SELECT name FROM main.other_users WHERE id = 1`。両側とも実際の `main` 表であり、明示的で重複のない対象列は直接参照した別名なしのソース列に対応し、WHERE は「列 = NULL 以外のリテラル」のみです。CTE、JOIN、集計、計算式、ページング、`RETURNING`、UPSERT、添付 DB、他プロバイダー、複数文、および承認後のソース変更は拒否します。既定の読み取り専用 4 ツールと DML 無効設定は維持されます。
+例: `INSERT INTO main.users (name) SELECT name FROM main.other_users WHERE id = 1`。両側とも実際の `main` 表であり、明示的で重複のない対象列は直接参照した別名なしのソース列に対応し、WHERE は「列 = NULL 以外のリテラル」のみです。CTE、JOIN、集計、計算式、ページング、RETURNING の式・別名・ワイルドカード、UPSERT、添付 DB、他プロバイダー、複数文、および承認後のソース変更は拒否します。既定の読み取り専用 4 ツールと DML 無効設定は維持されます。
+
+
+SQLite 3.35 以降の例: `INSERT INTO main.users (name) SELECT name FROM main.other_users WHERE id = 1 RETURNING id, name`。プレビューで承認するのはソースの `name` と行数であり、挿入された `id` と `name` はコミット後にのみ返ります。ソースに変更があればロールバックし、結果行は返しません。
