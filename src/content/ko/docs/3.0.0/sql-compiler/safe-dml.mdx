@@ -20,7 +20,7 @@ DML은 Query보다 더 엄격한 실행 경로를 사용합니다. 실제 commit
 
 ## 하나의 Tool로 단일·다중 Statement 지원
 
-`execute_dml_sql`은 하나 이상의 지원 `UPDATE`, `DELETE`, `INSERT ... VALUES`를 받을 수 있으며 여러 Statement는 세미콜론으로 구분합니다.
+`execute_dml_sql`은 하나 이상의 지원 `UPDATE`, `DELETE`, `INSERT ... VALUES`를 받을 수 있으며 여러 Statement는 세미콜론으로 구분합니다. 제한된 SQLite `INSERT ... SELECT` 도 지원하지만 **단일 문장만** 허용되며 다중 문장 배치에는 포함할 수 없습니다.
 
 별도 batch DML Tool은 없습니다. 여러 Statement는 하나의 Batch로 Parse되고 한 번 승인된 뒤 원래 순서대로 실행되며 하나의 서버 소유 Transaction에서 원자적으로 commit됩니다.
 
