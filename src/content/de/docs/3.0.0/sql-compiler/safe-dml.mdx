@@ -190,3 +190,9 @@ Der Beweis bindet zusätzlich die echte InnoDB-`TABLE_ID` und MySQL `@@server_uu
 #### Dieselbe Quelltabelle: eine physische Identität (nur develop)
 
 Zusätzlich ist die begrenzte Form `INSERT INTO app.users (name) SELECT name FROM app.users WHERE id = 1` erlaubt. Quelle und Ziel sind **dieselbe echte InnoDB-Tabelle**, keine doppelt dargestellten Katalogobjekte. Vorschau und Commit prüfen eine einzige physische `TABLE_ID`, `@@server_uuid`, DDL und alle genehmigten Quellwerte. SERIALIZABLE hält einen sperrenden Lesezugriff und die Metadatensperre bis zum Commit. Quell- oder Indexänderungen, identischer Tabellen-Neuaufbau, konkurrierende Schreibzugriffe, schwächere Isolation und Freigabewiederholung führen zur Ablehnung. `RETURNING`, CTE, JOIN und UPSERT bleiben ausgeschlossen.
+
+### M09: Begrenzte AND-Filter für INSERT SELECT-Quellzeilen (nur develop)
+
+Bei der bestehenden nativen Quellzeilenfreigabe für **SQLite, PostgreSQL und MySQL 8.4 InnoDB** darf `WHERE` **ein bis vier** direkte Vergleiche `Spalte = Nicht-NULL-Literal` enthalten, ausschließlich durch `AND` verbunden. Beispiel: `INSERT INTO app.users (name) SELECT name FROM app.import_users WHERE id = 1 AND name = 'Carol'`. Die bisherigen Anforderungen an physische Tabellenidentität, Provider-Version, maximale Zeilenzahl, Berechtigungen, Genehmigung und Transaktion bleiben unverändert. Vor dem Commit werden sämtliche genehmigten Quellwerte und der native Catalog erneut geprüft. Andere SQL-Formen sind dadurch nicht freigegeben.
+
+Fünf oder mehr Bedingungen, `OR`, `NOT`, Funktionen, berechnete Vergleiche, NULL-Vergleiche, Unterabfragen, JOIN, CTE, UPSERT und ungeprüfte Provider bleiben gesperrt. Für PostgreSQL/SQLite gelten weiterhin deren nachgewiesene RETURNING-Regeln; MySQL RETURNING wird nicht unterstützt. Keine neuen MCP-Tools oder öffentlichen APIs, DML bleibt standardmäßig deaktiviert.
