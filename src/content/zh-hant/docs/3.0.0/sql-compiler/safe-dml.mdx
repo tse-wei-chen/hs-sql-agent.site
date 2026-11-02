@@ -171,8 +171,8 @@ SQLite 3.35+ 範例：`INSERT INTO main.users (name) SELECT name FROM main.other
 
 ### M09：PostgreSQL 實體來源 INSERT SELECT（僅 develop）
 
-PostgreSQL 現可在**單一語句**執行受限的 `INSERT INTO schema.target (columns) SELECT 直接欄位 FROM schema.source WHERE 欄位 = 非 NULL 常值`。來源與目標必須是**同一個非系統 Schema 的兩張不同實體資料表**，而且都必須是一般永久表。JOIN、CTE、計算式、衝突處理、第二來源、未明確指定 Schema、分割／繼承資料表、RLS、使用者 Trigger 與自訂 Rewrite Rule 均拒絕。來源與目標各自驗證實體中繼資料、DDL、索引與限制條件，並要求有限正整數筆數上限、兩張表各自授權、`AddHsSqlAgentNativeDmlSchemaFreshness()` 和獨立 DML 核准。
+PostgreSQL 可在單一語句執行受限的 `INSERT INTO schema.target (欄位) SELECT 直接欄位 FROM schema.source WHERE 欄位 = 非 NULL 常值`。**來源現在可以與寫入目標是同一張實體表**，也可以是同一個非系統 Schema 內的另一張實體表；兩者都必須是一般永久資料表。仍須明確且不重複的目標欄位、直接投影、有限正整數筆數上限、來源讀取與目標寫入授權、`AddHsSqlAgentNativeDmlSchemaFreshness()` 及獨立 DML 核准。CTE、JOIN、計算式、ON CONFLICT、分割／繼承表、RLS、使用者觸發器、自訂改寫規則、未限定 Schema 的表名和其他資料庫仍會拒絕。
 
-預覽綁定完整來源欄位值、筆數、政策與編譯指令。提交時 PostgreSQL SERIALIZABLE 交易會在**第一次 Catalog SELECT 之前**取得來源表的 **SHARE ROW EXCLUSIVE NOWAIT** 鎖，同時保護目標表免受 DDL 修改，再重驗兩張實體表與完整來源行集，最後僅執行一次插入。鎖衝突會拒絕執行。明確的目標欄位 `RETURNING` 只在成功提交後提供真實新增資料；來源或結構改變則不提交、也不回傳資料列。
+預覽綁定**全部來源投影值**、筆數、政策與編譯指令，不會預先捏造目標表自動產生的 ID。提交時 PostgreSQL SERIALIZABLE 交易會在**首次 Catalog 查詢之前**取得來源表的 **SHARE ROW EXCLUSIVE NOWAIT** 鎖。**同表來源只使用一份真實實體結構證明及一個來源鎖**，持鎖重驗至寫入完成；不同表則分別查證兩張表，並另外保護目標表免於 DDL 競態。來源資料、索引或結構改變、寫入鎖衝突都會拒絕或回復，且不回傳 RETURNING 資料列。明確目標欄位的 `RETURNING` 僅於成功提交後提供實際新增結果。
 
-範例：`INSERT INTO app.users (name) SELECT name FROM app.import_users WHERE id = 1 RETURNING id, name`。資料庫角色必須具有取得上述鎖的權限。沒有新增 MCP Tool 或跨資料庫權限；預設仍選四個唯讀工具，DML 預設關閉。
+同表範例：`INSERT INTO app.users (name) SELECT name FROM app.users WHERE id = 1 RETURNING id, name`；不同表範例：`INSERT INTO app.users (name) SELECT name FROM app.import_users WHERE id = 1 RETURNING id, name`。資料庫角色須能取得所需 PostgreSQL 鎖。不新增 MCP 工具或公開 API，預設仍選四個唯讀工具、DML 關閉。

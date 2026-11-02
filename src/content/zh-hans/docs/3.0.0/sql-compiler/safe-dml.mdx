@@ -171,8 +171,8 @@ SQLite 3.35+ 示例：`INSERT INTO main.users (name) SELECT name FROM main.other
 
 ### M09：PostgreSQL 实体来源 INSERT SELECT（仅 develop）
 
-PostgreSQL 现允许**单条语句**执行受限的 `INSERT INTO schema.target (columns) SELECT 直接列 FROM schema.source WHERE 列 = 非 NULL 常量`。来源与目标必须是**同一非系统 Schema 中的两张不同实体表**，且均为普通永久表。JOIN、CTE、计算表达式、冲突处理、第二来源、未限定 Schema、分区或继承表、RLS、用户 Trigger 与自定义 Rewrite Rule 均被拒绝。来源及目标分别验证真实元数据、DDL、索引与约束，并要求正整数且有限的行数上限、两张表各自授权、`AddHsSqlAgentNativeDmlSchemaFreshness()` 和独立 DML 审批。
+PostgreSQL 允许单条语句执行受限的 `INSERT INTO schema.target (列) SELECT 直接列 FROM schema.source WHERE 列 = 非 NULL 常量`。**来源现在可以与插入目标是同一张实体表**，也可以是同一非系统 Schema 中的另一张实体表；两者都必须是普通永久表。仍要求明确且不重复的目标列、直接列投影、正整数且有限的行数上限、来源读取与目标写入授权、`AddHsSqlAgentNativeDmlSchemaFreshness()` 和独立 DML 审批。CTE、JOIN、计算表达式、ON CONFLICT、分区或继承表、RLS、用户触发器、自定义重写规则、未限定 Schema 的表名及其他数据库仍被拒绝。
 
-预览绑定所有源投影值、行数、策略和编译指令。提交时 PostgreSQL SERIALIZABLE 事务在**首次 Catalog SELECT 之前**取得来源表的 **SHARE ROW EXCLUSIVE NOWAIT** 锁，同时保护目标表免受 DDL 更改，再重新验证两张实体表与全部源数据行，最后只插入一次。锁冲突会直接拒绝。明确的目标列 `RETURNING` 仅在成功提交后返回真实插入结果；来源或表结构发生变化则不提交且不返回数据行。
+预览绑定**全部源投影值**、行数、策略和编译后的指令，不会提前伪造自动生成的目标 ID。提交时 PostgreSQL SERIALIZABLE 事务在**首次 Catalog 查询之前**取得来源表的 **SHARE ROW EXCLUSIVE NOWAIT** 锁。**同表来源只使用一份真实的表结构证明和一个来源锁**，并在持锁期间完成重新验证及写入；不同表则分别校验两张实体表，并另行保护目标表免受 DDL 变更。源数据、索引或表结构变化、锁竞争都将导致拒绝或回滚，不返回 RETURNING 数据行。明确目标列的 `RETURNING` 仅在成功提交后返回实际插入结果。
 
-示例：`INSERT INTO app.users (name) SELECT name FROM app.import_users WHERE id = 1 RETURNING id, name`。数据库角色须有权限获取上述锁。不增加 MCP 工具或跨数据库权限；默认仍只选中四个只读工具，DML 默认关闭。
+同表示例：`INSERT INTO app.users (name) SELECT name FROM app.users WHERE id = 1 RETURNING id, name`；不同表示例：`INSERT INTO app.users (name) SELECT name FROM app.import_users WHERE id = 1 RETURNING id, name`。数据库角色必须有权限获取所需 PostgreSQL 锁。不新增 MCP 工具或公开 API，默认仍仅选中四个只读工具，DML 关闭。
