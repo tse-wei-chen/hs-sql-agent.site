@@ -220,3 +220,9 @@ SQL Server 2022 現在支援受限的單語句 `INSERT INTO dbo.target (name) SE
 現在 **SQLite、PostgreSQL、MySQL 8.4 InnoDB、SQL Server 2022** 的已驗證原生 `INSERT SELECT` 來源行集，可使用 `WHERE id IN (1,2)`、`WHERE id = 1 OR id = 2`，或 `WHERE (id = 1 OR id = 2) AND name IN ('Carol','Dave')`。所有直接 `欄位 = 非 NULL 常值` 與 `欄位 IN (非 NULL 常值, ...)` 合計**最多四個比較常值**，布林運算樹最多七個節點。允許括號組合 `AND`／`OR`，但每一個原子條件都須是未加限定詞的直接欄位。這項規則取代上方 M09 初期的 `AND` 限制；其他 CTE／JOIN 的 `OR` 禁令不受影響。
 
 `OR 1=1`、`NOT`／`NOT IN`、`IN` 的 NULL、`IN` 子查詢、運算式、五個以上比較值、任意 `OR`、CTE、JOIN、跨 Provider DML 仍拒絕。來源與目標仍須完成原生實體 Catalog 證明，有限正整數影響筆數上限不變。Preview 綁定**全部已選來源行集**；Commit 持有已驗證的 Provider 交易鎖，重驗實體結構與來源值，再核對實際寫入筆數。PostgreSQL／SQLite 的 RETURNING 與 SQL Server 的 OUTPUT INSERTED 僅在提交成功後回傳真正產生的目標值；MySQL 不支援 RETURNING。不新增 MCP 工具或公開 API，預設仍只選四個唯讀工具、DML 關閉。
+
+### M09：有界 BETWEEN 原生來源篩選（僅 develop）
+
+四個已完成實體來源證明的資料庫 **SQLite、PostgreSQL、MySQL 8.4 InnoDB、SQL Server 2022**，其原生 `INSERT SELECT` 可再使用 `WHERE id BETWEEN 1 AND 2`、`WHERE id BETWEEN 1 AND 2 AND name IN ('Carol','Dave')`，或 `WHERE id BETWEEN 1 AND 1 OR id = 2`。`BETWEEN` 的兩個端點都必須是直接的非 NULL 常值，左側只能是未加限定詞的直接欄位。每個 `BETWEEN` 消耗**兩個比較常值**；與既有 `=`、`IN` **合計最多四個**，整棵條件 AST 最多七個節點，`AND`／`OR` 也計入節點預算。沿用 F# 型別化解析與 Host 實體來源證明。
+
+`NOT BETWEEN`、NULL／運算式端點、欄位對欄位比較、常值自比的永真條件、五個以上比較值、子查詢、JOIN、CTE 及未驗證形狀都仍拒絕。Preview 繼續核准**完整來源行集**、有限正整數影響筆數、來源與目標的實體 Catalog、獨立權限；Commit 持交易鎖重驗全部來源與結構、一次性核准並核對實際寫入筆數。SQLite／PostgreSQL 的 RETURNING 及 SQL Server 的 OUTPUT INSERTED 仍僅在成功提交後回傳實際目標資料；MySQL 不支援 RETURNING。不新增 MCP 工具、Driver 或公開 API；預設四個唯讀工具已勾選、DML 關閉。
