@@ -190,3 +190,9 @@ PostgreSQL 可在單一語句執行受限的 `INSERT INTO schema.target (欄位)
 #### 同表來源：單一實體身分證明（僅 develop）
 
 現在也允許受限的 `INSERT INTO app.users (name) SELECT name FROM app.users WHERE id = 1`。來源與目標是**同一張真實 InnoDB 表**，不會製造兩份虛構的 Catalog 證明。Preview 與 Commit 查證單一 `TABLE_ID`、`@@server_uuid`、表結構 DDL 及完整已核准來源行集。SERIALIZABLE 交易透過鎖定讀取與持有至提交的 Metadata Lock 保護該表。來源資料或索引漂移、相同 DDL 的刪表重建、競爭寫入、較弱隔離層級及重複使用核准皆會拒絕；`RETURNING`、CTE、JOIN、UPSERT 仍不支援。
+
+### M09：有界 AND 來源篩選條件（僅 develop）
+
+現有 **SQLite、PostgreSQL、MySQL 8.4 InnoDB** 的原生 `INSERT SELECT` 來源行集核准，允許在 `WHERE` 中使用**一至四個**僅由 `AND` 連接的直接 `欄位 = 非 NULL 常值` 條件。例如：`INSERT INTO app.users (name) SELECT name FROM app.import_users WHERE id = 1 AND name = 'Carol'`。原有來源／目標實體身分、版本能力、影響筆數上限、授權、核准與交易要求維持不變。提交前仍須重驗完整已核准來源行集及實體 Catalog；這並非開放任意 SQL。
+
+五個以上條件、`OR`、`NOT`、函式、計算比較、NULL 比較、子查詢、JOIN、CTE、UPSERT 及未證明的 Provider 仍會拒絕。PostgreSQL／SQLite 沿用各自已驗證的 RETURNING 限制；MySQL 不支援 RETURNING。未新增 MCP 工具或公開 API，DML 預設關閉。
