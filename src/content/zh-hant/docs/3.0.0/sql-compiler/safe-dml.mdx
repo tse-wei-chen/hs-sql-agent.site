@@ -193,6 +193,8 @@ PostgreSQL 可在單一語句執行受限的 `INSERT INTO schema.target (欄位)
 
 ### M09：有界 AND 來源篩選條件（僅 develop）
 
+**歷史範圍說明：**以下僅限 `AND` 的條件是 M09 初期支援界線；本頁末尾新增的有界 `IN`／`OR` 擴充已取代四個原生 `INSERT SELECT` Provider 的這項限制。這不影響其他 CTE／JOIN 的 `OR` 安全規則。
+
 現有 **SQLite、PostgreSQL、MySQL 8.4 InnoDB** 的原生 `INSERT SELECT` 來源行集核准，允許在 `WHERE` 中使用**一至四個**僅由 `AND` 連接的直接 `欄位 = 非 NULL 常值` 條件。例如：`INSERT INTO app.users (name) SELECT name FROM app.import_users WHERE id = 1 AND name = 'Carol'`。原有來源／目標實體身分、版本能力、影響筆數上限、授權、核准與交易要求維持不變。提交前仍須重驗完整已核准來源行集及實體 Catalog；這並非開放任意 SQL。
 
 五個以上條件、`OR`、`NOT`、函式、計算比較、NULL 比較、子查詢、JOIN、CTE、UPSERT 及未證明的 Provider 仍會拒絕。PostgreSQL／SQLite 沿用各自已驗證的 RETURNING 限制；MySQL 不支援 RETURNING。未新增 MCP 工具或公開 API，DML 預設關閉。
@@ -212,3 +214,9 @@ SQL Server 2022 現在支援受限的單語句 `INSERT INTO dbo.target (name) SE
 ### M09：SQL Server 2022 已核准 INSERT SELECT 的原生 OUTPUT INSERTED（僅 develop）
 
 既有單表或雙實體表來源核准現在可在 INSERT 欄位清單後指定 `OUTPUT INSERTED.id` 或 `OUTPUT INSERTED.id, INSERTED.name`，**成功提交後**才回傳實際寫入的目標欄位。預覽只核准實體來源行集，不會虛構 IDENTITY 產生的 ID。SERIALIZABLE 交易持有既有排他表鎖，重驗來源資料全集與 Schema，僅執行一次 INSERT，核對實際影響筆數並成功提交後才回傳結果。僅允許一至三十二個不重複的直接目標欄位；萬用字元、別名、運算式、重複欄位、`OUTPUT INTO` 或錯誤的資料影像仍拒絕。實體 Catalog 與無 Trigger 的原生 Metadata 證明不可省略；資料漂移、重複核准、筆數超限仍拒絕。不新增 MCP 工具，前端仍預設四個唯讀工具、DML 關閉。
+
+### M09：有界 IN／OR 來源行集條件（僅 develop）
+
+現在 **SQLite、PostgreSQL、MySQL 8.4 InnoDB、SQL Server 2022** 的已驗證原生 `INSERT SELECT` 來源行集，可使用 `WHERE id IN (1,2)`、`WHERE id = 1 OR id = 2`，或 `WHERE (id = 1 OR id = 2) AND name IN ('Carol','Dave')`。所有直接 `欄位 = 非 NULL 常值` 與 `欄位 IN (非 NULL 常值, ...)` 合計**最多四個比較常值**，布林運算樹最多七個節點。允許括號組合 `AND`／`OR`，但每一個原子條件都須是未加限定詞的直接欄位。這項規則取代上方 M09 初期的 `AND` 限制；其他 CTE／JOIN 的 `OR` 禁令不受影響。
+
+`OR 1=1`、`NOT`／`NOT IN`、`IN` 的 NULL、`IN` 子查詢、運算式、五個以上比較值、任意 `OR`、CTE、JOIN、跨 Provider DML 仍拒絕。來源與目標仍須完成原生實體 Catalog 證明，有限正整數影響筆數上限不變。Preview 綁定**全部已選來源行集**；Commit 持有已驗證的 Provider 交易鎖，重驗實體結構與來源值，再核對實際寫入筆數。PostgreSQL／SQLite 的 RETURNING 與 SQL Server 的 OUTPUT INSERTED 僅在提交成功後回傳真正產生的目標值；MySQL 不支援 RETURNING。不新增 MCP 工具或公開 API，預設仍只選四個唯讀工具、DML 關閉。
