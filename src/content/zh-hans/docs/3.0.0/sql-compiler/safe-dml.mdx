@@ -30,7 +30,13 @@ Client 不能传入 `BEGIN`、`COMMIT`、`ROLLBACK` 等 Transaction-control SQL�
 
 `UPDATE` / `DELETE` 审批绑定 Preview 时观察到的精确 Primary Key Row Set。Commit Transaction 内每个 Statement 在真正修改前都会立即重新验证。
 
-`INSERT ... VALUES` 审批绑定不可变的 Literal Payload 与精确编译 Command。`INSERT ... SELECT` 在来源 Row Set 审批语义定义完成前仍不开放。
+`INSERT ... VALUES` 审批绑定不可变的 Literal Payload 与精确编译 Command。
+
+### SQLite 单语句源数据行审批（G9／M09，仅 develop）
+
+仅 SQLite 允许受限的 `INSERT ... SELECT`：读取源表与写入目标必须是**同一张明确指定的 `main` 实体表**，且使用明确的目标列、直接列投影和 `WHERE 列 = 常量` 条件。必须设置正整数且有限的 DML 行数上限，并启用 `AddHsSqlAgentNativeDmlSchemaFreshness()`。
+
+预览绑定**完整源列值**，而不只是行数。提交时先取得 SQLite IMMEDIATE 写入保留锁，再检查实际表结构及源数据行是否仍与审批时一致；发生变化即拒绝或回滚。CTE、JOIN、聚合、计算列、UPSERT、RETURNING、附加数据库、多语句批处理及其他数据库仍不支持；原有 DML 权限与独立审批要求不变。
 
 如果前一个 Statement 改变了后一个 Statement 原本获批的 Row Set，整个 Batch 会 fail closed 并 rollback。
 

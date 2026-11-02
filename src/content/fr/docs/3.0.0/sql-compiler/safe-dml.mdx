@@ -30,7 +30,13 @@ Le Client ne peut pas fournir `BEGIN`, `COMMIT`, `ROLLBACK` ou un autre Transact
 
 Pour `UPDATE` et `DELETE`, l'approbation est liée au Primary Key Row Set exact observé pendant le Preview. Chaque Statement est revalidé immédiatement avant sa mutation dans la Commit Transaction.
 
-Pour `INSERT ... VALUES`, l'approbation lie le Literal Payload immuable et la Command compilée exacte. `INSERT ... SELECT` reste indisponible tant que la sémantique d'approbation du source Row Set n'est pas définie.
+Pour `INSERT ... VALUES`, l'approbation lie le Literal Payload immuable et la Command compilée exacte.
+
+### SQLite : approbation des lignes sources d'une seule instruction (G9/M09, develop uniquement)
+
+Un `INSERT ... SELECT` strictement limité est admis **uniquement avec SQLite**, lorsque la source lue et la cible d'insertion sont la même table physique `main` explicitement qualifiée. Il exige une liste de colonnes cibles, des projections directes, un prédicat `WHERE colonne = littéral`, une limite DML positive et finie ainsi que `AddHsSqlAgentNativeDmlSchemaFreshness()`.
+
+L'aperçu lie **toutes les valeurs projetées de la source**, pas seulement le nombre de lignes. Lors de la validation, SQLite acquiert d'abord la réservation d'écriture IMMEDIATE, puis revérifie le schéma réel et les lignes sources avant l'INSERT compilé. Toute divergence entraîne un refus ou un rollback. CTE, JOIN, agrégats, expressions calculées, UPSERT, RETURNING, bases attachées, lots multi-instructions et autres bases restent exclus. Les droits DML et l'approbation distincte restent obligatoires.
 
 Si un Statement précédent modifie le Row Set approuvé d'un Statement suivant, tout le Batch échoue en mode fail closed et rollback.
 

@@ -30,7 +30,13 @@ Client から `BEGIN`、`COMMIT`、`ROLLBACK` などの Transaction-control SQL 
 
 `UPDATE` / `DELETE` は Preview で観測した正確な Primary Key Row Set に承認を結び付けます。Commit Transaction 内で各 Statement の変更直前に再検証します。
 
-`INSERT ... VALUES` は不変な Literal Payload と正確な Compile 済み Command に結び付けます。`INSERT ... SELECT` は source Row Set の承認意味論が定義されるまで未対応です。
+`INSERT ... VALUES` は不変な Literal Payload と正確な Compile 済み Command に結び付けます。
+
+### SQLite の単文・ソース行承認（G9/M09、develop 限定）
+
+限定的な `INSERT ... SELECT` は **SQLite のみ**で利用でき、読み取り元と挿入先が同じ、スキーマを明記した `main` の実テーブルである必要があります。挿入先の列を明示し、列の直接投影と `WHERE 列 = リテラル` 条件だけを使用できます。正の有限な DML 行数上限と `AddHsSqlAgentNativeDmlSchemaFreshness()` の有効化が必須です。
+
+プレビューでは行数だけでなく、**投影された全ソース値**を承認に結び付けます。コミット時に SQLite の IMMEDIATE 書き込み予約を取得し、実スキーマとソース行を再検証してからコンパイル済み INSERT を実行します。差異があれば拒否またはロールバックします。CTE、JOIN、集約、計算式、UPSERT、RETURNING、アタッチされた DB、複数文、他の DB は未対応です。従来の DML 権限と独立承認は引き続き必要です。
 
 前の Statement が後続 Statement の承認済み Row Set を変えた場合、Batch 全体が fail closed となり rollback します。
 
