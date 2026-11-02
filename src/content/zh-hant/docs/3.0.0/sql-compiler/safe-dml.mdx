@@ -20,7 +20,7 @@ DML 比 Query 使用更嚴格的執行路徑，因為真正 commit 時，核准�
 
 ## 一個 Tool，同時支援單語句與多語句
 
-`execute_dml_sql` 可接受一個或多個受支援的 `UPDATE`、`DELETE`、`INSERT ... VALUES`，多個 Statement 以分號分隔。
+`execute_dml_sql` 可接受一個或多個受支援的 `UPDATE`、`DELETE`、`INSERT ... VALUES`，多個 Statement 以分號分隔。 另外也接受受限的 SQLite `INSERT ... SELECT`，但**只能單語句執行**，不可混入多語句批次。
 
 沒有額外的 batch DML Tool。多語句輸入會解析成一個 Batch，只核准一次，依原始順序執行，最後在一個由伺服器掌握的 Transaction 中原子提交。
 
