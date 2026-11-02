@@ -141,3 +141,9 @@ Siehe [MCP Tools Reference](/de/docs/mcp/tools-reference), [Konfiguration](/de/d
 Beide Zweige und die Zusammenführung dürfen neben dem vollständigen geordneten UNIQUE-Schlüssel aus zwei Spalten **weitere direkte Datenspalten** behalten. Jede Projektion ist auf 32 eindeutige direkte Spalten begrenzt; die Zusammenführung projiziert nur den linken Zweig. **Nutzdaten sind kein Eindeutigkeitsbeweis**.
 
 SQL Server verlangt weiterhin beide INNER JOIN-Schlüsselgleichheiten, den vollständigen Zielschlüssel, unabhängige F#-Beweise, reale Host-Indexprüfung, Vorschau, Freigabe und IsCurrent in derselben gesperrten Transaktion. Berechnete oder doppelte Spalten, Aliaskollisionen, CAST, direkte rechte Daten im Merge, fehlende Schlüssel oder andere physische Quellen werden abgelehnt. Andere Datenbanken und MCP-Standards ändern sich nicht.
+
+### Korrelierte Semi-/Anti-Join-Filter in CTE-Zweigen (M07, nur develop)
+
+Beim dreiteiligen SQL-Server-CTE-Verbund darf jeder physische Quellzweig mit `EXISTS` oder `NOT EXISTS` gefiltert werden. Die Unterabfrage muss jedoch **dieselbe geprüfte physische Tabelle** lesen und beide ursprünglichen UNIQUE-Schlüsselspalten mit gewöhnlichen, per `AND` verknüpften Gleichheiten vollständig korrelieren. Ein zusätzlicher Gleichheitsfilter zwischen innerer Spalte und Konstante ist möglich. Der zusammenführende `INNER JOIN` und die DML-Zielbedingung benötigen weiterhin beide Schlüssel.
+
+Statischer F#-Kardinalitätsbeweis, unabhängige F#-Schreibzulassung, echte Host-Indexprüfung, Vorschau-/Freigabe-Zeilenidentität und `IsCurrent` in derselben Transaktion bleiben Pflicht. Andere Quelltabellen, unvollständige Schlüssel, `OR`, berechnete Schlüssel, zusätzliche JOINs oder mehrdeutige Aliase werden abgelehnt. Beliebige CTE-DAGs, Mehrquellen-Schreibvorgänge und andere Datenbanken werden nicht freigegeben.

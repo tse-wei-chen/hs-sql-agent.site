@@ -141,3 +141,9 @@ See [MCP Tools Reference](/docs/mcp/tools-reference), [Configuration](/docs/oper
 Two independent CTE branches and the merge may retain **extra directly selected payload** around the original, ordered two-column UNIQUE key. Each projection must have at most 32 unambiguous, input-unique direct columns. The merge can select direct fields from the left branch only. Payload is **never proof of uniqueness**.
 
 SQL Server still requires the exact two-key INNER JOIN, both target equalities, independent F# cardinality and admission proofs, real Host UNIQUE-index verification, Preview, Approval and transaction-held IsCurrent. Computed/duplicated payload, alias shadowing, CAST, a right-branch payload in the merge, missing keys or another physical source fail closed; no other database or MCP default is affected.
+
+### Correlated semi-/anti-join filters inside the CTE diamond (M07, develop only)
+
+A SQL Server three-CTE diamond may filter either direct physical-source branch with `EXISTS` or `NOT EXISTS` over the **same verified physical table**. The correlated subquery must compare **both original UNIQUE-key columns** using ordinary `AND`-connected equality; an additional direct inner-column-to-literal equality may select the rows. The final merge still uses the complete two-key `INNER JOIN`, and the DML target still compares both keys. The filter changes which rows qualify, never the one-row-per-target proof.
+
+F# cardinality, independent F# execution admission, Host physical index discovery, preview/approval row-set identity and transaction-held `IsCurrent` remain mandatory. An unrelated subquery table, partial key, `OR`, computed key, extra JOIN, unproven scalar subquery or ambiguous alias fails closed. This does not enable unrestricted CTE DAGs, multi-source writes or new database-provider capabilities.
