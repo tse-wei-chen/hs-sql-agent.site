@@ -179,10 +179,14 @@ PostgreSQL では、限定的な単文 `INSERT INTO schema.target (列) SELECT �
 
 ### M09：MySQL 8.4 InnoDB のソース行 INSERT SELECT（develop 限定）
 
-**MySQL 8.4／InnoDB のみ**、限定的な単文 `INSERT INTO db.target (name) SELECT name FROM db.source WHERE id = 1` に対応します。ソースと挿入先は**同じ非システム DB の異なる 2 つの実テーブル**である必要があります。プレビューで全ソース値と行数を承認し、コミットでは双方の実スキーマ・索引とソース行を再検証して 1 回だけ挿入します。ソースと対象への権限は別に必要で、Approval は一度限り、`AddHsSqlAgentNativeDmlSchemaFreshness()` も必須です。
+**MySQL 8.4／InnoDB のみ**、限定的な単文 `INSERT INTO db.target (name) SELECT name FROM db.source WHERE id = 1` に対応します。ソースと挿入先は**同じ非システム DB 内の同一の実 InnoDB テーブル、または異なる 2 つの実テーブル**である必要があります。プレビューで全ソース値と行数を承認し、コミットでは双方の実スキーマ・索引とソース行を再検証して 1 回だけ挿入します。ソースと対象への権限は別に必要で、Approval は一度限り、`AddHsSqlAgentNativeDmlSchemaFreshness()` も必須です。
 
-コミットには明示的な **SERIALIZABLE の InnoDB トランザクション**を用い、ロック読み取りとトランザクション中のメタデータロックでソース行と DDL を保護します。暗黙コミットを引き起こす `LOCK TABLES` は使用しません。隠れた Trigger が存在しないと証明するため、実行アカウントに**グローバルな Trigger メタデータ参照権限**も要求します。Trigger・外部キー・MyISAM などの非トランザクションエンジンは拒否します。この形では **`RETURNING` 非対応**。CTE、JOIN、UPSERT、計算式、同一テーブルソース、複数文、未検証の DB も引き続き拒否します。
+コミットには明示的な **SERIALIZABLE の InnoDB トランザクション**を用い、ロック読み取りとトランザクション中のメタデータロックでソース行と DDL を保護します。暗黙コミットを引き起こす `LOCK TABLES` は使用しません。隠れた Trigger が存在しないと証明するため、実行アカウントに**グローバルな Trigger メタデータ参照権限**も要求します。Trigger・外部キー・MyISAM などの非トランザクションエンジンは拒否します。この形では **`RETURNING` 非対応**。CTE、JOIN、UPSERT、計算式、複数文、未検証の DB も引き続き拒否します。
 
 例：`INSERT INTO app.users (name) SELECT name FROM app.import_users WHERE id = 1`。新しい MCP ツールは追加せず、DML は既定で無効、4 つの読み取り専用ツールが既定選択のままです。
 
 証明には実際の InnoDB `TABLE_ID` と MySQL `@@server_uuid` も含めます。テーブル名・DDL・ソース行が同じでも、再作成したテーブルに以前の承認は使えません。`INNODB_TABLES` の参照には `PROCESS` 権限が必要なため、グローバルな `PROCESS` と `TRIGGER` の可視性が必須です。確認不能なら拒否します。
+
+#### 同一テーブルをソースにする場合：実体の証明は 1 つ（develop 限定）
+
+限定的な `INSERT INTO app.users (name) SELECT name FROM app.users WHERE id = 1` にも対応します。ソースと対象は**同一の実 InnoDB テーブル**であり、カタログ証明を二重に作りません。プレビューとコミットで単一の `TABLE_ID`、`@@server_uuid`、DDL、承認済みソース行集合を検証します。SERIALIZABLE トランザクションはロック読み取りとメタデータロックを保持し、実体スキーマの再検証後に一度だけ挿入します。行・索引の変更、同一 DDL による再作成、競合書き込み、弱い分離レベル、承認の再利用は拒否します。`RETURNING`、CTE、JOIN、UPSERT は引き続き非対応です。
