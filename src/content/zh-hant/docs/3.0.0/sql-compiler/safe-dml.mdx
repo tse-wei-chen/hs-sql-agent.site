@@ -164,7 +164,7 @@ F# 靜態基數與封閉式寫入准入、Host 實體雙索引查核、預覽→
 
 SQLite 現可從**另一張獨立的 `main` 實體來源表**直接選取資料列，插入明確指定的 `main` 目標表，並沿用單語句預覽／核准流程。來源與目標表**各自驗證實際 schema、DDL、索引與觸發器**；核准證據同時綁定兩張表、已編譯的 INSERT 與預覽 SELECT、全部投影值的多重集合指紋、影響列數上限及安全政策。提交時先保留 SQLite 寫入權，在同一交易內重新驗證兩張表及全部來源投影值，再執行一次插入。
 
-例如 `INSERT INTO main.users (name) SELECT name FROM main.other_users WHERE id = 1`。兩側均須為真實 `main` 資料表；明確且不重複的目標欄位只能對應未使用別名的直接來源欄位，WHERE 只能是「欄位＝非 NULL 常值」。CTE、JOIN、聚合、計算式、分頁、RETURNING の式・別名・ワイルドカード、衝突處理、附加資料庫、其他 DB、批次寫入及核准後來源漂移仍拒絕。預設四個唯讀工具、DML 不勾選不變。
+例如 `INSERT INTO main.users (name) SELECT name FROM main.other_users WHERE id = 1`。兩側均須為真實 `main` 資料表；明確且不重複的目標欄位只能對應未使用別名的直接來源欄位，WHERE 只能是「欄位＝非 NULL 常值」。CTE、JOIN、聚合、計算式、分頁、RETURNING 萬用字元、運算式與別名、衝突處理、附加資料庫、其他 DB、批次寫入及核准後來源漂移仍拒絕。預設四個唯讀工具、DML 不勾選不變。
 
 
 SQLite 3.35+ 範例：`INSERT INTO main.users (name) SELECT name FROM main.other_users WHERE id = 1 RETURNING id, name`。預覽核准來源的 `name` 和資料列數；真正成功提交後，才回傳新增資料列的 `id` 和 `name`。來源發生變更時回復，且不回傳任何結果列。
