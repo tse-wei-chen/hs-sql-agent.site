@@ -226,3 +226,16 @@ Bereits physisch attestiertes natives `INSERT SELECT` für **SQLite, PostgreSQL,
 Für bereits physisch attestiertes natives `INSERT SELECT` auf **SQLite, PostgreSQL, MySQL 8.4 InnoDB und SQL Server 2022** sind auch `WHERE id BETWEEN 1 AND 2`, `WHERE id BETWEEN 1 AND 2 AND name IN ('Carol','Dave')` und `WHERE id BETWEEN 1 AND 1 OR id = 2` zugelassen. Beide BETWEEN-Grenzen müssen direkte Nicht-NULL-Literale sein, links ist nur eine unqualifizierte direkte Spalte zulässig. Jedes BETWEEN zählt als **zwei Vergleichsliterale** zum gemeinsamen Budget von **maximal vier** für `=`, `IN` und BETWEEN. Der gesamte boolesche AST besitzt höchstens sieben Knoten einschließlich `AND`/`OR`. Es werden der vorhandene typisierte F#-Parser und die reale Host-Katalogprüfung wiederverwendet.
 
 `NOT BETWEEN`, NULL-/berechnete Grenzen, Spalte-zu-Spalte-Bereiche, konstante Tautologien, fünf oder mehr Vergleichswerte, Unterabfragen, JOIN, CTE und nicht bewiesene Formen bleiben abgelehnt. Die Vorschau bindet alle Quellzeilen, ein endliches positives Zeilenlimit, eigenständige Rechte und reale physische Katalogidentität. Beim Commit sind gehaltene Transaktionssperren, einmalige Freigabe, vollständige Daten- und Schemaprüfung sowie exakte Zeilenanzahl verpflichtend. SQLite/PostgreSQL RETURNING und SQL Server OUTPUT INSERTED liefern echte Zielzeilen erst nach Commit; MySQL RETURNING bleibt aus. Keine neuen MCP-Tools, Treiber oder öffentlichen APIs; vier Lese-Tools sind ausgewählt und DML standardmäßig aus.
+
+### M09: SQLite natives INSERT SELECT in atomarer DML-Transaktion (nur develop)
+
+Die bestehende **atomare DML-Transaktion** kann bereits mehrere INSERT VALUES-, UPDATE- und DELETE-Anweisungen mit einer einzigen Freigabe in festgelegter Reihenfolge ausführen; ein neues MCP-Batch-Tool ist nicht nötig. Neu ist **genau ein** physisch attestiertes SQLite `INSERT SELECT` innerhalb einer Transaktion aus **2–16 Anweisungen**, zusammen mit den bereits unterstützten Mutationen.
+
+```sql
+INSERT INTO main.users (name)
+  SELECT name FROM main.import_users WHERE id IN (1, 2)
+  RETURNING id, name;
+INSERT INTO main.users (name) VALUES ('Manual');
+```
+
+Jede Anweisung wird mit dem F#-Compiler und dem echten SQLite-`main`-Catalog separat kompiliert, autorisiert und als Vorschau geprüft. Die einmalige Gesamtfreigabe bindet Reihenfolge, vollständige Quellzeilen-Fingerabdrücke und das **Zeilenlimit der gesamten Transaktion**. In **einer SQLite-Schreibtransaktion** werden vor jedem Schritt Schema und Quellzeilen erneut geprüft, einschließlich Änderungen früherer Anweisungen. Wenn ein früherer Schritt die spätere Quellmenge verändert oder eine spätere Anweisung eine Eindeutigkeitsbedingung verletzt, werden **alle bisherigen Änderungen zurückgerollt**. Erzeugte IDs und `RETURNING`-Werte werden erst nach dem erfolgreichen Gesamt-Commit geliefert. Mehrere INSERT SELECT pro Batch, andere Datenbanken, ungeprüfte Schemata sowie JOIN/CTE/UPSERT bleiben verboten. Keine neuen MCP-Tools, Treiber oder öffentlichen APIs; vier Lese-Tools ausgewählt und DML standardmäßig aus.
