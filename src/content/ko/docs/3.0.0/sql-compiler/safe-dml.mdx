@@ -179,10 +179,14 @@ PostgreSQL은 제한된 단일 문장 `INSERT INTO schema.target (열) SELECT �
 
 ### M09: MySQL 8.4 InnoDB 소스 행 INSERT SELECT (develop 전용)
 
-**MySQL 8.4／InnoDB에서만** 제한된 단일 문장 `INSERT INTO db.target (name) SELECT name FROM db.source WHERE id = 1` 을 허용합니다. 소스와 대상은 **동일한 비시스템 데이터베이스의 서로 다른 두 실제 테이블**이어야 합니다. 미리 보기에서 모든 소스 값과 행 수를 승인하고, 커밋에서 양쪽의 실제 테이블 구조·인덱스와 소스 행 전체를 다시 검증한 후 한 번만 삽입합니다. 소스 읽기와 대상 쓰기 권한은 별도로 필요하며 Approval 은 일회용이고 `AddHsSqlAgentNativeDmlSchemaFreshness()` 가 필수입니다.
+**MySQL 8.4／InnoDB에서만** 제한된 단일 문장 `INSERT INTO db.target (name) SELECT name FROM db.source WHERE id = 1` 을 허용합니다. 소스와 대상은 **동일한 비시스템 데이터베이스 내 같은 실제 InnoDB 테이블 한 개 또는 서로 다른 실제 테이블 두 개**이어야 합니다. 미리 보기에서 모든 소스 값과 행 수를 승인하고, 커밋에서 양쪽의 실제 테이블 구조·인덱스와 소스 행 전체를 다시 검증한 후 한 번만 삽입합니다. 소스 읽기와 대상 쓰기 권한은 별도로 필요하며 Approval 은 일회용이고 `AddHsSqlAgentNativeDmlSchemaFreshness()` 가 필수입니다.
 
-커밋에서는 명시적 **SERIALIZABLE InnoDB 트랜잭션**과 잠금 읽기 및 트랜잭션 유지 메타데이터 잠금으로 소스와 DDL 변경을 보호합니다. 암묵적 커밋을 유발하는 `LOCK TABLES` 는 사용하지 않습니다. 숨겨진 Trigger 부재를 확인할 수 있도록 실행 계정에 **전역 Trigger 메타데이터 가시성**도 요구합니다. 양쪽 테이블에 Trigger·외래 키·MyISAM 같은 비트랜잭션 엔진이 있으면 거부합니다. 이 모드는 **`RETURNING` 미지원**이며 CTE, JOIN, UPSERT, 계산 투영, 동일 테이블 소스, 다중 문장 및 미검증 데이터베이스도 거부합니다.
+커밋에서는 명시적 **SERIALIZABLE InnoDB 트랜잭션**과 잠금 읽기 및 트랜잭션 유지 메타데이터 잠금으로 소스와 DDL 변경을 보호합니다. 암묵적 커밋을 유발하는 `LOCK TABLES` 는 사용하지 않습니다. 숨겨진 Trigger 부재를 확인할 수 있도록 실행 계정에 **전역 Trigger 메타데이터 가시성**도 요구합니다. 양쪽 테이블에 Trigger·외래 키·MyISAM 같은 비트랜잭션 엔진이 있으면 거부합니다. 이 모드는 **`RETURNING` 미지원**이며 CTE, JOIN, UPSERT, 계산 투영, 다중 문장 및 미검증 데이터베이스도 거부합니다.
 
 예: `INSERT INTO app.users (name) SELECT name FROM app.import_users WHERE id = 1`. MCP 도구는 늘리지 않고 기본 읽기 전용 도구 4개만 선택되며 DML 은 비활성화 상태입니다.
 
 증명에는 실제 InnoDB `TABLE_ID` 와 MySQL `@@server_uuid` 도 묶습니다. 이름·DDL·원본 행이 같더라도 테이블이 재생성되면 이전 승인은 무효입니다. `INNODB_TABLES` 조회에는 `PROCESS` 권한이 필요하므로 전역 `PROCESS` 와 `TRIGGER` 메타데이터 가시성이 모두 필수이며 확인할 수 없으면 거부합니다.
+
+#### 동일 테이블을 소스로 사용하는 경우: 하나의 실제 엔터티 증명 (develop 전용)
+
+제한된 `INSERT INTO app.users (name) SELECT name FROM app.users WHERE id = 1` 도 허용합니다. 소스와 대상은 **같은 실제 InnoDB 테이블**이며 가짜 이중 스키마 증명을 만들지 않습니다. 미리 보기와 커밋은 하나의 `TABLE_ID`, `@@server_uuid`, 테이블 DDL 및 승인된 전체 소스 행 집합을 검증합니다. SERIALIZABLE 트랜잭션은 잠금 읽기와 메타데이터 잠금을 유지합니다. 소스 값·인덱스 변경, 동일 DDL로 테이블 재생성, 경합 쓰기, 약한 격리 수준, 승인 재사용은 모두 거부합니다. `RETURNING`, CTE, JOIN, UPSERT는 여전히 지원하지 않습니다.
