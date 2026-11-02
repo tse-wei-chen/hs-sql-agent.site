@@ -176,3 +176,11 @@ PostgreSQL 允许单条语句执行受限的 `INSERT INTO schema.target (列) SE
 预览绑定**全部源投影值**、行数、策略和编译后的指令，不会提前伪造自动生成的目标 ID。提交时 PostgreSQL SERIALIZABLE 事务在**首次 Catalog 查询之前**取得来源表的 **SHARE ROW EXCLUSIVE NOWAIT** 锁。**同表来源只使用一份真实的表结构证明和一个来源锁**，并在持锁期间完成重新验证及写入；不同表则分别校验两张实体表，并另行保护目标表免受 DDL 变更。源数据、索引或表结构变化、锁竞争都将导致拒绝或回滚，不返回 RETURNING 数据行。明确目标列的 `RETURNING` 仅在成功提交后返回实际插入结果。
 
 同表示例：`INSERT INTO app.users (name) SELECT name FROM app.users WHERE id = 1 RETURNING id, name`；不同表示例：`INSERT INTO app.users (name) SELECT name FROM app.import_users WHERE id = 1 RETURNING id, name`。数据库角色必须有权限获取所需 PostgreSQL 锁。不新增 MCP 工具或公开 API，默认仍仅选中四个只读工具，DML 关闭。
+
+### M09：MySQL 8.4 InnoDB 源行集 INSERT SELECT（仅 develop）
+
+仅 **MySQL 8.4／InnoDB** 支持受限的单条语句 `INSERT INTO db.target (name) SELECT name FROM db.source WHERE id = 1`。来源与目标必须是**同一非系统数据库中的两张不同实体表**。预览批准所有源投影值及行数；提交时重新验证两张实体表的结构、索引和完整源数据行，最后只执行一次插入。来源读取与目标写入权限须单独授予，Approval 一次性使用，并要求 `AddHsSqlAgentNativeDmlSchemaFreshness()`。
+
+提交需要明确的 **SERIALIZABLE InnoDB 事务**，利用锁定读取保护源行，并由事务内 Metadata Lock 防止竞争性 DDL。禁止使用可能导致隐式提交的 `LOCK TABLES`。为证明不存在不可见的触发器，目前还要求执行账号具有**全局 Trigger 元数据可见性**；两张表不得有 Trigger、外键或 MyISAM 等非事务引擎。本模式**不支持 `RETURNING`**，CTE、JOIN、Upsert、计算投影、同表来源、多语句批处理及未经证明的数据库仍被拒绝。
+
+示例：`INSERT INTO app.users (name) SELECT name FROM app.import_users WHERE id = 1`。仍需显式开启 DML，没有新增 MCP 工具；默认仅选择四个只读工具，DML 保持关闭。

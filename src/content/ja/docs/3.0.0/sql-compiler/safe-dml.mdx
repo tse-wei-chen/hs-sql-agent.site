@@ -176,3 +176,11 @@ PostgreSQL では、限定的な単文 `INSERT INTO schema.target (列) SELECT �
 プレビューは**投影された全ソース値**と行数、ポリシー、コンパイル済み指令を承認に結び付け、生成予定の ID を捏造しません。コミットでは PostgreSQL の SERIALIZABLE トランザクションが**最初の Catalog 参照より前に SHARE ROW EXCLUSIVE NOWAIT ロック**を取得します。**同一テーブルは実スキーマの証明とソースロックを各 1 つだけ使用**して、保持したまま再検証から挿入まで実行します。別テーブルの場合は双方を独立して検証し、挿入先の DDL 競合も防ぎます。ソース値や索引・構造の変更、ロック競合は拒否またはロールバックとなり、RETURNING 行は返しません。直接対象列の `RETURNING` はコミット成功後のみ実際の結果を返します。
 
 同一テーブルの例：`INSERT INTO app.users (name) SELECT name FROM app.users WHERE id = 1 RETURNING id, name`。別テーブルの例：`INSERT INTO app.users (name) SELECT name FROM app.import_users WHERE id = 1 RETURNING id, name`。必要な PostgreSQL ロック権限を持つ DB ロールが必要です。新たな MCP ツールや公開 API は追加せず、読み取り専用 4 ツールが既定で選択され、DML は無効のままです。
+
+### M09：MySQL 8.4 InnoDB のソース行 INSERT SELECT（develop 限定）
+
+**MySQL 8.4／InnoDB のみ**、限定的な単文 `INSERT INTO db.target (name) SELECT name FROM db.source WHERE id = 1` に対応します。ソースと挿入先は**同じ非システム DB の異なる 2 つの実テーブル**である必要があります。プレビューで全ソース値と行数を承認し、コミットでは双方の実スキーマ・索引とソース行を再検証して 1 回だけ挿入します。ソースと対象への権限は別に必要で、Approval は一度限り、`AddHsSqlAgentNativeDmlSchemaFreshness()` も必須です。
+
+コミットには明示的な **SERIALIZABLE の InnoDB トランザクション**を用い、ロック読み取りとトランザクション中のメタデータロックでソース行と DDL を保護します。暗黙コミットを引き起こす `LOCK TABLES` は使用しません。隠れた Trigger が存在しないと証明するため、実行アカウントに**グローバルな Trigger メタデータ参照権限**も要求します。Trigger・外部キー・MyISAM などの非トランザクションエンジンは拒否します。この形では **`RETURNING` 非対応**。CTE、JOIN、UPSERT、計算式、同一テーブルソース、複数文、未検証の DB も引き続き拒否します。
+
+例：`INSERT INTO app.users (name) SELECT name FROM app.import_users WHERE id = 1`。新しい MCP ツールは追加せず、DML は既定で無効、4 つの読み取り専用ツールが既定選択のままです。
