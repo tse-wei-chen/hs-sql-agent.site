@@ -190,3 +190,9 @@ La preuve lie également le véritable `TABLE_ID` InnoDB et le `@@server_uuid` M
 #### Source et cible identiques : une seule identité physique (develop uniquement)
 
 La forme bornée `INSERT INTO app.users (name) SELECT name FROM app.users WHERE id = 1` est désormais admise. Source et cible représentent **une unique table InnoDB réelle**, sans fabriquer deux attestations. L'aperçu et le commit vérifient une seule `TABLE_ID`, `@@server_uuid`, la DDL et toutes les valeurs sources approuvées. La transaction SERIALIZABLE conserve une lecture verrouillante et le verrou de métadonnées jusqu'au commit. Toute dérive des lignes ou index, recréation à DDL identique, écriture concurrente, isolation insuffisante ou réutilisation d'approbation entraîne un refus. `RETURNING`, CTE, JOIN et UPSERT restent interdits.
+
+### M09 : Filtres AND bornés pour les lignes sources INSERT SELECT (develop uniquement)
+
+L'approbation native des lignes sources pour **SQLite, PostgreSQL et MySQL 8.4 InnoDB** accepte désormais **une à quatre** comparaisons directes `colonne = littéral_non_NULL` dans `WHERE`, reliées exclusivement par `AND`. Exemple : `INSERT INTO app.users (name) SELECT name FROM app.import_users WHERE id = 1 AND name = 'Carol'`. Les exigences précédentes d'identité physique des tables, de version du moteur, de plafond de lignes, d'autorisations, d'approbation et de transaction restent inchangées. Toutes les lignes sources approuvées et le Catalog réel sont revérifiés avant le commit. Cela n'autorise aucune autre forme SQL.
+
+Cinq conditions ou plus, `OR`, `NOT`, fonctions, calculs, comparaisons NULL, sous-requêtes, JOIN, CTE, UPSERT et moteurs non prouvés restent refusés. PostgreSQL et SQLite conservent leurs règles RETURNING déjà vérifiées ; MySQL ne prend pas en charge RETURNING. Aucun nouvel outil MCP ou API publique ; DML reste désactivé par défaut.
