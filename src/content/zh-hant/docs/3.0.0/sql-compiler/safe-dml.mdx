@@ -179,10 +179,14 @@ PostgreSQL 可在單一語句執行受限的 `INSERT INTO schema.target (欄位)
 
 ### M09：MySQL 8.4 InnoDB 來源行集 INSERT SELECT（僅 develop）
 
-僅 **MySQL 8.4／InnoDB** 開放單語句且受限的 `INSERT INTO db.target (name) SELECT name FROM db.source WHERE id = 1`。來源和目標必須是**同一個非系統資料庫中的兩張不同實體表**。預覽核准全部來源欄位值與筆數；提交時重驗兩張實體表的結構、索引及完整來源行集，最後只執行一次插入。來源與目標必須分別授權，Approval 僅能使用一次，並須啟用 `AddHsSqlAgentNativeDmlSchemaFreshness()`。
+僅 **MySQL 8.4／InnoDB** 開放單語句且受限的 `INSERT INTO db.target (name) SELECT name FROM db.source WHERE id = 1`。來源和目標必須是**同一個非系統資料庫內的同一張實體 InnoDB 表，或兩張不同實體表**。預覽核准全部來源欄位值與筆數；提交時重驗相關實體表的結構、索引及完整來源行集，最後只執行一次插入。來源與目標必須分別授權，Approval 僅能使用一次，並須啟用 `AddHsSqlAgentNativeDmlSchemaFreshness()`。
 
-提交要求明確的 **SERIALIZABLE InnoDB 交易**，以鎖定讀取保護來源資料，交易持有的 Metadata Lock 則阻擋競爭性 DDL。不可使用會造成隱式提交的 `LOCK TABLES`。為確實證明沒有隱藏的 Trigger，目前也要求執行身分具有**全域 Trigger 中繼資料可見性**；兩張表不得有 Trigger、外鍵或 MyISAM 等非交易性引擎。這個模式**不支援 `RETURNING`**，仍拒絕 CTE、JOIN、Upsert、計算投影、同表來源、多語句批次及未證明的 Provider。
+提交要求明確的 **SERIALIZABLE InnoDB 交易**，以鎖定讀取保護來源資料，交易持有的 Metadata Lock 則阻擋競爭性 DDL。不可使用會造成隱式提交的 `LOCK TABLES`。為確實證明沒有隱藏的 Trigger，目前也要求執行身分具有**全域 Trigger 中繼資料可見性**；兩張表不得有 Trigger、外鍵或 MyISAM 等非交易性引擎。這個模式**不支援 `RETURNING`**，仍拒絕 CTE、JOIN、Upsert、計算投影、多語句批次及未證明的 Provider。
 
 範例：`INSERT INTO app.users (name) SELECT name FROM app.import_users WHERE id = 1`。此功能仍須額外開啟 DML，並未新增 MCP 工具；前端預設只選四個唯讀工具、DML 關閉。
 
 此證明也綁定實際 InnoDB `TABLE_ID` 和 MySQL `@@server_uuid`：即使重建的表名、DDL 和來源資料完全相同，舊核准仍會失效。讀取 `INNODB_TABLES` 需要 `PROCESS` 權限，因此執行身分必須同時具有全域 `PROCESS` 與 `TRIGGER` 可見性；缺少中繼資料時直接拒絕。
+
+#### 同表來源：單一實體身分證明（僅 develop）
+
+現在也允許受限的 `INSERT INTO app.users (name) SELECT name FROM app.users WHERE id = 1`。來源與目標是**同一張真實 InnoDB 表**，不會製造兩份虛構的 Catalog 證明。Preview 與 Commit 查證單一 `TABLE_ID`、`@@server_uuid`、表結構 DDL 及完整已核准來源行集。SERIALIZABLE 交易透過鎖定讀取與持有至提交的 Metadata Lock 保護該表。來源資料或索引漂移、相同 DDL 的刪表重建、競爭寫入、較弱隔離層級及重複使用核准皆會拒絕；`RETURNING`、CTE、JOIN、UPSERT 仍不支援。
