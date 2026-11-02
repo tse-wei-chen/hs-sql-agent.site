@@ -36,7 +36,7 @@ Client 不可送入 `BEGIN`、`COMMIT`、`ROLLBACK` 等 Transaction-control SQL�
 
 僅 SQLite 開放受限的 `INSERT ... SELECT`。唯一直接來源與插入目標必須是明確指定的真實 `main` 資料表（可為同表或兩張不同表）；不同表須各自通過實體結構證明。明確且不重複的目標欄位、直接來源欄位投影、`WHERE 欄位 = 非 NULL 常值`、正整數且有限的筆數上限，以及 `AddHsSqlAgentNativeDmlSchemaFreshness()` 仍為必要條件。
 
-預覽綁定**全部來源投影值**，不會預先捏造目標表自動產生的 ID。提交時先取得 SQLite 寫入保留鎖，在同一交易內重驗實體結構與來源行集，再執行一次編譯後的 INSERT。SQLite **3.35+** 另可使用 `RETURNING`，但只允許明確、無別名且不重複的目標欄位；**成功提交後**才回傳真實插入列，與來源預覽資料不同。RETURNING 萬用字元、運算式或別名、CTE、JOIN、UPSERT、附加資料庫、多語句批次和其他資料庫仍拒絕。DML 權限與人工核准維持不變。
+預覽綁定**全部來源投影值**，不會預先捏造目標表自動產生的 ID。提交時先取得 SQLite 寫入保留鎖，在同一交易內重驗實體結構與來源行集，再執行一次編譯後的 INSERT。SQLite **3.35+** 另可使用 `RETURNING`，但只允許明確、無別名且不重複的目標欄位；**成功提交後**才回傳真實插入列，與來源預覽資料不同。RETURNING 萬用字元、運算式或別名、CTE、JOIN、UPSERT、附加資料庫、未經證明的多語句來源批次及其他資料庫仍拒絕。DML 權限與人工核准維持不變。
 
 若前一個 Statement 改變了後一個 Statement 原先核准的 Row Set，整個 Batch 會 fail closed 並 rollback。
 
@@ -164,7 +164,7 @@ F# 靜態基數與封閉式寫入准入、Host 實體雙索引查核、預覽→
 
 SQLite 現可從**另一張獨立的 `main` 實體來源表**直接選取資料列，插入明確指定的 `main` 目標表，並沿用單語句預覽／核准流程。來源與目標表**各自驗證實際 schema、DDL、索引與觸發器**；核准證據同時綁定兩張表、已編譯的 INSERT 與預覽 SELECT、全部投影值的多重集合指紋、影響列數上限及安全政策。提交時先保留 SQLite 寫入權，在同一交易內重新驗證兩張表及全部來源投影值，再執行一次插入。
 
-例如 `INSERT INTO main.users (name) SELECT name FROM main.other_users WHERE id = 1`。兩側均須為真實 `main` 資料表；明確且不重複的目標欄位只能對應未使用別名的直接來源欄位，WHERE 只能是「欄位＝非 NULL 常值」。CTE、JOIN、聚合、計算式、分頁、RETURNING 萬用字元、運算式與別名、衝突處理、附加資料庫、其他 DB、批次寫入及核准後來源漂移仍拒絕。預設四個唯讀工具、DML 不勾選不變。
+例如 `INSERT INTO main.users (name) SELECT name FROM main.other_users WHERE id = 1`。兩側均須為真實 `main` 資料表；明確且不重複的目標欄位只能對應未使用別名的直接來源欄位，WHERE 只能是「欄位＝非 NULL 常值」。CTE、JOIN、聚合、計算式、分頁、RETURNING 萬用字元、運算式與別名、衝突處理、附加資料庫、其他 DB、未經證明的來源批次及核准後來源漂移仍拒絕。預設四個唯讀工具、DML 不勾選不變。
 
 
 SQLite 3.35+ 範例：`INSERT INTO main.users (name) SELECT name FROM main.other_users WHERE id = 1 RETURNING id, name`。預覽核准來源的 `name` 和資料列數；真正成功提交後，才回傳新增資料列的 `id` 和 `name`。來源發生變更時回復，且不回傳任何結果列。
@@ -226,3 +226,16 @@ SQL Server 2022 現在支援受限的單語句 `INSERT INTO dbo.target (name) SE
 四個已完成實體來源證明的資料庫 **SQLite、PostgreSQL、MySQL 8.4 InnoDB、SQL Server 2022**，其原生 `INSERT SELECT` 可再使用 `WHERE id BETWEEN 1 AND 2`、`WHERE id BETWEEN 1 AND 2 AND name IN ('Carol','Dave')`，或 `WHERE id BETWEEN 1 AND 1 OR id = 2`。`BETWEEN` 的兩個端點都必須是直接的非 NULL 常值，左側只能是未加限定詞的直接欄位。每個 `BETWEEN` 消耗**兩個比較常值**；與既有 `=`、`IN` **合計最多四個**，整棵條件 AST 最多七個節點，`AND`／`OR` 也計入節點預算。沿用 F# 型別化解析與 Host 實體來源證明。
 
 `NOT BETWEEN`、NULL／運算式端點、欄位對欄位比較、常值自比的永真條件、五個以上比較值、子查詢、JOIN、CTE 及未驗證形狀都仍拒絕。Preview 繼續核准**完整來源行集**、有限正整數影響筆數、來源與目標的實體 Catalog、獨立權限；Commit 持交易鎖重驗全部來源與結構、一次性核准並核對實際寫入筆數。SQLite／PostgreSQL 的 RETURNING 及 SQL Server 的 OUTPUT INSERTED 仍僅在成功提交後回傳實際目標資料；MySQL 不支援 RETURNING。不新增 MCP 工具、Driver 或公開 API；預設四個唯讀工具已勾選、DML 關閉。
+
+### M09：SQLite 原生 INSERT SELECT 納入原子 DML 交易（僅 develop）
+
+既有的**原子 DML 交易**本來就能以一份整批核准，按順序執行多句 INSERT VALUES、UPDATE、DELETE，無須再新增 `execute_dml_sql_batch` 工具。現在新增：在 **2～16 句**的同一交易中，允許**恰好一個**通過 SQLite 真實來源表證明的 `INSERT SELECT`，與原有 DML 混合執行。
+
+```sql
+INSERT INTO main.users (name)
+  SELECT name FROM main.import_users WHERE id IN (1, 2)
+  RETURNING id, name;
+INSERT INTO main.users (name) VALUES ('Manual');
+```
+
+每句仍獨立編譯、授權及以真實 SQLite `main` 表與原生 Catalog 預覽。一次性**整批 Challenge**綁定執行順序、來源行集指紋與**整批總影響筆數上限**。提交時只建立**一筆 SQLite 寫入交易**，每句執行前重驗實體結構及全部來源行集，並考慮前面語句已造成的變動。若前一句改變後一句的來源資料，或後一句遇到主鍵衝突，**所有先前寫入一併回滾**。`RETURNING` 與自動產生的 ID 僅在整筆交易提交成功後回傳，失敗時不得洩露。單句 `INSERT SELECT` 仍獨立支援；同一批多個 `INSERT SELECT`、其他資料庫、未驗證 Schema、JOIN／CTE／UPSERT 等仍拒絕。不增加 MCP 工具、Driver 或公開 API；預設四個唯讀工具勾選，DML 關閉。
