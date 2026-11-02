@@ -135,3 +135,9 @@ L'hôte lit les métadonnées réelles de `sys.columns` et `sys.types` et vérif
 Une mutation n'est pas commit si l'approbation est refusée, expirée, stale, si le Fingerprint ne correspond plus, si l'autorisation est retirée, si la Policy courante la refuse ou si le Row Set approuvé ne peut pas être reproduit.
 
 Voir [Référence des outils MCP](/fr/docs/mcp/tools-reference), [Configuration](/fr/docs/operations/configuration) et [Intégration ASP.NET Core](/fr/docs/integration/aspnet-core).
+
+### Données directes dans la fusion de deux branches CTE (G9/M06, develop uniquement)
+
+Les deux branches et leur CTE de fusion peuvent conserver **des colonnes de données directement référencées** en plus de la clé UNIQUE complète et ordonnée à deux colonnes. Chaque projection est limitée à 32 colonnes directes, sans doublon ni ambiguïté. La fusion ne projette directement que la branche gauche. **Les données ne prouvent pas l’unicité**.
+
+SQL Server exige toujours les deux égalités INNER JOIN, la clé cible complète, les preuves F# indépendantes, la vérification Host de l’index réel, la prévisualisation, l’approbation et IsCurrent dans la même transaction verrouillée. Calculs, doublons, collisions d’alias, CAST, données de la branche droite en sortie, clé manquante ou autre table sont refusés. Les autres moteurs et réglages MCP restent inchangés.

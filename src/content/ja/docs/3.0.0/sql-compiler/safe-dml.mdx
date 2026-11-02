@@ -135,3 +135,9 @@ Host は実際の `sys.columns`／`sys.types` を参照し、元の UNIQUE イ�
 承認拒否、期限切れ、stale、Fingerprint 不一致、権限失効、現在の Policy 違反、承認 Row Set の再現失敗では DML は commit されません。
 
 [MCP Tools Reference](/ja/docs/mcp/tools-reference)、[設定](/ja/docs/operations/configuration)、[ASP.NET Core 統合](/ja/docs/integration/aspnet-core)も参照してください。
+
+### 2 分岐 CTE での直接データ列（G9/M06、develop のみ）
+
+2 つの分岐と合流 CTE は、順序付きの完全な 2 列 UNIQUE キーに加えて**直接参照するデータ列**を保持できます。各投影は最大 32 列で、重複や曖昧な参照を含められません。合流先は左側分岐のみを直接投影します。**データ列は一意性の証拠になりません**。
+
+SQL Server では完全な INNER JOIN のキー条件、更新対象の完全キー、独立した F# 証明、Host の実インデックス検証、プレビュー、承認と同一トランザクションでの IsCurrent が引き続き必要です。計算・重複列、別名衝突、CAST、右分岐からの直接出力、キー欠落や別の実テーブルは拒否されます。他の DB と MCP 既定値は不変です。

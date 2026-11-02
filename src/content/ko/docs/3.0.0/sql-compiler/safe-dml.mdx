@@ -135,3 +135,9 @@ Host는 실제 `sys.columns` 및 `sys.types` 메타데이터를 읽고 원래 UN
 승인 거절, 만료, stale, Fingerprint 불일치, 권한 철회, 현재 Policy 위반, 승인 Row Set 재현 실패 시 DML을 commit하지 않습니다.
 
 [MCP Tools Reference](/ko/docs/mcp/tools-reference), [설정](/ko/docs/operations/configuration), [ASP.NET Core 통합](/ko/docs/integration/aspnet-core)을 참고하세요.
+
+### 두 분기 CTE의 직접 데이터 열 (G9/M06, develop 전용)
+
+두 분기와 합류 CTE는 완전하고 순서가 유지된 두 열의 UNIQUE 키 이외에 **직접 참조하는 데이터 열**을 전달할 수 있습니다. 각 투영은 최대 32열이며 중복 및 모호한 열 참조를 허용하지 않습니다. 합류 CTE는 왼쪽 분기에서만 직접 투영합니다. **데이터 열 자체는 유일성의 증거가 아닙니다**.
+
+SQL Server에는 전체 INNER JOIN 키 조건, 변경 대상의 전체 키, 독립된 F# 증명, Host 실제 인덱스 검증, 미리 보기, 승인 및 같은 트랜잭션의 IsCurrent가 필요합니다. 계산/중복 열, 별칭 충돌, CAST, 오른쪽 분기의 직접 출력, 키 누락 및 다른 실제 원본 테이블은 거부됩니다. 다른 DB와 MCP 기본값은 그대로입니다.
