@@ -168,3 +168,11 @@ Beispiel: `INSERT INTO main.users (name) SELECT name FROM main.other_users WHERE
 
 
 Beispiel für SQLite ab 3.35: `INSERT INTO main.users (name) SELECT name FROM main.other_users WHERE id = 1 RETURNING id, name`. Die Vorschau genehmigt `name` und die Zeilenzahl aus der Quelle; erst nach dem Commit werden `id` und `name` der neuen Zeile zurückgegeben. Ändert sich die Quelle, wird abgebrochen und es werden keine Ergebniszeilen zurückgegeben.
+
+### M09: PostgreSQL INSERT SELECT aus einer echten Quelltabelle (nur develop)
+
+PostgreSQL erlaubt ein streng begrenztes **einzelnes** `INSERT INTO schema.target (Spalten) SELECT direkte_Spalten FROM schema.source WHERE Spalte = Nicht-NULL-Literal`. Quelle und Ziel müssen **verschiedene echte, permanente Tabellen desselben nicht systemeigenen Schemas** sein. JOIN, CTE, berechnete Ausdrücke, UPSERT, weitere Quellen, unqualifizierte Namen, Partitionen, vererbte Tabellen, RLS, Benutzer-Trigger und benutzerdefinierte Rewrite-Regeln bleiben gesperrt. Beide Tabellen benötigen unabhängig geprüfte echte Metadaten/DDL/Indizes/Constraints, eine positive endliche Zeilengrenze, getrennte Tabellenberechtigungen, `AddHsSqlAgentNativeDmlSchemaFreshness()` und eine unabhängige DML-Freigabe.
+
+Die Vorschau bindet sämtliche projizierten Quellwerte, Zeilenzahl, Richtlinie und kompilierten Befehle. Beim Commit erwirbt die SERIALIZABLE-Transaktion **vor dem ersten Catalog SELECT** eine **SHARE ROW EXCLUSIVE NOWAIT**-Sperre auf der Quelle und schützt auch das Ziel vor DDL-Änderungen. Nach erneuter Prüfung beider Tabellen und aller Quellwerte erfolgt genau ein INSERT. Sperrkonflikte führen zur Ablehnung. `RETURNING` für direkte Zielspalten gibt echte Einfügeergebnisse erst nach bestätigtem Commit zurück; bei Abweichungen gibt es weder Commit noch Ergebniszeilen.
+
+Beispiel: `INSERT INTO app.users (name) SELECT name FROM app.import_users WHERE id = 1 RETURNING id, name`. Die Datenbankrolle benötigt die erforderlichen Sperrberechtigungen. Keine neuen MCP-Tools oder providerübergreifenden Rechte; vier Lese-Tools und deaktiviertes DML bleiben Standard.
