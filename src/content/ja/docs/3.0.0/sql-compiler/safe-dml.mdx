@@ -54,6 +54,12 @@ SQL Server の UPDATE／DELETE では、実在するソース表に**NULL 不可
 
 キーの欠落・順序入れ替え、`OR`、型変換、NULL 許容・計算列、フィルター付き／無効なインデックス、行数を増やす結合は拒否されます。他のデータベースでの実行能力は変わりません。
 
+### 2 分岐 CTE の限定的な合流証明（G9/M06、develop のみ）
+
+SQL Server の CTE `UPDATE`／`DELETE` では、**3 ノードの分岐・合流**を一つの限定形状として扱います。2 つの CTE が**同じ実テーブルの UNIQUE キー**から順序付きの 2 列を直接投影し、3 番目の CTE がその完全なキーに対する 2 つの通常の等価条件による `INNER JOIN` で合流します。更新対象も両方のキー列で照合する必要があります。
+
+任意の CTE DAG を許可するものではありません。F# の静的な件数証明、F# の書き込み許可判定、Host の実インデックス検証は独立し、プレビュー→独立承認→同一トランザクションでロック付き `IsCurrent` が引き続き必要です。別のソース表、キー条件の欠落・重複、`OR`、`LEFT JOIN`、フィルター、`CAST`、計算列、分岐の追加、曖昧な別名は拒否します。他の 5 種の DB と MCP の既定値は変わりません。
+
 ### 2 層の派生テーブルでの物理 UNIQUE キー追跡（G9/M06、develop のみ）
 
 SQL Server の限定 CTE `UPDATE`／`DELETE` では、既存の 1～3 段 CTE の前に、**非 LATERAL で列を直接投影する派生テーブルを 2 層まで**重ねられます。完全な物理 UNIQUE キーの列順を各層で保持する必要があります。例：`FROM (SELECT mid.x AS x, mid.y AS y FROM (SELECT s.k1 AS x, s.k2 AS y FROM dbo.Source AS s) AS mid) AS d` を `SELECT d.x AS a, d.y AS b` に渡します。下記の単層機能の拡張であり、**任意の複数分岐 CTE DAG は対象外**です。

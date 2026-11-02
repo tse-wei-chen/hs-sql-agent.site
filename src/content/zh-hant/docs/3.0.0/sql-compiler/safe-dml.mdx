@@ -54,6 +54,12 @@ SQL Server 的 UPDATE／DELETE 在明確授權下，可透過 1～3 層線性、
 
 缺少或交換鍵欄位、僅靠 `OR` 匹配、型別轉換、可為 NULL 或計算欄位、篩選或停用的索引，以及造成匹配資料列倍增的 JOIN，都會被拒絕。這項能力不會擴大其他資料庫的可執行範圍。
 
+### 受限雙分支 CTE 合流證明（G9／M06，僅 develop）
+
+SQL Server 的 CTE `UPDATE`／`DELETE` 現新增一種**三節點分支合流**形狀：兩個 CTE 分別從**同一張實體 UNIQUE 來源表**直接投影完整、有序的兩欄鍵；第三個 CTE 僅能透過兩條普通等號組成的 `INNER JOIN` 合流，並直接輸出鍵欄位。目標資料表也必須以完整兩欄鍵比對。
+
+這並不是開放任意 CTE DAG。F# 靜態基數證明、F# 封閉式寫入准入與 Host 實體索引查核各自驗證，後續仍需預覽→獨立核准→同一交易持鎖 `IsCurrent`。不同來源表、遺漏或重複的鍵等號、`OR`、`LEFT JOIN`、篩選、`CAST`、計算鍵、額外 CTE 分支與模糊別名均拒絕。其他五種資料庫及 MCP 預設設定不變。
+
 ### 雙層衍生資料表的實體唯一鍵追溯（G9／M06，僅 develop）
 
 SQL Server 受限 CTE `UPDATE`／`DELETE` 現可在既有 1～3 層 CTE 之前，經過**兩層非 LATERAL、只投影原始欄位的衍生資料表**，逐層傳遞完整、順序不變的實體 UNIQUE 鍵。例如 `FROM (SELECT mid.x AS x, mid.y AS y FROM (SELECT s.k1 AS x, s.k2 AS y FROM dbo.Source AS s) AS mid) AS d`，再交由 `SELECT d.x AS a, d.y AS b` 使用。這是下方單層能力的擴充，**不是任意多分支 CTE DAG 的放行**。

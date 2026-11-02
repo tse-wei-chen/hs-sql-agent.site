@@ -54,6 +54,12 @@ SQL Server 的 UPDATE／DELETE 在明确授权的前提下，可以通过 1～3 
 
 缺少或颠倒键列、仅通过 `OR` 匹配、类型转换、可空或计算列、筛选或禁用的索引，以及会增加匹配行数的连接，都会被拒绝。该能力不会扩展其他数据库的可执行范围。
 
+### 受限双分支 CTE 合流证明（G9／M06，仅 develop）
+
+SQL Server 的 CTE `UPDATE`／`DELETE` 现在新增一种**三节点分支合流**结构：两个 CTE 分别从**同一张实体 UNIQUE 来源表**直接投影完整、有序的双列键；第三个 CTE 只能通过两条普通等号构成的 `INNER JOIN` 合流，并直接输出键列。目标表也必须以完整双列键匹配。
+
+这并不开放任意 CTE DAG。F# 静态基数证明、F# 封闭式写入准入和 Host 实体索引校验分别验证，随后仍需预览→独立审批→同一事务持锁 `IsCurrent`。不同来源表、遗漏或重复的键等号、`OR`、`LEFT JOIN`、筛选、`CAST`、计算键、额外 CTE 分支及模糊别名均被拒绝。其他五个数据库及 MCP 默认设置不变。
+
 ### 双层派生表的实体唯一键溯源（G9／M06，仅 develop）
 
 SQL Server 的受限 CTE `UPDATE`／`DELETE` 现在可以在原有 1～3 层 CTE 之前，经过**两层非 LATERAL、仅直接投影原始列的派生表**，逐层保留完整且顺序不变的实体 UNIQUE 键。例如 `FROM (SELECT mid.x AS x, mid.y AS y FROM (SELECT s.k1 AS x, s.k2 AS y FROM dbo.Source AS s) AS mid) AS d`，再由 `SELECT d.x AS a, d.y AS b` 使用。这扩展了下方的单层能力，**并不开放任意多分支 CTE DAG**。
