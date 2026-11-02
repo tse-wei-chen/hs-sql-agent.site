@@ -54,6 +54,12 @@ SQL Server UPDATE 또는 DELETE는 실제 원본 테이블에 **NULL을 허용�
 
 키 누락·순서 변경, `OR`, 형 변환, NULL 허용 또는 계산 열, 필터링되거나 비활성화된 인덱스, 행 수를 늘리는 조인은 거부됩니다. 다른 데이터베이스의 실행 범위는 확대되지 않습니다.
 
+### 제한된 두 분기 CTE 합류 증명 (G9/M06, develop 전용)
+
+SQL Server CTE `UPDATE`/`DELETE`는 **3개 노드의 분기·합류**를 한정적으로 지원합니다. 두 CTE가 **동일한 실제 UNIQUE 원본 테이블**에서 순서가 보존된 두 키 열을 직접 투영하고, 세 번째 CTE가 두 일반 등호를 사용한 `INNER JOIN`으로 합류합니다. 변경 대상 역시 두 키 열 모두와 비교해야 합니다.
+
+임의의 CTE DAG를 허용하는 것은 아닙니다. F# 정적 카디널리티, F# 변경 실행 허용 검사, Host의 실제 인덱스 검증은 독립적으로 수행되며 미리 보기→독립 승인→동일 트랜잭션에서 잠금을 유지하는 `IsCurrent`가 필요합니다. 다른 원본 테이블, 키 조건 누락·중복, `OR`, `LEFT JOIN`, 필터, `CAST`, 계산 열, 추가 CTE 분기 및 모호한 별칭은 거부합니다. 나머지 5개 DB와 MCP 기본 설정은 변경되지 않습니다.
+
 ### 2단계 파생 테이블의 물리 UNIQUE 키 계보 검증 (G9/M06, develop 전용)
 
 SQL Server의 제한된 CTE `UPDATE`/`DELETE`는 기존 1~3단계 CTE 앞에서 **비 LATERAL 직접 열 투영인 파생 테이블을 최대 2단계까지** 사용할 수 있습니다. 두 단계 모두 실제 UNIQUE 키의 전체 열과 순서를 보존해야 합니다. 예를 들어 `FROM (SELECT mid.x AS x, mid.y AS y FROM (SELECT s.k1 AS x, s.k2 AS y FROM dbo.Source AS s) AS mid) AS d`를 `SELECT d.x AS a, d.y AS b`로 이어갈 수 있습니다. 아래 단일 단계 기능의 확장이며 **임의의 다중 분기 CTE DAG는 지원하지 않습니다**.

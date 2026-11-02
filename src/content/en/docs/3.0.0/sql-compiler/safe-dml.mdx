@@ -54,6 +54,12 @@ An explicitly opted-in SQL Server UPDATE or DELETE may read a physical source th
 
 Missing or reordered keys, OR-only conditions, casts, nullable or computed keys, filtered/disabled indexes and multiplying joins remain unsupported. This does not expand other providers or authorize arbitrary multi-column joins.
 
+### Bounded two-branch CTE diamond (G9/M06, develop only)
+
+SQL Server CTE `UPDATE`/`DELETE` now has one independently proven **three-node fork/rejoin shape**: two direct, unfiltered projections from the **same physical UNIQUE source** can be joined in a third CTE on the **complete ordered two-column key** using ordinary `INNER JOIN … ON … AND …` equalities. The final CTE projects that key directly, and the target must match both columns.
+
+This is not unrestricted CTE DAG support. F# static cardinality, F# sealed execution admission and Host live index discovery remain independent, followed by Preview→Approval→same-transaction `IsCurrent`. A different physical table, missing/duplicate key equality, `OR`, `LEFT JOIN`, filtering, `CAST`, calculated keys, extra CTE branches or ambiguous aliases are rejected. Other five databases and MCP defaults are unchanged.
+
 ### Two-level Derived Table physical-key lineage (G9/M06, develop only)
 
 SQL Server CTE `UPDATE`/`DELETE` can now follow the **same complete, ordered physical UNIQUE key** through **two** non-lateral, direct-column derived SELECT projections before the existing 1–3 CTE hops. For example, `FROM (SELECT mid.x AS x, mid.y AS y FROM (SELECT s.k1 AS x, s.k2 AS y FROM dbo.Source AS s) AS mid) AS d` may feed `SELECT d.x AS a, d.y AS b`. This extends the single-level case below; it is **not** general multi-branch CTE DAG support.

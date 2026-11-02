@@ -54,6 +54,12 @@ Un UPDATE ou DELETE explicitement autorisé sur SQL Server peut lire une table s
 
 Les clés manquantes ou permutées, `OR`, les conversions de type, les clés nullables ou calculées, les index filtrés ou désactivés et les jointures qui multiplient les lignes sont refusés. Cette capacité ne s'étend pas aux autres bases.
 
+### Fusion contrôlée de deux branches CTE (G9/M06, develop uniquement)
+
+Les mutations CTE `UPDATE`/`DELETE` de SQL Server admettent une seule **structure à trois CTE avec deux branches** : deux projections directes conservent les deux colonnes de la clé UNIQUE ordonnée de **la même table source physique**, puis une troisième CTE les relie uniquement par `INNER JOIN` sur les deux égalités ordinaires de clé. La cible doit également correspondre aux deux colonnes.
+
+Ce n'est pas une prise en charge générale des DAG CTE. La cardinalité statique F#, l'admission d'écriture F# et la découverte Host de l'index physique vérifient indépendamment la provenance ; la prévisualisation→approbation indépendante→`IsCurrent` sous verrou dans la même transaction restent obligatoires. Toute autre source, égalité manquante ou en double, `OR`, `LEFT JOIN`, filtre, `CAST`, colonne calculée, branche supplémentaire ou alias ambigu sont refusés. Les cinq autres moteurs et les réglages MCP par défaut ne changent pas.
+
 ### Traçabilité de la clé UNIQUE physique sur deux niveaux dérivés (G9/M06, develop uniquement)
 
 Les mutations CTE `UPDATE`/`DELETE` limitées de SQL Server autorisent désormais **au plus deux niveaux de Derived Table non latérale avec projection directe de colonnes** avant les 1 à 3 CTE existantes. Chaque niveau conserve la clé UNIQUE physique complète et ordonnée, par exemple `FROM (SELECT mid.x AS x, mid.y AS y FROM (SELECT s.k1 AS x, s.k2 AS y FROM dbo.Source AS s) AS mid) AS d`, suivi de `SELECT d.x AS a, d.y AS b`. Il s'agit d'une extension du cas à un niveau décrit ci-dessous, **pas** d'une prise en charge des DAG CTE à branches multiples.
