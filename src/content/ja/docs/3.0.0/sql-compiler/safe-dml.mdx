@@ -193,6 +193,8 @@ PostgreSQL では、限定的な単文 `INSERT INTO schema.target (列) SELECT �
 
 ### M09：上限付き AND ソース条件（develop 限定）
 
+**従来の適用範囲：**以下の AND のみの制限は M09 初期の仕様です。ページ末尾の上限付き IN／OR 拡張が、4 種のネイティブ INSERT SELECT に限ってこの制限を更新します。別の CTE／JOIN の OR 制限は変わりません。
+
 既存の **SQLite、PostgreSQL、MySQL 8.4 InnoDB** のネイティブ `INSERT SELECT` ソース行承認では、`WHERE` に **1～4 個**の直接的な `列 = NULL 以外のリテラル` 比較を `AND` だけで結合できます。例：`INSERT INTO app.users (name) SELECT name FROM app.import_users WHERE id = 1 AND name = 'Carol'`。ソースと対象の実体 ID、バージョン別能力、行数上限、権限・承認・トランザクションの要件は変わりません。コミット直前に承認済みソース行集合全体と物理 Catalog を再検証します。任意の SQL を許可するものではありません。
 
 5 条件以上、`OR`、`NOT`、関数、計算式、NULL 比較、サブクエリ、JOIN、CTE、UPSERT、未検証の Provider は拒否します。PostgreSQL／SQLite の RETURNING は各自の既存の制限に従い、MySQL の RETURNING は非対応です。MCP ツールと公開 API は増やさず、DML は既定で無効です。
@@ -212,3 +214,9 @@ SQL Server 2022 は、同じデータベース内の**異なる 2 つの永続�
 ### M09：SQL Server 2022 の承認済み INSERT SELECT にネイティブ OUTPUT INSERTED（develop 限定）
 
 物理ソースを検証済みの同一／別テーブルの `INSERT SELECT` に `OUTPUT INSERTED.id` または `OUTPUT INSERTED.id, INSERTED.name` を INSERT 列リスト直後に追加できます。実際に挿入された対象列は**コミット成功後**のみ返され、プレビューはソース行のみを承認して IDENTITY 値を捏造しません。従来の SERIALIZABLE トランザクションと保持中の排他ロックでソース行集合およびスキーマを再検証し、1 回の INSERT と行数一致を確認します。1～32 個の重複しない直接対象列だけを認め、ワイルドカード、式、別名、重複、`OUTPUT INTO`、誤った行イメージは拒否します。物理 Catalog とトリガー不在のライブ証明、行数上限・承認再使用の拒否は必須です。MCP ツールは増やさず、読み取り専用 4 ツールと DML 無効を維持します。
+
+### M09：上限付き IN／OR ソース行条件（develop 限定）
+
+実体を検証済みの **SQLite、PostgreSQL、MySQL 8.4 InnoDB、SQL Server 2022** のネイティブ `INSERT SELECT` は、`WHERE id IN (1,2)`、`WHERE id = 1 OR id = 2`、`WHERE (id = 1 OR id = 2) AND name IN ('Carol','Dave')` を扱えます。直接 `列 = NULL 以外のリテラル` と `列 IN (NULL 以外のリテラル, ...)` を合わせて**比較リテラルは最大 4 個**、論理式のツリーノードは最大 7 個です。括弧を用いた `AND`／`OR` の組み合わせは許可しますが、各原子条件は修飾のない直接列に限ります。従来の M09 AND のみの記述を本拡張が更新します。CTE／JOIN の OR 禁止は従来どおりです。
+
+`OR 1=1`、`NOT`／`NOT IN`、IN 内 NULL、IN 副問い合わせ、式、5 個以上の比較値、任意の OR、CTE、JOIN、異種 Provider DML は拒否します。ソースと対象の実 Catalog 証明、有限の正の行数上限はそのままです。プレビューは**選択された全ソース行**を承認し、コミットは既存のトランザクションロック下で実スキーマと全行を再検証し、実書き込み件数を照合します。PostgreSQL／SQLite RETURNING と SQL Server OUTPUT INSERTED はコミット成功後のみ実際の生成値を返し、MySQL は RETURNING 非対応。新たな MCP ツールや公開 API はなく、読み取り専用 4 ツール選択・DML 既定無効を維持します。
