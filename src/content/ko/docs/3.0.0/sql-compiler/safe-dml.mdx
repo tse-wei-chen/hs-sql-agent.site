@@ -169,10 +169,10 @@ SQLite는 **별도의 `main` 실제 원본 테이블**에서 직접 선택한 �
 
 SQLite 3.35 이상 예: `INSERT INTO main.users (name) SELECT name FROM main.other_users WHERE id = 1 RETURNING id, name`. 미리 보기에서 승인되는 것은 원본 `name` 과 행 수이며, 새 `id` 와 `name` 은 커밋 후에만 반환됩니다. 원본이 변경되면 롤백하고 결과 행은 반환하지 않습니다.
 
-### M09: PostgreSQL 실제 소스 INSERT SELECT (develop 전용)
+### M09: PostgreSQL 실제 테이블 INSERT SELECT (develop 전용)
 
-PostgreSQL에서도 **단일 문장**의 제한된 `INSERT INTO schema.target (열) SELECT 직접 열 FROM schema.source WHERE 열 = NULL이 아닌 리터럴` 을 허용합니다. 소스와 대상은 **같은 비시스템 Schema의 서로 다른 실제 테이블**이어야 하며 모두 일반 영구 테이블이어야 합니다. JOIN, CTE, 계산식, UPSERT, 추가 소스, Schema 생략, 파티션·상속 테이블, RLS, 사용자 Trigger, 사용자 지정 Rewrite Rule은 거부합니다. 두 테이블의 실제 메타데이터·DDL·인덱스·제약 조건을 각각 검사하고 유한한 양의 행 한도, 양쪽 테이블 권한, `AddHsSqlAgentNativeDmlSchemaFreshness()` 및 별도 DML 승인이 필요합니다.
+PostgreSQL은 제한된 단일 문장 `INSERT INTO schema.target (열) SELECT 직접 열 FROM schema.source WHERE 열 = NULL이 아닌 리터럴` 을 실행할 수 있습니다. **소스와 삽입 대상이 동일한 실제 테이블인 경우도 새로 지원**하며, 기존처럼 같은 비시스템 Schema의 서로 다른 두 테이블도 허용합니다. 모두 일반 영구 테이블이어야 합니다. 명시적이며 중복되지 않는 대상 열, 직접 투영, 유한한 양의 행 제한, 소스 읽기 및 대상 쓰기 권한, `AddHsSqlAgentNativeDmlSchemaFreshness()`, 독립적인 DML 승인이 필요합니다. CTE, JOIN, 계산식, ON CONFLICT, 파티션·상속 테이블, RLS, 사용자 트리거, 재작성 규칙, Schema 생략 및 다른 DB는 계속 거부됩니다.
 
-미리 보기는 모든 원본 투영 값, 행 수, 정책과 컴파일된 명령에 승인을 연결합니다. 커밋에서는 PostgreSQL SERIALIZABLE 트랜잭션이 **첫 Catalog SELECT 이전에** 소스 테이블에 **SHARE ROW EXCLUSIVE NOWAIT** 잠금을 확보하고 대상의 DDL 변경도 막습니다. 양쪽 실테이블과 소스 행을 다시 확인한 뒤 단 한 번 삽입합니다. 잠금 충돌은 거부합니다. 직접 대상 열 `RETURNING` 은 커밋 성공 후에만 실제 결과를 반환하고 변경이 감지되면 커밋하거나 결과를 반환하지 않습니다.
+미리 보기는 **모든 소스 투영 값**, 행 수, 정책과 컴파일 명령을 승인에 묶고, 새로 생성될 대상 ID를 미리 만들어 내지 않습니다. 커밋 시 PostgreSQL SERIALIZABLE 트랜잭션은 **최초 Catalog 조회 이전에 SHARE ROW EXCLUSIVE NOWAIT 소스 잠금**을 획득합니다. **동일 테이블에는 한 개의 실제 스키마 증명과 한 개의 소스 잠금만 사용**하고, 잠금을 유지한 채 검증 후 삽입합니다. 서로 다른 테이블은 양쪽을 독립 검증하고 대상의 DDL 경쟁도 차단합니다. 소스 값·인덱스·구조 변경 또는 잠금 충돌은 거부나 롤백으로 이어지며 RETURNING 행을 반환하지 않습니다. 직접 대상 열 `RETURNING` 은 성공적인 커밋 후 실제 결과만 반환합니다.
 
-예: `INSERT INTO app.users (name) SELECT name FROM app.import_users WHERE id = 1 RETURNING id, name`. DB 역할에는 해당 잠금 권한이 필요합니다. 새로운 MCP 도구나 교차 DB 권한은 없으며 기본 읽기 전용 도구 네 개와 DML 비활성화는 그대로입니다.
+동일 테이블 예: `INSERT INTO app.users (name) SELECT name FROM app.users WHERE id = 1 RETURNING id, name`. 서로 다른 테이블 예: `INSERT INTO app.users (name) SELECT name FROM app.import_users WHERE id = 1 RETURNING id, name`. DB 역할에는 필요한 PostgreSQL 잠금 권한이 있어야 합니다. MCP 도구나 공개 API는 추가하지 않고 읽기 전용 도구 네 개만 기본 선택되며 DML은 비활성화 상태입니다.

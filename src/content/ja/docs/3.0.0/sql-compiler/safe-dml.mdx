@@ -169,10 +169,10 @@ SQLite では、**別の `main` 実テーブル**から直接選択した行を�
 
 SQLite 3.35 以降の例: `INSERT INTO main.users (name) SELECT name FROM main.other_users WHERE id = 1 RETURNING id, name`。プレビューで承認するのはソースの `name` と行数であり、挿入された `id` と `name` はコミット後にのみ返ります。ソースに変更があればロールバックし、結果行は返しません。
 
-### M09：PostgreSQL の実テーブルをソースにした INSERT SELECT（develop 限定）
+### M09：PostgreSQL の実テーブルからの INSERT SELECT（develop 限定）
 
-PostgreSQL でも、**単文**の限定的な `INSERT INTO schema.target (列) SELECT 直接列 FROM schema.source WHERE 列 = NULL 以外のリテラル` を扱えます。ソースと対象は、**同じシステム外 Schema にある異なる 2 つの実テーブル**で、どちらも通常の永続テーブルでなければなりません。JOIN、CTE、計算式、UPSERT、追加ソース、Schema 省略、パーティション・継承テーブル、RLS、ユーザー Trigger、独自 Rewrite Rule は拒否されます。両テーブルの実メタデータ・DDL・索引・制約を個別に検証し、有限な正の行数制限、両テーブルの権限、`AddHsSqlAgentNativeDmlSchemaFreshness()` と独立承認を要求します。
+PostgreSQL では、限定的な単文 `INSERT INTO schema.target (列) SELECT 直接列 FROM schema.source WHERE 列 = NULL 以外のリテラル` を実行できます。**ソースと挿入先が同じ実テーブルの場合も新たに対応**し、従来どおり同じ非システム Schema 内の別テーブルからの挿入も扱えます。対象は通常の永続テーブルに限られます。明示的で重複のない対象列、直接投影、有限で正の行数上限、ソースの読み取りと対象への書き込み権限、`AddHsSqlAgentNativeDmlSchemaFreshness()`、独立した DML 承認が必要です。CTE、JOIN、計算式、ON CONFLICT、パーティション・継承テーブル、RLS、ユーザー定義トリガー、書き換えルール、Schema 省略、他 DB は拒否します。
 
-プレビューは投影された全ソース値、行数、ポリシー、コンパイル済み指令を結び付けます。コミット時には PostgreSQL の SERIALIZABLE トランザクションが**最初の Catalog SELECT より前に**ソースへ **SHARE ROW EXCLUSIVE NOWAIT** ロックを取得し、対象の DDL 変更も防ぎます。両テーブルとソース行を再検証してから一度だけ挿入し、ロック競合時は拒否します。直接対象列の `RETURNING` はコミット成功後にのみ実結果を返し、変更時はコミットせず結果も返しません。
+プレビューは**投影された全ソース値**と行数、ポリシー、コンパイル済み指令を承認に結び付け、生成予定の ID を捏造しません。コミットでは PostgreSQL の SERIALIZABLE トランザクションが**最初の Catalog 参照より前に SHARE ROW EXCLUSIVE NOWAIT ロック**を取得します。**同一テーブルは実スキーマの証明とソースロックを各 1 つだけ使用**して、保持したまま再検証から挿入まで実行します。別テーブルの場合は双方を独立して検証し、挿入先の DDL 競合も防ぎます。ソース値や索引・構造の変更、ロック競合は拒否またはロールバックとなり、RETURNING 行は返しません。直接対象列の `RETURNING` はコミット成功後のみ実際の結果を返します。
 
-例：`INSERT INTO app.users (name) SELECT name FROM app.import_users WHERE id = 1 RETURNING id, name`。DB ロールに必要なロック権限が求められます。新たな MCP ツールや DB 間権限は追加せず、既定の 4 つの読み取り専用ツールと DML 無効設定は変わりません。
+同一テーブルの例：`INSERT INTO app.users (name) SELECT name FROM app.users WHERE id = 1 RETURNING id, name`。別テーブルの例：`INSERT INTO app.users (name) SELECT name FROM app.import_users WHERE id = 1 RETURNING id, name`。必要な PostgreSQL ロック権限を持つ DB ロールが必要です。新たな MCP ツールや公開 API は追加せず、読み取り専用 4 ツールが既定で選択され、DML は無効のままです。
