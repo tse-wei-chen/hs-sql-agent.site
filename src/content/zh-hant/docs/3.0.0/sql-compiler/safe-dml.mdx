@@ -30,7 +30,13 @@ Client 不可送入 `BEGIN`、`COMMIT`、`ROLLBACK` 等 Transaction-control SQL�
 
 `UPDATE` / `DELETE` 的核准綁定 Preview 時觀察到的精確 Primary Key Row Set。Commit Transaction 內每個 Statement 在真正修改前都會立即重新驗證。
 
-`INSERT ... VALUES` 的核准綁定不可變的 Literal Payload 與精確的編譯 Command。`INSERT ... SELECT` 在來源 Row Set 核准語意定義完成前仍不開放。
+`INSERT ... VALUES` 的核准綁定不可變的 Literal Payload 與精確的編譯 Command。
+
+### SQLite 單語句來源資料列核准（G9／M09，僅 develop）
+
+僅 SQLite 開放受限的 `INSERT ... SELECT`：讀取來源與寫入目標必須是**同一張明確指定的 `main` 實體資料表**，並且使用明確目標欄位、直接欄位投影及 `WHERE 欄位 = 常值` 條件。必須設定正整數且有限的 DML 筆數上限，並啟用 `AddHsSqlAgentNativeDmlSchemaFreshness()`。
+
+預覽會綁定**完整來源欄位值**，不是只有筆數。提交時先取得 SQLite IMMEDIATE 寫入保留鎖，再確認實體結構及來源資料列是否與核准時一致；一旦改變就拒絕或回復。CTE、JOIN、彙總、計算欄位、UPSERT、RETURNING、附加資料庫、多語句批次與其他資料庫仍不開放；既有 DML 權限與獨立核准照常要求。
 
 若前一個 Statement 改變了後一個 Statement 原先核准的 Row Set，整個 Batch 會 fail closed 並 rollback。
 

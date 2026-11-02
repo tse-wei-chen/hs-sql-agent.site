@@ -30,7 +30,13 @@ Vom Client geliefertes Transaction-control SQL wie `BEGIN`, `COMMIT` oder `ROLLB
 
 Bei `UPDATE` und `DELETE` bindet die Freigabe an das exakte Primary-Key-Row-Set aus dem Preview. Jedes Statement wird in der Commit Transaction unmittelbar vor seiner Mutation erneut geprüft.
 
-Bei `INSERT ... VALUES` bindet die Freigabe an den unveränderlichen Literal Payload und die exakte kompilierte Command. `INSERT ... SELECT` bleibt gesperrt, bis die Freigabesemantik des Source Row Sets definiert ist.
+Bei `INSERT ... VALUES` bindet die Freigabe an den unveränderlichen Literal Payload und die exakte kompilierte Command.
+
+### SQLite: Freigabe der Quellzeilen für eine Einzelanweisung (G9/M09, nur develop)
+
+Ein eng begrenztes `INSERT ... SELECT` ist **nur mit SQLite** zulässig, wenn Quelle und Einfügeziel dieselbe explizit qualifizierte physische `main`-Tabelle sind. Erforderlich sind eine ausdrückliche Zielspaltenliste, direkte Spaltenprojektionen, ein Prädikat `WHERE Spalte = Literal`, ein positiver endlicher DML-Zeilengrenzwert und `AddHsSqlAgentNativeDmlSchemaFreshness()`.
+
+Die Vorschau bindet **sämtliche projizierten Quellwerte**, nicht nur deren Anzahl. Beim Commit wird zuerst die SQLite-IMMEDIATE-Schreibreservierung erworben; danach werden das reale Schema und die Quellzeilen erneut geprüft. Abweichungen führen zur Ablehnung oder zum Rollback. CTE, JOIN, Aggregate, berechnete Ausdrücke, UPSERT, RETURNING, angehängte Datenbanken, mehrere Anweisungen und andere Datenbanken bleiben ausgeschlossen. DML-Berechtigung und separate Freigabe bleiben erforderlich.
 
 Verändert ein früheres Statement das freigegebene Row Set eines späteren Statements, schlägt der gesamte Batch fail closed fehl und wird zurückgerollt.
 

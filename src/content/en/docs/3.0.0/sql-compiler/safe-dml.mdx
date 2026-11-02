@@ -30,7 +30,13 @@ Transaction-control SQL such as `BEGIN`, `COMMIT`, and `ROLLBACK` is not accepte
 
 For `UPDATE` and `DELETE`, approval binds to the exact primary-key row set observed during preview. Every statement is revalidated immediately before its mutation inside the commit transaction.
 
-For `INSERT ... VALUES`, approval binds to the immutable literal payload and exact compiled command. `INSERT ... SELECT` remains unavailable until source-rowset approval semantics are defined.
+For `INSERT ... VALUES`, approval binds to the immutable literal payload and exact compiled command.
+
+### SQLite single-statement source-row approval (G9/M09, develop only)
+
+A tightly scoped `INSERT ... SELECT` is supported **only** for SQLite when the direct source and physical insert target are the same qualified `main` table. It requires explicit target columns, direct column projections and a `WHERE column = literal` predicate; a finite positive DML row limit and `AddHsSqlAgentNativeDmlSchemaFreshness()` are mandatory.
+
+Preview binds **all projected source values**, not only a count. Commit obtains the SQLite IMMEDIATE write reservation, checks the actual schema and compares the source rows before executing the compiled insert. Any drift rejects or rolls back the mutation. CTE, JOIN, aggregates, computed projections, UPSERT, RETURNING, attached databases, multi-statement batches and other providers remain unsupported. Existing DML permission and independent approval are still required.
 
 If an earlier statement changes the row set that a later statement was approved against, the entire batch fails closed and rolls back.
 
