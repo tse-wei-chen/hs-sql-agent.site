@@ -196,3 +196,9 @@ PostgreSQL 允许单条语句执行受限的 `INSERT INTO schema.target (列) SE
 现有 **SQLite、PostgreSQL、MySQL 8.4 InnoDB** 原生 `INSERT SELECT` 来源行集审批，现在允许 `WHERE` 包含**一至四个**只用 `AND` 连接的直接 `列 = 非 NULL 常量` 比较。例如：`INSERT INTO app.users (name) SELECT name FROM app.import_users WHERE id = 1 AND name = 'Carol'`。来源及目标的实际身份、版本能力、最大影响行数、权限、审批和事务要求均保持不变。提交前仍核验完整已批准的来源行集及实体 Catalog；不代表开放任意 SQL。
 
 五个以上条件、`OR`、`NOT`、函数、计算表达式、NULL 比较、子查询、JOIN、CTE、UPSERT 和未经证明的数据库仍拒绝。PostgreSQL／SQLite 的 RETURNING 继续遵循各自已证明的限制；MySQL 不支持 RETURNING。不新增 MCP 工具或公共 API，DML 默认关闭。
+
+### M09：SQL Server 2022 双实体表 INSERT SELECT 审批（仅 develop）
+
+SQL Server 2022 现在支持受限的单条 `INSERT INTO dbo.target (name) SELECT name FROM dbo.source WHERE id = 1`，仅限**同一数据库中两张不同的永久实体表**。来源筛选只能包含一至四个由 `AND` 连接的直接 `列 = 非 NULL 常量` 比较，投影及目标列必须明确，影响行数必须有有限的正整数上限。来源读取与目标插入权限独立审批，并要求原生 SqlCore 编译、实体 Catalog 身份、全部来源值审批、一次性 Challenge 和实时结构复核。
+
+提交在首次读取实体 Catalog 之前，于同一事务**对来源和目标取得保持到事务结束的排他表锁**，禁止来源写入和竞争性 DDL，复核所有已批准的数据后仅执行一次 INSERT。这种高安全模式可能阻塞其他 DML。缺少 `VIEW DEFINITION`、无法验证实体约束、触发器、外键、Temporal／Ledger／Graph 表、索引或数据漂移、锁争用都将拒绝或回滚。SQL Server `OUTPUT`、同表来源、CTE、JOIN、UPSERT、计算投影及未经证明的 Provider 仍不开放执行。不新增 MCP 工具；四个只读工具默认选中，DML 默认关闭。
