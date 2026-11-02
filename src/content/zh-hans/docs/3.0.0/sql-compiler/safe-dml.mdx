@@ -193,6 +193,8 @@ PostgreSQL 允许单条语句执行受限的 `INSERT INTO schema.target (列) SE
 
 ### M09：有界 AND 来源筛选条件（仅 develop）
 
+**历史范围说明：**以下仅限 `AND` 的条件属于 M09 初期契约；本页末尾的有界 `IN`／`OR` 扩充已取代四个原生 `INSERT SELECT` Provider 的该项限制。其他 CTE／JOIN 的 `OR` 安全要求不变。
+
 现有 **SQLite、PostgreSQL、MySQL 8.4 InnoDB** 原生 `INSERT SELECT` 来源行集审批，现在允许 `WHERE` 包含**一至四个**只用 `AND` 连接的直接 `列 = 非 NULL 常量` 比较。例如：`INSERT INTO app.users (name) SELECT name FROM app.import_users WHERE id = 1 AND name = 'Carol'`。来源及目标的实际身份、版本能力、最大影响行数、权限、审批和事务要求均保持不变。提交前仍核验完整已批准的来源行集及实体 Catalog；不代表开放任意 SQL。
 
 五个以上条件、`OR`、`NOT`、函数、计算表达式、NULL 比较、子查询、JOIN、CTE、UPSERT 和未经证明的数据库仍拒绝。PostgreSQL／SQLite 的 RETURNING 继续遵循各自已证明的限制；MySQL 不支持 RETURNING。不新增 MCP 工具或公共 API，DML 默认关闭。
@@ -212,3 +214,9 @@ SQL Server 2022 现在支持受限的单条 `INSERT INTO dbo.target (name) SELEC
 ### M09：SQL Server 2022 已审批 INSERT SELECT 的原生 OUTPUT INSERTED（仅 develop）
 
 已证明的单表或双实体表来源审批现在允许在 INSERT 列表后指定 `OUTPUT INSERTED.id` 或 `OUTPUT INSERTED.id, INSERTED.name`，**成功提交后**返回真实插入的目标列。预览只审批实体来源数据，不伪造 IDENTITY 生成的目标 ID。SERIALIZABLE 事务持有原有排他表锁，重新验证完整来源行集和结构，仅执行一次原生 INSERT；核对实际影响行数并成功提交后才能返回结果。只允许一至三十二个互不重复的直接目标列；通配符、别名、表达式、重复列、`OUTPUT INTO`、错误的行影像继续拒绝。实体 Catalog 与无触发器的实时元数据证明必不可少；数据变化、重复审批及超出行数上限仍拒绝。不新增 MCP 工具，默认四个只读工具选中且 DML 关闭。
+
+### M09：有界 IN／OR 来源行集条件（仅 develop）
+
+已验证的原生 **SQLite、PostgreSQL、MySQL 8.4 InnoDB、SQL Server 2022** `INSERT SELECT` 现支持 `WHERE id IN (1,2)`、`WHERE id = 1 OR id = 2` 及 `WHERE (id = 1 OR id = 2) AND name IN ('Carol','Dave')`。直接 `列 = 非 NULL 常量` 和 `列 IN (非 NULL 常量, ...)` 合计**最多四个比较常量**，布尔表达式树不超过七个节点。允许括号组合 `AND`／`OR`，但原子条件必须使用未限定的直接列。这取代前述 M09 初期的 `AND` 限制；与 CTE／JOIN 有关的 `OR` 限制不变。
+
+`OR 1=1`、`NOT`／`NOT IN`、NULL IN 项、IN 子查询、表达式、五个以上比较常量、任意 OR、CTE、JOIN 和跨 Provider DML 仍拒绝。来源及目标继续要求真实物理 Catalog 证明，有限正数行数限制不变。预览绑定**完整已选来源行集**，提交时保持原有事务锁，复核结构与来源值，核对实际行数。PostgreSQL／SQLite 的 RETURNING 与 SQL Server OUTPUT INSERTED 仅在提交成功后返回真实目标列；MySQL 不支持 RETURNING。不增加 MCP 工具或公开 API，默认四个只读工具选中且 DML 关闭。
