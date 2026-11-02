@@ -168,3 +168,11 @@ SQLite 现在可以从**另一张独立的 `main` 实体来源表**直接选取�
 
 
 SQLite 3.35+ 示例：`INSERT INTO main.users (name) SELECT name FROM main.other_users WHERE id = 1 RETURNING id, name`。预览批准源列 `name` 和数据行数；仅成功提交后才返回新行的 `id` 和 `name`。源数据变化时回滚，且不返回结果行。
+
+### M09：PostgreSQL 实体来源 INSERT SELECT（仅 develop）
+
+PostgreSQL 现允许**单条语句**执行受限的 `INSERT INTO schema.target (columns) SELECT 直接列 FROM schema.source WHERE 列 = 非 NULL 常量`。来源与目标必须是**同一非系统 Schema 中的两张不同实体表**，且均为普通永久表。JOIN、CTE、计算表达式、冲突处理、第二来源、未限定 Schema、分区或继承表、RLS、用户 Trigger 与自定义 Rewrite Rule 均被拒绝。来源及目标分别验证真实元数据、DDL、索引与约束，并要求正整数且有限的行数上限、两张表各自授权、`AddHsSqlAgentNativeDmlSchemaFreshness()` 和独立 DML 审批。
+
+预览绑定所有源投影值、行数、策略和编译指令。提交时 PostgreSQL SERIALIZABLE 事务在**首次 Catalog SELECT 之前**取得来源表的 **SHARE ROW EXCLUSIVE NOWAIT** 锁，同时保护目标表免受 DDL 更改，再重新验证两张实体表与全部源数据行，最后只插入一次。锁冲突会直接拒绝。明确的目标列 `RETURNING` 仅在成功提交后返回真实插入结果；来源或表结构发生变化则不提交且不返回数据行。
+
+示例：`INSERT INTO app.users (name) SELECT name FROM app.import_users WHERE id = 1 RETURNING id, name`。数据库角色须有权限获取上述锁。不增加 MCP 工具或跨数据库权限；默认仍只选中四个只读工具，DML 默认关闭。

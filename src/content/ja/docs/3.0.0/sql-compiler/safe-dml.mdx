@@ -168,3 +168,11 @@ SQLite では、**別の `main` 実テーブル**から直接選択した行を�
 
 
 SQLite 3.35 以降の例: `INSERT INTO main.users (name) SELECT name FROM main.other_users WHERE id = 1 RETURNING id, name`。プレビューで承認するのはソースの `name` と行数であり、挿入された `id` と `name` はコミット後にのみ返ります。ソースに変更があればロールバックし、結果行は返しません。
+
+### M09：PostgreSQL の実テーブルをソースにした INSERT SELECT（develop 限定）
+
+PostgreSQL でも、**単文**の限定的な `INSERT INTO schema.target (列) SELECT 直接列 FROM schema.source WHERE 列 = NULL 以外のリテラル` を扱えます。ソースと対象は、**同じシステム外 Schema にある異なる 2 つの実テーブル**で、どちらも通常の永続テーブルでなければなりません。JOIN、CTE、計算式、UPSERT、追加ソース、Schema 省略、パーティション・継承テーブル、RLS、ユーザー Trigger、独自 Rewrite Rule は拒否されます。両テーブルの実メタデータ・DDL・索引・制約を個別に検証し、有限な正の行数制限、両テーブルの権限、`AddHsSqlAgentNativeDmlSchemaFreshness()` と独立承認を要求します。
+
+プレビューは投影された全ソース値、行数、ポリシー、コンパイル済み指令を結び付けます。コミット時には PostgreSQL の SERIALIZABLE トランザクションが**最初の Catalog SELECT より前に**ソースへ **SHARE ROW EXCLUSIVE NOWAIT** ロックを取得し、対象の DDL 変更も防ぎます。両テーブルとソース行を再検証してから一度だけ挿入し、ロック競合時は拒否します。直接対象列の `RETURNING` はコミット成功後にのみ実結果を返し、変更時はコミットせず結果も返しません。
+
+例：`INSERT INTO app.users (name) SELECT name FROM app.import_users WHERE id = 1 RETURNING id, name`。DB ロールに必要なロック権限が求められます。新たな MCP ツールや DB 間権限は追加せず、既定の 4 つの読み取り専用ツールと DML 無効設定は変わりません。

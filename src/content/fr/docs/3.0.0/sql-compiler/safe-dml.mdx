@@ -168,3 +168,11 @@ Exemple : `INSERT INTO main.users (name) SELECT name FROM main.other_users WHERE
 
 
 Exemple SQLite 3.35+ : `INSERT INTO main.users (name) SELECT name FROM main.other_users WHERE id = 1 RETURNING id, name`. L'aperçu approuve le `name` source et le nombre de lignes ; seuls les `id` et `name` réellement insérés sont retournés après le commit. Une modification de source provoque un rollback sans ligne de résultat.
+
+### M09 : INSERT SELECT PostgreSQL depuis une vraie table source (develop uniquement)
+
+PostgreSQL admet un `INSERT INTO schema.target (colonnes) SELECT colonnes_directes FROM schema.source WHERE colonne = littéral_non_NULL` **en une seule instruction**, strictement limité. Source et cible doivent être **deux tables physiques permanentes distinctes d'un même schéma non système**. JOIN, CTE, expressions calculées, UPSERT, source supplémentaire, nom sans schéma, partitions, héritage, RLS, déclencheurs utilisateur et règles de réécriture personnalisées sont refusés. Les métadonnées, DDL, index et contraintes réelles sont attestés séparément pour les deux tables, avec une limite de lignes positive et finie, l'autorisation de chaque table, `AddHsSqlAgentNativeDmlSchemaFreshness()` et une approbation DML indépendante.
+
+L'aperçu lie toutes les valeurs sources projetées, le nombre de lignes, la politique et les commandes compilées. Au commit, la transaction SERIALIZABLE acquiert un verrou **SHARE ROW EXCLUSIVE NOWAIT** sur la source **avant son premier Catalog SELECT**, et protège aussi la cible contre les DDL. Elle revérifie les deux tables et toutes les lignes sources, puis insère une seule fois ; un conflit de verrou est refusé. Le `RETURNING` de colonnes cibles directes ne fournit les résultats réels qu'après un commit confirmé ; en cas de modification, aucun commit ni résultat.
+
+Exemple : `INSERT INTO app.users (name) SELECT name FROM app.import_users WHERE id = 1 RETURNING id, name`. Le rôle SQL doit pouvoir acquérir les verrous nécessaires. Aucun nouvel outil MCP ni privilège entre moteurs ; quatre outils de lecture restent sélectionnés par défaut et DML est désactivé.

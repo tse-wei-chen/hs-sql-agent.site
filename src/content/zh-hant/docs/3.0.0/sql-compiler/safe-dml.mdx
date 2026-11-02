@@ -168,3 +168,11 @@ SQLite 現可從**另一張獨立的 `main` 實體來源表**直接選取資料�
 
 
 SQLite 3.35+ 範例：`INSERT INTO main.users (name) SELECT name FROM main.other_users WHERE id = 1 RETURNING id, name`。預覽核准來源的 `name` 和資料列數；真正成功提交後，才回傳新增資料列的 `id` 和 `name`。來源發生變更時回復，且不回傳任何結果列。
+
+### M09：PostgreSQL 實體來源 INSERT SELECT（僅 develop）
+
+PostgreSQL 現可在**單一語句**執行受限的 `INSERT INTO schema.target (columns) SELECT 直接欄位 FROM schema.source WHERE 欄位 = 非 NULL 常值`。來源與目標必須是**同一個非系統 Schema 的兩張不同實體資料表**，而且都必須是一般永久表。JOIN、CTE、計算式、衝突處理、第二來源、未明確指定 Schema、分割／繼承資料表、RLS、使用者 Trigger 與自訂 Rewrite Rule 均拒絕。來源與目標各自驗證實體中繼資料、DDL、索引與限制條件，並要求有限正整數筆數上限、兩張表各自授權、`AddHsSqlAgentNativeDmlSchemaFreshness()` 和獨立 DML 核准。
+
+預覽綁定完整來源欄位值、筆數、政策與編譯指令。提交時 PostgreSQL SERIALIZABLE 交易會在**第一次 Catalog SELECT 之前**取得來源表的 **SHARE ROW EXCLUSIVE NOWAIT** 鎖，同時保護目標表免受 DDL 修改，再重驗兩張實體表與完整來源行集，最後僅執行一次插入。鎖衝突會拒絕執行。明確的目標欄位 `RETURNING` 只在成功提交後提供真實新增資料；來源或結構改變則不提交、也不回傳資料列。
+
+範例：`INSERT INTO app.users (name) SELECT name FROM app.import_users WHERE id = 1 RETURNING id, name`。資料庫角色必須具有取得上述鎖的權限。沒有新增 MCP Tool 或跨資料庫權限；預設仍選四個唯讀工具，DML 預設關閉。

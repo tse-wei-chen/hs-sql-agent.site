@@ -176,3 +176,11 @@ Example: `INSERT INTO main.users (name) SELECT name FROM main.other_users WHERE 
 
 
 SQLite 3.35+ example: `INSERT INTO main.users (name) SELECT name FROM main.other_users WHERE id = 1 RETURNING id, name`. The Preview approves the selected `name` and row count; only a committed mutation returns the inserted `id` and `name`. A source-row change cancels the operation and returns no rows.
+
+### M09: PostgreSQL physical-source INSERT SELECT (develop only)
+
+PostgreSQL also supports a **bounded single-statement** `INSERT INTO schema.target (columns) SELECT direct_columns FROM schema.source WHERE column = non-NULL literal`, with one **distinct physical source** and one physical target in the **same non-system schema**. Both must be regular permanent tables; nontrivial JOINs, CTEs, expressions, conflict/upsert, multiple source tables, unqualified tables, partitions, inheritance, RLS, user triggers and custom rewrite rules remain denied. The source and target require independent live metadata/DDL/index/constraint attestation, a finite positive row limit, source and target table grants, `AddHsSqlAgentNativeDmlSchemaFreshness()` and independent DML approval.
+
+Preview binds every selected source value, row count, policy and compiled commands. At commit, the PostgreSQL SERIALIZABLE transaction obtains a **source SHARE ROW EXCLUSIVE NOWAIT lock before its first catalog SELECT** and also locks the target against DDL; it reattests both physical tables, rechecks the full source multiset, then inserts once. Contended locks fail closed. Native direct target-column `RETURNING` reports actual inserted values only after confirmed commit; changed source or catalog means no commit or returned rows.
+
+Example: `INSERT INTO app.users (name) SELECT name FROM app.import_users WHERE id = 1 RETURNING id, name`. The role must be permitted to acquire the required PostgreSQL locks. No new MCP tool or cross-provider privilege is implied; the default four read-only tools and DML-off selection are unchanged.
