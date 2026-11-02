@@ -20,7 +20,7 @@ Le DML suit une voie plus stricte que les Query, car au moment du commit l'appro
 
 ## Un seul Tool pour un ou plusieurs Statements
 
-`execute_dml_sql` accepte une ou plusieurs instructions `UPDATE`, `DELETE` ou `INSERT ... VALUES` prises en charge. Plusieurs Statements sont séparés par des points-virgules.
+`execute_dml_sql` accepte une ou plusieurs instructions `UPDATE`, `DELETE` ou `INSERT ... VALUES` prises en charge. Plusieurs Statements sont séparés par des points-virgules. Un `INSERT ... SELECT` SQLite strictement limité est également accepté, mais **uniquement comme instruction unique**, jamais dans un lot.
 
 Il n'existe pas de Tool batch DML séparé. Une entrée multi-statement devient un Batch, reçoit une seule approbation, s'exécute dans l'ordre d'origine puis est commit de manière atomique dans une Transaction contrôlée par le serveur.
 
