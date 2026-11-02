@@ -226,3 +226,16 @@ SQL Server 2022는 동일 데이터베이스 내 **서로 다른 두 영구 실�
 실제 소스가 증명된 **SQLite, PostgreSQL, MySQL 8.4 InnoDB, SQL Server 2022** 네이티브 `INSERT SELECT` 에서 `WHERE id BETWEEN 1 AND 2`, `WHERE id BETWEEN 1 AND 2 AND name IN ('Carol','Dave')`, `WHERE id BETWEEN 1 AND 1 OR id = 2` 를 허용합니다. `BETWEEN` 양쪽 경계는 NULL이 아닌 직접 리터럴이어야 하며 왼쪽은 한정자 없는 직접 열만 허용됩니다. BETWEEN 하나는 비교값 **두 개**를 소모하며 기존 `=` 및 `IN` 과 **합계 최대 네 개**입니다. `AND`／`OR` 를 포함한 Boolean AST 노드는 최대 일곱 개입니다. F# 형식화 파서와 기존 Host 실제 소스 증명을 재사용합니다.
 
 `NOT BETWEEN`, NULL/계산식 경계, 열 대 열 범위, 상수만의 항상 참 조건, 비교값 다섯 개 이상, 하위 쿼리, JOIN, CTE 및 미검증 소스는 계속 거부합니다. Preview는 전체 소스 행을 승인하고 양수 유한 행 제한을 지키며 실제 Catalog 및 개별 권한을 검증합니다. Commit은 기존 트랜잭션 잠금을 유지한 채 전체 소스 값과 스키마를 재검증하고 단일 승인과 정확한 영향 행 수를 확인합니다. SQLite／PostgreSQL RETURNING과 SQL Server OUTPUT INSERTED는 커밋 성공 후 실제 대상 행만 반환하며 MySQL RETURNING은 미지원입니다. MCP 도구·드라이버·공개 API 추가 없이 기본 읽기 전용 네 도구 선택과 DML 비활성화를 유지합니다.
+
+### M09: SQLite 네이티브 INSERT SELECT를 원자적 DML 트랜잭션에 포함 (develop 전용)
+
+기존 **원자적 DML 트랜잭션**은 INSERT VALUES, UPDATE, DELETE 여러 문장을 한 번의 승인으로 순서대로 처리합니다. 별도 MCP 배치 도구는 필요 없습니다. 이제 **2~16개 문장** 중 실제 SQLite 물리 소스가 증명된 `INSERT SELECT`를 **정확히 하나** 기존 DML과 함께 사용할 수 있습니다.
+
+```sql
+INSERT INTO main.users (name)
+  SELECT name FROM main.import_users WHERE id IN (1, 2)
+  RETURNING id, name;
+INSERT INTO main.users (name) VALUES ('Manual');
+```
+
+모든 문장은 기존 F# 컴파일러와 실제 SQLite `main` Catalog를 통해 독립적으로 컴파일·권한 검증·미리 보기됩니다. 일회용 전체 승인에는 문장 순서와 전체 소스 행 집합 지문, **전체 배치 영향 행 수 상한**이 묶입니다. 커밋은 **한 SQLite 쓰기 트랜잭션** 안에서 각 문장 바로 전에 스키마 및 소스 집합을 다시 검증하며 앞선 문장의 변경도 반영합니다. 앞 문장이 후속 소스를 바꾸거나 후속 문장이 제약 조건을 위반하면 **이미 실행된 변경도 전부 롤백**합니다. 실제 생성 ID와 `RETURNING` 값은 전체 커밋 성공 후에만 공개합니다. 여러 INSERT SELECT, 다른 DB, 미검증 스키마, JOIN/CTE/UPSERT 등은 계속 거부됩니다. MCP 도구, 드라이버, 공개 API 추가 없이 읽기 전용 네 도구 선택과 DML 기본 비활성화를 유지합니다.
