@@ -220,3 +220,9 @@ SQL Server 2022 は、同じデータベース内の**異なる 2 つの永続�
 実体を検証済みの **SQLite、PostgreSQL、MySQL 8.4 InnoDB、SQL Server 2022** のネイティブ `INSERT SELECT` は、`WHERE id IN (1,2)`、`WHERE id = 1 OR id = 2`、`WHERE (id = 1 OR id = 2) AND name IN ('Carol','Dave')` を扱えます。直接 `列 = NULL 以外のリテラル` と `列 IN (NULL 以外のリテラル, ...)` を合わせて**比較リテラルは最大 4 個**、論理式のツリーノードは最大 7 個です。括弧を用いた `AND`／`OR` の組み合わせは許可しますが、各原子条件は修飾のない直接列に限ります。従来の M09 AND のみの記述を本拡張が更新します。CTE／JOIN の OR 禁止は従来どおりです。
 
 `OR 1=1`、`NOT`／`NOT IN`、IN 内 NULL、IN 副問い合わせ、式、5 個以上の比較値、任意の OR、CTE、JOIN、異種 Provider DML は拒否します。ソースと対象の実 Catalog 証明、有限の正の行数上限はそのままです。プレビューは**選択された全ソース行**を承認し、コミットは既存のトランザクションロック下で実スキーマと全行を再検証し、実書き込み件数を照合します。PostgreSQL／SQLite RETURNING と SQL Server OUTPUT INSERTED はコミット成功後のみ実際の生成値を返し、MySQL は RETURNING 非対応。新たな MCP ツールや公開 API はなく、読み取り専用 4 ツール選択・DML 既定無効を維持します。
+
+### M09：上限付き BETWEEN ネイティブソース絞り込み（develop 限定）
+
+物理ソースの証明済み **SQLite、PostgreSQL、MySQL 8.4 InnoDB、SQL Server 2022** のネイティブ `INSERT SELECT` は、`WHERE id BETWEEN 1 AND 2`、`WHERE id BETWEEN 1 AND 2 AND name IN ('Carol','Dave')`、`WHERE id BETWEEN 1 AND 1 OR id = 2` も扱えます。`BETWEEN` の上下限は直接指定された NULL 以外のリテラルのみ、左辺は無修飾の直接列のみです。`BETWEEN` は比較値**二個分**として数え、既存の `=`・`IN` と合わせ**最大四個**。Boolean AST は `AND`／`OR` を含め最大七ノードです。F# の型付き解析と Host の実テーブル証明を再利用します。
+
+`NOT BETWEEN`、NULL／計算式の境界、列対列の範囲、定数だけの恒真式、計五個以上の比較値、副問い合わせ、JOIN、CTE および未検証の形は拒否します。Preview の全ソース行集承認、有限の正の行数制限、実 Catalog と独立した権限、保持トランザクションロック、使い捨て承認、コミット時の全行／スキーマ再検証と正確な行数照合は従来どおり必須です。SQLite／PostgreSQL RETURNING と SQL Server OUTPUT INSERTED はコミット後のみ実際の対象行を返し、MySQL RETURNING は非対応です。MCP ツール、ドライバーや公開 API は追加せず、読み取り専用四ツールと DML 既定無効を維持します。
