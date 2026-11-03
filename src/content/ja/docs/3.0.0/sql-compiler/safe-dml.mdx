@@ -245,3 +245,9 @@ INSERT INTO main.users (name) VALUES ('Manual');
 実テーブルが確認済みの **SQLite、PostgreSQL、MySQL 8.4 InnoDB、SQL Server 2022** では、ネイティブ `INSERT SELECT` のソース条件に、修飾子のない直接列の `IS NULL` / `IS NOT NULL` を使用できます。`WHERE note IS NULL`、`WHERE note IS NOT NULL`、`WHERE (note IS NULL OR id = 1) AND name IS NOT NULL` などが対象です。関数の結果や計算式ではなく、既存の F# 型付き構文木で判定します。
 
 NULL 判定一つは**最大四単位の条件予算**を一単位消費します。直接列の `= 非NULLリテラル` は一単位、`IN` の各要素は一単位、`BETWEEN` の各端点は一単位です。論理式の構文木は引き続き**最大七ノード**。`NULL IS NULL` のような定数だけの恒真式、関数・計算式、`OR 1=1`、一般的な `NOT`、JOIN / CTE、未検証のプロバイダーは拒否します。NULL 判定は多数の行に一致し得るため、**正の有限な変更行数上限**を必ず適用します。実テーブルの同一性、ソースと対象への個別権限、実スキーマの証明、承認済みソース行全体の再照合、トランザクションロック、変更行数の一致、使い捨て承認も維持します。生成 ID と返却行はコミット成功後に限り公開し、MySQL の `RETURNING` は非対応です。MCP ツール・ドライバー・公開 API は増やさず、既定の読み取り専用四ツール選択と DML 無効設定も変えません。
+
+### M10：SQL Server ネイティブ MERGE の対象キー範囲ロック（develop 限定）
+
+既存の F# 閉じた構文木による SQL Server **単一ソース行**の `MERGE` コンパイラーは、`MERGE INTO dbo.target WITH (HOLDLOCK) AS t USING (VALUES (...)) AS s (...) ON ...` を出力します。明示的な VALUES 一行、直接列の値、実際のメタデータで確認した PRIMARY／UNIQUE キー全体に一致する条件、既存の制限付き UPDATE／DELETE／INSERT アクションに限定されます。SQL Server のネイティブなシリアライズ可能キー範囲ロックは、一致する対象行がまだ存在しない場合にも適用されます。トランザクションの管理は実行側の責務です。
+
+実際の SQL Server 2022 で主キーと複合一意キーを照会し、UPDATE／INSERT／DELETE、複合キーごとの分離、MERGE トランザクション中の別接続からの競合挿入の拒否を検証します。一意性が証明されないキーはコンパイル許可に使えません。**これは SqlCore のコンパイル機能であり、Host での MERGE／Upsert 実行承認ではありません。** Host の型付き DML 承認は、既存行への変更と行集合を独立して検証できるまで拒否のままです。他の DB、複数行／クエリソース、異種 DB 変換、未検証の MERGE は拒否します。MCP ツール・公開 API は増やさず、既定の読み取り専用四ツール選択と DML 無効設定も維持します。
