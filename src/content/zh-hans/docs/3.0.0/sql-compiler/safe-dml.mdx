@@ -251,3 +251,9 @@ INSERT INTO main.users (name) VALUES ('Manual');
 既有 F# 封闭语法树的 SQL Server **单行来源** `MERGE` 编译器现在输出 `MERGE INTO dbo.target WITH (HOLDLOCK) AS t USING (VALUES (...)) AS s (...) ON ...`。只接受一行明确的 VALUES 数据、直接列值、完整匹配经实际元数据验证的 PRIMARY／UNIQUE Key，以及既有受限的匹配时 UPDATE／DELETE 和不匹配时 INSERT。该原生提示在 SQL Server 目标键上施加可串行化键范围锁，包括来源键尚未匹配目标行的情况；事务仍由调用执行的一方管理。
 
 真实 SQL Server 2022 测试通过原生元数据验证主键或复合唯一键、检查 UPDATE／INSERT／DELETE 和复合键行隔离，并验证持有事务时另一个连接无法插入被锁定的缺失键。缺失或非唯一的键不能获得编译权限证明。**此功能仅扩展 SqlCore 编译能力，不是 Host 的 MERGE／Upsert 执行授权**：Host 的类型化修改审批仍保持拒绝，直到现有行集、实际变更范围和独立审批获得证明。其他数据库、多行或查询来源 MERGE、跨数据库转换和任意分支仍拒绝。不新增 MCP 工具或公共 API，默认仍选中四个只读工具，DML 保持关闭。
+
+### M10：SQLite 单行主键冲突跳过的 Host 审批（仅 develop）
+
+类型化 Host 现可预览、审批并提交一行原生 SQLite `INSERT ... VALUES (...) ON CONFLICT (id) DO NOTHING`，前提是证明 `id` 为实际数据表**唯一强制执行的主键／唯一键**、显式提供非 NULL 的 64 位整数常量、策略最多影响 **1 行**，并启用内置真实 Schema 验证。这一流程不再仅审批 INSERT 载荷：预览会读取实际主键冲突；不存在时显示**将插入 1 行**，已存在则显示**跳过、影响 0 行**，同时绑定审批指纹。
+
+提交时消耗一次性审批，在 SQLite 写入事务中重新验证真实 Schema 与主键、执行同一条经 F# 编译的参数化 SQL、核对实际影响行数；预览后冲突状态、索引或 Schema 变化会触发拒绝或回滚并要求重新预览。**DO UPDATE、未指定冲突目标、多行 VALUES、RETURNING、非主键／复合键／额外 UNIQUE、跨数据库和原子批处理** 仍拒绝。此功能不开放通用 Upsert 或 SQL Server MERGE；不增加 MCP 工具，默认仍选中四个只读工具，DML 保持关闭。
