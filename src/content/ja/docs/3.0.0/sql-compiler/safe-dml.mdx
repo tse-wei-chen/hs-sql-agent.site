@@ -274,7 +274,7 @@ Host は PostgreSQL の `INSERT ... VALUES (...) ON CONFLICT (id) DO NOTHING` �
 
 ### M11: PostgreSQL の単一行競合 UPDATE と変更前後の承認（develop のみ）
 
-Typed Host は、厳しく制限された PostgreSQL の `INSERT (id, name) VALUES (7, 'new') ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name` を承認対象に追加しました。対象は物理的な永続通常テーブルで、**NOT NULL BIGINT の単一列 PRIMARY／UNIQUE キーと NOT NULL TEXT 値列の 2 列だけ**が必要です。唯一性は**即時適用（NOT DEFERRABLE）の単純なキー 1 個だけ**で、余分な列やインデックス、既定値、CHECK／外部キー、利用者トリガー、書き換え規則、パーティション／継承、行レベルセキュリティは拒否されます。標準 PostgreSQL プロバイダーが物理定義を検証し、仮想 Catalog の証明では実行できません。
+Typed Host は、厳しく制限された PostgreSQL の `INSERT INTO users (id, name) VALUES (7, 'new') ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name` を承認対象に追加しました。対象は物理的な永続通常テーブルで、**NOT NULL BIGINT の単一列 PRIMARY／UNIQUE キーと NOT NULL TEXT 値列の 2 列だけ**が必要です。唯一性は**即時適用（NOT DEFERRABLE）の単純なキー 1 個だけ**で、余分な列やインデックス、既定値、CHECK／外部キー、利用者トリガー、書き換え規則、パーティション／継承、行レベルセキュリティは拒否されます。標準 PostgreSQL プロバイダーが物理定義を検証し、仮想 Catalog の証明では実行できません。
 
 プレビューでは**影響 1 行**を示し、競合なしなら `INSERT`（変更前は空）、競合ありなら `UPDATE` として実際の旧値と提案値を表示します。旧行全体のフィンガープリントと新しいペイロードの双方を使い捨て承認に結び付けます。コミット時にはトランザクション終了まで `SHARE ROW EXCLUSIVE NOWAIT` テーブルロックを保持し、完全なスキーマ・インデックス・旧値を再検証して F# コンパイル済み SQL を実行します。競合状態・旧値・インデックスの変更は実行を取り消します。この強いロックは意図的に書き込み同時実行性を制限します。
 
