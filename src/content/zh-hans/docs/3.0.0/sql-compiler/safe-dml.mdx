@@ -257,3 +257,5 @@ INSERT INTO main.users (name) VALUES ('Manual');
 类型化 Host 现可预览、审批并提交一行原生 SQLite `INSERT ... VALUES (...) ON CONFLICT (id) DO NOTHING`，前提是证明 `id` 为实际数据表**唯一强制执行的主键／唯一键**、显式提供非 NULL 的 64 位整数常量、策略最多影响 **1 行**，并启用内置真实 Schema 验证。这一流程不再仅审批 INSERT 载荷：预览会读取实际主键冲突；不存在时显示**将插入 1 行**，已存在则显示**跳过、影响 0 行**，同时绑定审批指纹。
 
 提交时消耗一次性审批，在 SQLite 写入事务中重新验证真实 Schema 与主键、执行同一条经 F# 编译的参数化 SQL、核对实际影响行数；预览后冲突状态、索引或 Schema 变化会触发拒绝或回滚并要求重新预览。**DO UPDATE、未指定冲突目标、多行 VALUES、RETURNING、非主键／复合键／额外 UNIQUE、跨数据库和原子批处理** 仍拒绝。此功能不开放通用 Upsert 或 SQL Server MERGE；不增加 MCP 工具，默认仍选中四个只读工具，DML 保持关闭。
+
+**Trigger 安全边界：** 目标表只要存在 SQLite Trigger，就不得使用此单行审批，因为 Trigger 的额外写入不计入顶层 SQL 的影响行数。Host 仅接受内置 SQLite Provider，不借用未经验证的替代适配器。

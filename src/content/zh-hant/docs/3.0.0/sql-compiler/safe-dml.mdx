@@ -257,3 +257,5 @@ INSERT INTO main.users (name) VALUES ('Manual');
 型別化 Host 現可預覽、核准並提交一筆原生 SQLite `INSERT ... VALUES (...) ON CONFLICT (id) DO NOTHING`，但必須證明 `id` 是實體資料表**唯一受到強制執行的主鍵／唯一鍵**、明確提供非 NULL 的 64 位元整數常值、政策最多影響 **1 筆**，且啟用內建實體 Schema 驗證。此流程不再只核准 INSERT 載荷：預覽會查詢實際主鍵是否衝突；不存在時顯示**將插入 1 筆**，已存在時顯示**略過、影響 0 筆**，並把結果綁定核准指紋。
 
 提交時消耗一次性核准，在 SQLite 寫入交易中重新驗證實體 Schema 與主鍵、執行同一份經 F# 編譯的參數化 SQL，核對實際影響筆數；若預覽後衝突狀態、索引或 Schema 改變，就拒絕或回滾並要求重新預覽。**DO UPDATE、未指定衝突目標、多筆 VALUES、RETURNING、非主鍵／複合鍵／額外 UNIQUE、跨資料庫以及 Atomic Batch** 仍拒絕。這不代表開放一般 Upsert 或 SQL Server MERGE；不新增 MCP 工具，預設仍是四個唯讀工具已勾選、DML 未啟用。
+
+**Trigger 安全界線：** 只要目標資料表設有 SQLite Trigger，就不適用這項單筆核准，因為 Trigger 的額外寫入不會計入頂層 SQL 的影響筆數。Host 也只接受內建 SQLite Provider，不借用未驗證的替代 Adapter。
