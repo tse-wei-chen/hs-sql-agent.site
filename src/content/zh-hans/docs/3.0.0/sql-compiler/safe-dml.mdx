@@ -274,7 +274,7 @@ Host 现在可对单行 PostgreSQL `INSERT ... VALUES (...) ON CONFLICT (id) DO 
 
 ### M11：PostgreSQL 单行冲突更新及前后值审批（仅 develop）
 
-Typed Host 新增严格受限的原生 PostgreSQL `INSERT (id, name) VALUES (7, 'new') ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name`。目标必须为实际永久普通数据表，且**恰好只有两列**：非 NULL 的 BIGINT 单列 PRIMARY／UNIQUE 键，以及非 NULL 的 TEXT 值列。全表只能有**一个立即执行（NOT DEFERRABLE）的简单唯一键**；不得有额外唯一索引或列、默认值、CHECK／外键、用户触发器、重写规则、分区／继承或行级安全策略。内置 PostgreSQL 提供程序核验物理定义；虚拟 Catalog 不授予执行权限。
+Typed Host 新增严格受限的原生 PostgreSQL `INSERT INTO users (id, name) VALUES (7, 'new') ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name`。目标必须为实际永久普通数据表，且**恰好只有两列**：非 NULL 的 BIGINT 单列 PRIMARY／UNIQUE 键，以及非 NULL 的 TEXT 值列。全表只能有**一个立即执行（NOT DEFERRABLE）的简单唯一键**；不得有额外唯一索引或列、默认值、CHECK／外键、用户触发器、重写规则、分区／继承或行级安全策略。内置 PostgreSQL 提供程序核验物理定义；虚拟 Catalog 不授予执行权限。
 
 预览固定显示**影响一行**：无冲突时标为 `INSERT`，更新前值为空；有冲突时标为 `UPDATE`，显示实际旧值和建议新值。一次性审批同时绑定完整旧记录指纹与确切新值。提交时先取得保持到事务结束的 `SHARE ROW EXCLUSIVE NOWAIT` 表锁，复验完整模式、索引和旧值，再原子执行 F# 编译的 SQL。冲突状态、旧值或索引改变就取消写入。该强锁有意限制写入并发。
 
