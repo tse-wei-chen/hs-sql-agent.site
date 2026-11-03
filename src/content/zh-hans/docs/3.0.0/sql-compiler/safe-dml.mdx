@@ -279,3 +279,9 @@ Typed Host 新增严格受限的原生 PostgreSQL `INSERT INTO users (id, name) 
 预览固定显示**影响一行**：无冲突时标为 `INSERT`，更新前值为空；有冲突时标为 `UPDATE`，显示实际旧值和建议新值。一次性审批同时绑定完整旧记录指纹与确切新值。提交时先取得保持到事务结束的 `SHARE ROW EXCLUSIVE NOWAIT` 表锁，复验完整模式、索引和旧值，再原子执行 F# 编译的 SQL。冲突状态、旧值或索引改变就取消写入。该强锁有意限制写入并发。
 
 **仍然拒绝：**通用 UPSERT、修改键值、任意 SET 表达式、UPDATE WHERE、多列／多行操作、RETURNING、NULL／非文本值、额外表副作用、跨提供程序执行及原子 DML 批次。默认四个只读 MCP 工具和 DML 关闭保持不变。
+
+### M12：PostgreSQL 多列冲突更新审批（仅 develop）
+
+现有 Typed Host 的 `ON CONFLICT DO UPDATE` 可一次审批 **2～4 个 `TEXT NOT NULL` 值列**（原先单列仍支持），配合一个实际 `BIGINT NOT NULL` 主键／唯一键。例如：`INSERT INTO users (id, name, city) VALUES (7, 'new-name', 'new-city') ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name, city = EXCLUDED.city`。单行 INSERT 显式列出的每个非键列，都必须由对应的 `SET 列 = EXCLUDED.列` 更新；遗漏列、重复赋值、交叉赋值、函数运算或修改键值均被拒绝。永久普通物理表**只能包含该键和这些更新列**，且只有一个立即生效的简单唯一键；不允许默认值、额外索引、CHECK／外键、触发器、重写规则、继承／分区或行级安全策略。
+
+预览显示一行 `INSERT` 或 `UPDATE`，并列出 `__before_name`／`__after_name`、`__before_city`／`__after_city` 等逐列前后值。一次性审批绑定完整旧记录、全部新值、Schema 与编译 SQL。提交时持有 `SHARE ROW EXCLUSIVE NOWAIT` 表锁，重新验证实际定义及所有旧值后才在同一事务中执行；**任一列**变化、新冲突或索引／Schema 改变都会取消整个操作。该锁限制并发写入。五列以上更新、部分更新、表达式、`RETURNING`、多行输入和 DML 批次仍不支持；默认四个只读 MCP 工具及 DML 关闭保持不变。
