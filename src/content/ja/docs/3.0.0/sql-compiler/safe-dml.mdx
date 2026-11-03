@@ -279,3 +279,9 @@ Typed Host は、厳しく制限された PostgreSQL の `INSERT INTO users (id,
 プレビューでは**影響 1 行**を示し、競合なしなら `INSERT`（変更前は空）、競合ありなら `UPDATE` として実際の旧値と提案値を表示します。旧行全体のフィンガープリントと新しいペイロードの双方を使い捨て承認に結び付けます。コミット時にはトランザクション終了まで `SHARE ROW EXCLUSIVE NOWAIT` テーブルロックを保持し、完全なスキーマ・インデックス・旧値を再検証して F# コンパイル済み SQL を実行します。競合状態・旧値・インデックスの変更は実行を取り消します。この強いロックは意図的に書き込み同時実行性を制限します。
 
 **引き続き拒否:** 汎用 UPSERT、キーの更新、任意の SET 式、UPDATE WHERE、複数列／行、RETURNING、NULL／非 TEXT 値、他テーブルへの副作用、異種プロバイダー、原子的 DML バッチ。既定の読み取り専用 MCP ツール 4 個と DML 無効は変更しません。
+
+### M12：PostgreSQL 複数列の競合 UPDATE 承認（develop のみ）
+
+既存の Typed Host の `ON CONFLICT DO UPDATE` は、**2～4 個の `TEXT NOT NULL` 値列**（従来の 1 列も維持）と 1 個の実テーブル上の `BIGINT NOT NULL` 主キー／一意キーを対象にできます。例：`INSERT INTO users (id, name, city) VALUES (7, 'new-name', 'new-city') ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name, city = EXCLUDED.city`。単一行 INSERT で明示したすべての非キー列は、対応する `SET 列 = EXCLUDED.列` で更新する必要があります。列の欠落、重複、別列への値の転用、式の評価、キー変更は拒否されます。永続通常テーブルは**キーと更新列だけ**で構成し、即時適用の単純な一意キー 1 個のみ許可します。既定値、追加インデックス、CHECK／外部キー、トリガー、書き換え規則、継承／パーティション、行レベルセキュリティは不可です。
+
+プレビューには 1 件の `INSERT`／`UPDATE` と各列の `__before_name`／`__after_name`、`__before_city`／`__after_city` などを表示します。使い捨て承認は旧行全体、すべての新しい値、スキーマ、コンパイル済み SQL を拘束します。コミット時には `SHARE ROW EXCLUSIVE NOWAIT` テーブルロックで物理定義と全旧値を再検証し、同一トランザクション内で実行します。**どれか 1 列**の変更、新たな競合、インデックス／スキーマ変更は操作全体を取り消します。強いロックは並行書き込みを制限します。5 列以上、部分更新、任意式、`RETURNING`、複数行、DML バッチは引き続き拒否します。既定の 4 つの読み取り専用 MCP ツールと DML 無効設定は不変です。
