@@ -239,3 +239,9 @@ INSERT INTO main.users (name) VALUES ('Manual');
 ```
 
 每句仍獨立編譯、授權及以真實 SQLite `main` 表與原生 Catalog 預覽。一次性**整批 Challenge**綁定執行順序、來源行集指紋與**整批總影響筆數上限**。提交時只建立**一筆 SQLite 寫入交易**，每句執行前重驗實體結構及全部來源行集，並考慮前面語句已造成的變動。若前一句改變後一句的來源資料，或後一句遇到主鍵衝突，**所有先前寫入一併回滾**。`RETURNING` 與自動產生的 ID 僅在整筆交易提交成功後回傳，失敗時不得洩露。單句 `INSERT SELECT` 仍獨立支援；同一批多個 `INSERT SELECT`、其他資料庫、未驗證 Schema、JOIN／CTE／UPSERT 等仍拒絕。不增加 MCP 工具、Driver 或公開 API；預設四個唯讀工具勾選，DML 關閉。
+
+### M09：有界來源空值判斷（僅 develop）
+
+完成實體資料表驗證的 **SQLite、PostgreSQL、MySQL 8.4 InnoDB、SQL Server 2022**，其原生 `INSERT SELECT` 現在也能以直接欄位的 `IS NULL` 或 `IS NOT NULL` 篩選來源資料，例如 `WHERE note IS NULL`、`WHERE note IS NOT NULL`，以及 `WHERE (note IS NULL OR id = 1) AND name IS NOT NULL`。欄位不可加表別名或運算式；這是沿用 F# 型別化語法樹的能力，不是比對原始 SQL 字串。
+
+每個空值判斷占用**四個條件預算單位中的一個**；直接欄位等於非空值常數占一個、`IN` 每個成員占一個、`BETWEEN` 每個端點占一個。布林語法樹仍限**七個節點**。函式或計算結果上的空值判斷、`NULL IS NULL` 等純常數永真式、`OR 1=1`、一般 `NOT`、JOIN／CTE，以及尚未取得證明的資料庫仍會拒絕。空值條件可能選中大量資料，因此**正整數且有限的影響筆數上限**不可省略。實體來源與目標身分、分別授權、即時 Schema 證明、完整已核准來源資料、交易期間持鎖、提交前重驗、實際筆數核對及一次性核准均維持不變。自動產生的 ID 與原生回傳資料僅於成功提交後提供；MySQL 不支援 `RETURNING`。不新增 MCP 工具、驅動或公開 API，預設仍只勾選四個唯讀工具，DML 不預設啟用。

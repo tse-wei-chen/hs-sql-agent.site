@@ -239,3 +239,9 @@ INSERT INTO main.users (name) VALUES ('Manual');
 ```
 
 每条语句仍独立编译、授权并依赖真实 SQLite `main` 表及原生 Catalog 预览。一次性**整批挑战**绑定执行顺序、完整来源行集指纹及**整批影响行数上限**。提交时只有**一个 SQLite 写事务**；每条语句执行前重新验证结构与全部来源行，包含前面语句已经造成的变化。若第一条改变后面的来源集合，或者后续 INSERT 遇到主键冲突，**全部已写入内容一同回滚**。`RETURNING` 与自动生成的 ID 只有整批成功提交后才返回，失败时不泄露。单条 INSERT SELECT 仍可独立使用；同批多个来源 SELECT、其他数据库、未验证结构、JOIN／CTE／UPSERT 等不开放。无新增 MCP 工具、驱动或公共 API；默认四个只读工具选中，DML 关闭。
+
+### M09：有界来源空值筛选（仅 develop）
+
+已通过实体表验证的 **SQLite、PostgreSQL、MySQL 8.4 InnoDB 和 SQL Server 2022**，其原生 `INSERT SELECT` 现在也可以使用直接列的 `IS NULL` 或 `IS NOT NULL` 条件，例如 `WHERE note IS NULL`、`WHERE note IS NOT NULL`，以及 `WHERE (note IS NULL OR id = 1) AND name IS NOT NULL`。不允许带表别名的列或计算表达式；此能力沿用 F# 类型化语法树，而非匹配原始 SQL 文本。
+
+每个空值判断占用**四个条件预算单位中的一个**；直接列与非空常量比较占一个，`IN` 的每个元素占一个，`BETWEEN` 的每个边界占一个。布尔语法树依旧最多**七个节点**。函数或计算结果的空值判断、`NULL IS NULL` 等常量恒真式、`OR 1=1`、普通 `NOT`、JOIN／CTE 和未经证明的数据库仍然拒绝。空值条件可能选中大量行，因此必须保留**有限且为正数的影响行数上限**。实际来源与目标身份、分别授权、实时结构证明、已审批的完整来源行集、事务锁、提交前复核、实际行数核对以及一次性审批都没有变化。生成的 ID 和原生返回行只能在成功提交后提供；MySQL 不支持 `RETURNING`。不新增 MCP 工具、驱动或公共 API，默认仍选中四个只读工具，DML 保持关闭。
