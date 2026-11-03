@@ -226,3 +226,16 @@ SQL Server 2022 は、同じデータベース内の**異なる 2 つの永続�
 物理ソースの証明済み **SQLite、PostgreSQL、MySQL 8.4 InnoDB、SQL Server 2022** のネイティブ `INSERT SELECT` は、`WHERE id BETWEEN 1 AND 2`、`WHERE id BETWEEN 1 AND 2 AND name IN ('Carol','Dave')`、`WHERE id BETWEEN 1 AND 1 OR id = 2` も扱えます。`BETWEEN` の上下限は直接指定された NULL 以外のリテラルのみ、左辺は無修飾の直接列のみです。`BETWEEN` は比較値**二個分**として数え、既存の `=`・`IN` と合わせ**最大四個**。Boolean AST は `AND`／`OR` を含め最大七ノードです。F# の型付き解析と Host の実テーブル証明を再利用します。
 
 `NOT BETWEEN`、NULL／計算式の境界、列対列の範囲、定数だけの恒真式、計五個以上の比較値、副問い合わせ、JOIN、CTE および未検証の形は拒否します。Preview の全ソース行集承認、有限の正の行数制限、実 Catalog と独立した権限、保持トランザクションロック、使い捨て承認、コミット時の全行／スキーマ再検証と正確な行数照合は従来どおり必須です。SQLite／PostgreSQL RETURNING と SQL Server OUTPUT INSERTED はコミット後のみ実際の対象行を返し、MySQL RETURNING は非対応です。MCP ツール、ドライバーや公開 API は追加せず、読み取り専用四ツールと DML 既定無効を維持します。
+
+### M09：SQLite ネイティブ INSERT SELECT を原子的 DML トランザクションへ統合（develop 限定）
+
+既存の**原子的 DML トランザクション**は INSERT VALUES、UPDATE、DELETE の複数文を順序付きの一回限りの承認で実行できます。MCP ツールの追加は不要です。今回、**2～16 文**のバッチに、物理ソースが証明された SQLite `INSERT SELECT` を**ちょうど 1 文**だけ混在させることができます。
+
+```sql
+INSERT INTO main.users (name)
+  SELECT name FROM main.import_users WHERE id IN (1, 2)
+  RETURNING id, name;
+INSERT INTO main.users (name) VALUES ('Manual');
+```
+
+各文は既存の F# コンパイラと実際の SQLite `main` Catalog で個別に解析・許可・プレビューされます。集約された使い捨て承認は順序、すべてのソース行の指紋、**バッチ全体の変更行数上限**を固定します。コミット時には**同じ SQLite 書き込みトランザクション**の中で各文直前に構造とソース行集合を再検証し、先行文の変更も考慮します。先行文が後続の承認済みソースを変えたり、後続の制約違反が発生したりすれば、**それまでの変更も全てロールバック**します。生成 ID と `RETURNING` は全体のコミット成功後のみ公開します。複数の INSERT SELECT、他 DB、未検証の構造、JOIN／CTE／UPSERT はこの原子的スコープでは拒否します。新たな MCP ツール、ドライバー、公開 API はなく、読み取り専用 4 ツール選択・DML 無効を維持します。

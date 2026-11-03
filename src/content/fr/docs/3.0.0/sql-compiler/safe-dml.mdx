@@ -226,3 +226,16 @@ Les `INSERT SELECT` natifs et physiquement attestés de **SQLite, PostgreSQL, My
 Les `INSERT SELECT` natifs physiquement attestés de **SQLite, PostgreSQL, MySQL 8.4 InnoDB et SQL Server 2022** acceptent désormais `WHERE id BETWEEN 1 AND 2`, `WHERE id BETWEEN 1 AND 2 AND name IN ('Carol','Dave')` et `WHERE id BETWEEN 1 AND 1 OR id = 2`. Les deux bornes doivent être des littéraux directs non NULL ; le membre de gauche doit être une colonne directe non qualifiée. Chaque BETWEEN consomme **deux valeurs de comparaison** sur le plafond commun de **quatre** pour `=`, `IN` et BETWEEN. L'arbre booléen entier ne doit pas dépasser sept nœuds, connecteurs `AND`/`OR` inclus. Le parseur F# typé et les preuves du catalogue physique Host sont réutilisés.
 
 `NOT BETWEEN`, bornes NULL/calculées, intervalles entre colonnes, tautologies de constantes, au moins cinq valeurs comparées, sous-requêtes, JOIN, CTE et formes non prouvées restent refusés. L'aperçu engage toutes les lignes sources, le plafond positif fini, les droits distincts et l'identité réelle du Catalog. Au commit, verrous transactionnels, approbation unique, revérification de toutes les valeurs et du schéma, puis égalité exacte des lignes modifiées restent indispensables. SQLite/PostgreSQL RETURNING et SQL Server OUTPUT INSERTED n'exposent les vraies lignes cibles qu'après commit ; MySQL RETURNING reste indisponible. Aucun nouvel outil MCP, pilote ou API publique ; quatre outils de lecture choisis et DML désactivé par défaut.
+
+### M09 : INSERT SELECT SQLite natif dans une transaction DML atomique (develop uniquement)
+
+La **transaction DML atomique** existante accepte déjà plusieurs INSERT VALUES, UPDATE et DELETE ordonnés avec une approbation globale unique : aucun nouvel outil MCP de traitement par lot n'est nécessaire. Elle accepte désormais **un seul** `INSERT SELECT` SQLite dont la source physique est attestée, parmi **2 à 16 instructions** avec les DML déjà pris en charge.
+
+```sql
+INSERT INTO main.users (name)
+  SELECT name FROM main.import_users WHERE id IN (1, 2)
+  RETURNING id, name;
+INSERT INTO main.users (name) VALUES ('Manual');
+```
+
+Chaque instruction est compilée et autorisée séparément via le compilateur F# et le véritable Catalog SQLite `main`. L'approbation globale à usage unique lie l'ordre, les empreintes de toutes les lignes sources et le **plafond de lignes modifiées de toute la transaction**. Pendant **une même transaction d'écriture SQLite**, le schéma et toutes les lignes sources sont revérifiés avant chaque instruction, en tenant compte des changements précédents. Si une instruction change la source approuvée d'une instruction suivante, ou si une contrainte échoue ensuite, **toutes les écritures antérieures sont annulées**. Les identifiants générés et les résultats `RETURNING` ne sont publiés qu'après le commit de l'ensemble. Plusieurs INSERT SELECT, autres bases, schémas non attestés, JOIN/CTE/UPSERT restent refusés dans ce périmètre. Aucun nouvel outil MCP, pilote ou API publique ; quatre outils de lecture sélectionnés et DML désactivé par défaut.

@@ -164,7 +164,7 @@ F# 静态基数及封闭式写入准入、Host 实体双索引校验、预览→
 
 SQLite 现在可以从**另一张独立的 `main` 实体来源表**直接选取数据行，插入明确指定的 `main` 目标表，并沿用单语句预览／审批流程。来源与目标表**分别验证实际 schema、DDL、索引和触发器**；审批同时绑定两张表、编译后的 INSERT 和预览 SELECT、全部投影值的多重集合指纹、影响行数上限及安全策略。提交时先保留 SQLite 写锁，在同一事务内重新验证两张表及全部来源投影值，再执行一次插入。
 
-例如 `INSERT INTO main.users (name) SELECT name FROM main.other_users WHERE id = 1`。两侧都必须是真实 `main` 表；明确、唯一的目标列只能映射未使用别名的直接来源列，WHERE 仅允许「列＝非 NULL 常量」。CTE、JOIN、聚合、计算式、分页、RETURNING 通配符、表达式与别名、冲突处理、附加数据库、其他 DB、批量写入及审批后来源漂移仍被拒绝。默认四个只读工具和 DML 关闭不变。
+例如 `INSERT INTO main.users (name) SELECT name FROM main.other_users WHERE id = 1`。两侧都必须是真实 `main` 表；明确、唯一的目标列只能映射未使用别名的直接来源列，WHERE 仅允许「列＝非 NULL 常量」。CTE、JOIN、聚合、计算式、分页、RETURNING 通配符、表达式与别名、冲突处理、附加数据库、其他 DB、未经证明的来源批次及审批后来源漂移仍被拒绝。默认四个只读工具和 DML 关闭不变。
 
 
 SQLite 3.35+ 示例：`INSERT INTO main.users (name) SELECT name FROM main.other_users WHERE id = 1 RETURNING id, name`。预览批准源列 `name` 和数据行数；仅成功提交后才返回新行的 `id` 和 `name`。源数据变化时回滚，且不返回结果行。
@@ -226,3 +226,16 @@ SQL Server 2022 现在支持受限的单条 `INSERT INTO dbo.target (name) SELEC
 已验证物理来源的 **SQLite、PostgreSQL、MySQL 8.4 InnoDB 和 SQL Server 2022** 原生 `INSERT SELECT` 可使用 `WHERE id BETWEEN 1 AND 2`、`WHERE id BETWEEN 1 AND 2 AND name IN ('Carol','Dave')` 或 `WHERE id BETWEEN 1 AND 1 OR id = 2`。`BETWEEN` 两端必须是直接非 NULL 常量，左侧只能是未限定的直接列。每个 `BETWEEN` 计入**两个比较常量**；与原有 `=` 和 `IN` **总计最多四个**，整个布尔 AST 不超过七个节点，`AND`／`OR` 也计入节点上限。继续使用 F# 类型化解析和 Host 实体来源证明。
 
 `NOT BETWEEN`、NULL／表达式边界、列对列区间、纯常量永真条件、五个以上比较值、子查询、JOIN、CTE 及未证明形状仍拒绝。预览绑定完整来源行集和有限正数行数上限，实际 Catalog、独立权限、事务内锁、一次性审批、提交前完整数据与结构复核以及实际影响行数检查仍必需。SQLite／PostgreSQL RETURNING 和 SQL Server OUTPUT INSERTED 仅在成功提交后返回真实目标行；MySQL 不支持 RETURNING。无新 MCP 工具、驱动或公共 API；默认四个只读工具选中，DML 关闭。
+
+### M09：SQLite 原生 INSERT SELECT 纳入原子 DML 事务（仅 develop）
+
+现有的**原子 DML 事务**早已支持一次整批审批、按顺序执行多条 INSERT VALUES、UPDATE、DELETE，不需要新建 `execute_dml_sql_batch` 工具。此次新增：在 **2～16 条**的同一事务中允许**恰好一条**经过 SQLite 真实来源表验证的 `INSERT SELECT`，与已有 DML 同时提交。
+
+```sql
+INSERT INTO main.users (name)
+  SELECT name FROM main.import_users WHERE id IN (1, 2)
+  RETURNING id, name;
+INSERT INTO main.users (name) VALUES ('Manual');
+```
+
+每条语句仍独立编译、授权并依赖真实 SQLite `main` 表及原生 Catalog 预览。一次性**整批挑战**绑定执行顺序、完整来源行集指纹及**整批影响行数上限**。提交时只有**一个 SQLite 写事务**；每条语句执行前重新验证结构与全部来源行，包含前面语句已经造成的变化。若第一条改变后面的来源集合，或者后续 INSERT 遇到主键冲突，**全部已写入内容一同回滚**。`RETURNING` 与自动生成的 ID 只有整批成功提交后才返回，失败时不泄露。单条 INSERT SELECT 仍可独立使用；同批多个来源 SELECT、其他数据库、未验证结构、JOIN／CTE／UPSERT 等不开放。无新增 MCP 工具、驱动或公共 API；默认四个只读工具选中，DML 关闭。
