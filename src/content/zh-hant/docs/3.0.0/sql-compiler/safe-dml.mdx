@@ -271,3 +271,11 @@ INSERT INTO main.users (name) VALUES ('Manual');
 Host 現可針對單筆 PostgreSQL `INSERT ... VALUES (...) ON CONFLICT (id) DO NOTHING` 進行預覽、核准與提交。衝突欄位必須是實體資料表的非 NULL INT2／INT4／INT8 欄位，由該表**唯一一個立即強制生效（NOT DEFERRABLE）的單欄 PRIMARY／UNIQUE 鍵**約束；輸入必須是明確、非 NULL、精確的 64 位元整數常值。內建 PostgreSQL Provider 會查驗真實的資料表、索引、欄位與約束定義；含 Trigger、改寫規則、分割表、繼承或資料列層級安全政策的目標皆拒絕。預覽會將**預計新增 1 筆或略過 0 筆**綁定一次性核准。提交時先取得在交易結束前持續有效的 `SHARE ROW EXCLUSIVE NOWAIT` 表格鎖，阻止其他寫入者介入 Schema／鍵值重驗證；索引遭撤銷或衝突狀態變更就不執行。此強制鎖定會降低並行寫入能力，是刻意採取的首波安全限制。
 
 **仍然拒絕：**DO UPDATE、RETURNING、多筆 INSERT、省略衝突目標、多個 UNIQUE 鍵、部分／運算式／複合唯一鍵、NULL／文字／UUID 鍵、非內建 Provider、跨方言執行、Trigger 與原子批次。沒有新增 MCP 工具，也未開放通用 Upsert；預設仍只選取四個唯讀工具，DML 維持不勾選。
+
+### M11：PostgreSQL 單筆衝突更新與前後值核准（僅 develop）
+
+Typed Host 新增受嚴格限制的原生 PostgreSQL `INSERT (id, name) VALUES (7, 'new') ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name`。目標必須是實體永久一般資料表，且**恰好只有兩欄**：非 NULL 的 BIGINT 單欄 PRIMARY／UNIQUE 鍵，以及非 NULL 的 TEXT 值欄。資料表只能有**一個立即生效（NOT DEFERRABLE）的簡單唯一鍵**；不得有其他唯一索引或欄位、預設值、CHECK／外鍵、使用者 Trigger、改寫規則、分割／繼承或列層級安全政策。內建 PostgreSQL Provider 會核實實體定義，虛擬 Catalog 不提供執行授權。
+
+預覽固定顯示**影響一筆**：不存在衝突時標示 `INSERT`，更新前值為空；存在衝突時標示 `UPDATE`，呈現實際舊值與建議新值。一次性核准同時綁定完整舊資料列指紋與確切的新資料。提交時會取得持續到交易結束的 `SHARE ROW EXCLUSIVE NOWAIT` 表格鎖，重新驗證完整 Schema、索引與舊值，再原子執行 F# 編譯後的 SQL。衝突狀態、舊值或索引變更即取消。此強鎖刻意限制寫入並行度。
+
+**仍然拒絕：**通用 UPSERT、更新主鍵、任意 SET 運算式、UPDATE WHERE、多個欄位／多筆資料、RETURNING、NULL／非文字新值、其他資料表副作用、跨 Provider 與原子 DML 批次。預設四個唯讀 MCP 工具與 DML 不勾選維持不變。
