@@ -274,7 +274,7 @@ Host 現可針對單筆 PostgreSQL `INSERT ... VALUES (...) ON CONFLICT (id) DO 
 
 ### M11：PostgreSQL 單筆衝突更新與前後值核准（僅 develop）
 
-Typed Host 新增受嚴格限制的原生 PostgreSQL `INSERT (id, name) VALUES (7, 'new') ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name`。目標必須是實體永久一般資料表，且**恰好只有兩欄**：非 NULL 的 BIGINT 單欄 PRIMARY／UNIQUE 鍵，以及非 NULL 的 TEXT 值欄。資料表只能有**一個立即生效（NOT DEFERRABLE）的簡單唯一鍵**；不得有其他唯一索引或欄位、預設值、CHECK／外鍵、使用者 Trigger、改寫規則、分割／繼承或列層級安全政策。內建 PostgreSQL Provider 會核實實體定義，虛擬 Catalog 不提供執行授權。
+Typed Host 新增受嚴格限制的原生 PostgreSQL `INSERT INTO users (id, name) VALUES (7, 'new') ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name`。目標必須是實體永久一般資料表，且**恰好只有兩欄**：非 NULL 的 BIGINT 單欄 PRIMARY／UNIQUE 鍵，以及非 NULL 的 TEXT 值欄。資料表只能有**一個立即生效（NOT DEFERRABLE）的簡單唯一鍵**；不得有其他唯一索引或欄位、預設值、CHECK／外鍵、使用者 Trigger、改寫規則、分割／繼承或列層級安全政策。內建 PostgreSQL Provider 會核實實體定義，虛擬 Catalog 不提供執行授權。
 
 預覽固定顯示**影響一筆**：不存在衝突時標示 `INSERT`，更新前值為空；存在衝突時標示 `UPDATE`，呈現實際舊值與建議新值。一次性核准同時綁定完整舊資料列指紋與確切的新資料。提交時會取得持續到交易結束的 `SHARE ROW EXCLUSIVE NOWAIT` 表格鎖，重新驗證完整 Schema、索引與舊值，再原子執行 F# 編譯後的 SQL。衝突狀態、舊值或索引變更即取消。此強鎖刻意限制寫入並行度。
 
