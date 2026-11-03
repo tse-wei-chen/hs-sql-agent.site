@@ -265,3 +265,9 @@ INSERT INTO main.users (name) VALUES ('Manual');
 既有單筆 `ON CONFLICT (id) DO NOTHING` 的預覽、核准與提交流程，現在也支援由實體資料庫強制約束的**單欄簡單 UNIQUE 鍵**，即使 `id` 不是主鍵亦可。該鍵必須是資料表中**唯一一個**有效的唯一約束或唯一索引，且與指定衝突欄位完全一致；待寫入的鍵值必須是明確、非 NULL、精確的 64 位元整數常值。內建 SQLite Provider 會驗證真實 metadata。預覽會綁定**插入 1 筆**或**略過 0 筆**，提交前則在相同寫入交易內重新確認 Schema 與鍵值狀態。索引遭刪除或變更時，原核准立即失效。
 
 **仍然拒絕：**多個唯一鍵、部分索引或運算式索引、複合鍵、非唯一索引、DO UPDATE、省略衝突目標、多筆 INSERT、RETURNING、Trigger、跨資料庫執行及原子批次。本功能不是通用 Upsert；預設仍只選取 4 個唯讀工具，DML 預設不勾選。
+
+### M10：PostgreSQL 原生單筆衝突略過核准（僅 develop）
+
+Host 現可針對單筆 PostgreSQL `INSERT ... VALUES (...) ON CONFLICT (id) DO NOTHING` 進行預覽、核准與提交。衝突欄位必須是實體資料表的非 NULL INT2／INT4／INT8 欄位，由該表**唯一一個有效的單欄 PRIMARY／UNIQUE 鍵**約束；輸入必須是明確、非 NULL、精確的 64 位元整數常值。內建 PostgreSQL Provider 會查驗真實的資料表、索引、欄位與約束定義；含 Trigger、改寫規則、分割表、繼承或資料列層級安全政策的目標皆拒絕。預覽會將**預計新增 1 筆或略過 0 筆**綁定一次性核准。提交時先取得在交易結束前持續有效的 `SHARE ROW EXCLUSIVE NOWAIT` 表格鎖，阻止其他寫入者介入 Schema／鍵值重驗證；索引遭撤銷或衝突狀態變更就不執行。此強制鎖定會降低並行寫入能力，是刻意採取的首波安全限制。
+
+**仍然拒絕：**DO UPDATE、RETURNING、多筆 INSERT、省略衝突目標、多個 UNIQUE 鍵、部分／運算式／複合唯一鍵、NULL／文字／UUID 鍵、非內建 Provider、跨方言執行、Trigger 與原子批次。沒有新增 MCP 工具，也未開放通用 Upsert；預設仍只選取四個唯讀工具，DML 維持不勾選。
