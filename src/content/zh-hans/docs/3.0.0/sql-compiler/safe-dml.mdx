@@ -271,3 +271,11 @@ INSERT INTO main.users (name) VALUES ('Manual');
 Host 现在可对单行 PostgreSQL `INSERT ... VALUES (...) ON CONFLICT (id) DO NOTHING` 进行预览、审批与提交。冲突列必须是物理数据表的非 NULL INT2／INT4／INT8 列，并由该表**唯一一个立即强制生效（NOT DEFERRABLE）的单列 PRIMARY／UNIQUE 键**约束；插入值必须是显式、非 NULL、精确的 64 位整数常量。内置 PostgreSQL 提供程序核验实际数据表、索引、列与约束定义；带有触发器、重写规则、分区、继承或行级安全策略的目标均拒绝。预览将**预计插入 1 行或跳过 0 行**绑定到一次性审批。提交时先获取持续到事务结束的 `SHARE ROW EXCLUSIVE NOWAIT` 表锁，在重新核验模式与键值时排除并发写入；索引撤销或冲突状态改变即取消执行。此强锁会限制并发写入，是首批能力有意保留的安全限制。
 
 **仍然拒绝：**DO UPDATE、RETURNING、多行插入、省略冲突目标、多个 UNIQUE 键、部分／表达式／复合唯一键、NULL／文本／UUID 键、非内置提供程序、跨方言执行、触发器及原子批次。不新增 MCP 工具或通用 Upsert；默认仍选中四个只读工具，DML 保持关闭。
+
+### M11：PostgreSQL 单行冲突更新及前后值审批（仅 develop）
+
+Typed Host 新增严格受限的原生 PostgreSQL `INSERT INTO users (id, name) VALUES (7, 'new') ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name`。目标必须为实际永久普通数据表，且**恰好只有两列**：非 NULL 的 BIGINT 单列 PRIMARY／UNIQUE 键，以及非 NULL 的 TEXT 值列。全表只能有**一个立即执行（NOT DEFERRABLE）的简单唯一键**；不得有额外唯一索引或列、默认值、CHECK／外键、用户触发器、重写规则、分区／继承或行级安全策略。内置 PostgreSQL 提供程序核验物理定义；虚拟 Catalog 不授予执行权限。
+
+预览固定显示**影响一行**：无冲突时标为 `INSERT`，更新前值为空；有冲突时标为 `UPDATE`，显示实际旧值和建议新值。一次性审批同时绑定完整旧记录指纹与确切新值。提交时先取得保持到事务结束的 `SHARE ROW EXCLUSIVE NOWAIT` 表锁，复验完整模式、索引和旧值，再原子执行 F# 编译的 SQL。冲突状态、旧值或索引改变就取消写入。该强锁有意限制写入并发。
+
+**仍然拒绝：**通用 UPSERT、修改键值、任意 SET 表达式、UPDATE WHERE、多列／多行操作、RETURNING、NULL／非文本值、额外表副作用、跨提供程序执行及原子 DML 批次。默认四个只读 MCP 工具和 DML 关闭保持不变。
