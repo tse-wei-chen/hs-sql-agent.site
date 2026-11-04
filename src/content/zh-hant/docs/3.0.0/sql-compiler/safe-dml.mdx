@@ -285,3 +285,9 @@ Typed Host 新增受嚴格限制的原生 PostgreSQL `INSERT INTO users (id, nam
 既有 Typed Host 的 `ON CONFLICT DO UPDATE` 現在可一次核准 **2～4 個 `TEXT NOT NULL` 值欄位**（原本單欄仍支援），並搭配一個實體 `BIGINT NOT NULL` 主鍵／唯一鍵。例如：`INSERT INTO users (id, name, city) VALUES (7, 'new-name', 'new-city') ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name, city = EXCLUDED.city`。單筆 INSERT 明確列出的每個非鍵欄位，皆須以對應的 `SET 欄位 = EXCLUDED.欄位` 更新；省略部分欄位、重複指定、將值寫到不同欄位、函式運算或改動鍵值一律拒絕。永久一般實體資料表**只能包含該鍵與這些更新欄位**，且只能有一個立即生效的簡單唯一鍵；不得包含預設值、額外索引、CHECK／外鍵、Trigger、改寫規則、繼承／分割或資料列層級安全政策。
 
 預覽會顯示一筆 `INSERT` 或 `UPDATE`，並列出 `__before_name`／`__after_name`、`__before_city`／`__after_city` 等逐欄前後值。一次性核准會綁定完整舊資料列、全部新值、Schema 與編譯後 SQL。提交時取得 `SHARE ROW EXCLUSIVE NOWAIT` 表格鎖，重新驗證實體定義及所有舊值，才在同一交易中執行；**任一欄**被改動、新增衝突或索引／Schema 變更都會整筆取消。這種鎖定會限制並行寫入。五個以上更新欄位、部分更新、運算式、`RETURNING`、多筆輸入與 DML 批次仍不支援；預設四個唯讀 MCP 工具與 DML 不勾選皆不變。
+
+### M13：PostgreSQL 衝突更新的型別驗證與空值核准（僅 develop）
+
+現有單筆 PostgreSQL `ON CONFLICT DO UPDATE` 核准，現在允許 **1～4 個更新欄位**，其實體型別可為 `TEXT`、`SMALLINT`、`INTEGER` 或 `BIGINT`，各欄可允許空值或設為 `NOT NULL`。例如：`INSERT INTO users (id, name, visits, balance) VALUES (7, NULL, 2147483647, 42) ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name, visits = EXCLUDED.visits, balance = EXCLUDED.balance`。Host 會依真實欄位型別驗證每個常值：文字常值只能寫入 `TEXT`；精確的帶正負號整數必須符合目標整數型別範圍；SQL `NULL` 只能寫入實際允許空值的欄位。不接受隱含文字轉數字、小數四捨五入或運算式。永久一般實體資料表仍須恰好包含一個 `BIGINT NOT NULL` 唯一鍵及這些更新欄位，且僅有一個立即生效的主鍵／唯一鍵；額外索引、預設值、CHECK／外鍵、觸發器、改寫規則、繼承、分割表與資料列層級安全政策仍拒絕。
+
+預覽會呈現 `INSERT` 或 `UPDATE`，以及每一欄真正的更新前值與建議新值，包含 `NULL`。一次性核准綁定完整舊資料列、全部新常值與實體結構指紋。提交時在 `SHARE ROW EXCLUSIVE NOWAIT` 表格鎖保護下重新驗證所有舊值、欄位型別與是否允許空值，再原子執行編譯後 SQL。預覽後任一空值狀態改變、新衝突出現或實體結構漂移，都會整筆拒絕。強鎖會限制並行寫入。日期／時間、浮點數、`NUMERIC`、`UUID`、任意運算式、部分／多筆 UPSERT 與 DML 批次仍不支援。**升級 M13 後，先前尚未執行的 M12 核准須重新預覽。** 預設仍只選四個唯讀工具，DML 不勾選。
