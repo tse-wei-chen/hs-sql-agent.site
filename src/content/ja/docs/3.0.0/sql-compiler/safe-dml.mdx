@@ -301,3 +301,9 @@ PostgreSQL の競合 UPDATE を Host が実行承認するには、整数値が 
 既存の PostgreSQL 単一行 `ON CONFLICT (id) DO UPDATE SET 列 = EXCLUDED.列` 承認で、`RETURNING` に **1～5 個の重複しない、修飾なしの物理的な直接列**を指定できます。例：`INSERT INTO users(id,name,amount) VALUES(7,'new',42) ON CONFLICT(id) DO UPDATE SET name=EXCLUDED.name, amount=EXCLUDED.amount RETURNING id,name,amount`。戻り列は、証明済みの一意キーと 1～4 個の承認された値列だけです。`RETURNING *`、式、別名、重複、表による修飾、システム列や無関係な列は拒否されます。INSERT／SET の式・型・唯一キー・物理テーブルの制限は変わりません。
 
 使い捨て承認は正確な SQL、旧行全体と提案値すべてを拘束します。同じ `SHARE ROW EXCLUSIVE NOWAIT` ロックのもとでコミット時に再検証し、Commit 成功が確認された後のみ、既存の構造化結果から**データベースが実際に返した行**（SQL NULL を含む）を提示します。競合状態・旧値・インデックスの変更は全体を中止し、行も返しません。MCP ツールは増えず、既定の 4 つの読み取り専用ツールと DML 無効設定も維持します。競合更新を含む DML 原子バッチは引き続き非対応です。
+
+### G9：PostgreSQL の競合スキップでキーだけを RETURNING（develop のみ）
+
+既存の PostgreSQL 単一行 `INSERT INTO users(id,name) VALUES(7,'new') ON CONFLICT(id) DO NOTHING` の実行承認では、競合対象と同一の修飾なし実テーブル一意キーに限り、**`RETURNING id`** を指定できます。永続通常テーブルのキーは、NULL 不可の INT2／INT4／INT8 で、即時有効な単一列 PRIMARY／UNIQUE キーが唯一存在する必要があります。スキーマ・インデックス・トリガー・行レベルセキュリティに関する既存の検証も維持します。キー以外の列、ワイルドカード、別名、式、重複、テーブル修飾、システム列は拒否します。SQLite の `DO NOTHING RETURNING` は引き続き非対応です。
+
+プレビュー時の競合状態を使い捨て承認に結び付け、コミット時には `SHARE ROW EXCLUSIVE NOWAIT` ロックの下で実際のキーとスキーマを再確認します。トランザクションのコミット成功が確認された場合に限り、既存の構造化結果から**実際に挿入したキー**を返します。競合によって挿入をスキップした場合は**戻り行が 0 件**です。競合状態・キー・インデックスの変更は書き込みと結果の公開を取り消します。強いロックは並列書き込みを制限します。MCP ツールや競合を含む原子的 DML バッチは増やさず、既定の読み取り専用ツール 4 個と DML 無効設定も維持します。

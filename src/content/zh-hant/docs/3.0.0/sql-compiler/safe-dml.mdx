@@ -301,3 +301,9 @@ Typed Host 新增受嚴格限制的原生 PostgreSQL `INSERT INTO users (id, nam
 既有 PostgreSQL 原生單筆 `ON CONFLICT (id) DO UPDATE SET 欄位 = EXCLUDED.欄位` 核准，現在可搭配 **1～5 個不重複、不帶表格限定的實體直接欄位**作為 `RETURNING`，例如 `INSERT INTO users(id,name,amount) VALUES(7,'new',42) ON CONFLICT(id) DO UPDATE SET name=EXCLUDED.name, amount=EXCLUDED.amount RETURNING id,name,amount`。回傳欄位只能來自已證明的唯一鍵與 1～4 個獲准值欄位；`RETURNING *`、運算式、別名、重複欄位、表格限定欄位、系統欄位與其他未證明欄位仍拒絕。INSERT／SET、欄位型別、唯一鍵及實體表格的限制不會因此放寬。
 
 一次性核准仍綁定精確 SQL、整筆舊資料與所有新值。提交時在相同 `SHARE ROW EXCLUSIVE NOWAIT` 表格鎖下重新驗證；只在 Commit 確認成功後，透過既有結構化結果回傳**資料庫實際產生**的資料列（包含 SQL NULL），不以預覽資料假冒結果。衝突狀態、舊值或索引發生變化則整筆取消，不回傳任何結果列。不新增 MCP 工具，也不改變預設勾選四個唯讀工具、DML 預設不勾選。原生衝突更新仍不支援加入 DML 原子批次。
+
+### G9：PostgreSQL 衝突略過後只回傳唯一鍵（僅 develop）
+
+既有 PostgreSQL 單筆 `INSERT INTO users(id,name) VALUES(7,'new') ON CONFLICT(id) DO NOTHING` 執行核准，現在僅允許搭配 **`RETURNING id`**，且 `id` 必須與衝突目標指向同一個未加表格限定的實體唯一鍵。正式資料表仍須具有唯一一組簡單、立即生效、不可為空的 INT2／INT4／INT8 主鍵或唯一鍵；Schema、索引、觸發器與資料列安全性等既有驗證一律保留。回傳其他欄位、萬用字元、別名、運算式、重複或表格限定欄位及系統欄位仍拒絕。SQLite 的 `DO NOTHING RETURNING` 不在本次開放範圍。
+
+預覽會把當時的唯一鍵衝突狀態綁定至一次性核准。提交時在 `SHARE ROW EXCLUSIVE NOWAIT` 表格鎖下重新驗證實體鍵與結構，只有確認交易提交成功，才透過既有結構化結果回傳**資料庫實際插入的唯一鍵**；因衝突而略過時**不回傳任何資料列**。衝突狀態、鍵或索引發生變化就取消寫入，且不洩漏結果。強鎖仍會降低並行寫入量。本次不新增 MCP 工具、不開放衝突語句的原子 DML 批次；預設四個唯讀工具勾選、DML 不勾選維持不變。
