@@ -295,3 +295,9 @@ Typed Host는 엄격히 제한된 PostgreSQL `INSERT INTO users (id, name) VALUE
 #### M13 Host 안전 강화: 정수 원본 표기와 인용 열 식별
 
 PostgreSQL 충돌 UPDATE의 Host 실행 승인을 받으려면 정수 값은 `42`, `-12`처럼 **일반 10진 정수 토큰**으로 작성되어야 합니다. F#가 `1e10`, `4.2e1`, `42.0`을 정확한 정수 값으로 정규화할 수 있더라도 원본 표기 자체는 **Host 승인 증거로 인정되지 않습니다**. 명시적인 정수 리터럴로 다시 입력해야 합니다. PostgreSQL에서 따옴표로 감싼 열 이름은 대소문자를 구분하므로 변경 전후 행 지문이 혼동하지 않도록 `id`와 `"ID"`처럼 대소문자만 다른 키/값 열을 함께 승인하지 않습니다. `"__ACTION"`처럼 미리보기에서 생성하는 필드와 대소문자를 무시했을 때 겹치는 이름도 거부합니다. 일반 SQL 컴파일러의 파싱과 M13의 TEXT／SMALLINT／INTEGER／BIGINT／SQL NULL 기능은 변경되지 않습니다.
+
+### G9: PostgreSQL 충돌 UPDATE의 제한된 직접 열 RETURNING (develop 전용)
+
+기존 PostgreSQL 단일 행 `ON CONFLICT (id) DO UPDATE SET 열 = EXCLUDED.열` 승인에서 `RETURNING`에 **1～5개 중복되지 않은 비한정 실제 직접 열**을 지정할 수 있습니다. 예: `INSERT INTO users(id,name,amount) VALUES(7,'new',42) ON CONFLICT(id) DO UPDATE SET name=EXCLUDED.name, amount=EXCLUDED.amount RETURNING id,name,amount`. 반환 열은 증명된 고유 키와 승인된 1～4개 값 열에만 속해야 합니다. `RETURNING *`, 식, 별칭, 중복, 테이블 한정 열, 시스템 열 및 관련 없는 열은 거부합니다. INSERT／SET 식, 타입, 고유 키, 물리 테이블의 기존 제약은 완화하지 않습니다.
+
+일회용 승인은 정확한 SQL, 이전 행 전체 및 모든 제안 값을 묶습니다. 커밋 시 동일한 `SHARE ROW EXCLUSIVE NOWAIT` 테이블 잠금으로 재검증하고 Commit 성공이 확인된 뒤에만 기존 구조화 결과로 **DB가 실제 반환한 행**(SQL NULL 포함)을 제공합니다. 충돌 상태, 이전 값 또는 인덱스가 바뀌면 작업 전체를 취소하고 결과 행은 반환하지 않습니다. MCP 도구나 읽기 전용 기본 선택 4개, DML 비활성화 기본 설정은 변경하지 않습니다. 충돌 UPDATE가 들어간 원자 DML 배치는 계속 지원하지 않습니다.
