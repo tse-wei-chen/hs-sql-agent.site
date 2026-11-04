@@ -285,3 +285,9 @@ Typed Host 新增严格受限的原生 PostgreSQL `INSERT INTO users (id, name) 
 现有 Typed Host 的 `ON CONFLICT DO UPDATE` 可一次审批 **2～4 个 `TEXT NOT NULL` 值列**（原先单列仍支持），配合一个实际 `BIGINT NOT NULL` 主键／唯一键。例如：`INSERT INTO users (id, name, city) VALUES (7, 'new-name', 'new-city') ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name, city = EXCLUDED.city`。单行 INSERT 显式列出的每个非键列，都必须由对应的 `SET 列 = EXCLUDED.列` 更新；遗漏列、重复赋值、交叉赋值、函数运算或修改键值均被拒绝。永久普通物理表**只能包含该键和这些更新列**，且只有一个立即生效的简单唯一键；不允许默认值、额外索引、CHECK／外键、触发器、重写规则、继承／分区或行级安全策略。
 
 预览显示一行 `INSERT` 或 `UPDATE`，并列出 `__before_name`／`__after_name`、`__before_city`／`__after_city` 等逐列前后值。一次性审批绑定完整旧记录、全部新值、Schema 与编译 SQL。提交时持有 `SHARE ROW EXCLUSIVE NOWAIT` 表锁，重新验证实际定义及所有旧值后才在同一事务中执行；**任一列**变化、新冲突或索引／Schema 改变都会取消整个操作。该锁限制并发写入。五列以上更新、部分更新、表达式、`RETURNING`、多行输入和 DML 批次仍不支持；默认四个只读 MCP 工具及 DML 关闭保持不变。
+
+### M13：PostgreSQL TEXT／BIGINT 混合列更新审批（仅 develop）
+
+M13 把原本只允许 `TEXT NOT NULL` 的单行 PostgreSQL 冲突更新，扩展为 **1～4 个 `TEXT NOT NULL` 和 `BIGINT NOT NULL` 任意混合的值列**；实际唯一／主键仍为 `BIGINT NOT NULL`。例如：`INSERT INTO users (id, name, quantity) VALUES (7, 'new-name', 42) ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name, quantity = EXCLUDED.quantity`。新值必须与物理类型**完全对应**：TEXT 使用带引号字符串，BIGINT 使用精确且不超出 64 位范围的整数常量；拒绝字符串隐式转整数、小数、科学记数法、NULL 及溢出值。单行 INSERT 的每个非键列都必须由对应的 `SET 列 = EXCLUDED.列` 更新；现有纯 TEXT 用法不变。
+
+预览显示所有列的更新前后值，并把完整旧记录、所有新值、编译 SQL 及物理 Schema 绑定到一次性审批。提交时持有 `SHARE ROW EXCLUSIVE NOWAIT` 表锁，重新验证真实类型、唯一键和旧值，然后原子执行。任意 BIGINT 旧值变化、新冲突或类型／索引／Schema 漂移都会取消整笔操作。目标仍限永久普通表，只有键和 1～4 个更新列、一个立即有效的唯一键，不允许额外索引、默认值、CHECK／外键、触发器、重写规则、分区、继承或行级安全。此锁限制并发写入。INT4、NUMERIC、浮点、日期时间、可空列、表达式、RETURNING、多行和 DML 批次仍被拒绝。默认四个只读 MCP 工具和 DML 关闭保持不变。
