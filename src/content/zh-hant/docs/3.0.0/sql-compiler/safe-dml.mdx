@@ -291,3 +291,7 @@ Typed Host 新增受嚴格限制的原生 PostgreSQL `INSERT INTO users (id, nam
 現有單筆 PostgreSQL `ON CONFLICT DO UPDATE` 核准，現在允許 **1～4 個更新欄位**，其實體型別可為 `TEXT`、`SMALLINT`、`INTEGER` 或 `BIGINT`，各欄可允許空值或設為 `NOT NULL`。例如：`INSERT INTO users (id, name, visits, balance) VALUES (7, NULL, 2147483647, 42) ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name, visits = EXCLUDED.visits, balance = EXCLUDED.balance`。Host 會依真實欄位型別驗證每個常值：文字常值只能寫入 `TEXT`；精確的帶正負號整數必須符合目標整數型別範圍；SQL `NULL` 只能寫入實際允許空值的欄位。不接受隱含文字轉數字、小數四捨五入或運算式。永久一般實體資料表仍須恰好包含一個 `BIGINT NOT NULL` 唯一鍵及這些更新欄位，且僅有一個立即生效的主鍵／唯一鍵；額外索引、預設值、CHECK／外鍵、觸發器、改寫規則、繼承、分割表與資料列層級安全政策仍拒絕。
 
 預覽會呈現 `INSERT` 或 `UPDATE`，以及每一欄真正的更新前值與建議新值，包含 `NULL`。一次性核准綁定完整舊資料列、全部新常值與實體結構指紋。提交時在 `SHARE ROW EXCLUSIVE NOWAIT` 表格鎖保護下重新驗證所有舊值、欄位型別與是否允許空值，再原子執行編譯後 SQL。預覽後任一空值狀態改變、新衝突出現或實體結構漂移，都會整筆拒絕。強鎖會限制並行寫入。日期／時間、浮點數、`NUMERIC`、`UUID`、任意運算式、部分／多筆 UPSERT 與 DML 批次仍不支援。**升級 M13 後，先前尚未執行的 M12 核准須重新預覽。** 預設仍只選四個唯讀工具，DML 不勾選。
+
+#### M13 Host 安全補強：整數原始寫法與引號欄位身分
+
+原生 PostgreSQL 衝突更新若要取得 Host 執行核准，整數值必須來自**一般十進位整數 Token**，例如 `42` 或 `-12`。即使 F# 能將 `1e10`、`4.2e1` 或 `42.0` 無損正規化成整數，這些原始寫法仍**不能作為 Host 核准證明**；須改用明確的整數字面量。為避免核准前後值指紋混淆 PostgreSQL 區分大小寫的引號欄名，同一筆核准不得同時包含 `id` 與 `"ID"` 等僅大小寫不同的鍵和值欄；與 `"__ACTION"` 等預覽合成欄名大小寫折疊後撞名也會拒絕。此限制不改變通用 SQL Compiler 的解析能力，也不縮減 M13 已支援的 TEXT／SMALLINT／INTEGER／BIGINT／SQL NULL 能力。
