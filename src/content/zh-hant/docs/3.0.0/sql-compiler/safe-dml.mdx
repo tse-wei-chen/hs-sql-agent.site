@@ -285,3 +285,9 @@ Typed Host 新增受嚴格限制的原生 PostgreSQL `INSERT INTO users (id, nam
 既有 Typed Host 的 `ON CONFLICT DO UPDATE` 現在可一次核准 **2～4 個 `TEXT NOT NULL` 值欄位**（原本單欄仍支援），並搭配一個實體 `BIGINT NOT NULL` 主鍵／唯一鍵。例如：`INSERT INTO users (id, name, city) VALUES (7, 'new-name', 'new-city') ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name, city = EXCLUDED.city`。單筆 INSERT 明確列出的每個非鍵欄位，皆須以對應的 `SET 欄位 = EXCLUDED.欄位` 更新；省略部分欄位、重複指定、將值寫到不同欄位、函式運算或改動鍵值一律拒絕。永久一般實體資料表**只能包含該鍵與這些更新欄位**，且只能有一個立即生效的簡單唯一鍵；不得包含預設值、額外索引、CHECK／外鍵、Trigger、改寫規則、繼承／分割或資料列層級安全政策。
 
 預覽會顯示一筆 `INSERT` 或 `UPDATE`，並列出 `__before_name`／`__after_name`、`__before_city`／`__after_city` 等逐欄前後值。一次性核准會綁定完整舊資料列、全部新值、Schema 與編譯後 SQL。提交時取得 `SHARE ROW EXCLUSIVE NOWAIT` 表格鎖，重新驗證實體定義及所有舊值，才在同一交易中執行；**任一欄**被改動、新增衝突或索引／Schema 變更都會整筆取消。這種鎖定會限制並行寫入。五個以上更新欄位、部分更新、運算式、`RETURNING`、多筆輸入與 DML 批次仍不支援；預設四個唯讀 MCP 工具與 DML 不勾選皆不變。
+
+### M13：PostgreSQL TEXT／BIGINT 混合欄位更新核准（僅 develop）
+
+M13 將原本僅允許 `TEXT NOT NULL` 的單筆 PostgreSQL 衝突更新，擴充為 **1～4 個 `TEXT NOT NULL` 與 `BIGINT NOT NULL` 任意混合的值欄位**，實體唯一／主鍵仍須為 `BIGINT NOT NULL`。例如：`INSERT INTO users (id, name, quantity) VALUES (7, 'new-name', 42) ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name, quantity = EXCLUDED.quantity`。值必須與實體型別**完全相符**：TEXT 使用引號字串、BIGINT 使用精確且在 64 位元範圍內的整數常值；拒絕字串隱式轉整數、小數、科學記號、NULL 與溢位值。單筆 INSERT 的所有非鍵欄位都必須分別以對應的 `SET 欄位 = EXCLUDED.欄位` 更新；原本 TEXT-only 的用法仍有效。
+
+預覽會呈現所有欄位的更新前／後值，並將完整舊資料列、全部新值、編譯後 SQL 與實體 Schema 綁定一次性核准。提交時取得 `SHARE ROW EXCLUSIVE NOWAIT` 表格鎖，重新驗證實體型別、唯一鍵與舊值後，才原子執行。任一 BIGINT 舊值、新出現的衝突或型別／索引／Schema 變更，皆取消整筆操作。目標仍限永久一般資料表、僅有鍵加上 1～4 個更新欄、單一立即有效的唯一鍵；不得有額外索引、預設值、CHECK／外鍵、Trigger、改寫規則、分割、繼承或列層級安全政策。此表格鎖會降低並行寫入量。INT4、NUMERIC、浮點數、日期時間、可空欄、運算式、RETURNING、多筆與 DML 批次仍拒絕。預設四個唯讀 MCP 工具與 DML 不勾選維持不變。
