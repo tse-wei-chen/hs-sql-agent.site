@@ -291,3 +291,7 @@ Typed Host は、厳しく制限された PostgreSQL の `INSERT INTO users (id,
 既存の PostgreSQL 単一行 `ON CONFLICT DO UPDATE` 承認は、**1～4 個の更新列**に `TEXT`、`SMALLINT`、`INTEGER`、`BIGINT` を許可します。各列は NULL 許容または `NOT NULL` です。例：`INSERT INTO users (id, name, visits, balance) VALUES (7, NULL, 2147483647, 42) ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name, visits = EXCLUDED.visits, balance = EXCLUDED.balance`。Host は実テーブルの列型を検証し、文字列リテラルは `TEXT` のみ、正確な符号付き整数は対象整数型の範囲内のみ、SQL `NULL` は NULL 許容列のみに制限します。文字列から整数への暗黙変換、小数の丸め、任意式は許可しません。永続通常テーブルは `BIGINT NOT NULL` のキー 1 列と更新列だけで構成し、即時適用の主キー／一意キー 1 個のみを許可します。追加インデックス、既定値、CHECK／外部キー、トリガー、書き換え規則、継承、パーティション、行レベルセキュリティは拒否します。
 
 プレビューには `INSERT`／`UPDATE` とすべての旧値・提案値（実際の `NULL` を含む）を表示します。使い捨て承認は旧行全体、新しいリテラルすべてと物理スキーマのフィンガープリントを結び付けます。コミット時には `SHARE ROW EXCLUSIVE NOWAIT` テーブルロック下で旧値、列型、NULL 許容設定を再検証してから、コンパイル済み SQL を原子的に実行します。プレビュー後の NULL 状態変更、新たな競合、スキーマの変更は全操作を中止します。この強いロックは並列書き込みを制限します。日付／時刻、浮動小数点、`NUMERIC`、`UUID`、任意式、部分／複数行 UPSERT、DML バッチは引き続き非対応です。**M13 導入後、未実行の M12 承認は再プレビューしてください。** 既定の読み取り専用ツール 4 個と DML 無効は変更しません。
+
+#### M13 Host 安全強化：整数の原文表記と引用列名の識別
+
+PostgreSQL の競合 UPDATE を Host が実行承認するには、整数値が `42` や `-12` のような**通常の十進整数トークン**として記述されていなければなりません。F# が `1e10`、`4.2e1`、`42.0` を正確な整数値に正規化できても、その元の表記は**Host 実行承認には使用できません**。通常の整数リテラルで再入力してください。PostgreSQL の引用列名は大文字と小文字を区別しますが、変更前後の行指紋で誤認しないよう、`id` と `"ID"` のように大文字小文字だけ異なるキー列と値列を同時に承認しません。`"__ACTION"` などプレビュー用の合成列名と大文字小文字を無視して衝突する場合も拒否します。一般 SQL コンパイラーの解析能力と M13 の TEXT／SMALLINT／INTEGER／BIGINT／SQL NULL 対応は変更しません。
