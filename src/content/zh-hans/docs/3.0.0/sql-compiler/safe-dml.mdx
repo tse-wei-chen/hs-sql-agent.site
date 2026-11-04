@@ -307,3 +307,9 @@ Typed Host 新增严格受限的原生 PostgreSQL `INSERT INTO users (id, name) 
 现有 PostgreSQL 单行 `INSERT INTO users(id,name) VALUES(7,'new') ON CONFLICT(id) DO NOTHING` 执行审批现在只允许附加 **`RETURNING id`**，其中 `id` 必须与显式冲突目标对应同一个未加表限定的实际唯一键。永久普通表仍须具有唯一一组简单、立即生效、非空 INT2／INT4／INT8 主键或唯一键；模式、索引、触发器和行级安全等原有检查全部保留。其他返回列、通配符、别名、表达式、重复列、带表限定列和系统列继续拒绝。SQLite 的 `DO NOTHING RETURNING` 仍不支持。
 
 预览将当时的唯一键冲突状态绑定到一次性审批。提交时在 `SHARE ROW EXCLUSIVE NOWAIT` 表锁下重新验证真实键和模式，只有确认事务提交成功后，才通过已有结构化结果返回**数据库实际插入的键值**；因冲突跳过则**不返回任何行**。冲突状态、键或索引改变都会取消写入，且不泄露结果。强锁仍会降低并发写入能力。本次不增加 MCP 工具，也不开放冲突语句的原子 DML 批次；默认四个只读工具勾选、DML 未勾选的设置保持不变。
+
+### G9：SQL Server 2022 MERGE 匹配删除与实际审批（仅 develop）
+
+SQL Server MERGE 编译器已有 `WITH (HOLDLOCK)`，但**能够编译不等于获准执行**。现在 Typed Host 仅批准**单行整数字面量来源、实际单列 INT 主键精确匹配、单个 `WHEN MATCHED THEN DELETE`**，例如 `MERGE INTO dbo.inventory AS t USING (VALUES(7)) AS s(id) ON t.id=s.id WHEN MATCHED THEN DELETE;`。目标必须是永久普通 `dbo` 表，且只有一组简单、非空、立即生效的原生 INT 主键；不得有触发器、外键、CHECK／默认值副作用、行级安全或其他不支持的结构。内置 SQL Server 提供程序检查完整实际模式和唯一键清单。**这不是通用 MERGE 支持。**
+
+预览只读取实际匹配键（0 或 1 行），并将编译后的 SQL、键、目标、策略及模式指纹绑定一次性审批。提交时在可序列化事务内保持 `TABLOCKX/HOLDLOCK`，重新检查模式和匹配记录，只有与审批一致才执行 F# 编译的 MERGE；预览后新增或删除匹配键会取消操作，而不是悄然删除不同记录。键不存在时影响 0 行。排他表锁会有意限制并发写入。UPDATE 分支、未匹配 INSERT、混合动作、多来源／复合键、隐式类型转换及原子 MERGE 批次仍拒绝。不增加 MCP 工具；默认仍选择四个只读工具，DML 不勾选。
