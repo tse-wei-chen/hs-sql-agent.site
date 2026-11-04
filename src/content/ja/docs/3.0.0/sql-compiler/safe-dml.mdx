@@ -313,3 +313,9 @@ PostgreSQL の競合 UPDATE を Host が実行承認するには、整数値が 
 SQL Server MERGE コンパイラーが `WITH (HOLDLOCK)` を出力できても、**それだけで実行は許可されません**。Typed Host では、**単一行の整数リテラル、実テーブルの単一 INT 主キーへの厳密な一致、`WHEN MATCHED THEN DELETE` だけ**を許可します。例：`MERGE INTO dbo.inventory AS t USING (VALUES(7)) AS s(id) ON t.id=s.id WHEN MATCHED THEN DELETE;`。対象は永続的な通常の `dbo` テーブルで、NULL 不可の単純なネイティブ INT 主キーが唯一の強制 UNIQUE キーである必要があります。トリガー、外部キー、CHECK／既定値による副作用、行レベルセキュリティなどの未証明な構造は拒否します。組み込み SQL Server プロバイダーが実際のスキーマと一意キー全体を確認します。**汎用 MERGE の対応ではありません。**
 
 プレビューは一致した主キー 0～1 件のみを読み取り、正確なコンパイル済み SQL、キー、対象、ポリシー、スキーマ指紋を使い捨て承認に結び付けます。コミットは直列化可能なトランザクションで `TABLOCKX/HOLDLOCK` を維持し、スキーマと対象行を再確認した後に限り F# コンパイル済み MERGE を実行します。プレビュー後にキーが現れたり消えたりすれば削除を中止します。対象がなければ影響 0 行です。この排他テーブルロックは同時書き込みを制限します。UPDATE／未一致 INSERT／混合操作、複数ソース／複合キー、暗黙の型変換、MERGE の原子的バッチは引き続き不可です。MCP ツールは増やさず、既定の読み取り専用 4 ツールと DML 無効も維持します。
+
+### G9：SQL Server 2022 MERGE の一致行更新と更新前後の承認（develop のみ）
+
+一致行削除に続き、Typed Host は**厳密に限定した一致行の UPDATE** に対応します。対象は永続的な通常の `dbo` テーブル 1 個、`VALUES` の入力 1 行、正確なネイティブ INT 主キー 1 列、そして異なる INT 更新列 1～3 個です。`ON t.id=s.id WHEN MATCHED THEN UPDATE SET quantity=s.quantity` のように、変更対象の各列は同名の入力列に直接対応する必要があり、実テーブル上の NULL 不可・IDENTITY でない INT 列でなければなりません。例：`MERGE INTO dbo.inventory AS t USING (VALUES(7,25,4)) AS s(id,quantity,status) ON t.id=s.id WHEN MATCHED THEN UPDATE SET quantity=s.quantity,status=s.status;`。**任意の MERGE を実行できるわけではありません。**
+
+組み込み SQL Server 2022 Host は、唯一の有効な単一列 INT 主キー、変更対象の型、スキーマ・インデックス・副作用の制限を実テーブルで検証します。プレビューには各列の実際の**更新前の値**と固定された**更新後の予定値**を表示し、一致しなければ 0 件です。1 回限りの承認には更新前の値全体、主体、ポリシー、コンパイル済み SQL とスキーマ指紋を結び付けます。コミットでは直列化可能トランザクション中に `TABLOCKX/HOLDLOCK` を保持し、**各更新前の値**を再検証してから実行します。値の変更、主キー／インデックスの失効、影響件数の不一致は中止され、並行更新を上書きしません。排他ロックは同時書き込み性能を制限します。式、型変換、NULL 入力、暗黙の変換、主キー変更、INSERT／DELETE との混合、原子的 MERGE バッチは引き続き禁止です。MCP ツールや既定の読み取り専用 4 件、DML 無効設定は変わりません。
