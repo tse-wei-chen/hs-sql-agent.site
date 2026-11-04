@@ -301,3 +301,9 @@ Typed Host 新增严格受限的原生 PostgreSQL `INSERT INTO users (id, name) 
 已有 PostgreSQL 原生单行 `ON CONFLICT (id) DO UPDATE SET 列 = EXCLUDED.列` 审批，现在允许 `RETURNING` 使用 **1～5 个不重复、未加表限定的实际直接列**，例如 `INSERT INTO users(id,name,amount) VALUES(7,'new',42) ON CONFLICT(id) DO UPDATE SET name=EXCLUDED.name, amount=EXCLUDED.amount RETURNING id,name,amount`。返回列只能属于已证明的唯一键及 1～4 个获批的值列；`RETURNING *`、表达式、别名、重复列、带表限定列、系统列或其他列继续拒绝。这不会放宽 INSERT／SET 表达式、实际类型、唯一键或物理表结构的限制。
 
 一次性审批仍绑定准确 SQL、完整旧记录及全部新值。提交时在现有 `SHARE ROW EXCLUSIVE NOWAIT` 表锁下重新验证；确认 Commit 成功后，利用现有结构化结果返回**数据库实际产生**的行（包括 SQL NULL），而非捏造的预览数据。冲突、旧值或索引变化会取消整个操作且不返回结果行。不增加 MCP 工具，默认四个只读工具被选中、DML 未勾选均保持不变。包含原生冲突 UPDATE 的原子 DML 批次仍不支持。
+
+### G9：PostgreSQL 冲突跳过时仅返回唯一键（仅 develop）
+
+现有 PostgreSQL 单行 `INSERT INTO users(id,name) VALUES(7,'new') ON CONFLICT(id) DO NOTHING` 执行审批现在只允许附加 **`RETURNING id`**，其中 `id` 必须与显式冲突目标对应同一个未加表限定的实际唯一键。永久普通表仍须具有唯一一组简单、立即生效、非空 INT2／INT4／INT8 主键或唯一键；模式、索引、触发器和行级安全等原有检查全部保留。其他返回列、通配符、别名、表达式、重复列、带表限定列和系统列继续拒绝。SQLite 的 `DO NOTHING RETURNING` 仍不支持。
+
+预览将当时的唯一键冲突状态绑定到一次性审批。提交时在 `SHARE ROW EXCLUSIVE NOWAIT` 表锁下重新验证真实键和模式，只有确认事务提交成功后，才通过已有结构化结果返回**数据库实际插入的键值**；因冲突跳过则**不返回任何行**。冲突状态、键或索引改变都会取消写入，且不泄露结果。强锁仍会降低并发写入能力。本次不增加 MCP 工具，也不开放冲突语句的原子 DML 批次；默认四个只读工具勾选、DML 未勾选的设置保持不变。
