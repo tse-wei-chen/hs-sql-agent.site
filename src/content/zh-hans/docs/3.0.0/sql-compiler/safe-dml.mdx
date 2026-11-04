@@ -295,3 +295,9 @@ Typed Host 新增严格受限的原生 PostgreSQL `INSERT INTO users (id, name) 
 #### M13 Host 安全补强：整数原始写法与带引号列的身份
 
 原生 PostgreSQL 冲突更新若需 Host 执行审批，整数值必须采用**普通十进制整数 Token**，例如 `42` 或 `-12`。即使 F# 能将 `1e10`、`4.2e1` 或 `42.0` 无损归一化为整数，这些原始写法仍**不能用于 Host 审批证明**；必须改用明确的整数字面量。为避免审批前后值指纹混淆 PostgreSQL 区分大小写的带引号列名，同一操作不能同时包含 `id` 和 `"ID"` 这种仅大小写不同的键列与值列；与 `"__ACTION"` 等预览合成列名大小写折叠后冲突也会被拒绝。该限制不改变通用 SQL Compiler 的解析能力，也不缩减 M13 已支持的 TEXT／SMALLINT／INTEGER／BIGINT／SQL NULL。
+
+### G9：PostgreSQL 冲突更新的有限直接列 RETURNING（仅 develop）
+
+已有 PostgreSQL 原生单行 `ON CONFLICT (id) DO UPDATE SET 列 = EXCLUDED.列` 审批，现在允许 `RETURNING` 使用 **1～5 个不重复、未加表限定的实际直接列**，例如 `INSERT INTO users(id,name,amount) VALUES(7,'new',42) ON CONFLICT(id) DO UPDATE SET name=EXCLUDED.name, amount=EXCLUDED.amount RETURNING id,name,amount`。返回列只能属于已证明的唯一键及 1～4 个获批的值列；`RETURNING *`、表达式、别名、重复列、带表限定列、系统列或其他列继续拒绝。这不会放宽 INSERT／SET 表达式、实际类型、唯一键或物理表结构的限制。
+
+一次性审批仍绑定准确 SQL、完整旧记录及全部新值。提交时在现有 `SHARE ROW EXCLUSIVE NOWAIT` 表锁下重新验证；确认 Commit 成功后，利用现有结构化结果返回**数据库实际产生**的行（包括 SQL NULL），而非捏造的预览数据。冲突、旧值或索引变化会取消整个操作且不返回结果行。不增加 MCP 工具，默认四个只读工具被选中、DML 未勾选均保持不变。包含原生冲突 UPDATE 的原子 DML 批次仍不支持。
