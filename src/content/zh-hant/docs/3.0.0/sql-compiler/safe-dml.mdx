@@ -295,3 +295,9 @@ Typed Host 新增受嚴格限制的原生 PostgreSQL `INSERT INTO users (id, nam
 #### M13 Host 安全補強：整數原始寫法與引號欄位身分
 
 原生 PostgreSQL 衝突更新若要取得 Host 執行核准，整數值必須來自**一般十進位整數 Token**，例如 `42` 或 `-12`。即使 F# 能將 `1e10`、`4.2e1` 或 `42.0` 無損正規化成整數，這些原始寫法仍**不能作為 Host 核准證明**；須改用明確的整數字面量。為避免核准前後值指紋混淆 PostgreSQL 區分大小寫的引號欄名，同一筆核准不得同時包含 `id` 與 `"ID"` 等僅大小寫不同的鍵和值欄；與 `"__ACTION"` 等預覽合成欄名大小寫折疊後撞名也會拒絕。此限制不改變通用 SQL Compiler 的解析能力，也不縮減 M13 已支援的 TEXT／SMALLINT／INTEGER／BIGINT／SQL NULL 能力。
+
+### G9：PostgreSQL 衝突更新的受限直接欄位 RETURNING（僅 develop）
+
+既有 PostgreSQL 原生單筆 `ON CONFLICT (id) DO UPDATE SET 欄位 = EXCLUDED.欄位` 核准，現在可搭配 **1～5 個不重複、不帶表格限定的實體直接欄位**作為 `RETURNING`，例如 `INSERT INTO users(id,name,amount) VALUES(7,'new',42) ON CONFLICT(id) DO UPDATE SET name=EXCLUDED.name, amount=EXCLUDED.amount RETURNING id,name,amount`。回傳欄位只能來自已證明的唯一鍵與 1～4 個獲准值欄位；`RETURNING *`、運算式、別名、重複欄位、表格限定欄位、系統欄位與其他未證明欄位仍拒絕。INSERT／SET、欄位型別、唯一鍵及實體表格的限制不會因此放寬。
+
+一次性核准仍綁定精確 SQL、整筆舊資料與所有新值。提交時在相同 `SHARE ROW EXCLUSIVE NOWAIT` 表格鎖下重新驗證；只在 Commit 確認成功後，透過既有結構化結果回傳**資料庫實際產生**的資料列（包含 SQL NULL），不以預覽資料假冒結果。衝突狀態、舊值或索引發生變化則整筆取消，不回傳任何結果列。不新增 MCP 工具，也不改變預設勾選四個唯讀工具、DML 預設不勾選。原生衝突更新仍不支援加入 DML 原子批次。
