@@ -295,3 +295,9 @@ Typed Host は、厳しく制限された PostgreSQL の `INSERT INTO users (id,
 #### M13 Host 安全強化：整数の原文表記と引用列名の識別
 
 PostgreSQL の競合 UPDATE を Host が実行承認するには、整数値が `42` や `-12` のような**通常の十進整数トークン**として記述されていなければなりません。F# が `1e10`、`4.2e1`、`42.0` を正確な整数値に正規化できても、その元の表記は**Host 実行承認には使用できません**。通常の整数リテラルで再入力してください。PostgreSQL の引用列名は大文字と小文字を区別しますが、変更前後の行指紋で誤認しないよう、`id` と `"ID"` のように大文字小文字だけ異なるキー列と値列を同時に承認しません。`"__ACTION"` などプレビュー用の合成列名と大文字小文字を無視して衝突する場合も拒否します。一般 SQL コンパイラーの解析能力と M13 の TEXT／SMALLINT／INTEGER／BIGINT／SQL NULL 対応は変更しません。
+
+### G9：PostgreSQL 競合 UPDATE の限定的な直接列 RETURNING（develop のみ）
+
+既存の PostgreSQL 単一行 `ON CONFLICT (id) DO UPDATE SET 列 = EXCLUDED.列` 承認で、`RETURNING` に **1～5 個の重複しない、修飾なしの物理的な直接列**を指定できます。例：`INSERT INTO users(id,name,amount) VALUES(7,'new',42) ON CONFLICT(id) DO UPDATE SET name=EXCLUDED.name, amount=EXCLUDED.amount RETURNING id,name,amount`。戻り列は、証明済みの一意キーと 1～4 個の承認された値列だけです。`RETURNING *`、式、別名、重複、表による修飾、システム列や無関係な列は拒否されます。INSERT／SET の式・型・唯一キー・物理テーブルの制限は変わりません。
+
+使い捨て承認は正確な SQL、旧行全体と提案値すべてを拘束します。同じ `SHARE ROW EXCLUSIVE NOWAIT` ロックのもとでコミット時に再検証し、Commit 成功が確認された後のみ、既存の構造化結果から**データベースが実際に返した行**（SQL NULL を含む）を提示します。競合状態・旧値・インデックスの変更は全体を中止し、行も返しません。MCP ツールは増えず、既定の 4 つの読み取り専用ツールと DML 無効設定も維持します。競合更新を含む DML 原子バッチは引き続き非対応です。
