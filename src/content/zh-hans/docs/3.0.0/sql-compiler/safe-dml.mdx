@@ -291,3 +291,7 @@ Typed Host 新增严格受限的原生 PostgreSQL `INSERT INTO users (id, name) 
 现有单行 PostgreSQL `ON CONFLICT DO UPDATE` 审批现在允许 **1～4 个更新列**，实际物理类型可为 `TEXT`、`SMALLINT`、`INTEGER` 或 `BIGINT`，每列可以允许空值或指定 `NOT NULL`。例如：`INSERT INTO users (id, name, visits, balance) VALUES (7, NULL, 2147483647, 42) ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name, visits = EXCLUDED.visits, balance = EXCLUDED.balance`。Host 按真实列类型验证每个常量：文本只能写入 `TEXT`；精确有符号整数必须落在目标整数类型的范围内；SQL `NULL` 只能写入真实允许空值的列。不接受隐式文本转数字、小数舍入或运算表达式。永久普通物理表仍须恰好包含一个 `BIGINT NOT NULL` 唯一键和这些更新列，且只有一个立即生效的主键／唯一键；额外索引、默认值、CHECK／外键、触发器、重写规则、继承、分区表及行级安全策略仍被拒绝。
 
 预览会显示 `INSERT` 或 `UPDATE`，以及每列的实际旧值和建议新值，包括 `NULL`。一次性审批绑定完整旧记录、所有新常量及物理结构指纹。提交时在 `SHARE ROW EXCLUSIVE NOWAIT` 表锁下复验所有旧值、列类型和空值约束，再原子执行编译的 SQL。预览后任一空值状态变化、出现新冲突或物理结构漂移，都将取消整项操作。强锁会限制并发写入。日期／时间、浮点数、`NUMERIC`、`UUID`、任意表达式、部分／多行 UPSERT 和 DML 批次仍不支持。**升级 M13 后，尚未执行的 M12 审批必须重新预览。** 默认仍选中四个只读工具，DML 关闭。
+
+#### M13 Host 安全补强：整数原始写法与带引号列的身份
+
+原生 PostgreSQL 冲突更新若需 Host 执行审批，整数值必须采用**普通十进制整数 Token**，例如 `42` 或 `-12`。即使 F# 能将 `1e10`、`4.2e1` 或 `42.0` 无损归一化为整数，这些原始写法仍**不能用于 Host 审批证明**；必须改用明确的整数字面量。为避免审批前后值指纹混淆 PostgreSQL 区分大小写的带引号列名，同一操作不能同时包含 `id` 和 `"ID"` 这种仅大小写不同的键列与值列；与 `"__ACTION"` 等预览合成列名大小写折叠后冲突也会被拒绝。该限制不改变通用 SQL Compiler 的解析能力，也不缩减 M13 已支持的 TEXT／SMALLINT／INTEGER／BIGINT／SQL NULL。
