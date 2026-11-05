@@ -71,3 +71,9 @@ PostgreSQL を入力方言とする `SELECT COUNT(*) FILTER (WHERE status = 1) F
 PostgreSQL を入力方言とする `COUNT(DISTINCT amount) FILTER (WHERE status = 1)` を、MySQL の `COUNT(DISTINCT CASE WHEN status = 1 THEN amount END)`、または SQL Server の `COUNT_BIG(DISTINCT CASE WHEN status = 1 THEN amount END)` に変換できます。同じ値は一度だけ数え、NULL や条件が偽・不明の行は数えません。該当値がない場合はゼロです。PostgreSQL 16、MySQL 8.4、SQL Server 2022 の実際のデータベースで、グループ別・全体の整数集計を検証しています。
 
 DISTINCT の引数は直接参照するローカル列一つに限り、条件には有界な検証が必要です。計算式、複数の DISTINCT 引数、サブクエリ、非決定的関数、外側のスコープ参照は拒否します。**`OVER (...)` を伴う DISTINCT ウィンドウ集計は非対応**です。MySQL／SQL Server はこの構文をサポートしていません。入力方言が MySQL／SQL Server の `FILTER` も引き続き無効です。整数の検証結果を、文字列の照合順序や型変換の完全な互換性に拡大解釈することはできません。SQL の実行や DB 権限の付与は行いません。
+
+## SQL Server／Oracle の LAG・LEAD：NULL を無視する処理
+
+SQL Server 2022 以降および Oracle 12.1 以降で、`LAG(amount) IGNORE NULLS OVER (PARTITION BY grp ORDER BY id)` と対応する `LEAD` の構文を保持できます。`IGNORE NULLS` は直前・直後の値を探す際に NULL を飛ばし、明示的な `RESPECT NULLS` は NULL を含む標準の動作を維持します。修飾子は**関数呼び出しと OVER の間**に置き、ウィンドウフレーム内には置きません。F# は NULL の扱いを型付きのウィンドウ情報として保持し、勝手に削除・変更しません。
+
+入力と出力の両方に明示的な `ServerVersion` 能力設定が必要です。実行時には Host がデータベースの実際のバージョンを検証します。PostgreSQL、MySQL、SQLite、Firebird の入力・出力ではこれらの修飾子を拒否し、対象外のウィンドウ関数、重複・不正な修飾子、`OVER` の欠落も拒否します。修飾子なしの既存の `LAG/LEAD` は変わりません。`WindowSpec.NullTreatment` と `WindowDefinition.NullTreatment` は同じ検証に従い、実際の SQL Server／Oracle の結果行との比較で NULL 無視を確認します。コンパイラーによる SQL 実行や権限付与は行いません。
