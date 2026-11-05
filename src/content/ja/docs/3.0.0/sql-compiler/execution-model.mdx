@@ -79,3 +79,11 @@ SQL Server 2022 CU4（16.0.4035.4）以降および Oracle 12.1 以降で、`LAG
 SQL Server 2022 RTM でも明示的な `RESPECT NULLS` は使用できます。一方、LAG／LEAD の `IGNORE NULLS` には Microsoft が修正した結果の不具合があるため CU4 以降の証明が必要です。`16.0` のみのバージョン指定では CU4 を証明できません。
 
 入力と出力の両方に明示的な `ServerVersion` 能力設定が必要です。実行時には Host がデータベースの実際のバージョンを検証します。PostgreSQL、MySQL、SQLite、Firebird の入力・出力ではこれらの修飾子を拒否し、対象外のウィンドウ関数、重複・不正な修飾子、`OVER` の欠落も拒否します。修飾子なしの既存の `LAG/LEAD` は変わりません。`WindowSpec.NullTreatment` と `WindowDefinition.NullTreatment` は同じ検証に従い、実際の SQL Server／Oracle の結果行との比較で NULL 無視を確認します。コンパイラーによる SQL 実行や権限付与は行いません。
+
+## SQL Server／Oracle の FIRST_VALUE・LAST_VALUE：NULL の明示的な扱い
+
+SQL Server 2022 以降と Oracle 12.1 以降では、`FIRST_VALUE`／`LAST_VALUE` の直後、`OVER` の前に `IGNORE NULLS` または `RESPECT NULLS` を指定できます。例えば `LAST_VALUE(amount) IGNORE NULLS OVER (PARTITION BY grp ORDER BY id ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING)` は、現在行までで終わりがちな既定のフレームではなく、**パーティション全体**を対象にします。`IGNORE NULLS` はフレーム内の最初／最後の非 NULL 値を選択し、`RESPECT NULLS` は NULL を考慮します。
+
+入力側と出力側の両方に対応する `ServerVersion`（SQL Server 16.0 以降、または Oracle 12.1 以降）が必要です。SQL Server 2022 CU4 の結果正当性条件は **LAG／LEAD の IGNORE NULLS に限られ**、FIRST／LAST には適用しません。両者は別々に能力を検証します。残る 4 種のデータベース、対象外のウィンドウ関数、不正な修飾子は拒否されます。C# の構造化 DTO も F# の型付き検証とネイティブ SQL 出力を共有し、コンパイラーが SQL を実行したり権限を与えたりすることはありません。
+
+SQL Server と Oracle の間の変換は引き続き拒否します。NULL の既定の並び順とウィンドウフレームの同等性が証明されていないためです。

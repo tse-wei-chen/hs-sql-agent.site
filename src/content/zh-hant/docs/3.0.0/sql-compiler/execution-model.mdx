@@ -79,3 +79,11 @@ SQL Server 2022 CU4（16.0.4035.4）以上與 Oracle 12.1 以上現在可保留 
 SQL Server 2022 RTM 已支援明確的 `RESPECT NULLS`；但 Microsoft 曾修正 LAG／LEAD `IGNORE NULLS` 的結果錯誤，因此後者必須具備 CU4 版本證據。只有 `16.0` 的版本設定不代表已安裝 CU4。
 
 來源與目標都必須明確提供 `ServerVersion` 能力設定；實際執行前仍須由 Host 核實資料庫版本。PostgreSQL、MySQL、SQLite、Firebird 不允許這些明確修飾詞；用於不支援的視窗函式、重複或錯誤修飾詞、缺少 `OVER` 都會拒絕。沒有修飾詞的原有 `LAG/LEAD` 不變。`WindowSpec.NullTreatment` 與 `WindowDefinition.NullTreatment` 使用相同的驗證管線，並以真實 SQL Server／Oracle 資料列比較確認跳過 NULL 的結果。Compiler 不會據此執行 SQL 或授權資料庫存取。
+
+## SQL Server／Oracle 的 FIRST_VALUE、LAST_VALUE：明確處理 NULL
+
+SQL Server 2022 以上與 Oracle 12.1 以上支援在 `FIRST_VALUE`、`LAST_VALUE` 函式後、`OVER` 前明確指定 `IGNORE NULLS` 或 `RESPECT NULLS`。例如 `LAST_VALUE(amount) IGNORE NULLS OVER (PARTITION BY grp ORDER BY id ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING)` 使用**整個分區**作為視窗範圍，而非通常截止於目前資料列的預設範圍。`IGNORE NULLS` 選取範圍內第一個／最後一個非 NULL 值；`RESPECT NULLS` 保留 NULL 的影響。
+
+來源與目標都必須提供相符的明確 `ServerVersion` 設定（SQL Server 16.0 以上或 Oracle 12.1 以上）。SQL Server 2022 CU4 的正確性限制**只適用於 LAG／LEAD 的 IGNORE NULLS**，不應錯套到 FIRST／LAST；兩者具有獨立的能力證明。其餘四種資料庫、不適用的視窗函式及錯誤修飾詞仍會拒絕。C# 結構化 DTO 共用 F# 的型別驗證與原生 SQL 輸出；Compiler 不會因此授權或執行 SQL。
+
+SQL Server 與 Oracle 之間的跨資料庫轉換仍會拒絕：目前未證明兩者的預設 NULL 排序與視窗範圍具有相同語意。
