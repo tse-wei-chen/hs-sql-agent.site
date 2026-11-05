@@ -59,3 +59,9 @@ PostgreSQL 11 이상과 SQLite 3.28 이상에서는 `ROWS`, `RANGE`, `GROUPS` �
 ## SQL Server RANGE 프레임의 숫자 오프셋 제한
 
 SQL Server의 T-SQL 문법에서는 `RANGE` 윈도 프레임에 숫자가 있는 `PRECEDING` 또는 `FOLLOWING` 오프셋을 지정할 수 없습니다. 예를 들어 대상 데이터베이스가 PostgreSQL이나 SQLite여도 `RANGE BETWEEN 1 PRECEDING AND CURRENT ROW`는 **SQL Server 원본 문법에 맞지 않으므로** 거부됩니다. 유효한 `ROWS` 오프셋과 `RANGE BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW`는 계속 지원합니다. PostgreSQL 및 SQLite의 고유한 숫자 `RANGE` 의미는 변경되지 않습니다. 컴파일러는 원본 방언의 유효성과 대상의 지원 기능을 따로 검증하며, 대상이 지원하는 구문을 원본 구문의 유효성에 대한 증거로 사용하지 않습니다.
+
+## MySQL 및 SQL Server 대상으로 제한된 조건부 COUNT
+
+PostgreSQL을 원본 방언으로 사용하는 `SELECT COUNT(*) FILTER (WHERE status = 1) FROM orders`는 MySQL 또는 SQL Server용 조건부 집계로 안전하게 컴파일할 수 있습니다. MySQL은 `COUNT(CASE WHEN ... THEN 1 END)`를, SQL Server는 64비트 집계 범위를 유지하는 `COUNT_BIG(CASE WHEN ... THEN 1 END)`를 사용합니다. 직접 지정한 열의 `COUNT(열)`도 지원하며 NULL 제외, 일치하는 행이 없을 때 0 반환, 윈도 프레임별 집계 의미를 유지합니다.
+
+**FILTER 전반을 허용하는 기능은 아닙니다.** 한정 이름과 `DISTINCT`가 없는 `COUNT(*)` 또는 로컬 열, 검증 가능한 단순 열·상수 조건만 허용합니다. `SUM`, 계산식 인수, 하위 쿼리, 비결정적 함수, 외부 범위 참조는 계속 거부합니다. MySQL/SQL Server 원본 SQL의 `FILTER` 구문은 여전히 유효하지 않습니다. 이 변환은 PostgreSQL처럼 원본 구문이 적법한 경우에만 적용됩니다. SqlCore는 SQL을 실행하거나 데이터베이스 권한을 부여하지 않습니다.

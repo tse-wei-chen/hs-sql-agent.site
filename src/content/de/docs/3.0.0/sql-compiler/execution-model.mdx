@@ -59,3 +59,9 @@ PostgreSQL ab Version 11 und SQLite ab 3.28 unterstützen vier ausdrückliche Au
 ## SQL Server: numerische Offsets in RANGE-Fensterrahmen
 
 Die T-SQL-Syntax von SQL Server erlaubt in einem `RANGE`-Fensterrahmen keine numerischen `PRECEDING`- oder `FOLLOWING`-Offsets. `RANGE BETWEEN 1 PRECEDING AND CURRENT ROW` wird daher **als ungültige SQL-Server-Quellsyntax** zurückgewiesen, selbst wenn PostgreSQL oder SQLite als Ziel ausgewählt wurde. Gültige `ROWS`-Offsets und `RANGE BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW` bleiben möglich. Die nativen numerischen `RANGE`-Semantiken von PostgreSQL und SQLite bleiben unverändert. Der Compiler prüft die Gültigkeit des Quelldialekts getrennt von den Fähigkeiten des Zielsystems; die Zielunterstützung ist kein Nachweis für gültige Quellsyntax.
+
+## Begrenztes bedingtes COUNT für MySQL und SQL Server
+
+Eine Abfrage aus dem PostgreSQL-Quelldialekt wie `SELECT COUNT(*) FILTER (WHERE status = 1) FROM orders` lässt sich jetzt für MySQL oder SQL Server in eine nachgewiesen äquivalente bedingte Aggregation übersetzen. MySQL verwendet `COUNT(CASE WHEN ... THEN 1 END)`, SQL Server `COUNT_BIG(CASE WHEN ... THEN 1 END)`, um den 64-Bit-Zählbereich zu erhalten. Auch `COUNT(direkte_spalte)` wird unterstützt; NULL-Werte, leere Treffer und die Zählung innerhalb von Fensterrahmen behalten ihre Bedeutung.
+
+**Das ist keine allgemeine Unterstützung für FILTER.** Zugelassen sind nur nicht qualifizierte `COUNT(*)`- oder direkte lokale Spaltenargumente ohne `DISTINCT` und nachweisbar einfache Spalten-/Konstantenbedingungen. `SUM`, berechnete Argumente, Unterabfragen, volatile Funktionen und äußere Bezüge bleiben gesperrt. `FILTER` bleibt als rohe MySQL-/SQL-Server-Quellsyntax ungültig. Die Übersetzung gilt nur für einen zulässigen Quelldialekt wie PostgreSQL. SqlCore führt kein SQL aus und gewährt keine Datenbankrechte.
