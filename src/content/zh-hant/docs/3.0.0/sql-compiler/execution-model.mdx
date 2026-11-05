@@ -87,3 +87,11 @@ SQL Server 2022 以上與 Oracle 12.1 以上支援在 `FIRST_VALUE`、`LAST_VALU
 來源與目標都必須提供相符的明確 `ServerVersion` 設定（SQL Server 16.0 以上或 Oracle 12.1 以上）。SQL Server 2022 CU4 的正確性限制**只適用於 LAG／LEAD 的 IGNORE NULLS**，不應錯套到 FIRST／LAST；兩者具有獨立的能力證明。其餘四種資料庫、不適用的視窗函式及錯誤修飾詞仍會拒絕。C# 結構化 DTO 共用 F# 的型別驗證與原生 SQL 輸出；Compiler 不會因此授權或執行 SQL。
 
 SQL Server 與 Oracle 之間的跨資料庫轉換仍會拒絕：目前未證明兩者的預設 NULL 排序與視窗範圍具有相同語意。
+
+## PostgreSQL 查詢的唯讀交易防護（3.1）
+
+PostgreSQL 的 `SELECT` 仍可能透過 `VOLATILE` 或自訂函式修改實體資料。現在 Host 會在完成 `execute_query_sql` 的編譯及授權後，使用**同一個已驗證連線與明確設定為 `READ ONLY` 的 PostgreSQL 交易**執行已編譯指令；讀取結果後即回滾。F# SqlCore 仍不連接資料庫。
+
+PostgreSQL 16 實體測試證實，修正前已授權的 `SELECT` 曾可透過自訂函式更新資料列。回歸測試另外涵蓋 32 種多語句攻擊、5 種未授權資料表存取、序列副作用、合法參數化字串與正常的 OR／CTE 查詢。遭拒請求不得回傳資料列或改變資料庫狀態。
+
+這項防護**僅適用 PostgreSQL 查詢執行**，不會授予 DML／DDL 權限，也不代表其他五種資料庫已有同等保護。唯讀交易並非可隔離諮詢鎖及所有外部副作用的沙箱；資料庫帳號仍應採最小權限並設定執行限制。
