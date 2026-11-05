@@ -87,3 +87,11 @@ For SQL Server 2022+ and Oracle 12.1+, `FIRST_VALUE` and `LAST_VALUE` can preser
 Both source and target need matching explicit `ServerVersion` profiles: SQL Server 16.0+ or Oracle 12.1+. The SQL Server 2022 CU4 correctness fence still applies specifically to **LAG/LEAD IGNORE NULLS**, not FIRST/LAST; the two have distinct capability proofs. The four other providers, unrelated window functions and malformed modifiers remain rejected. C# structured DTOs share the typed F# validation and native rendering. This compiler feature grants no SQL execution or database permissions.
 
 Cross-provider SQL Server ↔ Oracle lowering remains rejected: default NULL ordering and frame equivalence have not been proven.
+
+## PostgreSQL query read-only transactions (3.1)
+
+PostgreSQL `SELECT` can modify persisted data through a `VOLATILE` or user-defined function. After compiling and authorizing `execute_query_sql`, the Host now executes the immutable command **inside an explicit PostgreSQL `READ ONLY` transaction on the same verified connection**, then rolls it back after buffering the result rows. The F# SqlCore library remains driver-free.
+
+A PostgreSQL 16 live test reproduced an authorized `SELECT` that changed a table row through a custom function before the fix. Physical regression tests also cover 32 stacked statements, five unauthorized-table paths, sequence effects, safe bound literal payloads, and ordinary OR/CTE queries. Rejected requests must return no rows and preserve database state.
+
+This fence covers **PostgreSQL Query execution only**. It grants no DML/DDL permission, does not establish equivalent protection for the other five providers, and is not a sandbox for advisory locks or arbitrary external effects. Keep least-privilege database roles and runtime limits.
