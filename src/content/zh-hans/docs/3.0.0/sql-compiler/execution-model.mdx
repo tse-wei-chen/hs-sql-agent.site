@@ -85,3 +85,5 @@ SQL Server 2022 RTM 已支持显式 `RESPECT NULLS`；但 Microsoft 曾修复 LA
 SQL Server 2022 及以上版本与 Oracle 12.1 及以上版本支持在 `FIRST_VALUE`、`LAST_VALUE` 函数之后、`OVER` 之前显式使用 `IGNORE NULLS` 或 `RESPECT NULLS`。例如 `LAST_VALUE(amount) IGNORE NULLS OVER (PARTITION BY grp ORDER BY id ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING)` 的窗口覆盖**整个分区**，而不是通常截止到当前行的默认窗口。`IGNORE NULLS` 返回窗口内第一个或最后一个非 NULL 值，`RESPECT NULLS` 则保留 NULL 的影响。
 
 源和目标都必须声明匹配的 `ServerVersion`（SQL Server 16.0 及以上或 Oracle 12.1 及以上）。SQL Server 2022 CU4 的结果正确性限制**专用于 LAG／LEAD 的 IGNORE NULLS**，不套用于 FIRST／LAST；两者分别证明能力。其余四种数据库、不支持的窗口函数与错误修饰词仍会被拒绝。C# 结构化 DTO 与 F# 类型验证、原生 SQL 输出共用同一路径；Compiler 不会因此执行 SQL 或授予数据库权限。
+
+SQL Server 与 Oracle 之间的跨数据库转换仍会拒绝：尚未证明两者默认 NULL 排序与窗口范围的语义等价。

@@ -85,3 +85,5 @@ SQL Server 2022 RTM でも明示的な `RESPECT NULLS` は使用できます。�
 SQL Server 2022 以降と Oracle 12.1 以降では、`FIRST_VALUE`／`LAST_VALUE` の直後、`OVER` の前に `IGNORE NULLS` または `RESPECT NULLS` を指定できます。例えば `LAST_VALUE(amount) IGNORE NULLS OVER (PARTITION BY grp ORDER BY id ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING)` は、現在行までで終わりがちな既定のフレームではなく、**パーティション全体**を対象にします。`IGNORE NULLS` はフレーム内の最初／最後の非 NULL 値を選択し、`RESPECT NULLS` は NULL を考慮します。
 
 入力側と出力側の両方に対応する `ServerVersion`（SQL Server 16.0 以降、または Oracle 12.1 以降）が必要です。SQL Server 2022 CU4 の結果正当性条件は **LAG／LEAD の IGNORE NULLS に限られ**、FIRST／LAST には適用しません。両者は別々に能力を検証します。残る 4 種のデータベース、対象外のウィンドウ関数、不正な修飾子は拒否されます。C# の構造化 DTO も F# の型付き検証とネイティブ SQL 出力を共有し、コンパイラーが SQL を実行したり権限を与えたりすることはありません。
+
+SQL Server と Oracle の間の変換は引き続き拒否します。NULL の既定の並び順とウィンドウフレームの同等性が証明されていないためです。
