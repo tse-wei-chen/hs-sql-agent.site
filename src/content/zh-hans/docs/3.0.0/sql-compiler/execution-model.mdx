@@ -71,3 +71,9 @@ SQL Server 的 T-SQL 语法不允许在 `RANGE` 窗口帧中使用数值型 `PRE
 合法 PostgreSQL 源 SQL 中的 `COUNT(DISTINCT amount) FILTER (WHERE status = 1)` 现在可以编译成 MySQL 的 `COUNT(DISTINCT CASE WHEN status = 1 THEN amount END)`，或 SQL Server 的 `COUNT_BIG(DISTINCT CASE WHEN status = 1 THEN amount END)`。相同的值只计算一次；NULL、条件为假或未知的行不计数，没有符合条件的值时返回零。该能力使用 PostgreSQL 16、MySQL 8.4、SQL Server 2022 的真实数据库对分组和整体整数计数进行了测试。
 
 DISTINCT 仅允许一个直接本地列参数，筛选条件必须受到有界证明。计算表达式参数、多个 DISTINCT 参数、子查询、易变函数和外层引用仍被拒绝。**不支持带 `OVER (...)` 的 DISTINCT 窗口聚合**，因为 MySQL 与 SQL Server 均不提供该语法。MySQL／SQL Server 源 SQL 中的 `FILTER` 仍无效；整型测试也不代表字符串排序规则或跨数据库类型转换一定等价。此功能不执行 SQL，也不授予数据库权限。
+
+## SQL Server／Oracle 的 LAG、LEAD：忽略 NULL
+
+SQL Server 2022 及以上版本与 Oracle 12.1 及以上版本现在可保留 `LAG(amount) IGNORE NULLS OVER (PARTITION BY grp ORDER BY id)` 以及对应的 `LEAD` 写法。`IGNORE NULLS` 在寻找上一项或下一项数值时跳过 NULL；显式 `RESPECT NULLS` 则保留原生的 NULL 参与方式。修饰词必须放在**函数调用和 OVER 之间**，而不是窗口帧内部。F# 使用带类型的窗口 NULL 处理模式保存这一语义，不会在编译时省略或猜测。
+
+来源和目标都必须显式提供 `ServerVersion` 能力配置，实际执行前仍由 Host 验证数据库版本。PostgreSQL、MySQL、SQLite、Firebird 不允许这些显式修饰词；不支持的窗口函数、重复或错误修饰词、缺少 `OVER` 都会被拒绝。不带修饰词的既有 `LAG/LEAD` 保持不变。`WindowSpec.NullTreatment` 与 `WindowDefinition.NullTreatment` 经过同一验证流程，并用真实 SQL Server／Oracle 的行结果核对 NULL 跳过行为。Compiler 不会因此执行 SQL 或授予数据库权限。
