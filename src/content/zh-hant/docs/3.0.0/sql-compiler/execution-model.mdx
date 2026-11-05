@@ -55,3 +55,7 @@ PostgreSQL 11 以上與 SQLite 3.28 以上版本可以編譯 `SUM(amount) OVER (
 ## EXCLUDE：視窗框架的資料列排除規則
 
 PostgreSQL 11 以上與 SQLite 3.28 以上版本，可在 `ROWS`、`RANGE` 或 `GROUPS` 框架之後指定四種排除模式。`EXCLUDE CURRENT ROW` 只排除目前資料列；`EXCLUDE GROUP` 排除目前資料列及排序鍵相同的所有同儕資料列；`EXCLUDE TIES` 保留目前資料列，但排除其他排序鍵相同的資料列；`EXCLUDE NO OTHERS` 則不排除任何資料列。例如：`SUM(amount) OVER (ORDER BY grp GROUPS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW EXCLUDE TIES)`。即使使用 `ROWS` 框架，排除規則仍會考慮排序鍵相同的同儕資料列。F# Compiler 與 `WindowFrameDefinition.Exclusion` 會保留原始語意，不會暗中改寫。明確宣告的過舊版本與另外四種資料庫提供者都會遭到拒絕。Host 在執行前仍需確認實際資料庫版本。
+
+## SQL Server 的 RANGE 框架位移限制
+
+SQL Server 的 T-SQL 語法不允許在 `RANGE` 視窗框架中使用數值型 `PRECEDING` 或 `FOLLOWING` 位移。例如，即使指定 PostgreSQL 或 SQLite 作為目標資料庫，`RANGE BETWEEN 1 PRECEDING AND CURRENT ROW` 仍會因**來源 SQL Server 語法不合法**而遭到拒絕。合法的 `ROWS` 位移及 `RANGE BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW` 保持支援；PostgreSQL 和 SQLite 原生的數值型 `RANGE` 語意亦不受影響。編譯器會分別驗證來源方言與目標資料庫能力，不會把目標資料庫支援某種語法，誤當成來源語法合法的證據。
