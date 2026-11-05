@@ -74,6 +74,8 @@ DISTINCT 仅允许一个直接本地列参数，筛选条件必须受到有界�
 
 ## SQL Server／Oracle 的 LAG、LEAD：忽略 NULL
 
-SQL Server 2022 及以上版本与 Oracle 12.1 及以上版本现在可保留 `LAG(amount) IGNORE NULLS OVER (PARTITION BY grp ORDER BY id)` 以及对应的 `LEAD` 写法。`IGNORE NULLS` 在寻找上一项或下一项数值时跳过 NULL；显式 `RESPECT NULLS` 则保留原生的 NULL 参与方式。修饰词必须放在**函数调用和 OVER 之间**，而不是窗口帧内部。F# 使用带类型的窗口 NULL 处理模式保存这一语义，不会在编译时省略或猜测。
+SQL Server 2022 CU4（16.0.4035.4）及以上版本与 Oracle 12.1 及以上版本现在可保留 `LAG(amount) IGNORE NULLS OVER (PARTITION BY grp ORDER BY id)` 以及对应的 `LEAD` 写法。`IGNORE NULLS` 在寻找上一项或下一项数值时跳过 NULL；显式 `RESPECT NULLS` 则保留原生的 NULL 参与方式。修饰词必须放在**函数调用和 OVER 之间**，而不是窗口帧内部。F# 使用带类型的窗口 NULL 处理模式保存这一语义，不会在编译时省略或猜测。
+
+SQL Server 2022 RTM 已支持显式 `RESPECT NULLS`；但 Microsoft 曾修复 LAG／LEAD `IGNORE NULLS` 的结果错误，因此后者必须具备 CU4 版本证据。仅声明 `16.0` 的配置不能证明已安装 CU4。
 
 来源和目标都必须显式提供 `ServerVersion` 能力配置，实际执行前仍由 Host 验证数据库版本。PostgreSQL、MySQL、SQLite、Firebird 不允许这些显式修饰词；不支持的窗口函数、重复或错误修饰词、缺少 `OVER` 都会被拒绝。不带修饰词的既有 `LAG/LEAD` 保持不变。`WindowSpec.NullTreatment` 与 `WindowDefinition.NullTreatment` 经过同一验证流程，并用真实 SQL Server／Oracle 的行结果核对 NULL 跳过行为。Compiler 不会因此执行 SQL 或授予数据库权限。

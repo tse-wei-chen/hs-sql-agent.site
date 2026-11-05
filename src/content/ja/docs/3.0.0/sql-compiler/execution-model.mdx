@@ -74,6 +74,8 @@ DISTINCT の引数は直接参照するローカル列一つに限り、条件�
 
 ## SQL Server／Oracle の LAG・LEAD：NULL を無視する処理
 
-SQL Server 2022 以降および Oracle 12.1 以降で、`LAG(amount) IGNORE NULLS OVER (PARTITION BY grp ORDER BY id)` と対応する `LEAD` の構文を保持できます。`IGNORE NULLS` は直前・直後の値を探す際に NULL を飛ばし、明示的な `RESPECT NULLS` は NULL を含む標準の動作を維持します。修飾子は**関数呼び出しと OVER の間**に置き、ウィンドウフレーム内には置きません。F# は NULL の扱いを型付きのウィンドウ情報として保持し、勝手に削除・変更しません。
+SQL Server 2022 CU4（16.0.4035.4）以降および Oracle 12.1 以降で、`LAG(amount) IGNORE NULLS OVER (PARTITION BY grp ORDER BY id)` と対応する `LEAD` の構文を保持できます。`IGNORE NULLS` は直前・直後の値を探す際に NULL を飛ばし、明示的な `RESPECT NULLS` は NULL を含む標準の動作を維持します。修飾子は**関数呼び出しと OVER の間**に置き、ウィンドウフレーム内には置きません。F# は NULL の扱いを型付きのウィンドウ情報として保持し、勝手に削除・変更しません。
+
+SQL Server 2022 RTM でも明示的な `RESPECT NULLS` は使用できます。一方、LAG／LEAD の `IGNORE NULLS` には Microsoft が修正した結果の不具合があるため CU4 以降の証明が必要です。`16.0` のみのバージョン指定では CU4 を証明できません。
 
 入力と出力の両方に明示的な `ServerVersion` 能力設定が必要です。実行時には Host がデータベースの実際のバージョンを検証します。PostgreSQL、MySQL、SQLite、Firebird の入力・出力ではこれらの修飾子を拒否し、対象外のウィンドウ関数、重複・不正な修飾子、`OVER` の欠落も拒否します。修飾子なしの既存の `LAG/LEAD` は変わりません。`WindowSpec.NullTreatment` と `WindowDefinition.NullTreatment` は同じ検証に従い、実際の SQL Server／Oracle の結果行との比較で NULL 無視を確認します。コンパイラーによる SQL 実行や権限付与は行いません。

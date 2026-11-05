@@ -74,6 +74,8 @@ DISTINCT의 인수는 직접 참조하는 로컬 열 하나여야 하며 조건�
 
 ## SQL Server／Oracle LAG·LEAD: NULL 무시
 
-SQL Server 2022 이상과 Oracle 12.1 이상에서 `LAG(amount) IGNORE NULLS OVER (PARTITION BY grp ORDER BY id)` 및 대응하는 `LEAD` 구문을 유지할 수 있습니다. `IGNORE NULLS`는 앞뒤 값을 찾을 때 NULL을 건너뛰고, 명시적 `RESPECT NULLS`는 NULL을 포함하는 원래 동작을 유지합니다. 수정자는 **함수 호출과 OVER 사이**에 놓이며 윈도 프레임 안에 넣지 않습니다. F#은 이를 형식이 지정된 윈도 NULL 처리 값으로 저장하여 컴파일 중 임의로 제거하거나 바꾸지 않습니다.
+SQL Server 2022 CU4(16.0.4035.4) 이상과 Oracle 12.1 이상에서 `LAG(amount) IGNORE NULLS OVER (PARTITION BY grp ORDER BY id)` 및 대응하는 `LEAD` 구문을 유지할 수 있습니다. `IGNORE NULLS`는 앞뒤 값을 찾을 때 NULL을 건너뛰고, 명시적 `RESPECT NULLS`는 NULL을 포함하는 원래 동작을 유지합니다. 수정자는 **함수 호출과 OVER 사이**에 놓이며 윈도 프레임 안에 넣지 않습니다. F#은 이를 형식이 지정된 윈도 NULL 처리 값으로 저장하여 컴파일 중 임의로 제거하거나 바꾸지 않습니다.
+
+SQL Server 2022 RTM에서도 명시적 `RESPECT NULLS`는 지원됩니다. 그러나 LAG／LEAD `IGNORE NULLS`의 결과 오류가 CU4에서 수정되었으므로 해당 기능에는 CU4 이상 빌드 증명이 필요합니다. `16.0`만 선언한 프로필로는 이 수정 사항을 증명할 수 없습니다.
 
 원본과 대상 모두 명시적인 `ServerVersion` 기능 설정이 있어야 하고, 실제 실행 시에는 Host가 데이터베이스 버전을 확인해야 합니다. PostgreSQL, MySQL, SQLite, Firebird는 이 수정자를 허용하지 않으며 지원하지 않는 윈도 함수, 중복·잘못된 수정자, `OVER` 누락도 거부합니다. 수정자 없는 기존 `LAG/LEAD`는 변경되지 않습니다. `WindowSpec.NullTreatment`와 `WindowDefinition.NullTreatment`는 같은 검증 경로를 사용하며, 실제 SQL Server／Oracle 결과 행과 비교해 NULL 건너뛰기를 확인합니다. 컴파일러는 SQL 실행이나 DB 권한을 부여하지 않습니다.

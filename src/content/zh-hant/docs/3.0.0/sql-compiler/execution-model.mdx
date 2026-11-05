@@ -74,6 +74,8 @@ SQL Server 的 T-SQL 語法不允許在 `RANGE` 視窗框架中使用數值型 `
 
 ## SQL Server／Oracle 的 LAG、LEAD：忽略 NULL
 
-SQL Server 2022 以上與 Oracle 12.1 以上現在可保留 `LAG(amount) IGNORE NULLS OVER (PARTITION BY grp ORDER BY id)`，以及對應的 `LEAD` 用法。`IGNORE NULLS` 在尋找上一個或下一個值時略過 NULL；明確指定 `RESPECT NULLS` 則保留原生的 NULL 參與方式。修飾詞必須放在**函式呼叫與 OVER 之間**，而非寫在視窗框架內。F# 將其表示為具型別的視窗 NULL 處理模式，不會在編譯時省略或猜測語意。
+SQL Server 2022 CU4（16.0.4035.4）以上與 Oracle 12.1 以上現在可保留 `LAG(amount) IGNORE NULLS OVER (PARTITION BY grp ORDER BY id)`，以及對應的 `LEAD` 用法。`IGNORE NULLS` 在尋找上一個或下一個值時略過 NULL；明確指定 `RESPECT NULLS` 則保留原生的 NULL 參與方式。修飾詞必須放在**函式呼叫與 OVER 之間**，而非寫在視窗框架內。F# 將其表示為具型別的視窗 NULL 處理模式，不會在編譯時省略或猜測語意。
+
+SQL Server 2022 RTM 已支援明確的 `RESPECT NULLS`；但 Microsoft 曾修正 LAG／LEAD `IGNORE NULLS` 的結果錯誤，因此後者必須具備 CU4 版本證據。只有 `16.0` 的版本設定不代表已安裝 CU4。
 
 來源與目標都必須明確提供 `ServerVersion` 能力設定；實際執行前仍須由 Host 核實資料庫版本。PostgreSQL、MySQL、SQLite、Firebird 不允許這些明確修飾詞；用於不支援的視窗函式、重複或錯誤修飾詞、缺少 `OVER` 都會拒絕。沒有修飾詞的原有 `LAG/LEAD` 不變。`WindowSpec.NullTreatment` 與 `WindowDefinition.NullTreatment` 使用相同的驗證管線，並以真實 SQL Server／Oracle 資料列比較確認跳過 NULL 的結果。Compiler 不會據此執行 SQL 或授權資料庫存取。
