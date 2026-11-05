@@ -64,4 +64,10 @@ SQL Server 的 T-SQL 语法不允许在 `RANGE` 窗口帧中使用数值型 `PRE
 
 以 PostgreSQL 为源方言的 `SELECT COUNT(*) FILTER (WHERE status = 1) FROM orders` 现在可以安全编译至 MySQL 或 SQL Server。MySQL 使用 `COUNT(CASE WHEN ... THEN 1 END)`，SQL Server 使用 `COUNT_BIG(CASE WHEN ... THEN 1 END)`，从而保留 64 位计数范围。直接列的 `COUNT(列)` 也受到支持，并保持 NULL 不计数、没有匹配行时返回零以及窗口帧内的条件计数语义。
 
-**这并不意味着全面支持 FILTER**：仅允许不带限定名、没有 `DISTINCT` 的 `COUNT(*)` 或直接本地列，以及可证明的简单列／常量条件。`SUM`、计算表达式参数、子查询、易变函数和外层引用仍会被拒绝。以 MySQL／SQL Server 方言直接输入的 `FILTER` SQL 仍是无效源语法；该转换仅适用于合法源方言（例如 PostgreSQL）。SqlCore 不执行 SQL，也不授予数据库权限。
+**这并不意味着全面支持 FILTER**：仅允许不带限定名的 `COUNT(*)`、直接本地列计数，以及非窗口聚合的 `COUNT(DISTINCT 直接列)`，并要求可证明的简单列／常量条件。`SUM`、计算表达式参数、子查询、易变函数和外层引用仍会被拒绝。以 MySQL／SQL Server 方言直接输入的 `FILTER` SQL 仍是无效源语法；该转换仅适用于合法源方言（例如 PostgreSQL）。SqlCore 不执行 SQL，也不授予数据库权限。
+
+## 条件式 DISTINCT COUNT：只统计符合条件的不重复值
+
+合法 PostgreSQL 源 SQL 中的 `COUNT(DISTINCT amount) FILTER (WHERE status = 1)` 现在可以编译成 MySQL 的 `COUNT(DISTINCT CASE WHEN status = 1 THEN amount END)`，或 SQL Server 的 `COUNT_BIG(DISTINCT CASE WHEN status = 1 THEN amount END)`。相同的值只计算一次；NULL、条件为假或未知的行不计数，没有符合条件的值时返回零。该能力使用 PostgreSQL 16、MySQL 8.4、SQL Server 2022 的真实数据库对分组和整体整数计数进行了测试。
+
+DISTINCT 仅允许一个直接本地列参数，筛选条件必须受到有界证明。计算表达式参数、多个 DISTINCT 参数、子查询、易变函数和外层引用仍被拒绝。**不支持带 `OVER (...)` 的 DISTINCT 窗口聚合**，因为 MySQL 与 SQL Server 均不提供该语法。MySQL／SQL Server 源 SQL 中的 `FILTER` 仍无效；整型测试也不代表字符串排序规则或跨数据库类型转换一定等价。此功能不执行 SQL，也不授予数据库权限。

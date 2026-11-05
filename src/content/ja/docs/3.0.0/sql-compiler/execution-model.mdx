@@ -64,4 +64,10 @@ SQL Server の T-SQL 構文では、`RANGE` ウィンドウフレームに数値
 
 PostgreSQL を入力方言とする `SELECT COUNT(*) FILTER (WHERE status = 1) FROM orders` は、MySQL または SQL Server 向けに条件付き集計へ安全に変換できます。MySQL は `COUNT(CASE WHEN ... THEN 1 END)`、SQL Server は 64 ビットの件数を保つ `COUNT_BIG(CASE WHEN ... THEN 1 END)` を使用します。直接指定した列の `COUNT(列)` も対象で、NULL の除外、該当行がない場合のゼロ、ウィンドウフレーム単位の集計結果を維持します。
 
-**FILTER 全般を解禁するものではありません。** 修飾されていない非 `DISTINCT` の `COUNT(*)`／ローカル列と、検証可能な単純な列・定数条件に限定します。`SUM`、計算式の引数、サブクエリ、非決定的関数、外部スコープの参照は拒否します。MySQL／SQL Server の入力 SQL に書かれた `FILTER` は依然として無効な構文です。この変換は PostgreSQL など有効な入力方言にのみ適用します。SqlCore 自体は SQL を実行せず、DB 権限も付与しません。
+**FILTER 全般を解禁するものではありません。** 修飾されていない `COUNT(*)`、ローカル列の COUNT、およびウィンドウ集計ではない `COUNT(DISTINCT 直接列)` と、検証可能な単純な列・定数条件に限定します。`SUM`、計算式の引数、サブクエリ、非決定的関数、外部スコープの参照は拒否します。MySQL／SQL Server の入力 SQL に書かれた `FILTER` は依然として無効な構文です。この変換は PostgreSQL など有効な入力方言にのみ適用します。SqlCore 自体は SQL を実行せず、DB 権限も付与しません。
+
+## 条件付き DISTINCT COUNT：重複を除いた値の集計
+
+PostgreSQL を入力方言とする `COUNT(DISTINCT amount) FILTER (WHERE status = 1)` を、MySQL の `COUNT(DISTINCT CASE WHEN status = 1 THEN amount END)`、または SQL Server の `COUNT_BIG(DISTINCT CASE WHEN status = 1 THEN amount END)` に変換できます。同じ値は一度だけ数え、NULL や条件が偽・不明の行は数えません。該当値がない場合はゼロです。PostgreSQL 16、MySQL 8.4、SQL Server 2022 の実際のデータベースで、グループ別・全体の整数集計を検証しています。
+
+DISTINCT の引数は直接参照するローカル列一つに限り、条件には有界な検証が必要です。計算式、複数の DISTINCT 引数、サブクエリ、非決定的関数、外側のスコープ参照は拒否します。**`OVER (...)` を伴う DISTINCT ウィンドウ集計は非対応**です。MySQL／SQL Server はこの構文をサポートしていません。入力方言が MySQL／SQL Server の `FILTER` も引き続き無効です。整数の検証結果を、文字列の照合順序や型変換の完全な互換性に拡大解釈することはできません。SQL の実行や DB 権限の付与は行いません。
