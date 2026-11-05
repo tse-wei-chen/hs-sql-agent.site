@@ -47,3 +47,7 @@ MCP 的公開介面是統一的，但最後產生的 SQL 會依資料庫而異�
 - Firebird
 
 支援範圍是刻意限定的。某個資料庫出現在支援清單中，不代表該產品提供的所有 SQL 語法都可以使用。只有當某項功能的語意能被內部表示並驗證時，編譯器才會把它納入支援範圍。
+
+## GROUPS 視窗框架
+
+PostgreSQL 11 以上與 SQLite 3.28 以上版本可以編譯 `SUM(amount) OVER (ORDER BY grp GROUPS BETWEEN 1 PRECEDING AND CURRENT ROW)` 這類視窗框架。`GROUPS` 以排序鍵相同的資料列群組為單位，不同於逐列計算的 `ROWS`，也不同於依排序值範圍計算的 `RANGE`。視窗內必須明確指定 `ORDER BY`。不合法的框架邊界、明確宣告的過舊資料庫版本都會遭到拒絕，也不會悄悄改用其他框架類型。MySQL、SQL Server、Oracle、Firebird 暫不開放此能力。實際執行前仍須由 Host 驗證資料庫版本。

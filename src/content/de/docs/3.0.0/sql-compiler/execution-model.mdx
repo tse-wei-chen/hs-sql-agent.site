@@ -47,3 +47,7 @@ Die öffentliche MCP-Schnittstelle ist gemeinsam, das endgültige SQL jedoch dat
 - Firebird
 
 Der unterstützte Umfang ist absichtlich begrenzt. Dass eine Datenbank unterstützt wird, bedeutet nicht, dass jede von ihr angebotene SQL-Syntax akzeptiert wird; einzelne Compiler-Fähigkeiten werden erst erweitert, wenn ihre Semantik repräsentiert und validiert werden kann.
+
+## Native Fensterrahmen mit GROUPS
+
+Für PostgreSQL ab Version 11 und SQLite ab 3.28 kann der Compiler Fensterrahmen wie `SUM(amount) OVER (ORDER BY grp GROUPS BETWEEN 1 PRECEDING AND CURRENT ROW)` erstellen. `GROUPS` zählt Gruppen von Zeilen mit gleichem Sortierschlüssel, nicht einzelne Zeilen (`ROWS`) oder Wertebereiche (`RANGE`). Erforderlich ist ein ausdrückliches `ORDER BY` im Fenster. Ungültige Grenzen und ausdrücklich deklarierte ältere Datenbankversionen werden abgewiesen; der Compiler ersetzt `GROUPS` niemals stillschweigend durch eine andere Einheit. Für MySQL, SQL Server, Oracle und Firebird ist diese Funktion nicht freigegeben. Die tatsächliche Serverversion muss der Host vor der Ausführung prüfen.

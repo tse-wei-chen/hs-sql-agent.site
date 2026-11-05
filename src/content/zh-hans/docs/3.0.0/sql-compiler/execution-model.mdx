@@ -47,3 +47,7 @@ MCP 的公开接口是统一的，但最终 SQL 会针对不同数据库分别�
 - Firebird
 
 支持范围是有意限定的。某个数据库出现在支持列表中，并不意味着该数据库提供的所有 SQL 语法都可以使用。只有当某项功能的语义能够被内部表示并验证时，编译器才会把它加入支持范围。
+
+## GROUPS 窗口帧
+
+PostgreSQL 11 及以上版本和 SQLite 3.28 及以上版本可以编译 `SUM(amount) OVER (ORDER BY grp GROUPS BETWEEN 1 PRECEDING AND CURRENT ROW)` 这样的窗口帧。`GROUPS` 以排序键相同的行组为单位，而非按单行计数的 `ROWS` 或按排序值范围计算的 `RANGE`。窗口必须显式指定 `ORDER BY`。无效的帧边界、明确声明的过旧数据库版本都会被拒绝，也不会悄悄降级为其他帧类型。MySQL、SQL Server、Oracle 和 Firebird 暂不开放该能力。执行前仍须由宿主验证实际数据库版本。
