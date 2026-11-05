@@ -59,3 +59,9 @@ PostgreSQL 11 及以上版本和 SQLite 3.28 及以上版本可以在 `ROWS`、`
 ## SQL Server 的 RANGE 窗口帧偏移限制
 
 SQL Server 的 T-SQL 语法不允许在 `RANGE` 窗口帧中使用数值型 `PRECEDING` 或 `FOLLOWING` 偏移。例如，即使将 PostgreSQL 或 SQLite 设为目标数据库，`RANGE BETWEEN 1 PRECEDING AND CURRENT ROW` 仍会因为**源 SQL Server 语法无效**而被拒绝。合法的 `ROWS` 偏移以及 `RANGE BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW` 仍受到支持；PostgreSQL 和 SQLite 原生的数值型 `RANGE` 语义不受影响。编译器会分别验证源方言和目标数据库能力，不会将目标数据库支持某种语法视为源语法有效的证明。
+
+## MySQL 和 SQL Server 目标端的条件 COUNT
+
+以 PostgreSQL 为源方言的 `SELECT COUNT(*) FILTER (WHERE status = 1) FROM orders` 现在可以安全编译至 MySQL 或 SQL Server。MySQL 使用 `COUNT(CASE WHEN ... THEN 1 END)`，SQL Server 使用 `COUNT_BIG(CASE WHEN ... THEN 1 END)`，从而保留 64 位计数范围。直接列的 `COUNT(列)` 也受到支持，并保持 NULL 不计数、没有匹配行时返回零以及窗口帧内的条件计数语义。
+
+**这并不意味着全面支持 FILTER**：仅允许不带限定名、没有 `DISTINCT` 的 `COUNT(*)` 或直接本地列，以及可证明的简单列／常量条件。`SUM`、计算表达式参数、子查询、易变函数和外层引用仍会被拒绝。以 MySQL／SQL Server 方言直接输入的 `FILTER` SQL 仍是无效源语法；该转换仅适用于合法源方言（例如 PostgreSQL）。SqlCore 不执行 SQL，也不授予数据库权限。

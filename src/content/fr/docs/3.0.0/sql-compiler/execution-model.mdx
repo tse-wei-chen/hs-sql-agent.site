@@ -59,3 +59,9 @@ PostgreSQL 11 ou ultérieur et SQLite 3.28 ou ultérieur acceptent quatre formes
 ## SQL Server : décalages numériques dans les cadres RANGE
 
 La syntaxe T-SQL de SQL Server interdit les décalages numériques `PRECEDING` et `FOLLOWING` dans un cadre de fenêtre `RANGE`. Ainsi, `RANGE BETWEEN 1 PRECEDING AND CURRENT ROW` est rejeté **comme syntaxe source SQL Server invalide**, même si PostgreSQL ou SQLite est choisi comme cible. Les décalages `ROWS` valides et `RANGE BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW` restent pris en charge. Les sémantiques `RANGE` numériques natives de PostgreSQL et de SQLite ne changent pas. Le compilateur vérifie séparément la validité du dialecte source et les capacités de la cible : la prise en charge par la cible ne prouve pas que la syntaxe source est valide.
+
+## COUNT conditionnel limité vers MySQL et SQL Server
+
+Une requête de dialecte source PostgreSQL comme `SELECT COUNT(*) FILTER (WHERE status = 1) FROM orders` peut désormais être compilée pour MySQL ou SQL Server sous la forme d'une agrégation conditionnelle équivalente. MySQL utilise `COUNT(CASE WHEN ... THEN 1 END)` ; SQL Server utilise `COUNT_BIG(CASE WHEN ... THEN 1 END)` pour préserver la plage de comptage sur 64 bits. `COUNT(colonne_directe)` est également accepté, tout en conservant l'exclusion des valeurs NULL, le résultat zéro lorsque rien ne correspond et les comptes par cadre de fenêtre.
+
+**Ce n'est pas une prise en charge générale de FILTER.** Seuls `COUNT(*)` et les colonnes locales directes non qualifiées, sans `DISTINCT`, avec des conditions simples prouvées sur colonnes et constantes sont admis. `SUM`, les arguments calculés, sous-requêtes, fonctions volatiles et références à une portée externe restent refusés. `FILTER` demeure invalide dans du SQL source MySQL/SQL Server : la traduction concerne un dialecte source valide, tel que PostgreSQL. SqlCore n'exécute pas de SQL et n'accorde aucun droit sur la base de données.

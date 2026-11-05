@@ -59,3 +59,9 @@ PostgreSQL 11 以降と SQLite 3.28 以降では、`ROWS`、`RANGE`、`GROUPS` �
 ## SQL Server の RANGE フレームにおける数値オフセット制限
 
 SQL Server の T-SQL 構文では、`RANGE` ウィンドウフレームに数値付きの `PRECEDING` または `FOLLOWING` を指定できません。たとえば `RANGE BETWEEN 1 PRECEDING AND CURRENT ROW` は、出力先を PostgreSQL や SQLite に指定していても、**SQL Server の入力構文として無効**なため拒否されます。有効な `ROWS` のオフセットと `RANGE BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW` は引き続き利用できます。PostgreSQL と SQLite 固有の数値 `RANGE` の意味は維持されます。コンパイラーは入力方言の適合性と出力先の対応能力を別々に検証し、出力先で使える構文を入力構文の有効性の根拠にはしません。
+
+## MySQL／SQL Server 向けの限定的な条件付き COUNT
+
+PostgreSQL を入力方言とする `SELECT COUNT(*) FILTER (WHERE status = 1) FROM orders` は、MySQL または SQL Server 向けに条件付き集計へ安全に変換できます。MySQL は `COUNT(CASE WHEN ... THEN 1 END)`、SQL Server は 64 ビットの件数を保つ `COUNT_BIG(CASE WHEN ... THEN 1 END)` を使用します。直接指定した列の `COUNT(列)` も対象で、NULL の除外、該当行がない場合のゼロ、ウィンドウフレーム単位の集計結果を維持します。
+
+**FILTER 全般を解禁するものではありません。** 修飾されていない非 `DISTINCT` の `COUNT(*)`／ローカル列と、検証可能な単純な列・定数条件に限定します。`SUM`、計算式の引数、サブクエリ、非決定的関数、外部スコープの参照は拒否します。MySQL／SQL Server の入力 SQL に書かれた `FILTER` は依然として無効な構文です。この変換は PostgreSQL など有効な入力方言にのみ適用します。SqlCore 自体は SQL を実行せず、DB 権限も付与しません。

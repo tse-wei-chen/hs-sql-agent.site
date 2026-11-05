@@ -59,3 +59,9 @@ PostgreSQL 11+ and SQLite 3.28+ support four explicit frame exclusions after a `
 ## SQL Server RANGE frame offsets
 
 SQL Server's T-SQL source grammar does not allow numeric `PRECEDING` or `FOLLOWING` offsets in a `RANGE` window frame. For example, `RANGE BETWEEN 1 PRECEDING AND CURRENT ROW` is rejected as **invalid SQL Server source syntax**, even if the target is PostgreSQL or SQLite. Legal `ROWS` offsets and `RANGE BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW` remain supported. PostgreSQL and SQLite retain their own native numeric `RANGE` semantics. The compiler checks source dialect validity separately from target rendering rather than treating the target's features as proof that the original SQL was valid.
+
+## Bounded filtered COUNT for MySQL and SQL Server targets
+
+A PostgreSQL-source query such as `SELECT COUNT(*) FILTER (WHERE status = 1) FROM orders` can now be compiled into a safe conditional aggregate for MySQL or SQL Server. MySQL uses `COUNT(CASE WHEN ... THEN 1 END)`; SQL Server uses `COUNT_BIG(CASE WHEN ... THEN 1 END)` to preserve 64-bit counts. `COUNT(direct_column)` is also supported, retaining SQL NULL handling, zero results for an empty match set and frame-sensitive window counts.
+
+This is **not** general support for `FILTER`: only unqualified, non-`DISTINCT` `COUNT(*)` and direct local-column counts with bounded local column/literal predicates are proven. `SUM`, computed count arguments, subqueries, volatile functions and outer references remain rejected. Raw MySQL/SQL Server source SQL containing `FILTER` is still invalid; the translation is for an eligible source dialect such as PostgreSQL, not permission to accept unsupported input syntax. SqlCore does not execute SQL or grant database access.
