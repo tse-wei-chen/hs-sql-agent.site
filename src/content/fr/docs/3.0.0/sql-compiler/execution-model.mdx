@@ -47,3 +47,7 @@ L’interface MCP publique est commune, mais le SQL final dépend du moteur cibl
 - Firebird
 
 La prise en charge est volontairement bornée. Le fait qu’un moteur soit pris en charge ne signifie pas que toutes les syntaxes proposées par cette base sont acceptées ; les capacités du compilateur ne sont étendues que lorsque leur sémantique peut être représentée et validée.
+
+## Cadres de fenêtre natifs GROUPS
+
+Pour PostgreSQL 11 ou ultérieur et SQLite 3.28 ou ultérieur, le compilateur accepte un cadre comme `SUM(amount) OVER (ORDER BY grp GROUPS BETWEEN 1 PRECEDING AND CURRENT ROW)`. `GROUPS` avance par groupes de lignes ayant la même clé de tri, et non par lignes individuelles (`ROWS`) ni par plages de valeurs (`RANGE`). Un `ORDER BY` explicite dans la fenêtre est obligatoire. Les bornes incorrectes et les versions de serveur explicitement trop anciennes sont refusées, sans conversion silencieuse vers un autre cadre. Cette capacité reste refusée pour MySQL, SQL Server, Oracle et Firebird. Le serveur d’hébergement doit vérifier la version réelle de la base avant toute exécution.

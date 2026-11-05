@@ -47,3 +47,7 @@ The public MCP surface is shared, but the final SQL is provider-specific. Curren
 - Firebird
 
 Support is intentionally bounded. A provider being supported does not mean every syntax feature from that database is accepted; individual compiler capabilities are expanded only when their semantics are represented and validated.
+
+## Native GROUPS window frames
+
+PostgreSQL 11+ and SQLite 3.28+ can compile a `GROUPS` window frame for an aggregate such as `SUM(amount) OVER (ORDER BY grp GROUPS BETWEEN 1 PRECEDING AND CURRENT ROW)`. `GROUPS` advances by groups of rows tied on the ordering key, rather than by individual rows (`ROWS`) or numeric ordering ranges (`RANGE`). The compiler requires an explicit window `ORDER BY`, rejects invalid frame bounds and explicitly older server versions, and never silently substitutes another frame unit. MySQL, SQL Server, Oracle and Firebird are not admitted for this capability. A compiled plan does not prove the actual database runtime version; the Host must verify it before execution.
