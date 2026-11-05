@@ -51,3 +51,7 @@ MCP 的公開介面是統一的，但最後產生的 SQL 會依資料庫而異�
 ## GROUPS 視窗框架
 
 PostgreSQL 11 以上與 SQLite 3.28 以上版本可以編譯 `SUM(amount) OVER (ORDER BY grp GROUPS BETWEEN 1 PRECEDING AND CURRENT ROW)` 這類視窗框架。`GROUPS` 以排序鍵相同的資料列群組為單位，不同於逐列計算的 `ROWS`，也不同於依排序值範圍計算的 `RANGE`。視窗內必須明確指定 `ORDER BY`。不合法的框架邊界、明確宣告的過舊資料庫版本都會遭到拒絕，也不會悄悄改用其他框架類型。MySQL、SQL Server、Oracle、Firebird 暫不開放此能力。實際執行前仍須由 Host 驗證資料庫版本。
+
+## EXCLUDE：視窗框架的資料列排除規則
+
+PostgreSQL 11 以上與 SQLite 3.28 以上版本，可在 `ROWS`、`RANGE` 或 `GROUPS` 框架之後指定四種排除模式。`EXCLUDE CURRENT ROW` 只排除目前資料列；`EXCLUDE GROUP` 排除目前資料列及排序鍵相同的所有同儕資料列；`EXCLUDE TIES` 保留目前資料列，但排除其他排序鍵相同的資料列；`EXCLUDE NO OTHERS` 則不排除任何資料列。例如：`SUM(amount) OVER (ORDER BY grp GROUPS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW EXCLUDE TIES)`。即使使用 `ROWS` 框架，排除規則仍會考慮排序鍵相同的同儕資料列。F# Compiler 與 `WindowFrameDefinition.Exclusion` 會保留原始語意，不會暗中改寫。明確宣告的過舊版本與另外四種資料庫提供者都會遭到拒絕。Host 在執行前仍需確認實際資料庫版本。

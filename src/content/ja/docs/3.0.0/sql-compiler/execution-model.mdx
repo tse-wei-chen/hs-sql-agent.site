@@ -51,3 +51,7 @@ MCP の公開インターフェースは共通ですが、最終的に生成さ�
 ## GROUPS によるウィンドウフレーム
 
 PostgreSQL 11 以降と SQLite 3.28 以降では、`SUM(amount) OVER (ORDER BY grp GROUPS BETWEEN 1 PRECEDING AND CURRENT ROW)` のようなウィンドウフレームをコンパイルできます。`GROUPS` は並び替えキーが等しい行の集まりを単位として数えます。個々の行を数える `ROWS` や値の範囲を扱う `RANGE` とは意味が異なります。ウィンドウ内の明示的な `ORDER BY` が必須です。不正なフレーム境界や、対応開始バージョンより古いと明示されたデータベースは拒否し、別のフレーム単位には暗黙変換しません。MySQL、SQL Server、Oracle、Firebird ではこの機能を許可しません。実行前にホスト側で実際のデータベースのバージョンを検証する必要があります。
+
+## EXCLUDE：ウィンドウフレームからの行の除外
+
+PostgreSQL 11 以降と SQLite 3.28 以降では、`ROWS`、`RANGE`、`GROUPS` のフレームに四種類の除外指定を追加できます。`EXCLUDE CURRENT ROW` は現在行のみ、`EXCLUDE GROUP` は現在行と同じ並び替えキーの行すべてを除外します。`EXCLUDE TIES` は現在行を残して同じキーの他の行を除外し、`EXCLUDE NO OTHERS` は何も除外しません。例：`SUM(amount) OVER (ORDER BY grp GROUPS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW EXCLUDE TIES)`。`ROWS` を指定した場合も、除外時には同じ並び替えキーの行を考慮します。F# コンパイラーと `WindowFrameDefinition.Exclusion` は意味を変えずに扱います。明示された旧バージョンや他の四種類のデータベースは拒否されます。実行前には Host が実際のデータベースバージョンを確認する必要があります。

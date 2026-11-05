@@ -51,3 +51,7 @@ MCP 的公开接口是统一的，但最终 SQL 会针对不同数据库分别�
 ## GROUPS 窗口帧
 
 PostgreSQL 11 及以上版本和 SQLite 3.28 及以上版本可以编译 `SUM(amount) OVER (ORDER BY grp GROUPS BETWEEN 1 PRECEDING AND CURRENT ROW)` 这样的窗口帧。`GROUPS` 以排序键相同的行组为单位，而非按单行计数的 `ROWS` 或按排序值范围计算的 `RANGE`。窗口必须显式指定 `ORDER BY`。无效的帧边界、明确声明的过旧数据库版本都会被拒绝，也不会悄悄降级为其他帧类型。MySQL、SQL Server、Oracle 和 Firebird 暂不开放该能力。执行前仍须由宿主验证实际数据库版本。
+
+## EXCLUDE：窗口帧的行排除规则
+
+PostgreSQL 11 及以上版本和 SQLite 3.28 及以上版本可以在 `ROWS`、`RANGE` 或 `GROUPS` 帧后使用四种排除方式。`EXCLUDE CURRENT ROW` 只排除当前行；`EXCLUDE GROUP` 排除当前行及排序键相同的所有同行；`EXCLUDE TIES` 保留当前行，排除其他排序键相同的行；`EXCLUDE NO OTHERS` 不排除任何行。例如：`SUM(amount) OVER (ORDER BY grp GROUPS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW EXCLUDE TIES)`。即使采用 `ROWS` 帧，排除规则也会识别排序键相同的行。F# 编译器与 `WindowFrameDefinition.Exclusion` 会保留原有语义，不进行隐式改写。明确声明的过旧版本以及其他四种数据库提供程序都会被拒绝。执行前仍需由 Host 验证数据库实际版本。
