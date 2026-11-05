@@ -55,3 +55,7 @@ PostgreSQL 11 及以上版本和 SQLite 3.28 及以上版本可以编译 `SUM(am
 ## EXCLUDE：窗口帧的行排除规则
 
 PostgreSQL 11 及以上版本和 SQLite 3.28 及以上版本可以在 `ROWS`、`RANGE` 或 `GROUPS` 帧后使用四种排除方式。`EXCLUDE CURRENT ROW` 只排除当前行；`EXCLUDE GROUP` 排除当前行及排序键相同的所有同行；`EXCLUDE TIES` 保留当前行，排除其他排序键相同的行；`EXCLUDE NO OTHERS` 不排除任何行。例如：`SUM(amount) OVER (ORDER BY grp GROUPS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW EXCLUDE TIES)`。即使采用 `ROWS` 帧，排除规则也会识别排序键相同的行。F# 编译器与 `WindowFrameDefinition.Exclusion` 会保留原有语义，不进行隐式改写。明确声明的过旧版本以及其他四种数据库提供程序都会被拒绝。执行前仍需由 Host 验证数据库实际版本。
+
+## SQL Server 的 RANGE 窗口帧偏移限制
+
+SQL Server 的 T-SQL 语法不允许在 `RANGE` 窗口帧中使用数值型 `PRECEDING` 或 `FOLLOWING` 偏移。例如，即使将 PostgreSQL 或 SQLite 设为目标数据库，`RANGE BETWEEN 1 PRECEDING AND CURRENT ROW` 仍会因为**源 SQL Server 语法无效**而被拒绝。合法的 `ROWS` 偏移以及 `RANGE BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW` 仍受到支持；PostgreSQL 和 SQLite 原生的数值型 `RANGE` 语义不受影响。编译器会分别验证源方言和目标数据库能力，不会将目标数据库支持某种语法视为源语法有效的证明。

@@ -55,3 +55,7 @@ PostgreSQL 11 以降と SQLite 3.28 以降では、`SUM(amount) OVER (ORDER BY g
 ## EXCLUDE：ウィンドウフレームからの行の除外
 
 PostgreSQL 11 以降と SQLite 3.28 以降では、`ROWS`、`RANGE`、`GROUPS` のフレームに四種類の除外指定を追加できます。`EXCLUDE CURRENT ROW` は現在行のみ、`EXCLUDE GROUP` は現在行と同じ並び替えキーの行すべてを除外します。`EXCLUDE TIES` は現在行を残して同じキーの他の行を除外し、`EXCLUDE NO OTHERS` は何も除外しません。例：`SUM(amount) OVER (ORDER BY grp GROUPS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW EXCLUDE TIES)`。`ROWS` を指定した場合も、除外時には同じ並び替えキーの行を考慮します。F# コンパイラーと `WindowFrameDefinition.Exclusion` は意味を変えずに扱います。明示された旧バージョンや他の四種類のデータベースは拒否されます。実行前には Host が実際のデータベースバージョンを確認する必要があります。
+
+## SQL Server の RANGE フレームにおける数値オフセット制限
+
+SQL Server の T-SQL 構文では、`RANGE` ウィンドウフレームに数値付きの `PRECEDING` または `FOLLOWING` を指定できません。たとえば `RANGE BETWEEN 1 PRECEDING AND CURRENT ROW` は、出力先を PostgreSQL や SQLite に指定していても、**SQL Server の入力構文として無効**なため拒否されます。有効な `ROWS` のオフセットと `RANGE BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW` は引き続き利用できます。PostgreSQL と SQLite 固有の数値 `RANGE` の意味は維持されます。コンパイラーは入力方言の適合性と出力先の対応能力を別々に検証し、出力先で使える構文を入力構文の有効性の根拠にはしません。
