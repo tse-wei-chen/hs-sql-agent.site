@@ -94,4 +94,6 @@ PostgreSQL `SELECT` can modify persisted data through a `VOLATILE` or user-defin
 
 A PostgreSQL 16 live test reproduced an authorized `SELECT` that changed a table row through a custom function before the fix. Physical regression tests also cover 32 stacked statements, five unauthorized-table paths, sequence effects, safe bound literal payloads, and ordinary OR/CTE queries. Rejected requests must return no rows and preserve database state.
 
+A second PostgreSQL 16 RED test demonstrated that `pg_catalog.query_to_xml` can run a hidden read of a table excluded by the SQL table whitelist **even within a `READ ONLY` transaction**. With a nonempty table whitelist, the F# Query policy therefore rejects unproven user/native functions and admits a bounded set of known `pg_catalog` built-ins. It explicitly qualifies allowed function names with `pg_catalog` to prevent shadowing through `search_path`, while preserving ordinary safe functions such as `LOWER` and `COUNT`. SQL-function restrictions are separate from write prevention; least-privilege physical DB roles remain essential.
+
 This fence covers **PostgreSQL Query execution only**. It grants no DML/DDL permission, does not establish equivalent protection for the other five providers, and is not a sandbox for advisory locks or arbitrary external effects. Keep least-privilege database roles and runtime limits.
