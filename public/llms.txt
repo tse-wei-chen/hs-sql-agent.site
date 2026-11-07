@@ -2,7 +2,7 @@
 
 > hs-sql-agent provides governed SQL access for AI agents through MCP, with fail-closed typed SQL compilation, scoped access policies, approval-gated DML, explainable compiler decisions, deployment diagnostics, and support for PostgreSQL, MySQL, SQL Server, Oracle, SQLite, and Firebird.
 
-Current documented release: **3.0.0**. Product behavior is pinned to immutable product commit `c40681699e4b3172c843dd567c5aee21f2f2afad` by `src/data/productRelease.ts`.
+Current documented release: **3.1.0**. Product behavior is pinned to immutable product commit `051ad8d9b19199dfaa3cc339c9e4cc342128aa4c` by `src/data/productRelease.ts`.
 
 The documentation site is localized in English, Traditional Chinese, Simplified Chinese, Japanese, Korean, French, and German. Prefer stable unversioned documentation URLs for the current release.
 
@@ -23,13 +23,14 @@ The documentation site is localized in English, Traditional Chinese, Simplified 
 
 ## Built-in MCP tools
 
-The built-in surface is intentionally limited to exactly five names:
+The built-in surface is intentionally limited to exactly six names:
 
 - `get_schemas`
 - `get_tables`
 - `get_columns`
 - `execute_query_sql`
 - `execute_dml_sql`
+- `execute_ddl_sql`
 
 All five built-ins expose MCP structured results with inferred output schemas. Read/query tools return typed success/error payloads instead of requiring clients to parse presentation text.
 
@@ -39,7 +40,7 @@ Metadata discovery is structured. Table and column results can include authorize
 
 `execute_dml_sql` returns an explicit `Status` of `committed`, `pending`, `rejected`, or `failed`. It also exposes `Provider`, `Committed`, `StatementCount`, `AffectedRows`, `ApprovalWaitDurationMs`, `ApprovalDecision`, `ApprovalRequestId`, `ApprovalExternalReference`, `ReturnedRows`, `Message`, and `Error`. `pending` and `rejected` are approval states rather than execution errors; `Error` is populated only when `Status` is `failed`.
 
-DML remains opt-in for newly issued MCP keys. The default posture selects the four read/query tools and excludes `execute_dml_sql`.
+DML remains opt-in for newly issued MCP keys. The default posture selects the four read/query tools and excludes `execute_dml_sql` and `execute_ddl_sql`. DDL uses its own opt-in approval, physical schema proof and provider-specific transaction/implicit-commit rules; it is not a universal executable SQL grammar.
 
 Published Custom Tools can extend a database's tool collection but are not additional built-in tools.
 
@@ -76,7 +77,7 @@ Doctor `Warning` items deserve review but do not block readiness; Doctor `Error`
 - [Database dialects](https://sql-agent.net/docs/sql-compiler/database-dialects)
 - [Safe DML](https://sql-agent.net/docs/sql-compiler/safe-dml)
 
-3.0.0 does not bypass or weaken the typed SQL pipeline. SQL still passes parse, bind, authorization, policy validation, target-capability proof, compilation, and provider execution boundaries.
+3.1.0 does not bypass or weaken the typed SQL pipeline. SQL still passes parse, bind, authorization, policy validation, target-capability proof, compilation, and provider execution boundaries.
 
 For `UPDATE` and `DELETE`, approval binds exact row-set evidence and revalidates before mutation. `INSERT ... VALUES` binds immutable payload evidence. Multi-statement DML remains one server-owned atomic transaction; client-supplied transaction-control SQL is rejected.
 
@@ -109,12 +110,12 @@ An asynchronous provider may return `Pending`. Durable completion remains server
 
 ## Source of truth
 
-- [Pinned 3.0.0 product source](https://github.com/tse-wei-chen/hs-sql-agent/tree/c40681699e4b3172c843dd567c5aee21f2f2afad)
+- [Pinned 3.1.0 product source](https://github.com/tse-wei-chen/hs-sql-agent/tree/051ad8d9b19199dfaa3cc339c9e4cc342128aa4c)
 - [Product repository](https://github.com/tse-wei-chen/hs-sql-agent)
 - [Documentation repository](https://github.com/tse-wei-chen/hs-sql-agent.site)
 - [Content source policy](https://github.com/tse-wei-chen/hs-sql-agent.site/blob/main/CONTENT_SOURCES.md)
 
-## Current 3.0.0 overlay source
+## Current 3.1.0 overlay source
 
 Only behavior changed by this release is duplicated into the current overlay. Unchanged pages are inherited from the immediate parent release.
 

@@ -1,0 +1,327 @@
+---
+title: Safe DML
+description: 核准一個或多個 DML、重新驗證精確證據，並以單一交易原子提交核准內容。
+sidebar:
+  group: SQL Compiler
+  order: 50
+---
+
+## 核准准入、不確定結果與目標證據
+
+要求選擇性條件時，能證明恆真的 `UPDATE`／`DELETE` 條件（例如 `WHERE 1=1`）會被拒絕。人工核准仍須繫結精確的計畫與資料列集合證據。
+
+自訂 challenge store 必須為單一與批次操作原子實作 `TryPromoteAsync`。Redis 與持久化續行使用版本化封套；不相容的 challenge 須重新預覽與核准。詳見[升級指南](/zh-hant/docs/reference/upgrade-guide)。
+
+`dml.commit_outcome_unknown` 與 `dml.rollback_outcome_unknown` 是不同且不可重試的結果。請保留核准與目標證據，進行獨立釐清。缺少 witness 或 Redis key 都無法證明已回復，不可自動重播結果不明的變更。已確認提交後，即使稽核儲存失敗，也不能回報為變更失敗。
+
+`AddHsSqlAgentTargetExecutionFence()` 須明確啟用，先準備目標資料表與權限，並另外證明舊 worker 已失去 DML 權限。每次納管提交都在實際連線上執行兩個額外的僅回復 readiness 交易，提交後獨立讀取 Admission 與 Witness 各一次。Oracle 只在 witness 唯一鍵衝突診斷使用 READ COMMITTED，其餘 readiness 階段使用 SERIALIZABLE。證據矛盾會回報不確定結果；這不提供整個叢集的節點納管證明，也不會自動處置仍存活的 worker。
+
+DML 比 Query 使用更嚴格的執行路徑，因為真正 commit 時，核准內容仍必須描述**同一份 Mutation Evidence**。
+
+## 一個 Tool，同時支援單語句與多語句
+
+`execute_dml_sql` 可接受一個或多個受支援的 `UPDATE`、`DELETE`、`INSERT ... VALUES`，多個 Statement 以分號分隔。 另外也接受受限的 SQLite `INSERT ... SELECT`，但**只能單語句執行**，不可混入多語句批次。
+
+沒有額外的 batch DML Tool。多語句輸入會解析成一個 Batch，只核准一次，依原始順序執行，最後在一個由伺服器掌握的 Transaction 中原子提交。
+
+Client 不可送入 `BEGIN`、`COMMIT`、`ROLLBACK` 等 Transaction-control SQL；交易邊界由伺服器掌握。
+
+## 核准綁定的內容
+
+`UPDATE` / `DELETE` 的核准綁定 Preview 時觀察到的精確 Primary Key Row Set。Commit Transaction 內每個 Statement 在真正修改前都會立即重新驗證。
+
+`INSERT ... VALUES` 的核准綁定不可變的 Literal Payload 與精確的編譯 Command。
+
+### SQLite 單語句來源資料列核准（G9／M09，僅 develop）
+
+僅 SQLite 開放受限的 `INSERT ... SELECT`。唯一直接來源與插入目標必須是明確指定的真實 `main` 資料表（可為同表或兩張不同表）；不同表須各自通過實體結構證明。明確且不重複的目標欄位、直接來源欄位投影、`WHERE 欄位 = 非 NULL 常值`、正整數且有限的筆數上限，以及 `AddHsSqlAgentNativeDmlSchemaFreshness()` 仍為必要條件。
+
+預覽綁定**全部來源投影值**，不會預先捏造目標表自動產生的 ID。提交時先取得 SQLite 寫入保留鎖，在同一交易內重驗實體結構與來源行集，再執行一次編譯後的 INSERT。SQLite **3.35+** 另可使用 `RETURNING`，但只允許明確、無別名且不重複的目標欄位；**成功提交後**才回傳真實插入列，與來源預覽資料不同。RETURNING 萬用字元、運算式或別名、CTE、JOIN、UPSERT、附加資料庫、未經證明的多語句來源批次及其他資料庫仍拒絕。DML 權限與人工核准維持不變。
+
+若前一個 Statement 改變了後一個 Statement 原先核准的 Row Set，整個 Batch 會 fail closed 並 rollback。
+
+## 核准 Provider
+
+MCP Elicitation 仍是第一方預設 Provider。Host 也可以使用官方 `HsSqlAgent.Approvals.Webhook` adapter，或在 `HsSqlAgent.Server` 實作 `IDmlApprovalProvider`。
+
+核准 Provider 收到的是與傳輸方式無關的 Evidence，不是 SQL 執行 primitive；不會取得 Database Connection、Transaction、已驗證 Plan 或 commit 權限。
+
+## Durable Pending Approval
+
+Provider 可以對非同步流程回傳 `Pending`。有 Admin Store 時，hs-sql-agent 會保存受保護的 Resume Intent 與 Approval Fingerprint。
+
+之後收到完成決策時，伺服器會重新載入目前授權與資料庫設定、重新 Parse / Preview DML、比對核准 Evidence，再建立新的短效 Execution Challenge。授權、資料庫設定、Policy、Plan、Row Set 或 affected-row Evidence 只要改變，就會視為 stale 而不是 commit。
+
+完成流程恢復的是**執行意圖**，不是舊的 Database Session。
+
+## SQL Server：CTE 更新與刪除的複合 INT 鍵
+
+SQL Server 的 UPDATE／DELETE 在明確授權下，可透過 1～3 層線性、非遞迴 CTE 讀取實體來源資料表，但必須先確認來源具有**由兩個不可為 NULL 的 INT 欄位組成的主鍵或唯一索引**。兩個鍵欄位必須依實體索引順序，在每一層 CTE 原樣投影。最終修改語句須使用必要的 `AND` 與一般 `=`，分別匹配目標資料表的兩個 INT 欄位。執行前還需要驗證實體資料庫中繼資料、預覽受影響資料列、綁定核准內容，並在實際提交交易內再次檢查中繼資料。
+
+缺少或交換鍵欄位、僅靠 `OR` 匹配、型別轉換、可為 NULL 或計算欄位、篩選或停用的索引，以及造成匹配資料列倍增的 JOIN，都會被拒絕。這項能力不會擴大其他資料庫的可執行範圍。
+
+### 受限雙分支 CTE 合流證明（G9／M06，僅 develop）
+
+SQL Server 的 CTE `UPDATE`／`DELETE` 現新增一種**三節點分支合流**形狀：兩個 CTE 分別從**同一張實體 UNIQUE 來源表**直接投影完整、有序的兩欄鍵；第三個 CTE 僅能透過兩條普通等號組成的 `INNER JOIN` 合流，並直接輸出鍵欄位。目標資料表也必須以完整兩欄鍵比對。
+
+這並不是開放任意 CTE DAG。F# 靜態基數證明、F# 封閉式寫入准入與 Host 實體索引查核各自驗證，後續仍需預覽→獨立核准→同一交易持鎖 `IsCurrent`。不同來源表、遺漏或重複的鍵等號、`OR`、`LEFT JOIN`、篩選、`CAST`、計算鍵、額外 CTE 分支與模糊別名均拒絕。其他五種資料庫及 MCP 預設設定不變。
+
+### 雙層衍生資料表的實體唯一鍵追溯（G9／M06，僅 develop）
+
+SQL Server 受限 CTE `UPDATE`／`DELETE` 現可在既有 1～3 層 CTE 之前，經過**兩層非 LATERAL、只投影原始欄位的衍生資料表**，逐層傳遞完整、順序不變的實體 UNIQUE 鍵。例如 `FROM (SELECT mid.x AS x, mid.y AS y FROM (SELECT s.k1 AS x, s.k2 AS y FROM dbo.Source AS s) AS mid) AS d`，再交由 `SELECT d.x AS a, d.y AS b` 使用。這是下方單層能力的擴充，**不是任意多分支 CTE DAG 的放行**。
+
+F# 基數證明、F# 實際寫入准入證明及 Host 實體索引驗證會分別追溯鍵來源；仍須具備真實 UNIQUE 索引、精確型別與定序、完整目標等號條件、預覽→獨立核准→提交，以及交易內持鎖的 `IsCurrent`。第三層巢狀、額外來源、JOIN、WHERE、DISTINCT、分組、排序、分頁、計算或轉型鍵、重複別名、缺漏或交換鍵欄位都會拒絕。其他五種資料庫、預設四個唯讀工具與 DML 預設關閉均不變。
+
+### 單層 Derived Table 的唯一鍵傳遞證明（G9／M06，僅 develop）
+
+SQL Server 受限 CTE `UPDATE`／`DELETE` 現可在原有 1～3 層 CTE 前，加入一層**只讀取單一實體來源表、非 LATERAL 的 Derived Table**。內層與外層 CTE 都可直接重新命名完整有序唯一鍵，例如 `FROM (SELECT s.k1 AS x, s.k2 AS y FROM dbo.Source AS s) AS d`，再以 `SELECT d.x AS a, d.y AS b` 投影。F# 的 mutation cardinality analyzer 和 Host 的實體證明探索會**各自獨立**追溯欄位與鍵位置；真正的執行權限仍需來源表的完整實體 UNIQUE 索引、目標型別一致、NULL 等號與定序規則驗證。Derived Table 別名或虛擬 Catalog 不能當成授權。
+
+這**並非開放任意 Derived Table 或多分支 CTE DAG**。內層不接受 JOIN、WHERE、DISTINCT、GROUP／HAVING、聚合、ORDER、LIMIT／TOP／OFFSET、UNION、巢狀 Derived／CTE、LATERAL、計算／CAST 鍵、重複別名或遺漏唯一鍵欄位。預覽→獨立核准→提交、精確行集身分及提交交易內持鎖的 `IsCurrent` 重新驗證均保留，預覽後撤銷索引仍拒絕。SQL Server 2022 實測涵蓋 1～3 層 CTE、整數／小數／UUID／文字複合鍵與 UPDATE／DELETE。其他五種資料庫、預設四個唯讀 MCP 工具及 DML 預設關閉均不變。
+
+
+### 語系定序與 UNIQUE 等號比較的精確證明（G9／M05，僅 develop）
+
+SQL Server 受限 CTE UPDATE／DELETE 的實體鍵證明，現在可針對內建且長度受限的 `VARCHAR(n)`／`NVARCHAR(n)` 驗證四種**明確區分的比較語意**：既有的 `Latin1_General_100_BIN2`（二進位碼點），新增 `Latin1_General_100_CI_AS`（不區分大小寫、區分重音）、`Latin1_General_100_CI_AI`（大小寫與重音均不區分），以及 `Latin1_General_100_CS_AS`（大小寫與重音均區分）。來源 UNIQUE 索引、目標比較欄位，以及經獨立證明的第二個 JOIN 來源，必須在**每個鍵位置**具有相同的 SQL 實體型別、長度與實際欄位定序。Snapshot 標記為 Text 並不構成授權；F# 使用封閉型別區分比較語意，重新查驗真實資料庫欄位與索引。
+
+SQL Server 2022 實體測試會比對**大小寫／重音變體是否觸發唯一索引衝突**與普通 `=` 的實際配對結果，而非僅根據定序名稱推論。既有 1～3 層 CTE、完整 AND 鍵關聯、文字／UUID／數值複合鍵、預覽→獨立核准→提交及交易內 `IsCurrent` 均保留；nullable 來源 UNIQUE 仍須 `ANSI_NULLS ON`。ProofIdentity 升至 **v9**，舊核准無法沿用。來源／目標定序不一致、明確 `COLLATE` 覆寫、VARCHAR 與 NVARCHAR 隱含轉型、未驗證的 CS_AI／_SC／_UTF8、CHAR／MAX、篩選或停用索引以及不完整的等號關聯，仍一律拒絕。沒有增加 MCP 工具、權限，也不影響其他五種資料庫。
+
+
+### 可為 NULL 的 SQL Server UNIQUE 實體鍵與普通等號證明（G9／M05，僅 develop）
+
+SQL Server 來源鍵現在可以有 NULL 欄位，但前提是**完整的 1～2 欄有序鍵組合具有實際啟用、未經篩選的實體 UNIQUE 索引**。受限 CTE `UPDATE`／`DELETE` 仍須具備對目標欄位的完整 `AND`／普通 `=` 等號關聯，且實體連線必須為 `ANSI_NULLS ON`（使用 `@@OPTIONS` 驗證）。來源鍵只要有一個欄位為 NULL，普通等號的結果即為 UNKNOWN，**不能配對任何目標資料列**。這不是 NULL-safe equality 的放行，也不允許任意 nullable 資料表掃描。複合目標鍵仍要求不可為 NULL；沒有目標等號證明的 `VerifyLive` 也不得核發 nullable 來源鍵授權。
+
+F# 封閉 NULL 語意證明會綁定完整 UNIQUE 索引、內建實體型別、來源欄位可空性、不可變 metadata digest，以及 **v8 ProofIdentity**。真正執行 Commit 的連線與交易會持鎖重新查驗 `ANSI_NULLS ON`、索引和 Schema 身分。**filtered UNIQUE**（包括 `WHERE key IS NOT NULL`）、停用或非唯一索引、`OR`、`COALESCE`、計算鍵、CAST、NULL-safe 運算子與虛擬 Catalog 均不能提供執行證明。SQL Server 2022 實體測試涵蓋 nullable BIGINT、DECIMAL、UUID、BIN2 VARCHAR 複合鍵、1～3 層 CTE、UPDATE／DELETE、預覽與獨立核准後提交、來源 NULL 不配對，以及預覽後撤銷索引的拒絕。其他五種資料庫與 MCP 工具預設權限不變。
+
+
+### BIN2 VARCHAR／NVARCHAR 實體文字鍵的精確證明（G9／M04，僅 develop）
+
+SQL Server CTE `UPDATE`／`DELETE` 的實體唯一鍵證明，新增有限長度的內建 `VARCHAR(n)` 與 `NVARCHAR(n)`，**僅接受實體定序 `Latin1_General_100_BIN2`**。來源 UNIQUE 索引、目標比較欄位及經獨立查驗的第二個 JOIN 來源，必須在**每一個鍵位置**同時符合 SQL 原生型別、最大長度與定序。`NVARCHAR` 會先按 `sys.columns.max_length` 的位元組數驗證，再換算為宣告字元數。此能力**不代表所有文字鍵都安全**：`VARCHAR(MAX)`、`NVARCHAR(MAX)`、`CHAR`、`NCHAR`、長度不符、Unicode 與非 Unicode 隱含轉換、其他 BIN2 或不區分大小寫的定序、自訂別名型別及可為 NULL 的來源鍵均拒絕。
+
+Host 以現有的 `SqlSchemaValueKind.Text` 表示實體文字家族，但 **Snapshot 的 Text 宣告本身絕無執行授權**。F# 封閉鍵型別會獨立查驗實體欄位長度與定序、內建型別身分、完整且啟用的無篩選 UNIQUE 索引，以及受限 CTE／JOIN 中必要的普通等號關聯。Preview→獨立 Approval→Commit 仍會在實際提交交易持鎖重新驗證實體 metadata；ProofIdentity 升至 v7，舊核准不可沿用。SQL Server 2022 實體測試涵蓋文字與 UUID／整數／小數混合鍵、UPDATE／DELETE、1～3 層 CTE、self／跨表 JOIN、核准後提交及索引撤銷，並測試定序與長度不一致的拒絕。其他五種資料庫、MCP 工具與預設權限均未改變。
+
+
+### CTE 投影可包含非鍵欄位（G8／M03）
+
+1～3 層 CTE 除了必要的 1～2 欄 INT 鍵，也能同時投影**直接來自來源資料列的其他欄位**，每層最多 32 欄。例如先使用 `SELECT k1 AS a, payload AS extra, k2 AS b`，再使用 `SELECT a, extra, b`。鍵欄位在每一層都必須各出現一次，維持實體唯一索引的相對順序，最終仍須以必要的 `AND` 和一般 `=` 比對。鍵值重複、轉換或計算、別名歧義、多來源及可能增加資料列的 JOIN 一律拒絕。實體唯一索引驗證、預覽、核准與提交交易內的再次檢查均不變；這項擴充不代表支援一般 JOIN，也不影響其他資料庫。
+
+### 單一資料列 JOIN 的安全證明（G8／M07，受限子集）
+
+SQL Server 的每一層 CTE 現在最多可額外使用一個**可證明不會增加資料列數的 JOIN**：連接來源必須是完全獨立的 `SELECT 1 AS marker` 衍生查詢，不含 `FROM`、`WHERE`、`UNION`、分組或其他資料列。`CROSS JOIN (SELECT 1 AS marker) AS one` 保持來源列數；使用常值等式 `ON 1 = 1` 的 `INNER JOIN`／`LEFT JOIN` 也不會增加列數。實體 INT 唯一鍵、原樣鍵欄位投影、預覽、核准及提交交易內的實體證明仍不可省略。**前述單列／自我連接證明本身仍不足以授權其他實體資料表的 JOIN；下文另以雙重實體唯一鍵驗證開放有限子集、APPLY、相關子查詢、多資料列衍生來源或任意 JOIN。**
+
+另一個受限形式允許**同一張實體來源表以不同別名進行 INNER／LEFT self-JOIN**，前提是 ON 條件以必要的 AND 與一般等式完整比對**已在實體資料庫驗證的每一個 INT 唯一鍵欄位**。因此第二個別名對每筆來源資料最多只會匹配一列。缺少鍵欄位、僅靠 OR、計算或轉型後的鍵，以及與其他資料表的 JOIN 都會拒絕。
+
+### 跨實體資料表 JOIN 的雙重唯一鍵證明（M07）
+
+SQL Server CTE 現在可使用一次 **INNER** 或 **LEFT JOIN** 連接另一張實體資料表。兩張來源表都必須各自通過實際資料庫的唯一鍵驗證：1～2 欄不可為 NULL 的 `INT`／`BIGINT`，索引必須已啟用、未篩選。JOIN 的 `ON` 條件須以必要的 `AND` 和一般 `=` 完整比對兩邊每一個鍵欄位，且各位置的實體型別必須精確相同。虛擬目錄、隱含型別轉換、只比對部分鍵或篩選索引都不能構成證明。兩份索引身分均會綁定執行計畫與核准，提交時在實際交易內再次驗證；預覽後撤銷任一證明會拒絕提交。這不代表開放第三張來源表、多對多 JOIN、`RIGHT`／`FULL JOIN`、跨資料庫方言轉譯或任意 JOIN。
+
+### 完整鍵關聯的 EXISTS／NOT EXISTS 篩選（M07，受限階段）
+
+SQL Server 的 CTE `UPDATE`／`DELETE` 可以在第一層 CTE 的 `WHERE` 使用 **`EXISTS`（半連接）或 `NOT EXISTS`（反連接）**，但子查詢只能以另一個別名讀取**同一張已完成實體唯一鍵驗證的來源表**。子查詢僅投影常值，不可新增 JOIN、分組、排序或集合運算，並須使用必要的 `AND` 與一般 `=` 完整關聯 1～2 個 `INT`／`BIGINT` 唯一鍵欄位；可再以子查詢欄位與常值比較縮小範圍。這種篩選只會保留或排除來源列，不會增加列數；原有的實體索引證明、預覽、核准身分綁定及提交交易內重新驗證都不可省略。**並未開放任意巢狀子查詢、未驗證的其他資料表，或一般化的 EXISTS／反連接執行權限。**
+
+### TINYINT 與 SMALLINT 實體鍵的精確型別證明（G9／M04，僅 develop）
+
+SQL Server 的 CTE `UPDATE`／`DELETE` 實體唯一鍵證明，現在除了 `INT`、`BIGINT`，也接受內建 `TINYINT`（無號 8 位元）與 `SMALLINT`（有號 16 位元）。一至兩欄的實體唯一鍵，來源欄位、目標比對欄位及經獨立驗證的 JOIN 欄位，**在每個索引鍵位置都必須具有完全相同的實體 SQL Server 型別**。整數型別自動轉換、自訂別名型別與虛擬目錄都不能取代實體證據。既有的受限 CTE 鍵傳遞、避免資料列倍增的 JOIN 證明、受影響資料列預覽、獨立核准、不可變計畫指紋及提交交易內的索引重新驗證仍不可省略。SQL Server 2022 測試涵蓋更新、刪除、混合鍵型別與索引撤銷。此功能並未開放 DECIMAL、UUID、可為 NULL 的唯一鍵、任意 JOIN 或其他資料庫的執行權限。
+
+
+### UNIQUEIDENTIFIER 實體鍵的精確證明（G9／M04，僅 develop）
+
+SQL Server 的 CTE `UPDATE`／`DELETE` 現在可證明**內建 128 位元 `UNIQUEIDENTIFIER` 鍵**。`Uuid` 是獨立的 Schema 值型別，**不能冒充 Numeric、文字或二進位鍵**。Host 從實際 `sys.tables`、`sys.columns`、`sys.types` 讀取來源表、目標表，以及可選的第二個經獨立驗證的 JOIN 來源鍵型別。F# 封閉型別會再次驗證完整 UNIQUE 索引鍵位置，以及 Snapshot 與實體型別是否一致。絕不能藉由隱含轉型，把 `UNIQUEIDENTIFIER` 與 `INT`、`DECIMAL`、`VARCHAR`、`BINARY(16)` 的比對當成可執行證明。
+
+單欄或兩欄複合鍵可以混用 UUID 與經精確驗證的整數／小數鍵；原有 1～3 層受限 CTE、避免資料列倍增的 JOIN、變更預覽、獨立核准與提交交易內 `IsCurrent` 重新驗證仍是必要條件。ProofIdentity 更新至 v6，舊版待核准證明不得重用。SQL Server 2022 實體測試涵蓋 UUID 新增資料列以外的 UPDATE／DELETE、主鍵與唯一索引、Host 自動偵測、跨表 JOIN、預覽後撤銷索引及錯誤型別拒絕。此功能不增加 MCP 工具、預設 DML 勾選、任意 JOIN 權限，也不改變其他五種資料庫。
+
+### DECIMAL／NUMERIC 實體鍵的精確證明（G9／M04，僅 develop）
+
+SQL Server 的 CTE `UPDATE`／`DELETE` 實體唯一鍵證明，現在也接受內建 `DECIMAL(p,s)` 與 `NUMERIC(p,s)`，其中 `1 ≤ p ≤ 38`、`0 ≤ s ≤ p`。兩者在 SQL Server 是同義型別，但來源鍵、目標比對欄位，以及經獨立驗證的 JOIN 來源鍵，**每一個索引鍵位置的有效位數與小數位數都必須完全一致**。`DECIMAL(12,2)` 不能藉由隱含轉型來證明與 `DECIMAL(13,2)`、`DECIMAL(12,3)` 或整數鍵等價。
+
+Host 會查驗實際 `sys.columns` 與 `sys.types` 中繼資料，並保留實體 UNIQUE 索引的**所有鍵欄位**才判斷唯一性；即使複合索引含有不支援的自訂別名型別，也絕不可把 `UNIQUE(a,b)` 誤判成 `UNIQUE(a)`。F# 封閉型別會保留精確的有效位數與小數位數。原有 1～3 層受限 CTE、避免資料列倍增的 JOIN 證明、受影響資料列預覽、獨立核准、版本化證據，以及提交交易內的再次驗證都維持不變。SQL Server 2022 實體測試涵蓋小數值、整數與小數混合鍵、跨實體表 JOIN、索引撤銷，以及位數不一致拒絕。本項證明仍不開放 UUID／文字鍵、可為 NULL 的唯一鍵、任意 JOIN 或其他五種資料庫的權限。
+
+
+## Fail-closed 規則
+
+核准被拒絕、過期、stale、Fingerprint 不符、權限被撤銷、違反目前 Policy，或無法重現核准 Row Set 時，都不會提交 DML。
+
+另見 [MCP Tools 參考](/zh-hant/docs/mcp/tools-reference)、[設定參考](/zh-hant/docs/operations/configuration)與 [ASP.NET Core 整合](/zh-hant/docs/integration/aspnet-core)。
+
+### 雙分支 CTE 合流的直接資料欄位（G9／M06，僅 develop）
+
+兩個來源分支與合流 CTE，可在完整、有序的雙欄 UNIQUE 鍵之外保留**額外的直接資料欄位**。每層最多 32 欄、欄位參照不可重複或含糊；合流僅能直接投影左側分支。**資料欄位不能當成唯一性證明**。
+
+SQL Server 仍需完整雙欄 INNER JOIN 等號、目標完整鍵、獨立的 F# 基數與寫入准入證明、Host 實體唯一索引查核、預覽、核准及交易持鎖 IsCurrent。計算或重複資料、別名覆蓋、CAST、合流取用右分支資料、缺鍵或不同實體來源全部拒絕；其他資料庫及 MCP 預設值不變。
+
+### 雙分支 CTE 的關聯式半連接／反半連接篩選（M07，僅 develop）
+
+SQL Server 的三節點 CTE 合流，可在任一實體來源分支使用 `EXISTS` 或 `NOT EXISTS` 篩選，但子查詢只能讀取**同一張已驗證的實體來源表**，並以兩個一般等號和 `AND` 完整關聯原本的雙欄 UNIQUE 鍵；可額外加入內側欄位與常值的等號篩選。合流的 `INNER JOIN` 與 DML 目標比對仍必須涵蓋完整雙欄鍵。篩選只縮小符合條件的列，不得增加每一目標列的匹配數。
+
+F# 基數證明、獨立 F# 寫入准入、Host 實體唯一索引查核、預覽／核准行集一致性及同交易持鎖 `IsCurrent` 均維持不變。其他子查詢來源、缺鍵、`OR`、計算鍵、額外連接或模糊別名一律拒絕。此功能不代表開放任意 CTE DAG、多來源寫入或其他資料庫能力。
+
+### M08：兩個獨立實體來源的 DML 寫入證明（僅 develop）
+
+SQL Server 原生 `UPDATE ... FROM` 與 `DELETE ... FROM` 現可在同一個 `FROM` 中使用**直接傳遞完整鍵的 CTE**，以及**另一張不同的實體資料表**。目標→CTE、CTE→第二張表都必須以完整兩欄鍵的普通等號連結。兩個來源各自要有資料庫實際驗證的有效、非篩選 UNIQUE 索引，鍵順序、型別與定序規則均須一致；第二來源不能借用第一來源的索引證明。
+
+F# 靜態基數與封閉式寫入准入、Host 實體雙索引查核、預覽→獨立核准→提交，以及同一交易內 `IsCurrent` 皆不可省略。缺鍵、換序、計算鍵、`OR`、未驗證或第三個來源、索引失效、隱式轉型與跨資料庫改寫仍會拒絕。這是**受限的雙來源寫入**，不是任意多來源 DML；預設仍僅選四個唯讀工具、DML 關閉。
+
+### M09：SQLite 從第二張實體表安全執行 INSERT SELECT（僅 develop）
+
+SQLite 現可從**另一張獨立的 `main` 實體來源表**直接選取資料列，插入明確指定的 `main` 目標表，並沿用單語句預覽／核准流程。來源與目標表**各自驗證實際 schema、DDL、索引與觸發器**；核准證據同時綁定兩張表、已編譯的 INSERT 與預覽 SELECT、全部投影值的多重集合指紋、影響列數上限及安全政策。提交時先保留 SQLite 寫入權，在同一交易內重新驗證兩張表及全部來源投影值，再執行一次插入。
+
+例如 `INSERT INTO main.users (name) SELECT name FROM main.other_users WHERE id = 1`。兩側均須為真實 `main` 資料表；明確且不重複的目標欄位只能對應未使用別名的直接來源欄位，WHERE 只能是「欄位＝非 NULL 常值」。CTE、JOIN、聚合、計算式、分頁、RETURNING 萬用字元、運算式與別名、衝突處理、附加資料庫、其他 DB、未經證明的來源批次及核准後來源漂移仍拒絕。預設四個唯讀工具、DML 不勾選不變。
+
+
+SQLite 3.35+ 範例：`INSERT INTO main.users (name) SELECT name FROM main.other_users WHERE id = 1 RETURNING id, name`。預覽核准來源的 `name` 和資料列數；真正成功提交後，才回傳新增資料列的 `id` 和 `name`。來源發生變更時回復，且不回傳任何結果列。
+
+### M09：PostgreSQL 實體來源 INSERT SELECT（僅 develop）
+
+PostgreSQL 可在單一語句執行受限的 `INSERT INTO schema.target (欄位) SELECT 直接欄位 FROM schema.source WHERE 欄位 = 非 NULL 常值`。**來源現在可以與寫入目標是同一張實體表**，也可以是同一個非系統 Schema 內的另一張實體表；兩者都必須是一般永久資料表。仍須明確且不重複的目標欄位、直接投影、有限正整數筆數上限、來源讀取與目標寫入授權、`AddHsSqlAgentNativeDmlSchemaFreshness()` 及獨立 DML 核准。CTE、JOIN、計算式、ON CONFLICT、分割／繼承表、RLS、使用者觸發器、自訂改寫規則、未限定 Schema 的表名和其他資料庫仍會拒絕。
+
+預覽綁定**全部來源投影值**、筆數、政策與編譯指令，不會預先捏造目標表自動產生的 ID。提交時 PostgreSQL SERIALIZABLE 交易會在**首次 Catalog 查詢之前**取得來源表的 **SHARE ROW EXCLUSIVE NOWAIT** 鎖。**同表來源只使用一份真實實體結構證明及一個來源鎖**，持鎖重驗至寫入完成；不同表則分別查證兩張表，並另外保護目標表免於 DDL 競態。來源資料、索引或結構改變、寫入鎖衝突都會拒絕或回復，且不回傳 RETURNING 資料列。明確目標欄位的 `RETURNING` 僅於成功提交後提供實際新增結果。
+
+同表範例：`INSERT INTO app.users (name) SELECT name FROM app.users WHERE id = 1 RETURNING id, name`；不同表範例：`INSERT INTO app.users (name) SELECT name FROM app.import_users WHERE id = 1 RETURNING id, name`。資料庫角色須能取得所需 PostgreSQL 鎖。不新增 MCP 工具或公開 API，預設仍選四個唯讀工具、DML 關閉。
+
+### M09：MySQL 8.4 InnoDB 來源行集 INSERT SELECT（僅 develop）
+
+僅 **MySQL 8.4／InnoDB** 開放單語句且受限的 `INSERT INTO db.target (name) SELECT name FROM db.source WHERE id = 1`。來源和目標必須是**同一個非系統資料庫內的同一張實體 InnoDB 表，或兩張不同實體表**。預覽核准全部來源欄位值與筆數；提交時重驗相關實體表的結構、索引及完整來源行集，最後只執行一次插入。來源與目標必須分別授權，Approval 僅能使用一次，並須啟用 `AddHsSqlAgentNativeDmlSchemaFreshness()`。
+
+提交要求明確的 **SERIALIZABLE InnoDB 交易**，以鎖定讀取保護來源資料，交易持有的 Metadata Lock 則阻擋競爭性 DDL。不可使用會造成隱式提交的 `LOCK TABLES`。為確實證明沒有隱藏的 Trigger，目前也要求執行身分具有**全域 Trigger 中繼資料可見性**；兩張表不得有 Trigger、外鍵或 MyISAM 等非交易性引擎。這個模式**不支援 `RETURNING`**，仍拒絕 CTE、JOIN、Upsert、計算投影、多語句批次及未證明的 Provider。
+
+範例：`INSERT INTO app.users (name) SELECT name FROM app.import_users WHERE id = 1`。此功能仍須額外開啟 DML，並未新增 MCP 工具；前端預設只選四個唯讀工具、DML 關閉。
+
+此證明也綁定實際 InnoDB `TABLE_ID` 和 MySQL `@@server_uuid`：即使重建的表名、DDL 和來源資料完全相同，舊核准仍會失效。讀取 `INNODB_TABLES` 需要 `PROCESS` 權限，因此執行身分必須同時具有全域 `PROCESS` 與 `TRIGGER` 可見性；缺少中繼資料時直接拒絕。
+
+#### 同表來源：單一實體身分證明（僅 develop）
+
+現在也允許受限的 `INSERT INTO app.users (name) SELECT name FROM app.users WHERE id = 1`。來源與目標是**同一張真實 InnoDB 表**，不會製造兩份虛構的 Catalog 證明。Preview 與 Commit 查證單一 `TABLE_ID`、`@@server_uuid`、表結構 DDL 及完整已核准來源行集。SERIALIZABLE 交易透過鎖定讀取與持有至提交的 Metadata Lock 保護該表。來源資料或索引漂移、相同 DDL 的刪表重建、競爭寫入、較弱隔離層級及重複使用核准皆會拒絕；`RETURNING`、CTE、JOIN、UPSERT 仍不支援。
+
+### M09：有界 AND 來源篩選條件（僅 develop）
+
+**歷史範圍說明：**以下僅限 `AND` 的條件是 M09 初期支援界線；本頁末尾新增的有界 `IN`／`OR` 擴充已取代四個原生 `INSERT SELECT` Provider 的這項限制。這不影響其他 CTE／JOIN 的 `OR` 安全規則。
+
+現有 **SQLite、PostgreSQL、MySQL 8.4 InnoDB** 的原生 `INSERT SELECT` 來源行集核准，允許在 `WHERE` 中使用**一至四個**僅由 `AND` 連接的直接 `欄位 = 非 NULL 常值` 條件。例如：`INSERT INTO app.users (name) SELECT name FROM app.import_users WHERE id = 1 AND name = 'Carol'`。原有來源／目標實體身分、版本能力、影響筆數上限、授權、核准與交易要求維持不變。提交前仍須重驗完整已核准來源行集及實體 Catalog；這並非開放任意 SQL。
+
+五個以上條件、`OR`、`NOT`、函式、計算比較、NULL 比較、子查詢、JOIN、CTE、UPSERT 及未證明的 Provider 仍會拒絕。PostgreSQL／SQLite 沿用各自已驗證的 RETURNING 限制；MySQL 不支援 RETURNING。未新增 MCP 工具或公開 API，DML 預設關閉。
+
+### M09：SQL Server 2022 雙實體表 INSERT SELECT 核准（僅 develop）
+
+SQL Server 2022 現在支援受限的單語句 `INSERT INTO dbo.target (name) SELECT name FROM dbo.source WHERE id = 1`，僅限**同一資料庫內兩張不同的永久實體表**。來源篩選只能使用一至四個由 `AND` 連接的直接 `欄位 = 非 NULL 常值` 條件、直接欄位投影與明確目標欄位，且必須有有限正整數筆數上限。來源 READ 與目標 INSERT 分別授權；目標表的排他鎖讀取另外需要 SELECT 權限。沿用原生 SqlCore 編譯、實體 Catalog 身分、完整來源行集核准、一次性 Challenge 與即時 Schema 重驗。
+
+提交在查閱實體 Catalog 前，必須於同一交易**取得來源與目標兩張表並持有至結束的排他表鎖**，阻擋來源寫入與競爭性 DDL，再重驗全部已核准來源值後執行一次 INSERT。這是刻意採取的高安全、可能阻塞其他 DML 的選用模式。缺少 `VIEW DEFINITION`、無法證明實體結構、Trigger、外鍵、Temporal／Ledger／Graph 表、索引或資料漂移、鎖競爭均拒絕或回復。SQL Server `OUTPUT` 萬用字元／別名／運算式／`INTO`、CTE、JOIN、UPSERT、計算投影和未證明的 Provider 仍不支援此 Host 執行模式。沒有新增 MCP 工具，前端預設四個唯讀工具、DML 關閉。
+
+### M09：SQL Server 2022 同一實體表 INSERT SELECT（僅 develop）
+
+額外開放受限的 `INSERT INTO dbo.users (name) SELECT name FROM dbo.users WHERE id = 1`，亦即**一張既有、一般永久實體表同時作為來源與目標**。預覽只核驗**一個**真正的 SQL Server 物件 ID、完整表結構、索引和約束摘要，不虛構來源與目標兩份 Catalog 證明。仍只允許直接欄位投影、一至四個由 `AND` 連接的 `欄位 = 非 NULL 常值` 條件、有限正整數影響筆數上限。執行身分須有該表 SELECT／INSERT 和 `VIEW DEFINITION` 權限，並啟用原生 Schema 重驗和一次性 DML 核准。
+
+提交先開始 SERIALIZABLE 交易，在**首次讀取 Catalog 前取得一個持有至交易結束的 TABLOCKX／HOLDLOCK 排他表鎖**。持鎖重新查驗唯一實體身分、DDL 及全部已核准來源投影值，最後執行一次原生 INSERT，核對實際寫入筆數才提交；預覽不捏造自動產生的目標 ID。來源資料或索引漂移、相同 DDL 刪除重建、競爭寫入、超過筆數上限和重複核准都會拒絕或回復。同表排他鎖可能阻塞其他寫入。 `OUTPUT` 萬用字元／別名／運算式／`INTO`、CTE、JOIN、UPSERT、計算投影及未經安全驗證的 Provider 仍拒絕；無新增 MCP 工具，維持預設四個唯讀工具和 DML 關閉。
+
+### M09：SQL Server 2022 已核准 INSERT SELECT 的原生 OUTPUT INSERTED（僅 develop）
+
+既有單表或雙實體表來源核准現在可在 INSERT 欄位清單後指定 `OUTPUT INSERTED.id` 或 `OUTPUT INSERTED.id, INSERTED.name`，**成功提交後**才回傳實際寫入的目標欄位。預覽只核准實體來源行集，不會虛構 IDENTITY 產生的 ID。SERIALIZABLE 交易持有既有排他表鎖，重驗來源資料全集與 Schema，僅執行一次 INSERT，核對實際影響筆數並成功提交後才回傳結果。僅允許一至三十二個不重複的直接目標欄位；萬用字元、別名、運算式、重複欄位、`OUTPUT INTO` 或錯誤的資料影像仍拒絕。實體 Catalog 與無 Trigger 的原生 Metadata 證明不可省略；資料漂移、重複核准、筆數超限仍拒絕。不新增 MCP 工具，前端仍預設四個唯讀工具、DML 關閉。
+
+### M09：有界 IN／OR 來源行集條件（僅 develop）
+
+現在 **SQLite、PostgreSQL、MySQL 8.4 InnoDB、SQL Server 2022** 的已驗證原生 `INSERT SELECT` 來源行集，可使用 `WHERE id IN (1,2)`、`WHERE id = 1 OR id = 2`，或 `WHERE (id = 1 OR id = 2) AND name IN ('Carol','Dave')`。所有直接 `欄位 = 非 NULL 常值` 與 `欄位 IN (非 NULL 常值, ...)` 合計**最多四個比較常值**，布林運算樹最多七個節點。允許括號組合 `AND`／`OR`，但每一個原子條件都須是未加限定詞的直接欄位。這項規則取代上方 M09 初期的 `AND` 限制；其他 CTE／JOIN 的 `OR` 禁令不受影響。
+
+`OR 1=1`、`NOT`／`NOT IN`、`IN` 的 NULL、`IN` 子查詢、運算式、五個以上比較值、任意 `OR`、CTE、JOIN、跨 Provider DML 仍拒絕。來源與目標仍須完成原生實體 Catalog 證明，有限正整數影響筆數上限不變。Preview 綁定**全部已選來源行集**；Commit 持有已驗證的 Provider 交易鎖，重驗實體結構與來源值，再核對實際寫入筆數。PostgreSQL／SQLite 的 RETURNING 與 SQL Server 的 OUTPUT INSERTED 僅在提交成功後回傳真正產生的目標值；MySQL 不支援 RETURNING。不新增 MCP 工具或公開 API，預設仍只選四個唯讀工具、DML 關閉。
+
+### M09：有界 BETWEEN 原生來源篩選（僅 develop）
+
+四個已完成實體來源證明的資料庫 **SQLite、PostgreSQL、MySQL 8.4 InnoDB、SQL Server 2022**，其原生 `INSERT SELECT` 可再使用 `WHERE id BETWEEN 1 AND 2`、`WHERE id BETWEEN 1 AND 2 AND name IN ('Carol','Dave')`，或 `WHERE id BETWEEN 1 AND 1 OR id = 2`。`BETWEEN` 的兩個端點都必須是直接的非 NULL 常值，左側只能是未加限定詞的直接欄位。每個 `BETWEEN` 消耗**兩個比較常值**；與既有 `=`、`IN` **合計最多四個**，整棵條件 AST 最多七個節點，`AND`／`OR` 也計入節點預算。沿用 F# 型別化解析與 Host 實體來源證明。
+
+`NOT BETWEEN`、NULL／運算式端點、欄位對欄位比較、常值自比的永真條件、五個以上比較值、子查詢、JOIN、CTE 及未驗證形狀都仍拒絕。Preview 繼續核准**完整來源行集**、有限正整數影響筆數、來源與目標的實體 Catalog、獨立權限；Commit 持交易鎖重驗全部來源與結構、一次性核准並核對實際寫入筆數。SQLite／PostgreSQL 的 RETURNING 及 SQL Server 的 OUTPUT INSERTED 仍僅在成功提交後回傳實際目標資料；MySQL 不支援 RETURNING。不新增 MCP 工具、Driver 或公開 API；預設四個唯讀工具已勾選、DML 關閉。
+
+### M09：SQLite 原生 INSERT SELECT 納入原子 DML 交易（僅 develop）
+
+既有的**原子 DML 交易**本來就能以一份整批核准，按順序執行多句 INSERT VALUES、UPDATE、DELETE，無須再新增 `execute_dml_sql_batch` 工具。現在新增：在 **2～16 句**的同一交易中，允許**恰好一個**通過 SQLite 真實來源表證明的 `INSERT SELECT`，與原有 DML 混合執行。
+
+```sql
+INSERT INTO main.users (name)
+  SELECT name FROM main.import_users WHERE id IN (1, 2)
+  RETURNING id, name;
+INSERT INTO main.users (name) VALUES ('Manual');
+```
+
+每句仍獨立編譯、授權及以真實 SQLite `main` 表與原生 Catalog 預覽。一次性**整批 Challenge**綁定執行順序、來源行集指紋與**整批總影響筆數上限**。提交時只建立**一筆 SQLite 寫入交易**，每句執行前重驗實體結構及全部來源行集，並考慮前面語句已造成的變動。若前一句改變後一句的來源資料，或後一句遇到主鍵衝突，**所有先前寫入一併回滾**。`RETURNING` 與自動產生的 ID 僅在整筆交易提交成功後回傳，失敗時不得洩露。單句 `INSERT SELECT` 仍獨立支援；同一批多個 `INSERT SELECT`、其他資料庫、未驗證 Schema、JOIN／CTE／UPSERT 等仍拒絕。不增加 MCP 工具、Driver 或公開 API；預設四個唯讀工具勾選，DML 關閉。
+
+### M09：有界來源空值判斷（僅 develop）
+
+完成實體資料表驗證的 **SQLite、PostgreSQL、MySQL 8.4 InnoDB、SQL Server 2022**，其原生 `INSERT SELECT` 現在也能以直接欄位的 `IS NULL` 或 `IS NOT NULL` 篩選來源資料，例如 `WHERE note IS NULL`、`WHERE note IS NOT NULL`，以及 `WHERE (note IS NULL OR id = 1) AND name IS NOT NULL`。欄位不可加表別名或運算式；這是沿用 F# 型別化語法樹的能力，不是比對原始 SQL 字串。
+
+每個空值判斷占用**四個條件預算單位中的一個**；直接欄位等於非空值常數占一個、`IN` 每個成員占一個、`BETWEEN` 每個端點占一個。布林語法樹仍限**七個節點**。函式或計算結果上的空值判斷、`NULL IS NULL` 等純常數永真式、`OR 1=1`、一般 `NOT`、JOIN／CTE，以及尚未取得證明的資料庫仍會拒絕。空值條件可能選中大量資料，因此**正整數且有限的影響筆數上限**不可省略。實體來源與目標身分、分別授權、即時 Schema 證明、完整已核准來源資料、交易期間持鎖、提交前重驗、實際筆數核對及一次性核准均維持不變。自動產生的 ID 與原生回傳資料僅於成功提交後提供；MySQL 不支援 `RETURNING`。不新增 MCP 工具、驅動或公開 API，預設仍只勾選四個唯讀工具，DML 不預設啟用。
+
+### M10：SQL Server 原生 MERGE 的目標鍵範圍鎖（僅 develop）
+
+現有 F# 封閉語法樹的 SQL Server **單筆來源** `MERGE` 編譯器，現在會輸出 `MERGE INTO dbo.target WITH (HOLDLOCK) AS t USING (VALUES (...)) AS s (...) ON ...`。只接受一筆明確的 VALUES 資料、直接欄位值、完整比對經實體中繼資料證明的 PRIMARY／UNIQUE Key，以及既有受限的符合時 UPDATE／DELETE、不符合時 INSERT。這項原生提示讓 SQL Server 對目標鍵使用可序列化的鍵範圍鎖，包含來源鍵目前不存在的情況；交易本身仍由執行端管理。
+
+實體 SQL Server 2022 測試會以原生中繼資料核驗主鍵或複合唯一鍵、檢查 UPDATE／INSERT／DELETE 和複合鍵資料隔離，並驗證交易持有期間其他連線無法插入受鎖定的缺失鍵。不存在或不具唯一性的鍵不能產生編譯證明。**這只擴充 SqlCore 編譯能力，不代表 Host 已核准執行 MERGE／Upsert**：Host 的型別化資料修改核准仍維持拒絕，直到完成獨立的既有資料行集、異動範圍及核准驗證。其他資料庫、多筆或查詢式 MERGE、跨資料庫轉譯和任意分支仍拒絕。不新增 MCP 工具或公開 API，預設仍勾選四個唯讀工具，DML 關閉。
+
+### M10：SQLite 單筆主鍵衝突略過的 Host 核准（僅 develop）
+
+型別化 Host 現可預覽、核准並提交一筆原生 SQLite `INSERT ... VALUES (...) ON CONFLICT (id) DO NOTHING`，但必須證明 `id` 是實體資料表**唯一受到強制執行的主鍵／唯一鍵**、明確提供非 NULL 的 64 位元整數常值、政策最多影響 **1 筆**，且啟用內建實體 Schema 驗證。此流程不再只核准 INSERT 載荷：預覽會查詢實際主鍵是否衝突；不存在時顯示**將插入 1 筆**，已存在時顯示**略過、影響 0 筆**，並把結果綁定核准指紋。
+
+提交時消耗一次性核准，在 SQLite 寫入交易中重新驗證實體 Schema 與主鍵、執行同一份經 F# 編譯的參數化 SQL，核對實際影響筆數；若預覽後衝突狀態、索引或 Schema 改變，就拒絕或回滾並要求重新預覽。**DO UPDATE、未指定衝突目標、多筆 VALUES、RETURNING、非主鍵／複合鍵／額外 UNIQUE、跨資料庫以及 Atomic Batch** 仍拒絕。這不代表開放一般 Upsert 或 SQL Server MERGE；不新增 MCP 工具，預設仍是四個唯讀工具已勾選、DML 未啟用。
+
+**Trigger 安全界線：** 只要目標資料表設有 SQLite Trigger，就不適用這項單筆核准，因為 Trigger 的額外寫入不會計入頂層 SQL 的影響筆數。Host 也只接受內建 SQLite Provider，不借用未驗證的替代 Adapter。
+
+### M10：SQLite 單欄 UNIQUE 鍵的衝突審批（僅 develop）
+
+既有單筆 `ON CONFLICT (id) DO NOTHING` 的預覽、核准與提交流程，現在也支援由實體資料庫強制約束的**單欄簡單 UNIQUE 鍵**，即使 `id` 不是主鍵亦可。該鍵必須是資料表中**唯一一個**有效的唯一約束或唯一索引，且與指定衝突欄位完全一致；待寫入的鍵值必須是明確、非 NULL、精確的 64 位元整數常值。內建 SQLite Provider 會驗證真實 metadata。預覽會綁定**插入 1 筆**或**略過 0 筆**，提交前則在相同寫入交易內重新確認 Schema 與鍵值狀態。索引遭刪除或變更時，原核准立即失效。
+
+**仍然拒絕：**多個唯一鍵、部分索引或運算式索引、複合鍵、非唯一索引、DO UPDATE、省略衝突目標、多筆 INSERT、RETURNING、Trigger、跨資料庫執行及原子批次。本功能不是通用 Upsert；預設仍只選取 4 個唯讀工具，DML 預設不勾選。
+
+### M10：PostgreSQL 原生單筆衝突略過核准（僅 develop）
+
+Host 現可針對單筆 PostgreSQL `INSERT ... VALUES (...) ON CONFLICT (id) DO NOTHING` 進行預覽、核准與提交。衝突欄位必須是實體資料表的非 NULL INT2／INT4／INT8 欄位，由該表**唯一一個立即強制生效（NOT DEFERRABLE）的單欄 PRIMARY／UNIQUE 鍵**約束；輸入必須是明確、非 NULL、精確的 64 位元整數常值。內建 PostgreSQL Provider 會查驗真實的資料表、索引、欄位與約束定義；含 Trigger、改寫規則、分割表、繼承或資料列層級安全政策的目標皆拒絕。預覽會將**預計新增 1 筆或略過 0 筆**綁定一次性核准。提交時先取得在交易結束前持續有效的 `SHARE ROW EXCLUSIVE NOWAIT` 表格鎖，阻止其他寫入者介入 Schema／鍵值重驗證；索引遭撤銷或衝突狀態變更就不執行。此強制鎖定會降低並行寫入能力，是刻意採取的首波安全限制。
+
+**仍然拒絕：**DO UPDATE、RETURNING、多筆 INSERT、省略衝突目標、多個 UNIQUE 鍵、部分／運算式／複合唯一鍵、NULL／文字／UUID 鍵、非內建 Provider、跨方言執行、Trigger 與原子批次。沒有新增 MCP 工具，也未開放通用 Upsert；預設仍只選取四個唯讀工具，DML 維持不勾選。
+
+### M11：PostgreSQL 單筆衝突更新與前後值核准（僅 develop）
+
+Typed Host 新增受嚴格限制的原生 PostgreSQL `INSERT INTO users (id, name) VALUES (7, 'new') ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name`。目標必須是實體永久一般資料表，且**恰好只有兩欄**：非 NULL 的 BIGINT 單欄 PRIMARY／UNIQUE 鍵，以及非 NULL 的 TEXT 值欄。資料表只能有**一個立即生效（NOT DEFERRABLE）的簡單唯一鍵**；不得有其他唯一索引或欄位、預設值、CHECK／外鍵、使用者 Trigger、改寫規則、分割／繼承或列層級安全政策。內建 PostgreSQL Provider 會核實實體定義，虛擬 Catalog 不提供執行授權。
+
+預覽固定顯示**影響一筆**：不存在衝突時標示 `INSERT`，更新前值為空；存在衝突時標示 `UPDATE`，呈現實際舊值與建議新值。一次性核准同時綁定完整舊資料列指紋與確切的新資料。提交時會取得持續到交易結束的 `SHARE ROW EXCLUSIVE NOWAIT` 表格鎖，重新驗證完整 Schema、索引與舊值，再原子執行 F# 編譯後的 SQL。衝突狀態、舊值或索引變更即取消。此強鎖刻意限制寫入並行度。
+
+**仍然拒絕：**通用 UPSERT、更新主鍵、任意 SET 運算式、UPDATE WHERE、多個欄位／多筆資料、RETURNING、NULL／非文字新值、其他資料表副作用、跨 Provider 與原子 DML 批次。預設四個唯讀 MCP 工具與 DML 不勾選維持不變。
+
+### M12：PostgreSQL 多欄位衝突更新核准（僅 develop）
+
+既有 Typed Host 的 `ON CONFLICT DO UPDATE` 現在可一次核准 **2～4 個 `TEXT NOT NULL` 值欄位**（原本單欄仍支援），並搭配一個實體 `BIGINT NOT NULL` 主鍵／唯一鍵。例如：`INSERT INTO users (id, name, city) VALUES (7, 'new-name', 'new-city') ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name, city = EXCLUDED.city`。單筆 INSERT 明確列出的每個非鍵欄位，皆須以對應的 `SET 欄位 = EXCLUDED.欄位` 更新；省略部分欄位、重複指定、將值寫到不同欄位、函式運算或改動鍵值一律拒絕。永久一般實體資料表**只能包含該鍵與這些更新欄位**，且只能有一個立即生效的簡單唯一鍵；不得包含預設值、額外索引、CHECK／外鍵、Trigger、改寫規則、繼承／分割或資料列層級安全政策。
+
+預覽會顯示一筆 `INSERT` 或 `UPDATE`，並列出 `__before_name`／`__after_name`、`__before_city`／`__after_city` 等逐欄前後值。一次性核准會綁定完整舊資料列、全部新值、Schema 與編譯後 SQL。提交時取得 `SHARE ROW EXCLUSIVE NOWAIT` 表格鎖，重新驗證實體定義及所有舊值，才在同一交易中執行；**任一欄**被改動、新增衝突或索引／Schema 變更都會整筆取消。這種鎖定會限制並行寫入。五個以上更新欄位、部分更新、運算式、`RETURNING`、多筆輸入與 DML 批次仍不支援；預設四個唯讀 MCP 工具與 DML 不勾選皆不變。
+
+### M13：PostgreSQL 衝突更新的型別驗證與空值核准（僅 develop）
+
+現有單筆 PostgreSQL `ON CONFLICT DO UPDATE` 核准，現在允許 **1～4 個更新欄位**，其實體型別可為 `TEXT`、`SMALLINT`、`INTEGER` 或 `BIGINT`，各欄可允許空值或設為 `NOT NULL`。例如：`INSERT INTO users (id, name, visits, balance) VALUES (7, NULL, 2147483647, 42) ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name, visits = EXCLUDED.visits, balance = EXCLUDED.balance`。Host 會依真實欄位型別驗證每個常值：文字常值只能寫入 `TEXT`；精確的帶正負號整數必須符合目標整數型別範圍；SQL `NULL` 只能寫入實際允許空值的欄位。不接受隱含文字轉數字、小數四捨五入或運算式。永久一般實體資料表仍須恰好包含一個 `BIGINT NOT NULL` 唯一鍵及這些更新欄位，且僅有一個立即生效的主鍵／唯一鍵；額外索引、預設值、CHECK／外鍵、觸發器、改寫規則、繼承、分割表與資料列層級安全政策仍拒絕。
+
+預覽會呈現 `INSERT` 或 `UPDATE`，以及每一欄真正的更新前值與建議新值，包含 `NULL`。一次性核准綁定完整舊資料列、全部新常值與實體結構指紋。提交時在 `SHARE ROW EXCLUSIVE NOWAIT` 表格鎖保護下重新驗證所有舊值、欄位型別與是否允許空值，再原子執行編譯後 SQL。預覽後任一空值狀態改變、新衝突出現或實體結構漂移，都會整筆拒絕。強鎖會限制並行寫入。日期／時間、浮點數、`NUMERIC`、`UUID`、任意運算式、部分／多筆 UPSERT 與 DML 批次仍不支援。**升級 M13 後，先前尚未執行的 M12 核准須重新預覽。** 預設仍只選四個唯讀工具，DML 不勾選。
+
+#### M13 Host 安全補強：整數原始寫法與引號欄位身分
+
+原生 PostgreSQL 衝突更新若要取得 Host 執行核准，整數值必須來自**一般十進位整數 Token**，例如 `42` 或 `-12`。即使 F# 能將 `1e10`、`4.2e1` 或 `42.0` 無損正規化成整數，這些原始寫法仍**不能作為 Host 核准證明**；須改用明確的整數字面量。為避免核准前後值指紋混淆 PostgreSQL 區分大小寫的引號欄名，同一筆核准不得同時包含 `id` 與 `"ID"` 等僅大小寫不同的鍵和值欄；與 `"__ACTION"` 等預覽合成欄名大小寫折疊後撞名也會拒絕。此限制不改變通用 SQL Compiler 的解析能力，也不縮減 M13 已支援的 TEXT／SMALLINT／INTEGER／BIGINT／SQL NULL 能力。
+
+### G9：PostgreSQL 衝突更新的受限直接欄位 RETURNING（僅 develop）
+
+既有 PostgreSQL 原生單筆 `ON CONFLICT (id) DO UPDATE SET 欄位 = EXCLUDED.欄位` 核准，現在可搭配 **1～5 個不重複、不帶表格限定的實體直接欄位**作為 `RETURNING`，例如 `INSERT INTO users(id,name,amount) VALUES(7,'new',42) ON CONFLICT(id) DO UPDATE SET name=EXCLUDED.name, amount=EXCLUDED.amount RETURNING id,name,amount`。回傳欄位只能來自已證明的唯一鍵與 1～4 個獲准值欄位；`RETURNING *`、運算式、別名、重複欄位、表格限定欄位、系統欄位與其他未證明欄位仍拒絕。INSERT／SET、欄位型別、唯一鍵及實體表格的限制不會因此放寬。
+
+一次性核准仍綁定精確 SQL、整筆舊資料與所有新值。提交時在相同 `SHARE ROW EXCLUSIVE NOWAIT` 表格鎖下重新驗證；只在 Commit 確認成功後，透過既有結構化結果回傳**資料庫實際產生**的資料列（包含 SQL NULL），不以預覽資料假冒結果。衝突狀態、舊值或索引發生變化則整筆取消，不回傳任何結果列。不新增 MCP 工具，也不改變預設勾選四個唯讀工具、DML 預設不勾選。原生衝突更新仍不支援加入 DML 原子批次。
+
+### G9：PostgreSQL 衝突略過後只回傳唯一鍵（僅 develop）
+
+既有 PostgreSQL 單筆 `INSERT INTO users(id,name) VALUES(7,'new') ON CONFLICT(id) DO NOTHING` 執行核准，現在僅允許搭配 **`RETURNING id`**，且 `id` 必須與衝突目標指向同一個未加表格限定的實體唯一鍵。正式資料表仍須具有唯一一組簡單、立即生效、不可為空的 INT2／INT4／INT8 主鍵或唯一鍵；Schema、索引、觸發器與資料列安全性等既有驗證一律保留。回傳其他欄位、萬用字元、別名、運算式、重複或表格限定欄位及系統欄位仍拒絕。SQLite 的 `DO NOTHING RETURNING` 不在本次開放範圍。
+
+預覽會把當時的唯一鍵衝突狀態綁定至一次性核准。提交時在 `SHARE ROW EXCLUSIVE NOWAIT` 表格鎖下重新驗證實體鍵與結構，只有確認交易提交成功，才透過既有結構化結果回傳**資料庫實際插入的唯一鍵**；因衝突而略過時**不回傳任何資料列**。衝突狀態、鍵或索引發生變化就取消寫入，且不洩漏結果。強鎖仍會降低並行寫入量。本次不新增 MCP 工具、不開放衝突語句的原子 DML 批次；預設四個唯讀工具勾選、DML 不勾選維持不變。
+
+### G9：SQL Server 2022 MERGE 命中刪除與實體核准（僅 develop）
+
+SQL Server MERGE Compiler 已有 `WITH (HOLDLOCK)`，但僅有編譯成功**不代表可執行**。現在 Typed Host 僅核准**單筆整數來源、實體單欄 INT 主鍵精確比對、單一 `WHEN MATCHED THEN DELETE`**，例如 `MERGE INTO dbo.inventory AS t USING (VALUES(7)) AS s(id) ON t.id=s.id WHEN MATCHED THEN DELETE;`。目標必須是永久的一般 `dbo` 資料表，具有唯一一組簡單、非空、立即生效的原生 INT 主鍵；不得有觸發器、外鍵、CHECK／預設值副作用、資料列層級安全性或其他不受支援的結構。SQL Server 原生 Provider 會驗證完整實體 Schema 與唯一鍵清單。**不代表已開放通用 MERGE。**
+
+預覽只讀取實際命中的鍵（0 或 1 筆），將編譯 SQL、鍵、目標、政策及 Schema 指紋綁定一次性核准。提交時於交易中持有 `TABLOCKX/HOLDLOCK` 並使用可序列化隔離，重新核對結構與資料列，符合核准結果才執行 F# 編譯的 MERGE；鍵值在預覽後新增或消失時取消，不會默默刪除其他資料。鍵不存在時影響 0 筆。此排他表格鎖刻意限制寫入並行。更新分支、未命中插入、混合動作、多來源／複合鍵、隱含轉型及 MERGE 原子批次均拒絕。不新增 MCP 工具；預設仍選四個唯讀工具，DML 不勾選。
+
+### G9：SQL Server 2022 MERGE 命中更新，核准前後欄位值（僅 develop）
+
+繼命中刪除後，Typed Host 現在另外支援**受嚴格限制的命中更新**：單一 `dbo` 永久一般資料表、一筆 `VALUES` 來源資料、一個精確原生 INT 主鍵，以及 1～3 個相異的原生 INT 更新欄位；僅允許 `ON t.id=s.id WHEN MATCHED THEN UPDATE SET quantity=s.quantity` 這類直接欄位對應。每個更新欄位必須與同名來源欄位一一對應，且是資料庫實際存在、非空、非自動編號的 INT 欄位。例如：`MERGE INTO dbo.inventory AS t USING (VALUES(7,25,4)) AS s(id,quantity,status) ON t.id=s.id WHEN MATCHED THEN UPDATE SET quantity=s.quantity,status=s.status;`。**不代表開放通用 MERGE。**
+
+內建 SQL Server 2022 Host 會驗證唯一一組實體有效的單欄 INT 主鍵、全部更新欄位，以及完整 Schema、索引與副作用限制。預覽會顯示每個欄位實際的**原值**與固定的**預計新值**；沒命中時影響零筆。一次性核准同時綁定完整原值指紋、使用者、政策、編譯 SQL 與結構指紋。提交時以可序列化交易持有 `TABLOCKX/HOLDLOCK` 排他鎖，再驗證結構及**每個原值**，一致才執行；預覽後欄位遭修改、主鍵／索引被撤銷，或影響筆數不符時取消，避免覆寫並行更新。排他鎖會降低同時寫入能力。運算式、轉型、空值來源、隱含轉型、修改主鍵、混合 INSERT／DELETE 分支及 MERGE 原子批次仍拒絕。不新增 MCP 工具；預設仍勾選四個唯讀工具，DML 不勾選。
+
+### G9：SQL Server 2022 MERGE 僅未命中時插入（僅 develop）
+
+Typed Host 現在額外允許**僅有 `WHEN NOT MATCHED THEN INSERT` 分支**的 SQL Server 2022 MERGE，限定為永久的一般 `dbo` 資料表及一筆來源常值：`MERGE INTO dbo.inventory AS t USING (VALUES(7,25,4)) AS s(id,quantity,status) ON t.id=s.id WHEN NOT MATCHED THEN INSERT(id,quantity,status) VALUES(s.id,s.quantity,s.status);` 來源必須包含一個非空的原生 INT 主鍵及 1～3 個相異的非空原生 INT 欄位。INSERT 必須**明確列出全部實體目標欄位各一次**，且每個欄位直接取自同名來源欄位；允許調整欄位順序，不允許省略欄位或依賴隱含預設值。主鍵必須是唯一一組受強制約束的簡單 UNIQUE 鍵；實體 Catalog 證明會拒絕觸發器、外鍵、CHECK／預設值副作用及未知資料表／索引形狀。**這不是通用 MERGE 支援。**
+
+預覽檢查實際主鍵；只有不存在相同鍵時才顯示預計插入的完整一列，存在時影響 0 筆。一次性核准綁定使用者／政策、鍵值、所有來源值、編譯 SQL、目標鍵比對與完整 Schema 指紋。提交時先在可序列化交易中持有 `TABLOCKX/HOLDLOCK`，重新驗證 Schema 和鍵是否存在，再決定是否執行 MERGE；預覽後其他連線新增／刪除相同鍵或撤銷主鍵／索引時一律取消，避免以過期核准插入。排他表格鎖會降低同時寫入能力。混合 MATCHED DELETE／UPDATE、額外比對條件、運算式、轉型、NULL／隱含轉型、複合鍵與 MERGE 原子批次仍拒絕。不新增 MCP 工具；四個唯讀工具仍預設勾選，DML 預設關閉。

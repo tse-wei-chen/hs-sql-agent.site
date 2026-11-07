@@ -1,0 +1,327 @@
+---
+title: Safe DML
+description: 1 つ以上の DML を承認し、正確な Evidence を再検証して、承認済み Transaction を原子的に commit します。
+sidebar:
+  group: SQL Compiler
+  order: 50
+---
+
+## 承認の受け入れ、不確定な結果、ターゲット証拠
+
+選択的な条件が必要な場合、`WHERE 1=1` のように常に真と証明できる `UPDATE`／`DELETE` 条件は拒否されます。人間の承認は正確な計画と行集合の証拠に結び付けられます。
+
+カスタム challenge store は、単文・バッチともに `TryPromoteAsync` をアトミックに実装する必要があります。Redis と永続再開にはバージョン付きエンベロープを使います。互換性のない challenge は新しいプレビューと承認が必要です。[アップグレードガイド](/ja/docs/reference/upgrade-guide)を参照してください。
+
+`dml.commit_outcome_unknown` と `dml.rollback_outcome_unknown` は異なる、再試行不可の結果です。承認とターゲット証拠を保存し、独立して調査してください。witness や Redis キーがなくてもロールバックの証明にはなりません。不確定な変更を自動再実行してはいけません。コミット確認後の監査保存エラーを変更失敗として報告してはいけません。
+
+`AddHsSqlAgentTargetExecutionFence()` は任意機能です。ターゲットの準備と、旧 worker に DML 権限がないことの別途検証が必要です。対象コミットごとに実接続で追加のロールバック専用検証トランザクションを 2 回実行し、コミット後に Admission と Witness を独立して読み取ります。Oracle は witness の一意性衝突診断のみ READ COMMITTED、それ以外の検証は SERIALIZABLE です。証拠の矛盾は不確定な結果になります。全 worker の登録証明や稼働中 worker の自動照合は提供しません。
+
+DML は Query より厳格な実行経路を使います。実際の commit 時にも、承認内容が**同じ Mutation Evidence**を示している必要があるためです。
+
+## 1 つの Tool で単一・複数 Statement に対応
+
+`execute_dml_sql` は、1 つ以上の対応 `UPDATE`、`DELETE`、`INSERT ... VALUES` を受け取れます。複数 Statement はセミコロンで区切ります。 限定的な SQLite の `INSERT ... SELECT` も受け付けますが、**単文に限り**、複数文のバッチには含められません。
+
+専用の batch DML Tool はありません。複数 Statement は 1 つの Batch として Parse され、1 回だけ承認され、元の順序で実行され、1 つのサーバー所有 Transaction で原子的に commit されます。
+
+Client から `BEGIN`、`COMMIT`、`ROLLBACK` などの Transaction-control SQL は受け付けません。Transaction 境界はサーバーが所有します。
+
+## 承認が結び付く Evidence
+
+`UPDATE` / `DELETE` は Preview で観測した正確な Primary Key Row Set に承認を結び付けます。Commit Transaction 内で各 Statement の変更直前に再検証します。
+
+`INSERT ... VALUES` は不変な Literal Payload と正確な Compile 済み Command に結び付けます。
+
+### SQLite の単文・ソース行承認（G9/M09、develop 限定）
+
+限定的な `INSERT ... SELECT` は **SQLite のみ**で利用できます。直接参照するソースと挿入先は、同じ表または異なる 2 つの実在する `main` テーブルで、どちらもスキーマ名を明記する必要があります。異なる表では両方の実スキーマを個別に検証します。重複しない明示的な対象列、直接的な列投影、`WHERE 列 = NULL 以外のリテラル`、正の有限な行数上限、`AddHsSqlAgentNativeDmlSchemaFreshness()` が必須です。
+
+プレビューは**投影された全ソース値**を承認に結び付け、生成予定の対象 ID を作り出しません。コミット時に SQLite の書き込み権を確保し、同じトランザクションで実スキーマとソース行を再確認した後、コンパイル済み INSERT を一度だけ実行します。SQLite **3.35 以降**では、重複しない、別名なしの対象列名のみを指定する `RETURNING` も使用できます。実際の挿入行は**コミット成功後のみ**返し、ソースのプレビュー行とは区別します。RETURNING のワイルドカード・式・別名、CTE、JOIN、UPSERT、追加 DB、複数文、他 DB は引き続き拒否します。DML 権限と独立承認は変わりません。
+
+前の Statement が後続 Statement の承認済み Row Set を変えた場合、Batch 全体が fail closed となり rollback します。
+
+## 承認 Provider
+
+第一方の既定は MCP Elicitation です。Host は公式 `HsSqlAgent.Approvals.Webhook` adapter を利用することも、`HsSqlAgent.Server` で `IDmlApprovalProvider` を実装することもできます。
+
+承認 Provider が受け取るのは transport-neutral な Evidence であり、SQL 実行 primitive ではありません。Database Connection、Transaction、検証済み Plan、commit 権限は渡されません。
+
+## Durable Pending Approval
+
+非同期 Workflow の Provider は `Pending` を返せます。Admin Store がある場合、hs-sql-agent は保護された Resume Intent と Approval Fingerprint を保存します。
+
+後から完了 Decision が届くと、現在の認可と DB 設定を再読み込みし、DML を再 Parse / Preview し、承認 Evidence を比較して、新しい短命 Execution Challenge を作成します。認可、DB 設定、Policy、Plan、Row Set、affected-row Evidence のいずれかが変われば stale として扱い commit しません。
+
+再開されるのは**実行 Intent**であり、古い Database Session ではありません。
+
+## SQL Server：CTE を使う更新・削除の複合 INT キー
+
+SQL Server の UPDATE／DELETE では、実在するソース表に**NULL 不可の INT 2 列で構成された主キーまたは一意インデックス**が確認できた場合に限り、明示的な許可の下で 1～3 段の非再帰・直列 CTE を利用できます。両キー列は物理インデックスの順序を保ち、各 CTE で加工せずに引き継ぐ必要があります。更新先の対応する INT 列それぞれに、必須の `AND` と通常の `=` による比較が必要です。実行前には実データベースのメタデータ確認、対象行のプレビュー、承認との結合、同一トランザクション内での再検証を行います。
+
+キーの欠落・順序入れ替え、`OR`、型変換、NULL 許容・計算列、フィルター付き／無効なインデックス、行数を増やす結合は拒否されます。他のデータベースでの実行能力は変わりません。
+
+### 2 分岐 CTE の限定的な合流証明（G9/M06、develop のみ）
+
+SQL Server の CTE `UPDATE`／`DELETE` では、**3 ノードの分岐・合流**を一つの限定形状として扱います。2 つの CTE が**同じ実テーブルの UNIQUE キー**から順序付きの 2 列を直接投影し、3 番目の CTE がその完全なキーに対する 2 つの通常の等価条件による `INNER JOIN` で合流します。更新対象も両方のキー列で照合する必要があります。
+
+任意の CTE DAG を許可するものではありません。F# の静的な件数証明、F# の書き込み許可判定、Host の実インデックス検証は独立し、プレビュー→独立承認→同一トランザクションでロック付き `IsCurrent` が引き続き必要です。別のソース表、キー条件の欠落・重複、`OR`、`LEFT JOIN`、フィルター、`CAST`、計算列、分岐の追加、曖昧な別名は拒否します。他の 5 種の DB と MCP の既定値は変わりません。
+
+### 2 層の派生テーブルでの物理 UNIQUE キー追跡（G9/M06、develop のみ）
+
+SQL Server の限定 CTE `UPDATE`／`DELETE` では、既存の 1～3 段 CTE の前に、**非 LATERAL で列を直接投影する派生テーブルを 2 層まで**重ねられます。完全な物理 UNIQUE キーの列順を各層で保持する必要があります。例：`FROM (SELECT mid.x AS x, mid.y AS y FROM (SELECT s.k1 AS x, s.k2 AS y FROM dbo.Source AS s) AS mid) AS d` を `SELECT d.x AS a, d.y AS b` に渡します。下記の単層機能の拡張であり、**任意の複数分岐 CTE DAG は対象外**です。
+
+F# の行数証明、F# の更新許可判定、Host の実インデックス検証が独立してキーの出自を確認します。実在する UNIQUE インデックス、型と照合順序の一致、対象キーとの等価条件、プレビュー→独立承認→コミット、同一トランザクション内のロック付き `IsCurrent` は必須です。3 層目、追加ソース、JOIN、WHERE、DISTINCT、集約・並べ替え・ページング、計算列・型変換、重複別名、キー欠落・順序入れ替えは拒否します。他の 5 種の DB、既定の読み取り専用ツール 4 個、DML の既定無効設定は変わりません。
+
+### 単層 Derived Table の一意キー保持証明（G9/M06、develop のみ）
+
+SQL Server の限定 CTE `UPDATE`／`DELETE` は、既存の 1～3 段 CTE の手前に、**単一の物理テーブルだけを読み取る非 LATERAL の Derived Table を一段**追加できます。派生 SELECT と各 CTE は、たとえば `FROM (SELECT s.k1 AS x, s.k2 AS y FROM dbo.Source AS s) AS d` に続く `SELECT d.x AS a, d.y AS b` のように、完全な順序付き UNIQUE キーを直接改名できます。F# の件数証明と Host の実カタログ証明は独立して列の出自を検証し、実行には完全な物理 UNIQUE インデックス、ソースとターゲットの型・NULL・照合順序の一致が必要です。仮想 Catalog や派生表の名前では更新を許可しません。
+
+これは**任意の派生表や複数分岐の CTE DAG に対応するものではありません**。JOIN、WHERE、DISTINCT、GROUP/HAVING、集約、ORDER、LIMIT/TOP/OFFSET、UNION、入れ子の派生表／CTE、LATERAL、CAST／計算キー、重複別名や一意キーの欠落は拒否します。プレビュー→独立承認→コミット、対象行集合の同一性、コミットトランザクション内のロック付き `IsCurrent` は継続し、プレビュー後のインデックス失効も拒否します。SQL Server 2022 の実テストで 1～3 段の CTE、整数／小数／UUID／文字列の複合キーと UPDATE／DELETE を確認します。他の五つの DB と既定の MCP 権限は変更しません。
+
+
+### 言語照合順序と UNIQUE 比較の厳密な証明（G9／M05、develop のみ）
+
+SQL Server の限定 CTE UPDATE／DELETE では、長さが制限された組み込み `VARCHAR(n)`／`NVARCHAR(n)` の**四つの区別された比較規則**を証明できます。従来の `Latin1_General_100_BIN2`（バイナリ）に加え、`Latin1_General_100_CI_AS`（大文字小文字を区別せず、アクセントは区別）、`Latin1_General_100_CI_AI`（両方を区別せず）、`Latin1_General_100_CS_AS`（両方を区別）を対象とします。ソース UNIQUE インデックス、更新先の比較列、独立検証した第二 JOIN テーブルは、**各キー位置で実際の SQL 型・長さ・照合順序が一致**する必要があります。Text 型のスナップショットだけでは実行を許可せず、F# の閉じた型が実際の列とインデックスを検証します。
+
+SQL Server 2022 の実テストでは、大小文字・アクセント違いの値が**UNIQUE 制約に違反するか**と通常の `=` で等しいかを照合します。1～3 段の CTE、すべての AND キー比較、テキスト／UUID／数値の複合キー、プレビュー→独立承認→コミット、同じトランザクション内の `IsCurrent` は維持されます。NULL 許容ソース UNIQUE には `ANSI_NULLS ON` が引き続き必要です。ProofIdentity は **v9** となり、古い承認は使えません。照合順序の不一致、明示的 `COLLATE` 指定、VARCHAR/NVARCHAR の暗黙変換、未検証の CS_AI／_SC／_UTF8、CHAR／MAX、フィルター付き・無効なインデックス、不完全な等価比較は拒否します。他の五つのデータベースや MCP 権限は変更しません。
+
+
+### NULL 許容 SQL Server UNIQUE キーと通常の等価比較の証明（G9／M05、develop のみ）
+
+SQL Server のソースキーに NULL 許容列を含められるのは、**順序付きの全 1～2 キー列を対象とする、実際に有効でフィルターのない UNIQUE インデックスが存在する場合だけ**です。限定された CTE `UPDATE`／`DELETE` では、ターゲットへの完全な `AND`／通常の `=` 比較と、実際の接続での `ANSI_NULLS ON`（`@@OPTIONS` で確認）が必要です。ソースキーに NULL が含まれると通常の等価比較は UNKNOWN となり、**ターゲット行とは一致しません**。NULL 安全比較や任意の NULL 許容テーブル走査を許可するものではありません。複合ターゲットキーは引き続き NOT NULL が必要で、ターゲット比較のない `VerifyLive` は NULL 許容ソースを証明できません。
+
+F# の閉じた NULL 比較証明は、UNIQUE インデックスの全列、実際の組み込み型、NULL 許可情報、固定のメタデータ要約と **v8 ProofIdentity** に結び付けられます。コミットと同じ接続・トランザクションでロックを保持し、`ANSI_NULLS ON` とインデックス・スキーマの同一性を再確認します。`WHERE key IS NOT NULL` を含むフィルター付き UNIQUE、無効または非一意のインデックス、`OR`、`COALESCE`、計算キー、CAST、NULL 安全演算子、仮想 Catalog は実行権限を与えません。SQL Server 2022 の実テストは NULL 許容 BIGINT／DECIMAL／UUID／BIN2 VARCHAR 複合キー、1～3 段の CTE、更新／削除、事前確認と独立承認、NULL の非一致、インデックス失効時の拒否を対象とします。他の 5 つのデータベースおよび MCP の既定権限は変更しません。
+
+
+### BIN2 VARCHAR／NVARCHAR 物理キーの厳密な検証（G9／M04、develop のみ）
+
+SQL Server の CTE `UPDATE`／`DELETE` に対する物理的一意性の証明で、組み込みの長さが有限な `VARCHAR(n)` と `NVARCHAR(n)` を扱います。ただし **実際の照合順序が `Latin1_General_100_BIN2` である場合に限定**します。ソースの UNIQUE インデックス、更新先の比較列、独立検証した 2 番目の JOIN テーブルでは、**各キー位置で SQL 型・最大長・照合順序がすべて一致**しなければなりません。`NVARCHAR` は `sys.columns.max_length` のバイト数を検証してから文字数に換算します。`MAX`、`CHAR`／`NCHAR`、異なる長さ、Unicode と非 Unicode の暗黙変換、別の BIN2 や大文字小文字を区別しない照合順序、ユーザー定義別名型、NULL 可のソースキーは対象外です。
+
+Host は文字列の型分類に `SqlSchemaValueKind.Text` を使いますが、**スナップショットの分類だけで更新を許可しません**。F# の閉じたキー型が、実カタログの長さ・照合順序・組み込み型・完全な UNIQUE インデックスと CTE／JOIN の必須等価条件を別々に検証します。Preview→独立承認→Commit の間は変わらず、実際のコミットトランザクションでロックを保持して `IsCurrent` を再検査します。ProofIdentity は v7 に更新され、古い承認を再利用できません。SQL Server 2022 の実テストは文字列と UUID／数値の複合キー、UPDATE／DELETE、1～3 段の CTE、自己／別テーブル JOIN、インデックス失効、長さや照合順序の不一致拒否を対象とします。他の 5 種類のデータベース、MCP ツール、既定の権限は変更しません。
+
+
+### CTE に非キー列を追加して投影する（G8／M03）
+
+1～3 段の CTE では、必須の 1～2 列の INT キーに加えて、**ソース行から直接取得する非キー列**も投影できます（各段最大 32 列）。たとえば `SELECT k1 AS a, payload AS extra, k2 AS b` の結果を次の段で `SELECT a, extra, b` として引き継げます。キーは各段でそれぞれ一度だけ投影し、物理一意インデックスでの相対順序を保ち、最終条件では必須の `AND` と通常の `=` で照合します。キーの重複・変換・計算、曖昧な別名、複数ソースや行数を増やす JOIN は引き続き拒否します。実インデックス検証、プレビュー、承認、コミット時の再検証は変わらず、一般的な JOIN や他のデータベースの実行権限は追加されません。
+
+### 単一行の派生テーブルとの JOIN の安全性（G8／M07、限定機能）
+
+SQL Server の各 CTE 段では、**行数が増えないことを構文から証明できる JOIN を最大 1 つ**利用できます。結合先は `SELECT 1 AS marker` のような独立した派生クエリに限り、`FROM`、`WHERE`、`UNION`、集約や追加の行を含められません。`CROSS JOIN (SELECT 1 AS marker) AS one` は元の行数を保ち、定数等式 `ON 1 = 1` を使う `INNER JOIN` と `LEFT JOIN` も行数を増やしません。物理 INT 一意キー、キー列の直接投影、プレビュー、承認、コミット時の実証明は引き続き必須です。**ここまでの単一行・自己 JOIN 証明のみでは別の実テーブルとの JOIN は許可されません。以下の独立した二重一意キー証明で限定的に許可します、APPLY、相関クエリ、複数行の派生ソースや任意の JOIN は許可しません。**
+
+もう一つの限定機能として、**同じ物理ソース表を別名で参照する INNER／LEFT 自己 JOIN**を許可します。ただし ON 条件は、実データベースで検証済みの INT 一意キーの**全構成列**を必須の AND と通常の等号で照合する必要があります。これにより 2 番目の別名は元の各行に対して最大 1 行だけ一致します。キーの欠落、OR のみの条件、計算・型変換されたキーや別の物理表への JOIN は拒否します。
+
+### 異なる実テーブル間の JOIN と二重の一意キー証明（M07）
+
+SQL Server の CTE は、別の物理テーブルに対して 1 つの **INNER JOIN** または **LEFT JOIN** を利用できます。両方のソース表にそれぞれ、実データベースで確認済みの 1～2 列からなる NULL 不可の `INT`／`BIGINT` 一意キーが必要です。インデックスは有効かつフィルターなしでなければなりません。`ON` 条件ではすべてのキー列を必須の `AND` と通常の `=` で照合し、列ごとの実際の型も完全一致させます。仮想カタログ、暗黙の型変換、部分キー比較やフィルター付きインデックスは証明になりません。両インデックスの識別情報を実行計画・承認に結び付け、コミット時の実トランザクションでも再確認します。プレビュー後にいずれかの証明が失効すると変更を拒否します。3 つ目の物理ソース、多対多 JOIN、`RIGHT`／`FULL JOIN`、異なる DB 方言への変換や任意の JOIN は許可しません。
+
+### 全キー相関 EXISTS／NOT EXISTS フィルター（M07、限定段階）
+
+SQL Server の CTE を用いた `UPDATE`／`DELETE` では、最初の CTE の `WHERE` に **`EXISTS`（セミ結合）または `NOT EXISTS`（アンチ結合）**を指定できます。ただし副問い合わせは、実データベースで一意キーを検証済みの**同一ソース表を別名で再参照**する場合に限ります。投影はリテラルのみ、追加 JOIN・集約・並べ替え・集合演算は禁止です。1～2 列の `INT`／`BIGINT` 一意キーを必須の `AND` と通常の `=` ですべて相関させ、内側の列とリテラルの比較でさらに絞り込めます。この条件は行を除外するだけで増やしません。実インデックスの証明、プレビュー、承認の識別情報、コミット時のトランザクション内での再検証は従来どおり必須です。**任意の入れ子問い合わせ、未検証の別テーブル、一般的な EXISTS／アンチ結合の実行権限は許可しません。**
+
+### TINYINT と SMALLINT の物理キー型の厳密な検証（G9／M04、develop のみ）
+
+SQL Server の CTE を用いた `UPDATE`／`DELETE` の実キー検証では、従来の `INT` と `BIGINT` に加え、組み込みの `TINYINT`（符号なし 8 ビット）と `SMALLINT`（符号付き 16 ビット）を扱えます。1～2 列の物理一意キーについて、ソース、更新先、独立して検証された JOIN 先の対応する列は、**インデックス上の各キー位置で実際の SQL Server 型が完全一致**しなければなりません。暗黙の整数型変換、ユーザー定義の別名型、仮想カタログは実証の代わりになりません。従来の限定 CTE キー伝播、行数を増やさない JOIN の検証、対象行プレビュー、独立承認、不変の計画指紋、コミット時の同一トランザクション内でのインデックス再検証は引き続き必須です。SQL Server 2022 の実テストで更新・削除、混合型のキー、インデックス失効を確認します。DECIMAL、UUID、NULL を許す一意キー、任意の JOIN、他のデータベースには拡張されません。
+
+
+### UNIQUEIDENTIFIER の物理キーを厳密に検証（G9／M04、develop のみ）
+
+SQL Server の CTE `UPDATE`／`DELETE` の物理的な一意性検証で、**組み込みの 128 ビット `UNIQUEIDENTIFIER` キー**を扱えるようにしました。`Uuid` は独立したスキーマ値型であり、**数値・文字列・バイナリ型に置き換えません**。Host は実際の `sys.tables`、`sys.columns`、`sys.types` を参照して、ソース・更新先・独立して確認した 2 番目の JOIN テーブルのキー型を取得します。F# の閉じた型が UNIQUE インデックス全体と、スナップショットに記載された型と物理型の一致を独立して検証します。`UNIQUEIDENTIFIER` と `INT`、`DECIMAL`、`VARCHAR`、`BINARY(16)` の暗黙変換を実行許可の根拠にすることはできません。
+
+1～2 列のキーでは UUID と厳密に一致する整数・小数型を組み合わせられます。従来の 1～3 段の限定 CTE、行を増やさない JOIN、更新前プレビュー、独立承認、コミットと同じトランザクション内の `IsCurrent` 再検証は継続します。ProofIdentity は v6 に更新され、以前の承認を再利用できません。SQL Server 2022 の実テストで UUID の UPDATE／DELETE、主キーと一意インデックス、自動検出、別テーブルとの JOIN、プレビュー後のインデックス失効、型不一致の拒否を確認します。MCP ツール、DML の初期選択、任意 JOIN、他 5 種類のデータベースの権限は増えません。
+
+### DECIMAL／NUMERIC の物理キーを厳密に検証（G9／M04、develop のみ）
+
+SQL Server の CTE `UPDATE`／`DELETE` の物理的一意キー検証では、組み込みの `DECIMAL(p,s)` と `NUMERIC(p,s)` も扱います（`1 ≤ p ≤ 38`、`0 ≤ s ≤ p`）。両者は SQL Server では同義ですが、ソース、更新先、独立して確認した JOIN 先のキーは、**インデックスの各位置で精度と小数点以下の桁数が完全一致**しなければなりません。`DECIMAL(12,2)` と `DECIMAL(13,2)`、`DECIMAL(12,3)`、整数型の間の暗黙変換では一意性を証明できません。
+
+Host は実際の `sys.columns`／`sys.types` を参照し、元の UNIQUE インデックスを構成する**すべてのキー列**を検証します。未対応のユーザー定義別名型があっても、`UNIQUE(a,b)` を `UNIQUE(a)` と誤認しません。F# の閉じた型に精度と小数桁数を保持します。従来の 1～3 段の限定 CTE、行を増加させない JOIN、対象行のプレビュー、独立承認、バージョン付き証明、同一コミットトランザクション内の再検証は変わりません。SQL Server 2022 の実テストでは小数値、整数と小数の複合キー、別の実テーブルとの JOIN、インデックス失効、精度不一致の拒否を確認します。UUID・文字列キー、NULL 可の一意キー、任意の JOIN、他の 5 種類のデータベースは対象外です。
+
+
+## Fail-closed ルール
+
+承認拒否、期限切れ、stale、Fingerprint 不一致、権限失効、現在の Policy 違反、承認 Row Set の再現失敗では DML は commit されません。
+
+[MCP Tools Reference](/ja/docs/mcp/tools-reference)、[設定](/ja/docs/operations/configuration)、[ASP.NET Core 統合](/ja/docs/integration/aspnet-core)も参照してください。
+
+### 2 分岐 CTE での直接データ列（G9/M06、develop のみ）
+
+2 つの分岐と合流 CTE は、順序付きの完全な 2 列 UNIQUE キーに加えて**直接参照するデータ列**を保持できます。各投影は最大 32 列で、重複や曖昧な参照を含められません。合流先は左側分岐のみを直接投影します。**データ列は一意性の証拠になりません**。
+
+SQL Server では完全な INNER JOIN のキー条件、更新対象の完全キー、独立した F# 証明、Host の実インデックス検証、プレビュー、承認と同一トランザクションでの IsCurrent が引き続き必要です。計算・重複列、別名衝突、CAST、右分岐からの直接出力、キー欠落や別の実テーブルは拒否されます。他の DB と MCP 既定値は不変です。
+
+### CTE 分岐内の相関セミ結合・アンチ結合フィルター（M07、develop のみ）
+
+SQL Server の 3 ノード CTE 合流では、いずれかの実ソース分岐を `EXISTS` または `NOT EXISTS` で絞り込めます。ただし副問い合わせは**検証済みの同じ実テーブル**のみを参照し、元の 2 列の UNIQUE キーを `AND` で結んだ通常の等価条件によって完全に相関させる必要があります。内側の列と定数の等価条件を追加して絞り込むことは可能です。合流の `INNER JOIN` と変更対象の照合では両キーが引き続き必須です。
+
+F# 件数証明、独立した F# 書き込み許可、Host の実インデックス検証、プレビュー・承認の行集合一致、同一トランザクション内の `IsCurrent` は維持されます。異なるテーブル、キー欠落、`OR`、計算キー、追加結合、曖昧な別名は拒否します。任意の CTE DAG や多ソース書き込み、他 DB の機能を許可するものではありません。
+
+### M08：2 つの独立した実ソースを使う DML 証明（develop のみ）
+
+SQL Server のネイティブな `UPDATE ... FROM` と `DELETE ... FROM` では、完全キーを直接保持する CTE と**別の実テーブル 1 つ**を同じ `FROM` に指定できます。変更対象→CTE、CTE→第 2 テーブルの双方で、2 列の完全キーに対する通常の等価条件が必要です。両ソースそれぞれの有効でフィルターなしの実 UNIQUE インデックス、キー順序、型と照合順序が独立に検証されます。第 2 ソースは第 1 ソースの証明を流用できません。
+
+F# の静的な件数証明と書き込み許可判定、Host の 2 つの実インデックス検証、プレビュー→独立承認→コミット、同一トランザクションの `IsCurrent` は必須です。キー欠落、順序変更、計算キー、`OR`、未検証・第 3 ソース、インデックス失効、暗黙の型変換、異種 DB 間の変換は拒否します。任意の多ソース DML は許可せず、既定の 4 つの読み取り専用ツールと DML 無効設定は変わりません。
+
+### M09: SQLite の別物理テーブルをソースにする INSERT SELECT（develop のみ）
+
+SQLite では、**別の `main` 実テーブル**から直接選択した行を、指定した `main` の対象表に挿入できます。両方の表の実スキーマ、DDL、インデックス、トリガーを**独立して検証**し、承認は表の組、コンパイルされた INSERT とプレビュー SELECT、全投影値の多重集合、最大行数、セキュリティポリシーに紐付きます。コミットでは SQLite の書き込み権を確保し、同じトランザクション内で両表と投影値を再検証してから一度だけ挿入します。
+
+例: `INSERT INTO main.users (name) SELECT name FROM main.other_users WHERE id = 1`。両側とも実際の `main` 表であり、明示的で重複のない対象列は直接参照した別名なしのソース列に対応し、WHERE は「列 = NULL 以外のリテラル」のみです。CTE、JOIN、集計、計算式、ページング、RETURNING の式・別名・ワイルドカード、UPSERT、添付 DB、他プロバイダー、複数文、および承認後のソース変更は拒否します。既定の読み取り専用 4 ツールと DML 無効設定は維持されます。
+
+
+SQLite 3.35 以降の例: `INSERT INTO main.users (name) SELECT name FROM main.other_users WHERE id = 1 RETURNING id, name`。プレビューで承認するのはソースの `name` と行数であり、挿入された `id` と `name` はコミット後にのみ返ります。ソースに変更があればロールバックし、結果行は返しません。
+
+### M09：PostgreSQL の実テーブルからの INSERT SELECT（develop 限定）
+
+PostgreSQL では、限定的な単文 `INSERT INTO schema.target (列) SELECT 直接列 FROM schema.source WHERE 列 = NULL 以外のリテラル` を実行できます。**ソースと挿入先が同じ実テーブルの場合も新たに対応**し、従来どおり同じ非システム Schema 内の別テーブルからの挿入も扱えます。対象は通常の永続テーブルに限られます。明示的で重複のない対象列、直接投影、有限で正の行数上限、ソースの読み取りと対象への書き込み権限、`AddHsSqlAgentNativeDmlSchemaFreshness()`、独立した DML 承認が必要です。CTE、JOIN、計算式、ON CONFLICT、パーティション・継承テーブル、RLS、ユーザー定義トリガー、書き換えルール、Schema 省略、他 DB は拒否します。
+
+プレビューは**投影された全ソース値**と行数、ポリシー、コンパイル済み指令を承認に結び付け、生成予定の ID を捏造しません。コミットでは PostgreSQL の SERIALIZABLE トランザクションが**最初の Catalog 参照より前に SHARE ROW EXCLUSIVE NOWAIT ロック**を取得します。**同一テーブルは実スキーマの証明とソースロックを各 1 つだけ使用**して、保持したまま再検証から挿入まで実行します。別テーブルの場合は双方を独立して検証し、挿入先の DDL 競合も防ぎます。ソース値や索引・構造の変更、ロック競合は拒否またはロールバックとなり、RETURNING 行は返しません。直接対象列の `RETURNING` はコミット成功後のみ実際の結果を返します。
+
+同一テーブルの例：`INSERT INTO app.users (name) SELECT name FROM app.users WHERE id = 1 RETURNING id, name`。別テーブルの例：`INSERT INTO app.users (name) SELECT name FROM app.import_users WHERE id = 1 RETURNING id, name`。必要な PostgreSQL ロック権限を持つ DB ロールが必要です。新たな MCP ツールや公開 API は追加せず、読み取り専用 4 ツールが既定で選択され、DML は無効のままです。
+
+### M09：MySQL 8.4 InnoDB のソース行 INSERT SELECT（develop 限定）
+
+**MySQL 8.4／InnoDB のみ**、限定的な単文 `INSERT INTO db.target (name) SELECT name FROM db.source WHERE id = 1` に対応します。ソースと挿入先は**同じ非システム DB 内の同一の実 InnoDB テーブル、または異なる 2 つの実テーブル**である必要があります。プレビューで全ソース値と行数を承認し、コミットでは双方の実スキーマ・索引とソース行を再検証して 1 回だけ挿入します。ソースと対象への権限は別に必要で、Approval は一度限り、`AddHsSqlAgentNativeDmlSchemaFreshness()` も必須です。
+
+コミットには明示的な **SERIALIZABLE の InnoDB トランザクション**を用い、ロック読み取りとトランザクション中のメタデータロックでソース行と DDL を保護します。暗黙コミットを引き起こす `LOCK TABLES` は使用しません。隠れた Trigger が存在しないと証明するため、実行アカウントに**グローバルな Trigger メタデータ参照権限**も要求します。Trigger・外部キー・MyISAM などの非トランザクションエンジンは拒否します。この形では **`RETURNING` 非対応**。CTE、JOIN、UPSERT、計算式、複数文、未検証の DB も引き続き拒否します。
+
+例：`INSERT INTO app.users (name) SELECT name FROM app.import_users WHERE id = 1`。新しい MCP ツールは追加せず、DML は既定で無効、4 つの読み取り専用ツールが既定選択のままです。
+
+証明には実際の InnoDB `TABLE_ID` と MySQL `@@server_uuid` も含めます。テーブル名・DDL・ソース行が同じでも、再作成したテーブルに以前の承認は使えません。`INNODB_TABLES` の参照には `PROCESS` 権限が必要なため、グローバルな `PROCESS` と `TRIGGER` の可視性が必須です。確認不能なら拒否します。
+
+#### 同一テーブルをソースにする場合：実体の証明は 1 つ（develop 限定）
+
+限定的な `INSERT INTO app.users (name) SELECT name FROM app.users WHERE id = 1` にも対応します。ソースと対象は**同一の実 InnoDB テーブル**であり、カタログ証明を二重に作りません。プレビューとコミットで単一の `TABLE_ID`、`@@server_uuid`、DDL、承認済みソース行集合を検証します。SERIALIZABLE トランザクションはロック読み取りとメタデータロックを保持し、実体スキーマの再検証後に一度だけ挿入します。行・索引の変更、同一 DDL による再作成、競合書き込み、弱い分離レベル、承認の再利用は拒否します。`RETURNING`、CTE、JOIN、UPSERT は引き続き非対応です。
+
+### M09：上限付き AND ソース条件（develop 限定）
+
+**従来の適用範囲：**以下の AND のみの制限は M09 初期の仕様です。ページ末尾の上限付き IN／OR 拡張が、4 種のネイティブ INSERT SELECT に限ってこの制限を更新します。別の CTE／JOIN の OR 制限は変わりません。
+
+既存の **SQLite、PostgreSQL、MySQL 8.4 InnoDB** のネイティブ `INSERT SELECT` ソース行承認では、`WHERE` に **1～4 個**の直接的な `列 = NULL 以外のリテラル` 比較を `AND` だけで結合できます。例：`INSERT INTO app.users (name) SELECT name FROM app.import_users WHERE id = 1 AND name = 'Carol'`。ソースと対象の実体 ID、バージョン別能力、行数上限、権限・承認・トランザクションの要件は変わりません。コミット直前に承認済みソース行集合全体と物理 Catalog を再検証します。任意の SQL を許可するものではありません。
+
+5 条件以上、`OR`、`NOT`、関数、計算式、NULL 比較、サブクエリ、JOIN、CTE、UPSERT、未検証の Provider は拒否します。PostgreSQL／SQLite の RETURNING は各自の既存の制限に従い、MySQL の RETURNING は非対応です。MCP ツールと公開 API は増やさず、DML は既定で無効です。
+
+### M09：SQL Server 2022 の実体 2 テーブル INSERT SELECT 承認（develop 限定）
+
+SQL Server 2022 は、同じデータベース内の**異なる 2 つの永続実テーブル**に限定し、単文 `INSERT INTO dbo.target (name) SELECT name FROM dbo.source WHERE id = 1` を承認できます。ソース条件は `AND` のみで結合した 1～4 個の直接 `列 = NULL 以外のリテラル` 比較、明示的な列投影と有限の正の行数上限に制限します。ソースの READ と対象の INSERT の独立した権限に加え、排他ロックの読み取りには対象テーブルの SELECT 権限も必要です。SqlCore ネイティブコンパイラ、物理 Catalog 身元、全ソース値の承認、使い捨て Challenge と最新スキーマ検証が必要です。
+
+コミット時は最初の Catalog 読み取りより前に、**ソースと対象の排他テーブルロックを同一トランザクションで取得し、終了まで保持**します。競合する書き込みや DDL を遮断し、承認済みソース行を再検証して 1 回だけ INSERT します。他の DML をブロックする可能性がある、意図的に厳しい安全方式です。`VIEW DEFINITION` 不足、証明できない実体構造、トリガー、外部キー、Temporal／Ledger／Graph テーブル、索引・行の変化、ロック競合は拒否・ロールバックします。SQL Server `OUTPUT` のワイルドカード／別名／式／`INTO`、CTE、JOIN、UPSERT、計算投影や未検証 Provider は非対応です。MCP ツールは増やさず、読み取り専用 4 ツールが既定選択、DML は無効のままです。
+
+### M09：SQL Server 2022 の同一実テーブル INSERT SELECT（develop 限定）
+
+制限された `INSERT INTO dbo.users (name) SELECT name FROM dbo.users WHERE id = 1`、すなわち**1 つの普通の永続実テーブルをソースと挿入先の両方に使用**する形も許可します。プレビューは実際の SQL Server オブジェクト ID とテーブル・インデックス・制約の完全なダイジェストを**1 つだけ**検証し、架空の 2 つのカタログ証明は作りません。直接列の投影、`AND` のみで結ぶ 1～4 個の `列 = NULL 以外のリテラル` 条件、有限の正の行数上限が必要です。対象テーブルの SELECT／INSERT と `VIEW DEFINITION`、ネイティブスキーマ再検証、独立した使い捨て DML 承認は必須です。
+
+コミットでは SERIALIZABLE トランザクションを開始し、**最初の Catalog 参照前に同一テーブルの TABLOCKX／HOLDLOCK 排他ロックを 1 つ取得し、終了まで保持**します。保持中に実体 ID・DDL・承認済みソース列値全体を再検証してから一度だけ INSERT し、実際の行数を照合します。生成予定の ID をプレビューで偽造しません。ソース行・索引の変更、同一 DDL による再作成、競合書き込み、行数上限超過や承認再利用は拒否・ロールバックします。他の書き込みがブロックされる場合があります。`OUTPUT` のワイルドカード／別名／式／`INTO`、CTE、JOIN、UPSERT、計算投影、未検証 Provider は引き続き禁止。新たな MCP ツールはなく、読み取り専用 4 ツール選択・DML 既定無効もそのままです。
+
+### M09：SQL Server 2022 の承認済み INSERT SELECT にネイティブ OUTPUT INSERTED（develop 限定）
+
+物理ソースを検証済みの同一／別テーブルの `INSERT SELECT` に `OUTPUT INSERTED.id` または `OUTPUT INSERTED.id, INSERTED.name` を INSERT 列リスト直後に追加できます。実際に挿入された対象列は**コミット成功後**のみ返され、プレビューはソース行のみを承認して IDENTITY 値を捏造しません。従来の SERIALIZABLE トランザクションと保持中の排他ロックでソース行集合およびスキーマを再検証し、1 回の INSERT と行数一致を確認します。1～32 個の重複しない直接対象列だけを認め、ワイルドカード、式、別名、重複、`OUTPUT INTO`、誤った行イメージは拒否します。物理 Catalog とトリガー不在のライブ証明、行数上限・承認再使用の拒否は必須です。MCP ツールは増やさず、読み取り専用 4 ツールと DML 無効を維持します。
+
+### M09：上限付き IN／OR ソース行条件（develop 限定）
+
+実体を検証済みの **SQLite、PostgreSQL、MySQL 8.4 InnoDB、SQL Server 2022** のネイティブ `INSERT SELECT` は、`WHERE id IN (1,2)`、`WHERE id = 1 OR id = 2`、`WHERE (id = 1 OR id = 2) AND name IN ('Carol','Dave')` を扱えます。直接 `列 = NULL 以外のリテラル` と `列 IN (NULL 以外のリテラル, ...)` を合わせて**比較リテラルは最大 4 個**、論理式のツリーノードは最大 7 個です。括弧を用いた `AND`／`OR` の組み合わせは許可しますが、各原子条件は修飾のない直接列に限ります。従来の M09 AND のみの記述を本拡張が更新します。CTE／JOIN の OR 禁止は従来どおりです。
+
+`OR 1=1`、`NOT`／`NOT IN`、IN 内 NULL、IN 副問い合わせ、式、5 個以上の比較値、任意の OR、CTE、JOIN、異種 Provider DML は拒否します。ソースと対象の実 Catalog 証明、有限の正の行数上限はそのままです。プレビューは**選択された全ソース行**を承認し、コミットは既存のトランザクションロック下で実スキーマと全行を再検証し、実書き込み件数を照合します。PostgreSQL／SQLite RETURNING と SQL Server OUTPUT INSERTED はコミット成功後のみ実際の生成値を返し、MySQL は RETURNING 非対応。新たな MCP ツールや公開 API はなく、読み取り専用 4 ツール選択・DML 既定無効を維持します。
+
+### M09：上限付き BETWEEN ネイティブソース絞り込み（develop 限定）
+
+物理ソースの証明済み **SQLite、PostgreSQL、MySQL 8.4 InnoDB、SQL Server 2022** のネイティブ `INSERT SELECT` は、`WHERE id BETWEEN 1 AND 2`、`WHERE id BETWEEN 1 AND 2 AND name IN ('Carol','Dave')`、`WHERE id BETWEEN 1 AND 1 OR id = 2` も扱えます。`BETWEEN` の上下限は直接指定された NULL 以外のリテラルのみ、左辺は無修飾の直接列のみです。`BETWEEN` は比較値**二個分**として数え、既存の `=`・`IN` と合わせ**最大四個**。Boolean AST は `AND`／`OR` を含め最大七ノードです。F# の型付き解析と Host の実テーブル証明を再利用します。
+
+`NOT BETWEEN`、NULL／計算式の境界、列対列の範囲、定数だけの恒真式、計五個以上の比較値、副問い合わせ、JOIN、CTE および未検証の形は拒否します。Preview の全ソース行集承認、有限の正の行数制限、実 Catalog と独立した権限、保持トランザクションロック、使い捨て承認、コミット時の全行／スキーマ再検証と正確な行数照合は従来どおり必須です。SQLite／PostgreSQL RETURNING と SQL Server OUTPUT INSERTED はコミット後のみ実際の対象行を返し、MySQL RETURNING は非対応です。MCP ツール、ドライバーや公開 API は追加せず、読み取り専用四ツールと DML 既定無効を維持します。
+
+### M09：SQLite ネイティブ INSERT SELECT を原子的 DML トランザクションへ統合（develop 限定）
+
+既存の**原子的 DML トランザクション**は INSERT VALUES、UPDATE、DELETE の複数文を順序付きの一回限りの承認で実行できます。MCP ツールの追加は不要です。今回、**2～16 文**のバッチに、物理ソースが証明された SQLite `INSERT SELECT` を**ちょうど 1 文**だけ混在させることができます。
+
+```sql
+INSERT INTO main.users (name)
+  SELECT name FROM main.import_users WHERE id IN (1, 2)
+  RETURNING id, name;
+INSERT INTO main.users (name) VALUES ('Manual');
+```
+
+各文は既存の F# コンパイラと実際の SQLite `main` Catalog で個別に解析・許可・プレビューされます。集約された使い捨て承認は順序、すべてのソース行の指紋、**バッチ全体の変更行数上限**を固定します。コミット時には**同じ SQLite 書き込みトランザクション**の中で各文直前に構造とソース行集合を再検証し、先行文の変更も考慮します。先行文が後続の承認済みソースを変えたり、後続の制約違反が発生したりすれば、**それまでの変更も全てロールバック**します。生成 ID と `RETURNING` は全体のコミット成功後のみ公開します。複数の INSERT SELECT、他 DB、未検証の構造、JOIN／CTE／UPSERT はこの原子的スコープでは拒否します。新たな MCP ツール、ドライバー、公開 API はなく、読み取り専用 4 ツール選択・DML 無効を維持します。
+
+### M09：NULL 判定によるネイティブソース行の絞り込み（develop 限定）
+
+実テーブルが確認済みの **SQLite、PostgreSQL、MySQL 8.4 InnoDB、SQL Server 2022** では、ネイティブ `INSERT SELECT` のソース条件に、修飾子のない直接列の `IS NULL` / `IS NOT NULL` を使用できます。`WHERE note IS NULL`、`WHERE note IS NOT NULL`、`WHERE (note IS NULL OR id = 1) AND name IS NOT NULL` などが対象です。関数の結果や計算式ではなく、既存の F# 型付き構文木で判定します。
+
+NULL 判定一つは**最大四単位の条件予算**を一単位消費します。直接列の `= 非NULLリテラル` は一単位、`IN` の各要素は一単位、`BETWEEN` の各端点は一単位です。論理式の構文木は引き続き**最大七ノード**。`NULL IS NULL` のような定数だけの恒真式、関数・計算式、`OR 1=1`、一般的な `NOT`、JOIN / CTE、未検証のプロバイダーは拒否します。NULL 判定は多数の行に一致し得るため、**正の有限な変更行数上限**を必ず適用します。実テーブルの同一性、ソースと対象への個別権限、実スキーマの証明、承認済みソース行全体の再照合、トランザクションロック、変更行数の一致、使い捨て承認も維持します。生成 ID と返却行はコミット成功後に限り公開し、MySQL の `RETURNING` は非対応です。MCP ツール・ドライバー・公開 API は増やさず、既定の読み取り専用四ツール選択と DML 無効設定も変えません。
+
+### M10：SQL Server ネイティブ MERGE の対象キー範囲ロック（develop 限定）
+
+既存の F# 閉じた構文木による SQL Server **単一ソース行**の `MERGE` コンパイラーは、`MERGE INTO dbo.target WITH (HOLDLOCK) AS t USING (VALUES (...)) AS s (...) ON ...` を出力します。明示的な VALUES 一行、直接列の値、実際のメタデータで確認した PRIMARY／UNIQUE キー全体に一致する条件、既存の制限付き UPDATE／DELETE／INSERT アクションに限定されます。SQL Server のネイティブなシリアライズ可能キー範囲ロックは、一致する対象行がまだ存在しない場合にも適用されます。トランザクションの管理は実行側の責務です。
+
+実際の SQL Server 2022 で主キーと複合一意キーを照会し、UPDATE／INSERT／DELETE、複合キーごとの分離、MERGE トランザクション中の別接続からの競合挿入の拒否を検証します。一意性が証明されないキーはコンパイル許可に使えません。**これは SqlCore のコンパイル機能であり、Host での MERGE／Upsert 実行承認ではありません。** Host の型付き DML 承認は、既存行への変更と行集合を独立して検証できるまで拒否のままです。他の DB、複数行／クエリソース、異種 DB 変換、未検証の MERGE は拒否します。MCP ツール・公開 API は増やさず、既定の読み取り専用四ツール選択と DML 無効設定も維持します。
+
+### M10：SQLite 単一行の主キー競合を無視する Host 承認（develop 限定）
+
+型付き Host では、SQLite ネイティブの `INSERT ... VALUES (...) ON CONFLICT (id) DO NOTHING` 一行だけをプレビューして承認・確定できます。ただし `id` が実テーブルの**唯一の強制された主キー／ユニークキー**であること、NULL でない正確な 64 ビット整数リテラルを明示すること、ポリシーの変更上限が **1 行**であること、組み込みの実スキーマ検証が有効であることが必要です。従来の INSERT ペイロード承認と異なり、プレビュー時に実際の主キー競合を確認し、未存在なら**挿入 1 行**、既存なら**変更 0 行（スキップ）**と表示して承認指紋に結び付けます。
+
+確定時には使い捨て承認を消費し、SQLite の書き込みトランザクション内で実スキーマとキーを再検査します。同じ F# コンパイル済みのパラメーター化 SQL を実行し、実際の変更行数を照合します。競合状態・索引・スキーマが変われば拒否またはロールバックして再プレビューが必要です。**DO UPDATE、競合対象省略、複数 VALUES 行、RETURNING、主キー以外／複合キー／追加 UNIQUE、他 DB への変換、原子バッチ**は引き続き拒否します。一般的な Upsert や SQL Server MERGE を有効化するものではありません。MCP ツールは増えず、既定の読み取り専用 4 ツール選択と DML 無効も維持します。
+
+**トリガーの安全境界：** 対象テーブルに SQLite トリガーがある場合、この一行承認は利用できません。トリガーによる追加の変更は、最上位 SQL の変更行数に含まれないためです。Host は組み込み SQLite プロバイダーのみを受け付けます。
+
+### M10: SQLite の単一 UNIQUE キーに対する承認（develop のみ）
+
+既存の単一行 `ON CONFLICT (id) DO NOTHING` のプレビュー・承認・実行は、`id` が主キーでなくても、実際のデータベースで強制される**単一列の単純な UNIQUE キー**を利用できるようになりました。対象はテーブル内で強制される**唯一の一意制約または一意インデックス**であり、競合対象列と正確に一致し、挿入値は明示的な NULL 以外の正確な 64 ビット整数リテラルでなければなりません。標準 SQLite プロバイダーが物理メタデータを検証します。プレビューは**挿入 1 行**または**スキップ 0 行**を承認情報に結び付け、実行時には同じ書き込みトランザクション内でスキーマとキーを再確認します。インデックスの削除・変更があれば承認を無効にします。
+
+**引き続き拒否:** 複数の UNIQUE、部分・式インデックス、複合キー、非一意インデックス、DO UPDATE、競合対象の省略、複数行、RETURNING、トリガー、異種 DB 実行、原子的バッチ。汎用 Upsert は許可せず、既定の読み取り専用ツール 4 個と DML 無効設定も変更しません。
+
+### M10: PostgreSQL の単一行競合スキップ承認（develop のみ）
+
+Host は PostgreSQL の `INSERT ... VALUES (...) ON CONFLICT (id) DO NOTHING` を**1 行だけ**プレビュー・承認・実行できるようになりました。競合列は実テーブル上の NOT NULL な INT2／INT4／INT8 列であり、同テーブルで**唯一の単純な遅延不可（NOT DEFERRABLE）の単一列 PRIMARY／UNIQUE キー**により保護されている必要があります。入力値は明示的な NULL 以外の正確な 64 ビット整数リテラルに限ります。標準の PostgreSQL プロバイダーが実際のテーブル、列、インデックス、制約の定義を検証し、トリガー、書き換え規則、パーティション、継承、行レベルセキュリティのあるテーブルは拒否します。プレビューは**挿入予定 1 行またはスキップ 0 行**を使い捨て承認に結び付けます。実行時にはトランザクション終了まで `SHARE ROW EXCLUSIVE NOWAIT` テーブルロックを保持し、並行書き込みを排除してスキーマとキー状態を再確認します。インデックスの失効や競合状態の変化は実行を中止します。この強いロックは書き込み同時実行性を制限する意図的な安全策です。
+
+**引き続き拒否:** DO UPDATE、RETURNING、複数行、競合対象の省略、複数の UNIQUE、部分・式・複合一意キー、NULL／文字列／UUID キー、未検証プロバイダー、異種 DB 間実行、トリガー、原子的バッチ。汎用 Upsert は許可せず、読み取り専用ツール 4 個と DML 無効の既定設定も維持します。
+
+### M11: PostgreSQL の単一行競合 UPDATE と変更前後の承認（develop のみ）
+
+Typed Host は、厳しく制限された PostgreSQL の `INSERT INTO users (id, name) VALUES (7, 'new') ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name` を承認対象に追加しました。対象は物理的な永続通常テーブルで、**NOT NULL BIGINT の単一列 PRIMARY／UNIQUE キーと NOT NULL TEXT 値列の 2 列だけ**が必要です。唯一性は**即時適用（NOT DEFERRABLE）の単純なキー 1 個だけ**で、余分な列やインデックス、既定値、CHECK／外部キー、利用者トリガー、書き換え規則、パーティション／継承、行レベルセキュリティは拒否されます。標準 PostgreSQL プロバイダーが物理定義を検証し、仮想 Catalog の証明では実行できません。
+
+プレビューでは**影響 1 行**を示し、競合なしなら `INSERT`（変更前は空）、競合ありなら `UPDATE` として実際の旧値と提案値を表示します。旧行全体のフィンガープリントと新しいペイロードの双方を使い捨て承認に結び付けます。コミット時にはトランザクション終了まで `SHARE ROW EXCLUSIVE NOWAIT` テーブルロックを保持し、完全なスキーマ・インデックス・旧値を再検証して F# コンパイル済み SQL を実行します。競合状態・旧値・インデックスの変更は実行を取り消します。この強いロックは意図的に書き込み同時実行性を制限します。
+
+**引き続き拒否:** 汎用 UPSERT、キーの更新、任意の SET 式、UPDATE WHERE、複数列／行、RETURNING、NULL／非 TEXT 値、他テーブルへの副作用、異種プロバイダー、原子的 DML バッチ。既定の読み取り専用 MCP ツール 4 個と DML 無効は変更しません。
+
+### M12：PostgreSQL 複数列の競合 UPDATE 承認（develop のみ）
+
+既存の Typed Host の `ON CONFLICT DO UPDATE` は、**2～4 個の `TEXT NOT NULL` 値列**（従来の 1 列も維持）と 1 個の実テーブル上の `BIGINT NOT NULL` 主キー／一意キーを対象にできます。例：`INSERT INTO users (id, name, city) VALUES (7, 'new-name', 'new-city') ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name, city = EXCLUDED.city`。単一行 INSERT で明示したすべての非キー列は、対応する `SET 列 = EXCLUDED.列` で更新する必要があります。列の欠落、重複、別列への値の転用、式の評価、キー変更は拒否されます。永続通常テーブルは**キーと更新列だけ**で構成し、即時適用の単純な一意キー 1 個のみ許可します。既定値、追加インデックス、CHECK／外部キー、トリガー、書き換え規則、継承／パーティション、行レベルセキュリティは不可です。
+
+プレビューには 1 件の `INSERT`／`UPDATE` と各列の `__before_name`／`__after_name`、`__before_city`／`__after_city` などを表示します。使い捨て承認は旧行全体、すべての新しい値、スキーマ、コンパイル済み SQL を拘束します。コミット時には `SHARE ROW EXCLUSIVE NOWAIT` テーブルロックで物理定義と全旧値を再検証し、同一トランザクション内で実行します。**どれか 1 列**の変更、新たな競合、インデックス／スキーマ変更は操作全体を取り消します。強いロックは並行書き込みを制限します。5 列以上、部分更新、任意式、`RETURNING`、複数行、DML バッチは引き続き拒否します。既定の 4 つの読み取り専用 MCP ツールと DML 無効設定は不変です。
+
+### M13：PostgreSQL の型検証と NULL を考慮した競合更新承認（develop のみ）
+
+既存の PostgreSQL 単一行 `ON CONFLICT DO UPDATE` 承認は、**1～4 個の更新列**に `TEXT`、`SMALLINT`、`INTEGER`、`BIGINT` を許可します。各列は NULL 許容または `NOT NULL` です。例：`INSERT INTO users (id, name, visits, balance) VALUES (7, NULL, 2147483647, 42) ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name, visits = EXCLUDED.visits, balance = EXCLUDED.balance`。Host は実テーブルの列型を検証し、文字列リテラルは `TEXT` のみ、正確な符号付き整数は対象整数型の範囲内のみ、SQL `NULL` は NULL 許容列のみに制限します。文字列から整数への暗黙変換、小数の丸め、任意式は許可しません。永続通常テーブルは `BIGINT NOT NULL` のキー 1 列と更新列だけで構成し、即時適用の主キー／一意キー 1 個のみを許可します。追加インデックス、既定値、CHECK／外部キー、トリガー、書き換え規則、継承、パーティション、行レベルセキュリティは拒否します。
+
+プレビューには `INSERT`／`UPDATE` とすべての旧値・提案値（実際の `NULL` を含む）を表示します。使い捨て承認は旧行全体、新しいリテラルすべてと物理スキーマのフィンガープリントを結び付けます。コミット時には `SHARE ROW EXCLUSIVE NOWAIT` テーブルロック下で旧値、列型、NULL 許容設定を再検証してから、コンパイル済み SQL を原子的に実行します。プレビュー後の NULL 状態変更、新たな競合、スキーマの変更は全操作を中止します。この強いロックは並列書き込みを制限します。日付／時刻、浮動小数点、`NUMERIC`、`UUID`、任意式、部分／複数行 UPSERT、DML バッチは引き続き非対応です。**M13 導入後、未実行の M12 承認は再プレビューしてください。** 既定の読み取り専用ツール 4 個と DML 無効は変更しません。
+
+#### M13 Host 安全強化：整数の原文表記と引用列名の識別
+
+PostgreSQL の競合 UPDATE を Host が実行承認するには、整数値が `42` や `-12` のような**通常の十進整数トークン**として記述されていなければなりません。F# が `1e10`、`4.2e1`、`42.0` を正確な整数値に正規化できても、その元の表記は**Host 実行承認には使用できません**。通常の整数リテラルで再入力してください。PostgreSQL の引用列名は大文字と小文字を区別しますが、変更前後の行指紋で誤認しないよう、`id` と `"ID"` のように大文字小文字だけ異なるキー列と値列を同時に承認しません。`"__ACTION"` などプレビュー用の合成列名と大文字小文字を無視して衝突する場合も拒否します。一般 SQL コンパイラーの解析能力と M13 の TEXT／SMALLINT／INTEGER／BIGINT／SQL NULL 対応は変更しません。
+
+### G9：PostgreSQL 競合 UPDATE の限定的な直接列 RETURNING（develop のみ）
+
+既存の PostgreSQL 単一行 `ON CONFLICT (id) DO UPDATE SET 列 = EXCLUDED.列` 承認で、`RETURNING` に **1～5 個の重複しない、修飾なしの物理的な直接列**を指定できます。例：`INSERT INTO users(id,name,amount) VALUES(7,'new',42) ON CONFLICT(id) DO UPDATE SET name=EXCLUDED.name, amount=EXCLUDED.amount RETURNING id,name,amount`。戻り列は、証明済みの一意キーと 1～4 個の承認された値列だけです。`RETURNING *`、式、別名、重複、表による修飾、システム列や無関係な列は拒否されます。INSERT／SET の式・型・唯一キー・物理テーブルの制限は変わりません。
+
+使い捨て承認は正確な SQL、旧行全体と提案値すべてを拘束します。同じ `SHARE ROW EXCLUSIVE NOWAIT` ロックのもとでコミット時に再検証し、Commit 成功が確認された後のみ、既存の構造化結果から**データベースが実際に返した行**（SQL NULL を含む）を提示します。競合状態・旧値・インデックスの変更は全体を中止し、行も返しません。MCP ツールは増えず、既定の 4 つの読み取り専用ツールと DML 無効設定も維持します。競合更新を含む DML 原子バッチは引き続き非対応です。
+
+### G9：PostgreSQL の競合スキップでキーだけを RETURNING（develop のみ）
+
+既存の PostgreSQL 単一行 `INSERT INTO users(id,name) VALUES(7,'new') ON CONFLICT(id) DO NOTHING` の実行承認では、競合対象と同一の修飾なし実テーブル一意キーに限り、**`RETURNING id`** を指定できます。永続通常テーブルのキーは、NULL 不可の INT2／INT4／INT8 で、即時有効な単一列 PRIMARY／UNIQUE キーが唯一存在する必要があります。スキーマ・インデックス・トリガー・行レベルセキュリティに関する既存の検証も維持します。キー以外の列、ワイルドカード、別名、式、重複、テーブル修飾、システム列は拒否します。SQLite の `DO NOTHING RETURNING` は引き続き非対応です。
+
+プレビュー時の競合状態を使い捨て承認に結び付け、コミット時には `SHARE ROW EXCLUSIVE NOWAIT` ロックの下で実際のキーとスキーマを再確認します。トランザクションのコミット成功が確認された場合に限り、既存の構造化結果から**実際に挿入したキー**を返します。競合によって挿入をスキップした場合は**戻り行が 0 件**です。競合状態・キー・インデックスの変更は書き込みと結果の公開を取り消します。強いロックは並列書き込みを制限します。MCP ツールや競合を含む原子的 DML バッチは増やさず、既定の読み取り専用ツール 4 個と DML 無効設定も維持します。
+
+### G9：SQL Server 2022 MERGE の一致行削除を Host が実テーブルに基づいて承認（develop のみ）
+
+SQL Server MERGE コンパイラーが `WITH (HOLDLOCK)` を出力できても、**それだけで実行は許可されません**。Typed Host では、**単一行の整数リテラル、実テーブルの単一 INT 主キーへの厳密な一致、`WHEN MATCHED THEN DELETE` だけ**を許可します。例：`MERGE INTO dbo.inventory AS t USING (VALUES(7)) AS s(id) ON t.id=s.id WHEN MATCHED THEN DELETE;`。対象は永続的な通常の `dbo` テーブルで、NULL 不可の単純なネイティブ INT 主キーが唯一の強制 UNIQUE キーである必要があります。トリガー、外部キー、CHECK／既定値による副作用、行レベルセキュリティなどの未証明な構造は拒否します。組み込み SQL Server プロバイダーが実際のスキーマと一意キー全体を確認します。**汎用 MERGE の対応ではありません。**
+
+プレビューは一致した主キー 0～1 件のみを読み取り、正確なコンパイル済み SQL、キー、対象、ポリシー、スキーマ指紋を使い捨て承認に結び付けます。コミットは直列化可能なトランザクションで `TABLOCKX/HOLDLOCK` を維持し、スキーマと対象行を再確認した後に限り F# コンパイル済み MERGE を実行します。プレビュー後にキーが現れたり消えたりすれば削除を中止します。対象がなければ影響 0 行です。この排他テーブルロックは同時書き込みを制限します。UPDATE／未一致 INSERT／混合操作、複数ソース／複合キー、暗黙の型変換、MERGE の原子的バッチは引き続き不可です。MCP ツールは増やさず、既定の読み取り専用 4 ツールと DML 無効も維持します。
+
+### G9：SQL Server 2022 MERGE の一致行更新と更新前後の承認（develop のみ）
+
+一致行削除に続き、Typed Host は**厳密に限定した一致行の UPDATE** に対応します。対象は永続的な通常の `dbo` テーブル 1 個、`VALUES` の入力 1 行、正確なネイティブ INT 主キー 1 列、そして異なる INT 更新列 1～3 個です。`ON t.id=s.id WHEN MATCHED THEN UPDATE SET quantity=s.quantity` のように、変更対象の各列は同名の入力列に直接対応する必要があり、実テーブル上の NULL 不可・IDENTITY でない INT 列でなければなりません。例：`MERGE INTO dbo.inventory AS t USING (VALUES(7,25,4)) AS s(id,quantity,status) ON t.id=s.id WHEN MATCHED THEN UPDATE SET quantity=s.quantity,status=s.status;`。**任意の MERGE を実行できるわけではありません。**
+
+組み込み SQL Server 2022 Host は、唯一の有効な単一列 INT 主キー、変更対象の型、スキーマ・インデックス・副作用の制限を実テーブルで検証します。プレビューには各列の実際の**更新前の値**と固定された**更新後の予定値**を表示し、一致しなければ 0 件です。1 回限りの承認には更新前の値全体、主体、ポリシー、コンパイル済み SQL とスキーマ指紋を結び付けます。コミットでは直列化可能トランザクション中に `TABLOCKX/HOLDLOCK` を保持し、**各更新前の値**を再検証してから実行します。値の変更、主キー／インデックスの失効、影響件数の不一致は中止され、並行更新を上書きしません。排他ロックは同時書き込み性能を制限します。式、型変換、NULL 入力、暗黙の変換、主キー変更、INSERT／DELETE との混合、原子的 MERGE バッチは引き続き禁止です。MCP ツールや既定の読み取り専用 4 件、DML 無効設定は変わりません。
+
+### G9：SQL Server 2022 MERGE、キーが存在しない場合だけ INSERT（develop のみ）
+
+Typed Host は、永続的な通常の `dbo` テーブルと 1 行のリテラル `VALUES` 入力について、**`WHEN NOT MATCHED THEN INSERT` のみ**を持つ SQL Server 2022 MERGE を追加で許可します。例：`MERGE INTO dbo.inventory AS t USING (VALUES(7,25,4)) AS s(id,quantity,status) ON t.id=s.id WHEN NOT MATCHED THEN INSERT(id,quantity,status) VALUES(s.id,s.quantity,s.status);` 入力は NULL 不可のネイティブ INT 主キー 1 列と、異なる NULL 不可のネイティブ INT 列 1～3 個に限られます。INSERT では**実テーブルの全列を重複なく明示**し、それぞれ同名の入力列から直接値を取得する必要があります。列順は変更できますが、省略列や暗黙の既定値は認めません。実際に強制される単純な UNIQUE キーは主キー 1 組のみとし、トリガー、外部キー、CHECK／既定値の副作用、未証明の表／索引は実体 Catalog で拒否します。**汎用 MERGE の対応ではありません。**
+
+プレビューは物理的な主キーを確認し、一致する行がないときだけ挿入予定の完全な行を表示します。既存キーなら影響 0 行です。使い捨て承認は実行者・ポリシー、キー、すべての入力値、コンパイル済み SQL、キー照合、スキーマ全体の指紋を結び付けます。コミットでは直列化可能なトランザクションで `TABLOCKX/HOLDLOCK` を維持し、スキーマとキーの有無を再検証してから MERGE を実行します。プレビュー後の競合する挿入／削除やキー・索引の失効は中止します。この排他ロックは同時書き込みを制限します。MATCHED DELETE／UPDATE との混合、追加の照合条件、式・CAST・NULL・暗黙の型変換、複合キー、原子的 MERGE バッチは引き続き拒否します。MCP ツールは増やさず、既定の読み取り専用 4 件と DML 無効も維持します。

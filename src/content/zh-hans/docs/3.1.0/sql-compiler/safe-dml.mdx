@@ -1,0 +1,327 @@
+---
+title: Safe DML
+description: 审批一个或多个 DML，重新验证精确证据，并在单一事务中原子提交获批内容。
+sidebar:
+  group: SQL Compiler
+  order: 50
+---
+
+## 审批准入、不确定结果与目标证据
+
+要求选择性条件时，能够证明恒真的 `UPDATE`／`DELETE` 条件（例如 `WHERE 1=1`）会被拒绝。人工审批仍必须绑定精确计划与行集合证据。
+
+自定义 challenge store 必须为单条和批量操作原子实现 `TryPromoteAsync`。Redis 与持久化续行使用版本化信封；不兼容的 challenge 必须重新预览与审批。参见[升级指南](/zh-hans/docs/reference/upgrade-guide)。
+
+`dml.commit_outcome_unknown` 与 `dml.rollback_outcome_unknown` 是不同且不可重试的结果。请保留审批和目标证据并独立核查。缺少 witness 或 Redis key 都不能证明已经回滚，不可自动重放结果不明的变更。已确认提交后，即使审计持久化失败，也不能报告变更失败。
+
+`AddHsSqlAgentTargetExecutionFence()` 需要显式启用，预先准备目标表及权限，并另行证明旧 worker 已失去 DML 权限。每次受管提交都在实际连接上执行两个额外的仅回滚就绪验证事务，提交后独立读取 Admission 与 Witness 各一次。Oracle 仅在 witness 唯一键冲突诊断中使用 READ COMMITTED，其他就绪阶段使用 SERIALIZABLE。证据矛盾时返回不确定结果；这不提供整个集群的节点纳管证明，也不自动处理仍存活的 worker。
+
+DML 比 Query 使用更严格的执行路径，因为真正 commit 时，审批内容仍必须描述**同一份 Mutation Evidence**。
+
+## 一个 Tool，同时支持单语句与多语句
+
+`execute_dml_sql` 可以接受一个或多个受支持的 `UPDATE`、`DELETE`、`INSERT ... VALUES`，多个 Statement 用分号分隔。 另可执行受限的 SQLite `INSERT ... SELECT`，但**只能作为单条语句**，不可放进多语句批处理。
+
+没有额外的 batch DML Tool。多语句输入会解析成一个 Batch，只审批一次，按原始顺序执行，最后在一个由服务器掌握的 Transaction 中原子提交。
+
+Client 不能传入 `BEGIN`、`COMMIT`、`ROLLBACK` 等 Transaction-control SQL；事务边界由服务器掌握。
+
+## 审批绑定的内容
+
+`UPDATE` / `DELETE` 审批绑定 Preview 时观察到的精确 Primary Key Row Set。Commit Transaction 内每个 Statement 在真正修改前都会立即重新验证。
+
+`INSERT ... VALUES` 审批绑定不可变的 Literal Payload 与精确编译 Command。
+
+### SQLite 单语句源数据行审批（G9／M09，仅 develop）
+
+仅 SQLite 允许受限的 `INSERT ... SELECT`。唯一直接来源和插入目标必须是真实且明确限定的 `main` 表（可以是同一张表，也可以是两张不同的表）；不同表须分别通过实际表结构验证。明确且唯一的目标列、直接源列投影、`WHERE 列 = 非 NULL 常量`、正整数且有限的行数上限，以及 `AddHsSqlAgentNativeDmlSchemaFreshness()` 仍为必要条件。
+
+预览绑定**所有源投影值**，不会提前伪造目标表自动生成的 ID。提交时先取得 SQLite 写入保留锁，在同一事务中重新验证实际表结构及源数据行，然后仅执行一次编译后的 INSERT。SQLite **3.35+** 还可以使用 `RETURNING`，但只允许明确、无别名且不重复的目标列；**成功提交后**才返回真实插入行，这与源数据预览不同。RETURNING 通配符、表达式或别名、CTE、JOIN、UPSERT、附加数据库、多语句批处理及其他数据库仍被拒绝。DML 权限与独立审批不变。
+
+如果前一个 Statement 改变了后一个 Statement 原本获批的 Row Set，整个 Batch 会 fail closed 并 rollback。
+
+## 审批 Provider
+
+MCP Elicitation 仍是第一方默认 Provider。Host 也可以使用官方 `HsSqlAgent.Approvals.Webhook` adapter，或在 `HsSqlAgent.Server` 实现 `IDmlApprovalProvider`。
+
+审批 Provider 收到的是与传输方式无关的 Evidence，不是 SQL 执行 primitive；不会取得 Database Connection、Transaction、已验证 Plan 或 commit 权限。
+
+## Durable Pending Approval
+
+Provider 可以为异步流程返回 `Pending`。存在 Admin Store 时，hs-sql-agent 会保存受保护的 Resume Intent 与 Approval Fingerprint。
+
+之后收到完成决策时，服务器会重新加载当前授权与数据库配置、重新 Parse / Preview DML、比对审批 Evidence，再创建新的短效 Execution Challenge。授权、数据库配置、Policy、Plan、Row Set 或 affected-row Evidence 只要变化，就会被视为 stale 而不是 commit。
+
+完成流程恢复的是**执行意图**，不是旧 Database Session。
+
+## SQL Server：CTE 更新与删除的复合 INT 键
+
+SQL Server 的 UPDATE／DELETE 在明确授权的前提下，可以通过 1～3 层线性、非递归 CTE 读取物理源表，但必须事先验证源表具有**由两个非空 INT 列组成的主键或唯一索引**。两个键列必须按物理索引中的顺序，在每层 CTE 中原样投影。最终修改语句必须通过强制性的 `AND` 与普通 `=`，分别匹配目标表的两个 INT 列。执行前还需要验证真实数据库元数据、预览受影响行、绑定审批内容，并在实际提交事务内重新检查元数据。
+
+缺少或颠倒键列、仅通过 `OR` 匹配、类型转换、可空或计算列、筛选或禁用的索引，以及会增加匹配行数的连接，都会被拒绝。该能力不会扩展其他数据库的可执行范围。
+
+### 受限双分支 CTE 合流证明（G9／M06，仅 develop）
+
+SQL Server 的 CTE `UPDATE`／`DELETE` 现在新增一种**三节点分支合流**结构：两个 CTE 分别从**同一张实体 UNIQUE 来源表**直接投影完整、有序的双列键；第三个 CTE 只能通过两条普通等号构成的 `INNER JOIN` 合流，并直接输出键列。目标表也必须以完整双列键匹配。
+
+这并不开放任意 CTE DAG。F# 静态基数证明、F# 封闭式写入准入和 Host 实体索引校验分别验证，随后仍需预览→独立审批→同一事务持锁 `IsCurrent`。不同来源表、遗漏或重复的键等号、`OR`、`LEFT JOIN`、筛选、`CAST`、计算键、额外 CTE 分支及模糊别名均被拒绝。其他五个数据库及 MCP 默认设置不变。
+
+### 双层派生表的实体唯一键溯源（G9／M06，仅 develop）
+
+SQL Server 的受限 CTE `UPDATE`／`DELETE` 现在可以在原有 1～3 层 CTE 之前，经过**两层非 LATERAL、仅直接投影原始列的派生表**，逐层保留完整且顺序不变的实体 UNIQUE 键。例如 `FROM (SELECT mid.x AS x, mid.y AS y FROM (SELECT s.k1 AS x, s.k2 AS y FROM dbo.Source AS s) AS mid) AS d`，再由 `SELECT d.x AS a, d.y AS b` 使用。这扩展了下方的单层能力，**并不开放任意多分支 CTE DAG**。
+
+F# 基数证明、F# 写入准入证明和 Host 实体索引校验会分别验证键溯源；仍必须满足真实 UNIQUE 索引、精确类型与排序规则、完整目标等值条件、预览→独立审批→提交，以及事务内持锁的 `IsCurrent`。第三层嵌套、额外来源、JOIN、WHERE、DISTINCT、分组、排序、分页、计算或转换键、重复别名、缺失或颠倒键列均会拒绝。其他五个数据库、默认四个只读工具以及 DML 默认关闭保持不变。
+
+### 单层 Derived Table 的唯一键传递证明（G9／M06，仅 develop）
+
+SQL Server 的受限 CTE `UPDATE`／`DELETE` 现在可在原有 1～3 层 CTE 前加入一层**仅从单张物理表读取、非 LATERAL 的 Derived Table**。该派生查询与后续 CTE 可逐列直接重命名完整有序 UNIQUE 键，例如 `FROM (SELECT s.k1 AS x, s.k2 AS y FROM dbo.Source AS s) AS d`，再投影 `SELECT d.x AS a, d.y AS b`。F# 变更行数证明与 Host 实体键发现分别独立追踪来源字段；执行授权仍需要真实完整的 UNIQUE 索引、原生源/目标类型、NULL 比较和排序规则完全匹配。别名和虚拟 Catalog 不能授权变更。
+
+这**不意味着支持任意 Derived Table 或多分支 CTE DAG**。派生层拒绝 JOIN、WHERE、DISTINCT、GROUP/HAVING、聚合、排序、LIMIT/TOP/OFFSET、UNION、嵌套派生表/CTE、LATERAL、CAST 或计算键、重复别名及缺失 UNIQUE 键位置。Preview→独立 Approval→Commit、行集身份与同一提交事务内加锁的 `IsCurrent` 仍为必要条件；预览后删除 UNIQUE 索引必须拒绝。SQL Server 2022 实测覆盖 1～3 层 CTE、整数/小数/UUID/文本复合键及 UPDATE/DELETE。其他五个数据库、默认四个只读 MCP 工具和 DML 默认关闭保持不变。
+
+
+### 语言排序规则与 UNIQUE 等值比较的精确证明（G9／M05，仅 develop）
+
+SQL Server 受限 CTE UPDATE／DELETE 的物理键证明现可处理内置且长度受限的 `VARCHAR(n)`／`NVARCHAR(n)`，并明确区分四类**经验证的比较语义**：已有的 `Latin1_General_100_BIN2`（二进制码点），新增 `Latin1_General_100_CI_AS`（不区分大小写、区分重音）、`Latin1_General_100_CI_AI`（均不区分）和 `Latin1_General_100_CS_AS`（均区分）。源 UNIQUE 索引、目标比较列以及独立证明的第二张 JOIN 表，必须在**每个键位置**采用完全一致的原生 SQL 类型、长度及实际列排序规则。Text 类型快照不构成执行授权；F# 使用封闭类型分别证明比较语义，并读取真实列和索引信息。
+
+SQL Server 2022 实测同时检查**大小写／重音变化是否触发唯一索引冲突**及普通 `=` 是否认为两值相等，而不只依赖排序规则名称。原有 1～3 层 CTE、完整 AND 键关联、文本／UUID／数值复合键、预览→独立审批→提交及事务内 `IsCurrent` 均保留；可空源 UNIQUE 仍要求 `ANSI_NULLS ON`。ProofIdentity 升至 **v9**，旧审批无效。不同列排序规则、显式 `COLLATE` 覆写、VARCHAR/NVARCHAR 隐式转换、未证明的 CS_AI／_SC／_UTF8、CHAR／MAX、筛选或停用索引及不完整等值比较继续拒绝。不增加 MCP 工具、权限或其他五个数据库的能力。
+
+
+### 可空 SQL Server UNIQUE 物理键与普通等号证明（G9／M05，仅 develop）
+
+SQL Server 源键现在允许可空列，但必须由**实际启用、无筛选条件、覆盖完整 1～2 列有序键元组的物理 UNIQUE 索引**保护。受限 CTE `UPDATE`／`DELETE` 仍需具备对目标的完整 `AND`／普通 `=` 等值关系，而且实际数据库连接必须为 `ANSI_NULLS ON`（通过 `@@OPTIONS` 验证）。源键任何部分为 NULL 时，普通等号返回 UNKNOWN，**不会匹配目标行**。这不表示允许 NULL 安全比较或任意可空表扫描。复合目标键仍要求不可空；缺少目标等值图的旧 `VerifyLive` 不得证明可空源键。
+
+F# 封闭的 NULL 比较语义证明绑定完整 UNIQUE 索引、内置精确物理类型、源键可空元数据、不可变摘要及 **v8 ProofIdentity**。真实 Commit 连接与事务持锁再次验证 `ANSI_NULLS ON`、索引及 Schema 身份。**筛选唯一索引**（包括 `WHERE key IS NOT NULL`）、停用／非唯一索引、`OR`、`COALESCE`、计算键、类型转换、NULL 安全运算符和虚拟 Catalog 都不能授权执行。SQL Server 2022 实测覆盖可空 BIGINT、DECIMAL、UUID 与 BIN2 VARCHAR 复合键、1～3 层 CTE、UPDATE／DELETE、Preview→审批→Commit、源 NULL 不匹配，以及预览后撤销索引的拒绝。其他五个数据库与 MCP 默认工具权限不变。
+
+
+### BIN2 VARCHAR／NVARCHAR 物理文本键的精确证明（G9／M04，仅 develop）
+
+SQL Server CTE `UPDATE`／`DELETE` 的物理唯一键证明新增有限长度的内置 `VARCHAR(n)` 和 `NVARCHAR(n)`，**仅允许实际排序规则 `Latin1_General_100_BIN2`**。来源 UNIQUE 索引、目标比较列以及独立验证的第二个 JOIN 来源，必须在**每个键位置**同时匹配 SQL 原生类型、最大长度和排序规则。`NVARCHAR` 先按照 `sys.columns.max_length` 的字节数验证，再换算为声明字符数。此能力并不允许所有文本键：`VARCHAR(MAX)`、`NVARCHAR(MAX)`、`CHAR`、`NCHAR`、长度差异、Unicode/非 Unicode 隐式转换、其他二进制或不区分大小写的排序规则、自定义别名类型和可空来源键均会被拒绝。
+
+Host 使用已有的 `SqlSchemaValueKind.Text` 记录真实文本类型，但**快照中的 Text 声明绝不能单独授权执行**。F# 封闭键类型独立验证实际列长度与排序规则、内置类型身份、完整且启用的无筛选 UNIQUE 索引，以及受限 CTE／JOIN 的必要普通等号关系。Preview→独立 Approval→Commit 仍在实际提交事务中持锁重新验证物理元数据；ProofIdentity 升至 v7，旧审批不可重用。SQL Server 2022 实测覆盖文本与 UUID／整数／小数复合键、UPDATE／DELETE、1～3 层 CTE、self/跨表 JOIN、审批提交及索引撤销，并验证排序规则或长度不匹配必须拒绝。其他五个数据库、MCP 工具和默认权限不变。
+
+
+### CTE 投影可以包含非键列（G8／M03）
+
+1～3 层 CTE 除了必需的 1～2 列 INT 键，也可以同时投影**直接来自源数据行的其他列**，每层最多 32 列。例如先使用 `SELECT k1 AS a, payload AS extra, k2 AS b`，再使用 `SELECT a, extra, b`。键列在每一层都必须各出现一次，保持物理唯一索引中的相对顺序，最终仍须使用必要的 `AND` 和普通 `=` 匹配。重复、转换或计算键、别名歧义、多来源以及可能增加行数的 JOIN 均被拒绝。真实唯一索引检查、预览、审批和提交事务中的重新验证保持不变；此功能不等于支持普通 JOIN，也不改变其他数据库的执行范围。
+
+### 单行 JOIN 的安全证明（G8／M07，受限子集）
+
+SQL Server 的每层 CTE 现在最多可以额外使用一个**可证明不会增加行数的 JOIN**：连接来源必须是完全独立的 `SELECT 1 AS marker` 派生查询，不包含 `FROM`、`WHERE`、`UNION`、分组或其他行。`CROSS JOIN (SELECT 1 AS marker) AS one` 保持源行数；使用常量等式 `ON 1 = 1` 的 `INNER JOIN`／`LEFT JOIN` 同样不会增加行数。物理 INT 唯一键、原样键列投影、预览、审批和提交事务内的实时证明仍然必需。**仅凭上述单行／自连接证明仍不能连接其他物理表；下文另以双重物理唯一键验证开放有限范围、APPLY、相关子查询、多行派生源或任意 JOIN。**
+
+另一种受限形式允许**同一物理源表使用不同别名进行 INNER／LEFT 自连接**，但 ON 条件必须通过必要的 AND 和普通等式完整匹配**在实际数据库中验证的每个 INT 唯一键列**。因此第二个别名对每行源数据最多匹配一行。缺少键列、仅通过 OR、计算或转换键，以及连接其他表均会被拒绝。
+
+### 跨物理表 JOIN 的双重唯一键证明（M07）
+
+SQL Server CTE 现在允许通过一次 **INNER** 或 **LEFT JOIN** 连接另一张物理表。两个源表都必须分别通过真实数据库的唯一键验证：1～2 列非空 `INT`／`BIGINT`，索引必须启用且未经过筛选。JOIN 的 `ON` 条件必须通过必要的 `AND` 和普通 `=` 完整匹配两侧的每个键列，且各位置的实际类型必须完全相同。虚拟目录、隐式类型转换、仅匹配部分键或筛选索引均不能构成证据。两个索引的身份均绑定执行计划和审批，并在实际提交事务中再次验证；预览后撤销任一证据都会阻止提交。这不代表开放第三张来源表、多对多 JOIN、`RIGHT`／`FULL JOIN`、跨数据库方言转换或任意 JOIN。
+
+### 完整键关联的 EXISTS／NOT EXISTS 筛选（M07，受限阶段）
+
+SQL Server 的 CTE `UPDATE`／`DELETE` 可以在第一层 CTE 的 `WHERE` 使用 **`EXISTS`（半连接）或 `NOT EXISTS`（反连接）**，但子查询只能用另一别名读取**同一张已完成物理唯一键验证的源表**。子查询仅投影常量，不允许增加 JOIN、分组、排序或集合运算，且必须通过必要的 `AND` 与普通 `=` 完整关联 1～2 个 `INT`／`BIGINT` 唯一键列；还可用子查询列与常量的比较进一步筛选。这种条件只保留或排除源行，不会增加行数；现有的真实索引证明、预览、审批身份绑定和提交事务中的重新验证仍然必需。**并未开放任意嵌套子查询、未验证的其他表或通用的 EXISTS／反连接执行权限。**
+
+### TINYINT 与 SMALLINT 物理键的精确类型证明（G9／M04，仅 develop）
+
+SQL Server 的 CTE `UPDATE`／`DELETE` 物理唯一键证明，现在除了 `INT`、`BIGINT`，也支持内置 `TINYINT`（无符号 8 位）和 `SMALLINT`（有符号 16 位）。对于一列或两列的物理唯一键，来源列、目标比较列以及独立验证的 JOIN 列，**在每个索引键位置的实际 SQL Server 类型必须完全一致**。整数类型的隐式转换、自定义别名类型或虚拟目录都不能替代物理证据。原有的受限 CTE 键传递、不会增加行数的 JOIN 证明、影响行预览、独立审批、不可变计划指纹以及实际提交事务中的索引重新验证仍然必需。SQL Server 2022 测试覆盖更新、删除、混合键类型和索引撤销。本次扩展不开放 DECIMAL、UUID、可空唯一键、任意 JOIN 或其他数据库的执行权限。
+
+
+### UNIQUEIDENTIFIER 物理键的精确证明（G9／M04，仅 develop）
+
+SQL Server 的 CTE `UPDATE`／`DELETE` 现在支持**内置 128 位 `UNIQUEIDENTIFIER` 键**的物理证明。`Uuid` 是独立的架构值类型，**不能假装成 Numeric、文本或二进制键**。Host 读取实际 `sys.tables`、`sys.columns`、`sys.types` 元数据，为源表、目标表及可选的第二张独立验证 JOIN 表建立有类型的键快照。F# 封闭类型再次验证完整 UNIQUE 索引中的每个键位置，以及快照声明与物理类型的一致性。不得通过隐式转换，将 `UNIQUEIDENTIFIER` 与 `INT`、`DECIMAL`、`VARCHAR`、`BINARY(16)` 的比较当作执行授权证据。
+
+一列或两列复合键可以混合 UUID 和经精确验证的整数／小数键；原有 1～3 层受限 CTE、不增加行数的 JOIN、变更预览、独立审批及提交事务内的 `IsCurrent` 重新验证仍然有效。ProofIdentity 升至 v6，旧审批证据不能重用。SQL Server 2022 实测覆盖 UUID UPDATE／DELETE、主键和唯一索引、Host 自动发现、跨表 JOIN、预览后索引撤销及错误类型拒绝。此功能不新增 MCP 工具、不默认启用 DML、不开放任意 JOIN，也不改变其他五个数据库。
+
+### DECIMAL／NUMERIC 物理键的精确证明（G9／M04，仅 develop）
+
+SQL Server 的 CTE `UPDATE`／`DELETE` 物理唯一键证明现在也支持内置 `DECIMAL(p,s)` 和 `NUMERIC(p,s)`，其中 `1 ≤ p ≤ 38`、`0 ≤ s ≤ p`。这两个名称在 SQL Server 中是同义类型，但来源键、目标比较列以及经过独立验证的 JOIN 来源键，**在每个索引键位置的精度与小数位数必须完全一致**。`DECIMAL(12,2)` 不能通过隐式转换证明与 `DECIMAL(13,2)`、`DECIMAL(12,3)` 或整数键等价。
+
+Host 会读取实际 `sys.columns` 与 `sys.types` 元数据，并完整检查原始 UNIQUE 索引中的**所有键列**；即使某列使用不支持的自定义别名类型，也绝不能把 `UNIQUE(a,b)` 错当作 `UNIQUE(a)`。F# 封闭类型保留精确精度和小数位数。原有的 1～3 层受限 CTE、不会增加行数的 JOIN 证明、受影响行预览、独立审批、带版本的证明身份以及实际提交事务中的重新验证都不变。SQL Server 2022 实测覆盖小数值、混合整数／小数键、跨物理表 JOIN、索引撤销和精度／位数不匹配拒绝。此证明不开放 UUID／文本键、可空唯一键、任意 JOIN 或其他五种数据库的执行权限。
+
+
+## Fail-closed 规则
+
+审批被拒绝、过期、stale、Fingerprint 不匹配、权限被撤销、违反当前 Policy，或无法重现审批 Row Set 时，都不会提交 DML。
+
+另见 [MCP Tools 参考](/zh-hans/docs/mcp/tools-reference)、[配置参考](/zh-hans/docs/operations/configuration)和 [ASP.NET Core 集成](/zh-hans/docs/integration/aspnet-core)。
+
+### 双分支 CTE 合流的直接数据列（G9／M06，仅 develop）
+
+两个来源分支与合流 CTE 可以在完整、有序的双列 UNIQUE 键外保留**额外的直接数据列**。每层最多投影 32 列，列引用不得重复或含糊；合流只能直接投影左侧分支。**数据列不能作为唯一性证明**。
+
+SQL Server 仍需完整双列 INNER JOIN 等号、目标完整键、独立的 F# 基数与写入准入证明、Host 实体唯一索引校验、预览、审批与事务内持锁 IsCurrent。计算或重复数据、别名覆盖、CAST、合流使用右分支数据、缺键或不同实体来源均被拒绝；其他数据库及 MCP 默认配置不变。
+
+### 双分支 CTE 的关联式半连接／反半连接筛选（M07，仅 develop）
+
+SQL Server 的三节点 CTE 合流，可在任一实体来源分支使用 `EXISTS` 或 `NOT EXISTS` 筛选，但子查询只能读取**同一张已验证的实体来源表**，并通过两个普通等号和 `AND` 完整关联原有的双列 UNIQUE 键；可额外加入内侧列与常量的等号筛选。合流的 `INNER JOIN` 与 DML 目标匹配仍必须覆盖完整双列键。筛选只减少符合条件的行，不得增加每个目标行的匹配数。
+
+F# 基数证明、独立 F# 写入准入、Host 实体唯一索引校验、预览／审批行集一致性及同一事务持锁 `IsCurrent` 均不变。其他子查询来源、缺键、`OR`、计算键、额外连接或模糊别名一律拒绝。此功能不开放任意 CTE DAG、多来源写入或其他数据库能力。
+
+### M08：两个独立实体来源的 DML 写入证明（仅 develop）
+
+SQL Server 原生 `UPDATE ... FROM` 与 `DELETE ... FROM` 现在可以在同一个 `FROM` 中使用**直接保留完整键的 CTE**和**另一张不同的实体表**。目标→CTE、CTE→第二张表均需完整双列键的普通等号连接。两个来源各自必须具备实际验证的有效、非过滤 UNIQUE 索引，且键顺序、类型和排序规则一致；第二来源不能借用第一来源的索引证明。
+
+F# 静态基数及封闭式写入准入、Host 实体双索引校验、预览→独立审批→提交及同一事务内 `IsCurrent` 均不可省略。缺键、换序、计算键、`OR`、未验证或第三来源、索引失效、隐式转换以及跨数据库改写仍被拒绝。这是**受限的双来源写入**，并非任意多来源 DML；默认仍仅启用四个只读工具，DML 关闭。
+
+### M09：SQLite 从第二张实体表安全执行 INSERT SELECT（仅 develop）
+
+SQLite 现在可以从**另一张独立的 `main` 实体来源表**直接选取数据行，插入明确指定的 `main` 目标表，并沿用单语句预览／审批流程。来源与目标表**分别验证实际 schema、DDL、索引和触发器**；审批同时绑定两张表、编译后的 INSERT 和预览 SELECT、全部投影值的多重集合指纹、影响行数上限及安全策略。提交时先保留 SQLite 写锁，在同一事务内重新验证两张表及全部来源投影值，再执行一次插入。
+
+例如 `INSERT INTO main.users (name) SELECT name FROM main.other_users WHERE id = 1`。两侧都必须是真实 `main` 表；明确、唯一的目标列只能映射未使用别名的直接来源列，WHERE 仅允许「列＝非 NULL 常量」。CTE、JOIN、聚合、计算式、分页、RETURNING 通配符、表达式与别名、冲突处理、附加数据库、其他 DB、未经证明的来源批次及审批后来源漂移仍被拒绝。默认四个只读工具和 DML 关闭不变。
+
+
+SQLite 3.35+ 示例：`INSERT INTO main.users (name) SELECT name FROM main.other_users WHERE id = 1 RETURNING id, name`。预览批准源列 `name` 和数据行数；仅成功提交后才返回新行的 `id` 和 `name`。源数据变化时回滚，且不返回结果行。
+
+### M09：PostgreSQL 实体来源 INSERT SELECT（仅 develop）
+
+PostgreSQL 允许单条语句执行受限的 `INSERT INTO schema.target (列) SELECT 直接列 FROM schema.source WHERE 列 = 非 NULL 常量`。**来源现在可以与插入目标是同一张实体表**，也可以是同一非系统 Schema 中的另一张实体表；两者都必须是普通永久表。仍要求明确且不重复的目标列、直接列投影、正整数且有限的行数上限、来源读取与目标写入授权、`AddHsSqlAgentNativeDmlSchemaFreshness()` 和独立 DML 审批。CTE、JOIN、计算表达式、ON CONFLICT、分区或继承表、RLS、用户触发器、自定义重写规则、未限定 Schema 的表名及其他数据库仍被拒绝。
+
+预览绑定**全部源投影值**、行数、策略和编译后的指令，不会提前伪造自动生成的目标 ID。提交时 PostgreSQL SERIALIZABLE 事务在**首次 Catalog 查询之前**取得来源表的 **SHARE ROW EXCLUSIVE NOWAIT** 锁。**同表来源只使用一份真实的表结构证明和一个来源锁**，并在持锁期间完成重新验证及写入；不同表则分别校验两张实体表，并另行保护目标表免受 DDL 变更。源数据、索引或表结构变化、锁竞争都将导致拒绝或回滚，不返回 RETURNING 数据行。明确目标列的 `RETURNING` 仅在成功提交后返回实际插入结果。
+
+同表示例：`INSERT INTO app.users (name) SELECT name FROM app.users WHERE id = 1 RETURNING id, name`；不同表示例：`INSERT INTO app.users (name) SELECT name FROM app.import_users WHERE id = 1 RETURNING id, name`。数据库角色必须有权限获取所需 PostgreSQL 锁。不新增 MCP 工具或公开 API，默认仍仅选中四个只读工具，DML 关闭。
+
+### M09：MySQL 8.4 InnoDB 源行集 INSERT SELECT（仅 develop）
+
+仅 **MySQL 8.4／InnoDB** 支持受限的单条语句 `INSERT INTO db.target (name) SELECT name FROM db.source WHERE id = 1`。来源与目标必须是**同一非系统数据库中的同一张实际 InnoDB 表，或两张不同实体表**。预览批准所有源投影值及行数；提交时重新验证参与操作的实体表结构、索引和完整源数据行，最后只执行一次插入。来源读取与目标写入权限须单独授予，Approval 一次性使用，并要求 `AddHsSqlAgentNativeDmlSchemaFreshness()`。
+
+提交需要明确的 **SERIALIZABLE InnoDB 事务**，利用锁定读取保护源行，并由事务内 Metadata Lock 防止竞争性 DDL。禁止使用可能导致隐式提交的 `LOCK TABLES`。为证明不存在不可见的触发器，目前还要求执行账号具有**全局 Trigger 元数据可见性**；两张表不得有 Trigger、外键或 MyISAM 等非事务引擎。本模式**不支持 `RETURNING`**，CTE、JOIN、Upsert、计算投影、多语句批处理及未经证明的数据库仍被拒绝。
+
+示例：`INSERT INTO app.users (name) SELECT name FROM app.import_users WHERE id = 1`。仍需显式开启 DML，没有新增 MCP 工具；默认仅选择四个只读工具，DML 保持关闭。
+
+证明同时绑定实际 InnoDB `TABLE_ID` 和 MySQL `@@server_uuid`：即便重建表的名称、DDL 和源数据完全相同，原审批也会失效。读取 `INNODB_TABLES` 需要 `PROCESS` 权限，因此执行账号须同时具有全局 `PROCESS` 与 `TRIGGER` 可见性；无法核验元数据就拒绝执行。
+
+#### 同表来源：一份实体身份凭据（仅 develop）
+
+现也允许受限的 `INSERT INTO app.users (name) SELECT name FROM app.users WHERE id = 1`。来源与目标是**同一张真实 InnoDB 表**，不制造两份虚假的目录证明。预览与提交核验一份 `TABLE_ID`、`@@server_uuid`、DDL 和完整已批准源行集。SERIALIZABLE 事务通过锁定读取和持有至提交的元数据锁保护同一张表。来源值或索引漂移、相同 DDL 的删表重建、并发写入、较弱隔离级别、重复使用审批均被拒绝；`RETURNING`、CTE、JOIN、UPSERT 仍不支持。
+
+### M09：有界 AND 来源筛选条件（仅 develop）
+
+**历史范围说明：**以下仅限 `AND` 的条件属于 M09 初期契约；本页末尾的有界 `IN`／`OR` 扩充已取代四个原生 `INSERT SELECT` Provider 的该项限制。其他 CTE／JOIN 的 `OR` 安全要求不变。
+
+现有 **SQLite、PostgreSQL、MySQL 8.4 InnoDB** 原生 `INSERT SELECT` 来源行集审批，现在允许 `WHERE` 包含**一至四个**只用 `AND` 连接的直接 `列 = 非 NULL 常量` 比较。例如：`INSERT INTO app.users (name) SELECT name FROM app.import_users WHERE id = 1 AND name = 'Carol'`。来源及目标的实际身份、版本能力、最大影响行数、权限、审批和事务要求均保持不变。提交前仍核验完整已批准的来源行集及实体 Catalog；不代表开放任意 SQL。
+
+五个以上条件、`OR`、`NOT`、函数、计算表达式、NULL 比较、子查询、JOIN、CTE、UPSERT 和未经证明的数据库仍拒绝。PostgreSQL／SQLite 的 RETURNING 继续遵循各自已证明的限制；MySQL 不支持 RETURNING。不新增 MCP 工具或公共 API，DML 默认关闭。
+
+### M09：SQL Server 2022 双实体表 INSERT SELECT 审批（仅 develop）
+
+SQL Server 2022 现在支持受限的单条 `INSERT INTO dbo.target (name) SELECT name FROM dbo.source WHERE id = 1`，仅限**同一数据库中两张不同的永久实体表**。来源筛选只能包含一至四个由 `AND` 连接的直接 `列 = 非 NULL 常量` 比较，投影及目标列必须明确，影响行数必须有有限的正整数上限。来源读取与目标插入权限独立审批，目标表的排他锁读取还需要 SELECT 权限，并要求原生 SqlCore 编译、实体 Catalog 身份、全部来源值审批、一次性 Challenge 和实时结构复核。
+
+提交在首次读取实体 Catalog 之前，于同一事务**对来源和目标取得保持到事务结束的排他表锁**，禁止来源写入和竞争性 DDL，复核所有已批准的数据后仅执行一次 INSERT。这种高安全模式可能阻塞其他 DML。缺少 `VIEW DEFINITION`、无法验证实体约束、触发器、外键、Temporal／Ledger／Graph 表、索引或数据漂移、锁争用都将拒绝或回滚。SQL Server `OUTPUT` 通配符／别名／表达式／`INTO`、CTE、JOIN、UPSERT、计算投影及未经证明的 Provider 仍不开放执行。不新增 MCP 工具；四个只读工具默认选中，DML 默认关闭。
+
+### M09：SQL Server 2022 同一实体表 INSERT SELECT（仅 develop）
+
+现额外允许受限的 `INSERT INTO dbo.users (name) SELECT name FROM dbo.users WHERE id = 1`：**一张现有的普通永久实体表同时充当来源和目标**。预览只核验**一个**真实 SQL Server 对象 ID 及完整表结构、索引和约束摘要，不会虚构两份实体 Catalog 凭据。仍只支持直接列投影、一至四个由 `AND` 连接的 `列 = 非 NULL 常量` 条件及有限的正整数影响行数上限。执行账号需要此表的 SELECT／INSERT 和 `VIEW DEFINITION` 权限，必须启用原生 Schema 复核和一次性 DML 审批。
+
+提交先开启 SERIALIZABLE 事务，在**首次读取 Catalog 前取得一把维持至事务结束的 TABLOCKX／HOLDLOCK 排他表锁**。持锁复核唯一实体身份、DDL 和全部获批来源列值，随后执行一次原生 INSERT，核验实际写入行数才提交；预览不会伪造自动生成的目标 ID。来源数据或索引变化、相同 DDL 删表重建、并发写入、超限匹配及重复审批都会拒绝或回滚。同表排他锁可能阻塞其他写入。 `OUTPUT` 通配符／别名／表达式／`INTO`、CTE、JOIN、UPSERT、计算投影和未经验证的 Provider 仍拒绝；不新增 MCP 工具，默认四个只读工具选中且 DML 关闭。
+
+### M09：SQL Server 2022 已审批 INSERT SELECT 的原生 OUTPUT INSERTED（仅 develop）
+
+已证明的单表或双实体表来源审批现在允许在 INSERT 列表后指定 `OUTPUT INSERTED.id` 或 `OUTPUT INSERTED.id, INSERTED.name`，**成功提交后**返回真实插入的目标列。预览只审批实体来源数据，不伪造 IDENTITY 生成的目标 ID。SERIALIZABLE 事务持有原有排他表锁，重新验证完整来源行集和结构，仅执行一次原生 INSERT；核对实际影响行数并成功提交后才能返回结果。只允许一至三十二个互不重复的直接目标列；通配符、别名、表达式、重复列、`OUTPUT INTO`、错误的行影像继续拒绝。实体 Catalog 与无触发器的实时元数据证明必不可少；数据变化、重复审批及超出行数上限仍拒绝。不新增 MCP 工具，默认四个只读工具选中且 DML 关闭。
+
+### M09：有界 IN／OR 来源行集条件（仅 develop）
+
+已验证的原生 **SQLite、PostgreSQL、MySQL 8.4 InnoDB、SQL Server 2022** `INSERT SELECT` 现支持 `WHERE id IN (1,2)`、`WHERE id = 1 OR id = 2` 及 `WHERE (id = 1 OR id = 2) AND name IN ('Carol','Dave')`。直接 `列 = 非 NULL 常量` 和 `列 IN (非 NULL 常量, ...)` 合计**最多四个比较常量**，布尔表达式树不超过七个节点。允许括号组合 `AND`／`OR`，但原子条件必须使用未限定的直接列。这取代前述 M09 初期的 `AND` 限制；与 CTE／JOIN 有关的 `OR` 限制不变。
+
+`OR 1=1`、`NOT`／`NOT IN`、NULL IN 项、IN 子查询、表达式、五个以上比较常量、任意 OR、CTE、JOIN 和跨 Provider DML 仍拒绝。来源及目标继续要求真实物理 Catalog 证明，有限正数行数限制不变。预览绑定**完整已选来源行集**，提交时保持原有事务锁，复核结构与来源值，核对实际行数。PostgreSQL／SQLite 的 RETURNING 与 SQL Server OUTPUT INSERTED 仅在提交成功后返回真实目标列；MySQL 不支持 RETURNING。不增加 MCP 工具或公开 API，默认四个只读工具选中且 DML 关闭。
+
+### M09：有界 BETWEEN 原生来源筛选（仅 develop）
+
+已验证物理来源的 **SQLite、PostgreSQL、MySQL 8.4 InnoDB 和 SQL Server 2022** 原生 `INSERT SELECT` 可使用 `WHERE id BETWEEN 1 AND 2`、`WHERE id BETWEEN 1 AND 2 AND name IN ('Carol','Dave')` 或 `WHERE id BETWEEN 1 AND 1 OR id = 2`。`BETWEEN` 两端必须是直接非 NULL 常量，左侧只能是未限定的直接列。每个 `BETWEEN` 计入**两个比较常量**；与原有 `=` 和 `IN` **总计最多四个**，整个布尔 AST 不超过七个节点，`AND`／`OR` 也计入节点上限。继续使用 F# 类型化解析和 Host 实体来源证明。
+
+`NOT BETWEEN`、NULL／表达式边界、列对列区间、纯常量永真条件、五个以上比较值、子查询、JOIN、CTE 及未证明形状仍拒绝。预览绑定完整来源行集和有限正数行数上限，实际 Catalog、独立权限、事务内锁、一次性审批、提交前完整数据与结构复核以及实际影响行数检查仍必需。SQLite／PostgreSQL RETURNING 和 SQL Server OUTPUT INSERTED 仅在成功提交后返回真实目标行；MySQL 不支持 RETURNING。无新 MCP 工具、驱动或公共 API；默认四个只读工具选中，DML 关闭。
+
+### M09：SQLite 原生 INSERT SELECT 纳入原子 DML 事务（仅 develop）
+
+现有的**原子 DML 事务**早已支持一次整批审批、按顺序执行多条 INSERT VALUES、UPDATE、DELETE，不需要新建 `execute_dml_sql_batch` 工具。此次新增：在 **2～16 条**的同一事务中允许**恰好一条**经过 SQLite 真实来源表验证的 `INSERT SELECT`，与已有 DML 同时提交。
+
+```sql
+INSERT INTO main.users (name)
+  SELECT name FROM main.import_users WHERE id IN (1, 2)
+  RETURNING id, name;
+INSERT INTO main.users (name) VALUES ('Manual');
+```
+
+每条语句仍独立编译、授权并依赖真实 SQLite `main` 表及原生 Catalog 预览。一次性**整批挑战**绑定执行顺序、完整来源行集指纹及**整批影响行数上限**。提交时只有**一个 SQLite 写事务**；每条语句执行前重新验证结构与全部来源行，包含前面语句已经造成的变化。若第一条改变后面的来源集合，或者后续 INSERT 遇到主键冲突，**全部已写入内容一同回滚**。`RETURNING` 与自动生成的 ID 只有整批成功提交后才返回，失败时不泄露。单条 INSERT SELECT 仍可独立使用；同批多个来源 SELECT、其他数据库、未验证结构、JOIN／CTE／UPSERT 等不开放。无新增 MCP 工具、驱动或公共 API；默认四个只读工具选中，DML 关闭。
+
+### M09：有界来源空值筛选（仅 develop）
+
+已通过实体表验证的 **SQLite、PostgreSQL、MySQL 8.4 InnoDB 和 SQL Server 2022**，其原生 `INSERT SELECT` 现在也可以使用直接列的 `IS NULL` 或 `IS NOT NULL` 条件，例如 `WHERE note IS NULL`、`WHERE note IS NOT NULL`，以及 `WHERE (note IS NULL OR id = 1) AND name IS NOT NULL`。不允许带表别名的列或计算表达式；此能力沿用 F# 类型化语法树，而非匹配原始 SQL 文本。
+
+每个空值判断占用**四个条件预算单位中的一个**；直接列与非空常量比较占一个，`IN` 的每个元素占一个，`BETWEEN` 的每个边界占一个。布尔语法树依旧最多**七个节点**。函数或计算结果的空值判断、`NULL IS NULL` 等常量恒真式、`OR 1=1`、普通 `NOT`、JOIN／CTE 和未经证明的数据库仍然拒绝。空值条件可能选中大量行，因此必须保留**有限且为正数的影响行数上限**。实际来源与目标身份、分别授权、实时结构证明、已审批的完整来源行集、事务锁、提交前复核、实际行数核对以及一次性审批都没有变化。生成的 ID 和原生返回行只能在成功提交后提供；MySQL 不支持 `RETURNING`。不新增 MCP 工具、驱动或公共 API，默认仍选中四个只读工具，DML 保持关闭。
+
+### M10：SQL Server 原生 MERGE 的目标键范围锁（仅 develop）
+
+既有 F# 封闭语法树的 SQL Server **单行来源** `MERGE` 编译器现在输出 `MERGE INTO dbo.target WITH (HOLDLOCK) AS t USING (VALUES (...)) AS s (...) ON ...`。只接受一行明确的 VALUES 数据、直接列值、完整匹配经实际元数据验证的 PRIMARY／UNIQUE Key，以及既有受限的匹配时 UPDATE／DELETE 和不匹配时 INSERT。该原生提示在 SQL Server 目标键上施加可串行化键范围锁，包括来源键尚未匹配目标行的情况；事务仍由调用执行的一方管理。
+
+真实 SQL Server 2022 测试通过原生元数据验证主键或复合唯一键、检查 UPDATE／INSERT／DELETE 和复合键行隔离，并验证持有事务时另一个连接无法插入被锁定的缺失键。缺失或非唯一的键不能获得编译权限证明。**此功能仅扩展 SqlCore 编译能力，不是 Host 的 MERGE／Upsert 执行授权**：Host 的类型化修改审批仍保持拒绝，直到现有行集、实际变更范围和独立审批获得证明。其他数据库、多行或查询来源 MERGE、跨数据库转换和任意分支仍拒绝。不新增 MCP 工具或公共 API，默认仍选中四个只读工具，DML 保持关闭。
+
+### M10：SQLite 单行主键冲突跳过的 Host 审批（仅 develop）
+
+类型化 Host 现可预览、审批并提交一行原生 SQLite `INSERT ... VALUES (...) ON CONFLICT (id) DO NOTHING`，前提是证明 `id` 为实际数据表**唯一强制执行的主键／唯一键**、显式提供非 NULL 的 64 位整数常量、策略最多影响 **1 行**，并启用内置真实 Schema 验证。这一流程不再仅审批 INSERT 载荷：预览会读取实际主键冲突；不存在时显示**将插入 1 行**，已存在则显示**跳过、影响 0 行**，同时绑定审批指纹。
+
+提交时消耗一次性审批，在 SQLite 写入事务中重新验证真实 Schema 与主键、执行同一条经 F# 编译的参数化 SQL、核对实际影响行数；预览后冲突状态、索引或 Schema 变化会触发拒绝或回滚并要求重新预览。**DO UPDATE、未指定冲突目标、多行 VALUES、RETURNING、非主键／复合键／额外 UNIQUE、跨数据库和原子批处理** 仍拒绝。此功能不开放通用 Upsert 或 SQL Server MERGE；不增加 MCP 工具，默认仍选中四个只读工具，DML 保持关闭。
+
+**Trigger 安全边界：** 目标表只要存在 SQLite Trigger，就不得使用此单行审批，因为 Trigger 的额外写入不计入顶层 SQL 的影响行数。Host 仅接受内置 SQLite Provider，不借用未经验证的替代适配器。
+
+### M10：SQLite 单列 UNIQUE 键的冲突审批（仅 develop）
+
+现有单行 `ON CONFLICT (id) DO NOTHING` 预览、审批与提交流程，现可接受由真实数据库强制执行的**单列简单 UNIQUE 键**，即使 `id` 不是主键也可以。该键必须是表中**唯一一个**有效的唯一约束或唯一索引，并与指定冲突列完全一致；待插入的键值必须是显式、非 NULL、精确的 64 位整数常量。内置 SQLite 提供程序验证真实元数据。预览绑定**插入 1 行**或**跳过 0 行**；提交前在同一写事务内重新核验模式与键是否存在。索引被删除或修改后，原审批立即失效。
+
+**仍然拒绝：**多个唯一键、部分索引或表达式索引、复合键、非唯一索引、DO UPDATE、省略冲突目标、多行插入、RETURNING、触发器、跨数据库执行及原子批次。本功能不是通用 Upsert，默认仍仅选中 4 个只读工具，DML 默认关闭。
+
+### M10：PostgreSQL 原生单行冲突跳过审批（仅 develop）
+
+Host 现在可对单行 PostgreSQL `INSERT ... VALUES (...) ON CONFLICT (id) DO NOTHING` 进行预览、审批与提交。冲突列必须是物理数据表的非 NULL INT2／INT4／INT8 列，并由该表**唯一一个立即强制生效（NOT DEFERRABLE）的单列 PRIMARY／UNIQUE 键**约束；插入值必须是显式、非 NULL、精确的 64 位整数常量。内置 PostgreSQL 提供程序核验实际数据表、索引、列与约束定义；带有触发器、重写规则、分区、继承或行级安全策略的目标均拒绝。预览将**预计插入 1 行或跳过 0 行**绑定到一次性审批。提交时先获取持续到事务结束的 `SHARE ROW EXCLUSIVE NOWAIT` 表锁，在重新核验模式与键值时排除并发写入；索引撤销或冲突状态改变即取消执行。此强锁会限制并发写入，是首批能力有意保留的安全限制。
+
+**仍然拒绝：**DO UPDATE、RETURNING、多行插入、省略冲突目标、多个 UNIQUE 键、部分／表达式／复合唯一键、NULL／文本／UUID 键、非内置提供程序、跨方言执行、触发器及原子批次。不新增 MCP 工具或通用 Upsert；默认仍选中四个只读工具，DML 保持关闭。
+
+### M11：PostgreSQL 单行冲突更新及前后值审批（仅 develop）
+
+Typed Host 新增严格受限的原生 PostgreSQL `INSERT INTO users (id, name) VALUES (7, 'new') ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name`。目标必须为实际永久普通数据表，且**恰好只有两列**：非 NULL 的 BIGINT 单列 PRIMARY／UNIQUE 键，以及非 NULL 的 TEXT 值列。全表只能有**一个立即执行（NOT DEFERRABLE）的简单唯一键**；不得有额外唯一索引或列、默认值、CHECK／外键、用户触发器、重写规则、分区／继承或行级安全策略。内置 PostgreSQL 提供程序核验物理定义；虚拟 Catalog 不授予执行权限。
+
+预览固定显示**影响一行**：无冲突时标为 `INSERT`，更新前值为空；有冲突时标为 `UPDATE`，显示实际旧值和建议新值。一次性审批同时绑定完整旧记录指纹与确切新值。提交时先取得保持到事务结束的 `SHARE ROW EXCLUSIVE NOWAIT` 表锁，复验完整模式、索引和旧值，再原子执行 F# 编译的 SQL。冲突状态、旧值或索引改变就取消写入。该强锁有意限制写入并发。
+
+**仍然拒绝：**通用 UPSERT、修改键值、任意 SET 表达式、UPDATE WHERE、多列／多行操作、RETURNING、NULL／非文本值、额外表副作用、跨提供程序执行及原子 DML 批次。默认四个只读 MCP 工具和 DML 关闭保持不变。
+
+### M12：PostgreSQL 多列冲突更新审批（仅 develop）
+
+现有 Typed Host 的 `ON CONFLICT DO UPDATE` 可一次审批 **2～4 个 `TEXT NOT NULL` 值列**（原先单列仍支持），配合一个实际 `BIGINT NOT NULL` 主键／唯一键。例如：`INSERT INTO users (id, name, city) VALUES (7, 'new-name', 'new-city') ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name, city = EXCLUDED.city`。单行 INSERT 显式列出的每个非键列，都必须由对应的 `SET 列 = EXCLUDED.列` 更新；遗漏列、重复赋值、交叉赋值、函数运算或修改键值均被拒绝。永久普通物理表**只能包含该键和这些更新列**，且只有一个立即生效的简单唯一键；不允许默认值、额外索引、CHECK／外键、触发器、重写规则、继承／分区或行级安全策略。
+
+预览显示一行 `INSERT` 或 `UPDATE`，并列出 `__before_name`／`__after_name`、`__before_city`／`__after_city` 等逐列前后值。一次性审批绑定完整旧记录、全部新值、Schema 与编译 SQL。提交时持有 `SHARE ROW EXCLUSIVE NOWAIT` 表锁，重新验证实际定义及所有旧值后才在同一事务中执行；**任一列**变化、新冲突或索引／Schema 改变都会取消整个操作。该锁限制并发写入。五列以上更新、部分更新、表达式、`RETURNING`、多行输入和 DML 批次仍不支持；默认四个只读 MCP 工具及 DML 关闭保持不变。
+
+### M13：PostgreSQL 冲突更新的类型验证与空值审批（仅 develop）
+
+现有单行 PostgreSQL `ON CONFLICT DO UPDATE` 审批现在允许 **1～4 个更新列**，实际物理类型可为 `TEXT`、`SMALLINT`、`INTEGER` 或 `BIGINT`，每列可以允许空值或指定 `NOT NULL`。例如：`INSERT INTO users (id, name, visits, balance) VALUES (7, NULL, 2147483647, 42) ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name, visits = EXCLUDED.visits, balance = EXCLUDED.balance`。Host 按真实列类型验证每个常量：文本只能写入 `TEXT`；精确有符号整数必须落在目标整数类型的范围内；SQL `NULL` 只能写入真实允许空值的列。不接受隐式文本转数字、小数舍入或运算表达式。永久普通物理表仍须恰好包含一个 `BIGINT NOT NULL` 唯一键和这些更新列，且只有一个立即生效的主键／唯一键；额外索引、默认值、CHECK／外键、触发器、重写规则、继承、分区表及行级安全策略仍被拒绝。
+
+预览会显示 `INSERT` 或 `UPDATE`，以及每列的实际旧值和建议新值，包括 `NULL`。一次性审批绑定完整旧记录、所有新常量及物理结构指纹。提交时在 `SHARE ROW EXCLUSIVE NOWAIT` 表锁下复验所有旧值、列类型和空值约束，再原子执行编译的 SQL。预览后任一空值状态变化、出现新冲突或物理结构漂移，都将取消整项操作。强锁会限制并发写入。日期／时间、浮点数、`NUMERIC`、`UUID`、任意表达式、部分／多行 UPSERT 和 DML 批次仍不支持。**升级 M13 后，尚未执行的 M12 审批必须重新预览。** 默认仍选中四个只读工具，DML 关闭。
+
+#### M13 Host 安全补强：整数原始写法与带引号列的身份
+
+原生 PostgreSQL 冲突更新若需 Host 执行审批，整数值必须采用**普通十进制整数 Token**，例如 `42` 或 `-12`。即使 F# 能将 `1e10`、`4.2e1` 或 `42.0` 无损归一化为整数，这些原始写法仍**不能用于 Host 审批证明**；必须改用明确的整数字面量。为避免审批前后值指纹混淆 PostgreSQL 区分大小写的带引号列名，同一操作不能同时包含 `id` 和 `"ID"` 这种仅大小写不同的键列与值列；与 `"__ACTION"` 等预览合成列名大小写折叠后冲突也会被拒绝。该限制不改变通用 SQL Compiler 的解析能力，也不缩减 M13 已支持的 TEXT／SMALLINT／INTEGER／BIGINT／SQL NULL。
+
+### G9：PostgreSQL 冲突更新的有限直接列 RETURNING（仅 develop）
+
+已有 PostgreSQL 原生单行 `ON CONFLICT (id) DO UPDATE SET 列 = EXCLUDED.列` 审批，现在允许 `RETURNING` 使用 **1～5 个不重复、未加表限定的实际直接列**，例如 `INSERT INTO users(id,name,amount) VALUES(7,'new',42) ON CONFLICT(id) DO UPDATE SET name=EXCLUDED.name, amount=EXCLUDED.amount RETURNING id,name,amount`。返回列只能属于已证明的唯一键及 1～4 个获批的值列；`RETURNING *`、表达式、别名、重复列、带表限定列、系统列或其他列继续拒绝。这不会放宽 INSERT／SET 表达式、实际类型、唯一键或物理表结构的限制。
+
+一次性审批仍绑定准确 SQL、完整旧记录及全部新值。提交时在现有 `SHARE ROW EXCLUSIVE NOWAIT` 表锁下重新验证；确认 Commit 成功后，利用现有结构化结果返回**数据库实际产生**的行（包括 SQL NULL），而非捏造的预览数据。冲突、旧值或索引变化会取消整个操作且不返回结果行。不增加 MCP 工具，默认四个只读工具被选中、DML 未勾选均保持不变。包含原生冲突 UPDATE 的原子 DML 批次仍不支持。
+
+### G9：PostgreSQL 冲突跳过时仅返回唯一键（仅 develop）
+
+现有 PostgreSQL 单行 `INSERT INTO users(id,name) VALUES(7,'new') ON CONFLICT(id) DO NOTHING` 执行审批现在只允许附加 **`RETURNING id`**，其中 `id` 必须与显式冲突目标对应同一个未加表限定的实际唯一键。永久普通表仍须具有唯一一组简单、立即生效、非空 INT2／INT4／INT8 主键或唯一键；模式、索引、触发器和行级安全等原有检查全部保留。其他返回列、通配符、别名、表达式、重复列、带表限定列和系统列继续拒绝。SQLite 的 `DO NOTHING RETURNING` 仍不支持。
+
+预览将当时的唯一键冲突状态绑定到一次性审批。提交时在 `SHARE ROW EXCLUSIVE NOWAIT` 表锁下重新验证真实键和模式，只有确认事务提交成功后，才通过已有结构化结果返回**数据库实际插入的键值**；因冲突跳过则**不返回任何行**。冲突状态、键或索引改变都会取消写入，且不泄露结果。强锁仍会降低并发写入能力。本次不增加 MCP 工具，也不开放冲突语句的原子 DML 批次；默认四个只读工具勾选、DML 未勾选的设置保持不变。
+
+### G9：SQL Server 2022 MERGE 匹配删除与实际审批（仅 develop）
+
+SQL Server MERGE 编译器已有 `WITH (HOLDLOCK)`，但**能够编译不等于获准执行**。现在 Typed Host 仅批准**单行整数字面量来源、实际单列 INT 主键精确匹配、单个 `WHEN MATCHED THEN DELETE`**，例如 `MERGE INTO dbo.inventory AS t USING (VALUES(7)) AS s(id) ON t.id=s.id WHEN MATCHED THEN DELETE;`。目标必须是永久普通 `dbo` 表，且只有一组简单、非空、立即生效的原生 INT 主键；不得有触发器、外键、CHECK／默认值副作用、行级安全或其他不支持的结构。内置 SQL Server 提供程序检查完整实际模式和唯一键清单。**这不是通用 MERGE 支持。**
+
+预览只读取实际匹配键（0 或 1 行），并将编译后的 SQL、键、目标、策略及模式指纹绑定一次性审批。提交时在可序列化事务内保持 `TABLOCKX/HOLDLOCK`，重新检查模式和匹配记录，只有与审批一致才执行 F# 编译的 MERGE；预览后新增或删除匹配键会取消操作，而不是悄然删除不同记录。键不存在时影响 0 行。排他表锁会有意限制并发写入。UPDATE 分支、未匹配 INSERT、混合动作、多来源／复合键、隐式类型转换及原子 MERGE 批次仍拒绝。不增加 MCP 工具；默认仍选择四个只读工具，DML 不勾选。
+
+### G9：SQL Server 2022 MERGE 匹配更新，审批前后字段值（仅 develop）
+
+继匹配删除之后，Typed Host 现在还支持**严格限定的匹配更新**：单个永久普通 `dbo` 表、一行 `VALUES` 来源、一个精确的原生 INT 主键，以及 1～3 个不同的原生 INT 更新字段；只允许 `ON t.id=s.id WHEN MATCHED THEN UPDATE SET quantity=s.quantity` 这样的直接字段对应关系。每个更新字段必须来自同名来源字段，且是数据库中真实存在、非空、非自增的 INT 列。例如：`MERGE INTO dbo.inventory AS t USING (VALUES(7,25,4)) AS s(id,quantity,status) ON t.id=s.id WHEN MATCHED THEN UPDATE SET quantity=s.quantity,status=s.status;`。**不意味着支持任意 MERGE。**
+
+内置 SQL Server 2022 Host 会验证唯一一组实际生效的单列 INT 主键、所有更新字段及完整模式／索引／副作用限制。预览显示每列实际的**原值**和固定的**目标值**；没有匹配则影响零行。一次性审批绑定完整原值指纹、用户、策略、编译 SQL 及模式指纹。提交时以可序列化事务持有 `TABLOCKX/HOLDLOCK` 排他锁，重新验证模式和**每个原值**后才执行；原值变化、主键／索引撤销或影响行数不符都会取消，避免覆盖并发修改。排他表锁会降低并发写入能力。表达式、强制转换、NULL 来源、隐式转换、更新主键、混合 INSERT／DELETE 分支和原子 MERGE 批次仍被拒绝。不增加 MCP 工具；默认仍选择四个只读工具，DML 未选中。
+
+### G9：SQL Server 2022 MERGE 仅在未匹配时插入（仅 develop）
+
+Typed Host 现在额外允许**只有 `WHEN NOT MATCHED THEN INSERT` 分支**的 SQL Server 2022 MERGE，限定为永久普通 `dbo` 表和一行字面量来源：`MERGE INTO dbo.inventory AS t USING (VALUES(7,25,4)) AS s(id,quantity,status) ON t.id=s.id WHEN NOT MATCHED THEN INSERT(id,quantity,status) VALUES(s.id,s.quantity,s.status);` 来源必须包含一个非空的原生 INT 主键及 1～3 个不同的非空原生 INT 字段。INSERT 必须**显式列出全部实际目标字段且各出现一次**，每个字段直接取自同名来源字段；可以改变字段顺序，不能遗漏字段或依赖隐式默认值。主键必须是唯一一组实际强制生效的简单 UNIQUE 键；实际 Catalog 验证会拒绝触发器、外键、CHECK／默认值副作用以及未证明的表／索引结构。**这不是通用 MERGE 支持。**
+
+预览检查实际主键；仅在目标不存在相同键时显示拟插入的完整一行，存在则影响零行。一次性审批绑定用户／策略、键值、全部来源值、编译后的 SQL、目标键匹配和完整模式指纹。提交时先在可串行化事务中保持 `TABLOCKX/HOLDLOCK`，重新检查模式和键是否存在，只有符合批准状态才执行 MERGE；预览后其他连接插入／删除相同键或撤销主键／索引均取消，避免凭过期审批插入。排他表锁会降低并发写入能力。混合 MATCHED DELETE／UPDATE、附加匹配条件、表达式、强制转换、NULL／隐式转换、复合键及原子 MERGE 批次仍拒绝。不增加 MCP 工具；默认仍选择四个只读工具，DML 未选中。
