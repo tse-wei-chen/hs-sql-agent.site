@@ -2,7 +2,7 @@
 
 > hs-sql-agent provides governed SQL access for AI agents through MCP, with fail-closed typed SQL compilation, scoped access policies, approval-gated DML, explainable compiler decisions, deployment diagnostics, and support for PostgreSQL, MySQL, SQL Server, Oracle, SQLite, and Firebird.
 
-Current documented release: **3.1.0**. Product behavior is pinned to immutable product commit `051ad8d9b19199dfaa3cc339c9e4cc342128aa4c` by `src/data/productRelease.ts`.
+Staged documentation target: **3.1.0 release candidate** (not yet published). Product behavior is pinned to immutable product commit `051ad8d9b19199dfaa3cc339c9e4cc342128aa4c` by `src/data/productRelease.ts`.
 
 The documentation site is localized in English, Traditional Chinese, Simplified Chinese, Japanese, Korean, French, and German. Prefer stable unversioned documentation URLs for the current release.
 
@@ -32,7 +32,7 @@ The built-in surface is intentionally limited to exactly six names:
 - `execute_dml_sql`
 - `execute_ddl_sql`
 
-All five built-ins expose MCP structured results with inferred output schemas. Read/query tools return typed success/error payloads instead of requiring clients to parse presentation text.
+All six built-ins expose MCP structured results with inferred output schemas. Read/query tools return typed success/error payloads instead of requiring clients to parse presentation text.
 
 `execute_query_sql` returns `Success`, `Provider`, `RowCount`, `DurationMs`, `Rows`, and `Error`.
 
