@@ -1,8 +1,30 @@
 # Content sources of truth
 
-The website documents **hs-sql-agent 3.0.0**, pinned to immutable product commit `c40681699e4b3172c843dd567c5aee21f2f2afad` in `src/data/productRelease.ts`. The immediate historical release and documentation parent is `2.0.6`. Historical overlays remain unchanged.
+## 3.1.0 release candidate — staging only
 
-This release PR is prepared for manual merge after the product release. The release label remains `v3.0.0`, while `sourceRef` pins the audited full commit so CI can verify the real sources before the tag exists. That commit declares 3.0.0 in `backend/Directory.Build.props`. Compare the final release tag against this commit before merging; repin to the tag once available. Public documentation retains release-ready wording.
+This `develop` release candidate documents **hs-sql-agent 3.1.0** and pins its source to immutable product commit `051ad8d9b19199dfaa3cc339c9e4cc342128aa4c` via `src/data/productRelease.ts`. The product release tag `v3.1.0` is **not published yet**. Do not merge this documentation candidate to site `main` or deploy until the maintainer publishes the corresponding product version and verifies the final tag's source against the pinned candidate. Repin the manifest to the final immutable tag/commit before site promotion if the product HEAD changes.
+
+The historical `3.0.0` documentation remains immutable and inherits from `2.0.6`; `3.1.0` inherits from **3.0.0**. The two seven-locale SQL Compiler pages previously amended under `3.0.0` have been moved to the new `3.1.0` overlay and the published 3.0.0 versions restored.
+
+### Current candidate proof sources
+
+- F# DQL/DML/DDL compiler and schema impact: `backend/src/Modules/HsSqlAgent.SqlCore/RewriteDdlCompiler.fs`, `RewriteDdlPreview.fs`, `RewriteSchemaAnalyzer.fs`, `RewriteResourceBudget.fs`.
+- Host Query, DML and opt-in DDL tool boundaries: `backend/src/Modules/HsSqlAgent.Server/Tools/SqlAgentTool.Query.cs`, `SqlAgentTool.Dml.cs`, `SqlAgentTool.Ddl.cs`.
+- Capability and permission contracts: `backend/src/Common/Models/McpBuiltInTools.cs`, Server/Hosting README and first-party code/tests.
+- The previous `docs/*.md` paths no longer exist in product `develop`. Release source checks intentionally use existing code and contract files, **not** fabricated legacy documentation paths.
+
+### Promotion gate
+
+1. Verify the final released `v3.1.0` tag exists and the product implementation matches the documented provider/version/operation subset.
+2. Run site `pnpm run content:check`, `content:version-neutral`, `visual:check`, `lint`, and `build` on the final release candidate.
+3. Audit six MCP built-ins with four read-only defaults, DML/DDL opt-in, approval/outcome semantics, and all seven locale overlays before any `develop → main` promotion.
+4. Never mutate historical 3.0.0 content to advertise v3.1.0 features.
+
+## Historical 3.0.0 source audit
+
+The published **hs-sql-agent v3.0.0** historical baseline was pinned to immutable product commit `c40681699e4b3172c843dd567c5aee21f2f2afad`; its immediate documentation parent is `2.0.6`. This paragraph describes historical release provenance, not the current 3.1.0 candidate manifest.
+
+The historical 3.0.0 audit below captures its original release preparation. The 3.1.0 staging source and release gate are stated above.
 
 ## Audit: 2.0.6 → 3.0.0
 
@@ -14,7 +36,7 @@ This release PR is prepared for manual merge after the product release. The rele
 | Schema snapshots, type proof, iterative traversal and resource limits | `docs/sqlcore-quality-gates.md`, SqlCore lexer/binder/resource budget and tests |
 | Modular registration consistency and required protection options | Server and Hosting READMEs plus integration tests |
 
-Only changed pages are copied into the new overlay; remaining slugs inherit from 2.0.6. Marketing and `llms.txt` describe the latest product. Version-to-version prose belongs in upgrade pages.
+Only pages changed by 3.0.0 were copied to its historical overlay; other historical slugs inherit from 2.0.6. The 3.1.0 overlay now inherits from 3.0.0. Marketing and `llms.txt` describe the latest product. Version-to-version prose belongs in upgrade pages.
 
 ## Claim policy
 

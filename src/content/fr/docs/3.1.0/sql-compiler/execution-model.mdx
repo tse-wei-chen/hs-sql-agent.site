@@ -1,0 +1,101 @@
+---
+title: Modèle d’exécution SQL
+description: Comment hs-sql-agent transforme du SQL non fiable en instructions validées et adaptées au moteur avant exécution.
+sidebar:
+  group: Compilateur SQL
+  order: 40
+---
+
+## Compilation bornée et preuves de schéma
+
+La compilation refuse toute entrée dépassant 4,194,304 unités UTF-16, 131,072 jetons lexicaux hors End, 8,192 niveaux de groupement ou 65,536 nœuds AST. Le parcours itératif et le rendu borné préservent l’ordre des paramètres et le refus en cas de preuve insuffisante pour les six fournisseurs. Ils ne garantissent pas une profondeur SQL arbitraire.
+
+Les budgets sont de 8,000,000 unités de travail par étape, 32,000,000 par compilation, 30 secondes par étape, 90 secondes par compilation et 536,870,912 octets d’allocations managées cumulées par étape. Ce sont des limites de compilation, pas des délais de requête DB ni des limites de mémoire du processus. Des diagnostics de ressources typés signalent les refus.
+
+Un instantané de schéma immuable, facultatif, résout les noms de tables et colonnes ainsi que les familles de types prouvables, y compris les projections ordonnées CTE/dérivées. Son condensat est lié à l’empreinte du plan. Ce n’est pas un vérificateur complet des types DB. Le DML avec preuve de schéma exige une vérification de fraîcheur réelle ; une preuve absente ou modifiée entraîne un refus. Aucun instantané n’est capturé par défaut. `AddHsSqlAgentNativeDmlSchemaFreshness()` active le support natif facultatif.
+
+hs-sql-agent ne traite jamais le SQL généré comme une commande fiable. La frontière d’exécution repose sur l’analyse, la validation, la vérification des capacités, les politiques d’accès et la compilation propre au moteur de base de données.
+
+## Chemin d’une requête
+
+À haut niveau, une requête suit les étapes suivantes :
+
+1. Authentifier la clé MCP et appliquer son périmètre de base de données, de tables, d’outils et d’exécution.
+2. Analyser le SQL pris en charge pour produire une définition structurée / AST.
+3. Valider l’instruction et la sémantique source prise en charge.
+4. Vérifier les capacités de la cible nécessaires pour préserver cette sémantique.
+5. Compiler et produire le SQL adapté au moteur configuré.
+6. Exécuter dans les limites d’exécution configurées.
+
+Le compilateur SQL contient des étapes explicites de validation de la source et de vérification des capacités de la cible. Une syntaxe non prise en charge, ou une capacité qui ne peut pas être démontrée, est refusée au lieu d’être remplacée silencieusement par une construction simplement similaire.
+
+## Pourquoi refuser par défaut ?
+
+Le SQL multi-base comporte de nombreuses constructions qui semblent équivalentes mais diffèrent par leur comportement avec `NULL`, leurs règles de type, la sémantique des opérateurs, la pagination, les identifiants, les fonctions ou encore le comportement DML.
+
+Sur une surface d’exécution destinée à l’IA, une réécriture « au mieux » est dangereuse : une instruction peut rester syntaxiquement valide tout en changeant de sens. hs-sql-agent préfère donc un refus visible à une dégradation implicite de la sémantique. C’est le principe de fonctionnement fail-closed appliqué au compilateur.
+
+## Sortie propre au moteur
+
+L’interface MCP publique est commune, mais le SQL final dépend du moteur ciblé. Les moteurs actuellement pris en charge sont :
+
+- PostgreSQL
+- MySQL
+- SQL Server
+- Oracle
+- SQLite
+- Firebird
+
+La prise en charge est volontairement bornée. Le fait qu’un moteur soit pris en charge ne signifie pas que toutes les syntaxes proposées par cette base sont acceptées ; les capacités du compilateur ne sont étendues que lorsque leur sémantique peut être représentée et validée.
+
+## Cadres de fenêtre natifs GROUPS
+
+Pour PostgreSQL 11 ou ultérieur et SQLite 3.28 ou ultérieur, le compilateur accepte un cadre comme `SUM(amount) OVER (ORDER BY grp GROUPS BETWEEN 1 PRECEDING AND CURRENT ROW)`. `GROUPS` avance par groupes de lignes ayant la même clé de tri, et non par lignes individuelles (`ROWS`) ni par plages de valeurs (`RANGE`). Un `ORDER BY` explicite dans la fenêtre est obligatoire. Les bornes incorrectes et les versions de serveur explicitement trop anciennes sont refusées, sans conversion silencieuse vers un autre cadre. Cette capacité reste refusée pour MySQL, SQL Server, Oracle et Firebird. Le serveur d’hébergement doit vérifier la version réelle de la base avant toute exécution.
+
+## EXCLUDE : appartenance au cadre de fenêtre
+
+PostgreSQL 11 ou ultérieur et SQLite 3.28 ou ultérieur acceptent quatre formes après un cadre `ROWS`, `RANGE` ou `GROUPS`. `EXCLUDE CURRENT ROW` retire uniquement la ligne courante ; `EXCLUDE GROUP` retire aussi les lignes partageant sa clé de tri ; `EXCLUDE TIES` conserve la ligne courante, mais écarte ses homologues ; `EXCLUDE NO OTHERS` ne retire aucune ligne. Exemple : `SUM(amount) OVER (ORDER BY grp GROUPS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW EXCLUDE TIES)`. Même avec `ROWS`, l’exclusion tient compte des lignes de même rang. Le compilateur F# et `WindowFrameDefinition.Exclusion` préservent cette sémantique sans transformation implicite. Les versions explicitement trop anciennes et les quatre autres fournisseurs sont refusés. L’hôte doit contrôler la version réelle de la base avant exécution.
+
+## SQL Server : décalages numériques dans les cadres RANGE
+
+La syntaxe T-SQL de SQL Server interdit les décalages numériques `PRECEDING` et `FOLLOWING` dans un cadre de fenêtre `RANGE`. Ainsi, `RANGE BETWEEN 1 PRECEDING AND CURRENT ROW` est rejeté **comme syntaxe source SQL Server invalide**, même si PostgreSQL ou SQLite est choisi comme cible. Les décalages `ROWS` valides et `RANGE BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW` restent pris en charge. Les sémantiques `RANGE` numériques natives de PostgreSQL et de SQLite ne changent pas. Le compilateur vérifie séparément la validité du dialecte source et les capacités de la cible : la prise en charge par la cible ne prouve pas que la syntaxe source est valide.
+
+## COUNT conditionnel limité vers MySQL et SQL Server
+
+Une requête de dialecte source PostgreSQL comme `SELECT COUNT(*) FILTER (WHERE status = 1) FROM orders` peut désormais être compilée pour MySQL ou SQL Server sous la forme d'une agrégation conditionnelle équivalente. MySQL utilise `COUNT(CASE WHEN ... THEN 1 END)` ; SQL Server utilise `COUNT_BIG(CASE WHEN ... THEN 1 END)` pour préserver la plage de comptage sur 64 bits. `COUNT(colonne_directe)` est également accepté, tout en conservant l'exclusion des valeurs NULL, le résultat zéro lorsque rien ne correspond et les comptes par cadre de fenêtre.
+
+**Ce n'est pas une prise en charge générale de FILTER.** Seuls `COUNT(*)`, le COUNT d'une colonne locale directe et `COUNT(DISTINCT colonne_directe)` hors fonctions de fenêtre, avec des conditions simples prouvées sur colonnes et constantes, sont admis. `SUM`, les arguments calculés, sous-requêtes, fonctions volatiles et références à une portée externe restent refusés. `FILTER` demeure invalide dans du SQL source MySQL/SQL Server : la traduction concerne un dialecte source valide, tel que PostgreSQL. SqlCore n'exécute pas de SQL et n'accorde aucun droit sur la base de données.
+
+## COUNT DISTINCT conditionnel : compter les valeurs uniques
+
+L'expression PostgreSQL source `COUNT(DISTINCT amount) FILTER (WHERE status = 1)` est désormais traduite en `COUNT(DISTINCT CASE WHEN status = 1 THEN amount END)` pour MySQL et en `COUNT_BIG(DISTINCT CASE WHEN status = 1 THEN amount END)` pour SQL Server. Une valeur répétée n'est comptée qu'une fois. Les valeurs NULL ainsi que les lignes dont la condition est fausse ou inconnue sont ignorées ; l'absence de valeurs admissibles donne zéro. Les résultats globaux et groupés sur des entiers ont été comparés sur PostgreSQL 16, MySQL 8.4 et SQL Server 2022 réels.
+
+Un seul argument DISTINCT, correspondant à une colonne locale directe, et un prédicat local borné sont autorisés. Les arguments calculés ou multiples, les sous-requêtes, les fonctions volatiles et les références externes restent refusés. **Les agrégats DISTINCT avec `OVER (...)` ne sont pas pris en charge**, car MySQL et SQL Server ne proposent pas cette syntaxe. `FILTER` reste invalide dans le SQL source MySQL/SQL Server. Les essais sur entiers ne prouvent pas l'équivalence générale des collations ou des conversions de types. Cette fonction n'exécute pas de SQL et n'accorde aucune permission.
+
+## LAG et LEAD avec IGNORE NULLS sous SQL Server et Oracle
+
+SQL Server 2022 CU4 (16.0.4035.4) ou plus récent et Oracle 12.1 ou plus récent conservent désormais `LAG(amount) IGNORE NULLS OVER (PARTITION BY grp ORDER BY id)` ainsi que son équivalent `LEAD`. `IGNORE NULLS` saute les valeurs NULL lors de la recherche de la valeur précédente ou suivante ; `RESPECT NULLS` explicite maintient le comportement natif tenant compte des NULL. Le modificateur se place **entre l'appel de fonction et OVER**, pas dans le cadre de fenêtre. F# représente le traitement des NULL par une valeur typée, sans suppression ni conversion implicite.
+
+`RESPECT NULLS` explicite reste possible dès SQL Server 2022 RTM. En revanche, `IGNORE NULLS` exige une preuve de CU4 ou ultérieur, qui corrige une erreur de résultat LAG/LEAD documentée par Microsoft ; un profil limité à `16.0` n'est pas une preuve suffisante.
+
+Des profils `ServerVersion` explicites sont exigés pour la source et la cible, et le Host doit encore vérifier la version réelle de la base avant exécution. PostgreSQL, MySQL, SQLite et Firebird refusent ces modificateurs explicites. Les fonctions de fenêtre non prises en charge, les modificateurs mal formés ou répétés ainsi que l'absence de `OVER` échouent sans repli. Les requêtes `LAG/LEAD` sans modificateur sont inchangées. `WindowSpec.NullTreatment` et `WindowDefinition.NullTreatment` suivent la même validation ; des comparaisons de lignes sur SQL Server et Oracle réels vérifient le saut des NULL. Le compilateur n'exécute aucun SQL et n'accorde aucune permission.
+
+## FIRST_VALUE et LAST_VALUE avec traitement explicite des NULL
+
+SQL Server 2022 et versions ultérieures, ainsi qu'Oracle 12.1 et versions ultérieures, acceptent `IGNORE NULLS` ou `RESPECT NULLS` pour `FIRST_VALUE` et `LAST_VALUE`, avant `OVER`. Par exemple, `LAST_VALUE(amount) IGNORE NULLS OVER (PARTITION BY grp ORDER BY id ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING)` porte sur **toute la partition**, plutôt que sur la fenêtre implicite souvent arrêtée à la ligne courante. `IGNORE NULLS` sélectionne la première ou dernière valeur non NULL ; `RESPECT NULLS` conserve les NULL.
+
+La source et la cible exigent des profils `ServerVersion` explicites et concordants (SQL Server 16.0+ ou Oracle 12.1+). La correction SQL Server 2022 CU4 concerne **précisément LAG/LEAD IGNORE NULLS**, pas FIRST/LAST : les capacités sont vérifiées séparément. Les quatre autres moteurs, les autres fonctions de fenêtre et les modificateurs invalides restent refusés. Les DTO C# structurés partagent la validation typée F# et la génération SQL native ; le compilateur n'exécute aucun SQL et n'attribue aucune autorisation.
+
+La conversion entre SQL Server et Oracle reste refusée : l'équivalence du tri implicite des NULL et des cadres de fenêtre n'est pas démontrée.
+
+## Requêtes PostgreSQL : transaction en lecture seule (3.1)
+
+Un `SELECT` PostgreSQL n'est pas nécessairement sans écriture : une fonction `VOLATILE` ou définie par l'utilisateur peut modifier des données réelles. Après compilation et autorisation de `execute_query_sql`, le Host exécute la commande compilée dans **une transaction PostgreSQL explicitement configurée en `READ ONLY`, sur la même connexion vérifiée**. Les résultats sont intégralement récupérés avant le retour arrière de la transaction. Le compilateur F# SqlCore ne se connecte toujours pas à la base.
+
+Un test sur PostgreSQL 16 a reproduit la mise à jour d'une ligne par un `SELECT` pourtant autorisé, via une fonction personnalisée, avant la correction. Les tests physiques couvrent également 32 tentatives d'enchaînement d'instructions, cinq contournements des droits sur les tables, les effets sur les séquences, les valeurs correctement paramétrées et les requêtes OR／CTE légitimes. Un refus ne doit renvoyer aucune ligne ni modifier l'état réel de la base.
+
+Un second test RED sur PostgreSQL 16 a montré que `pg_catalog.query_to_xml` pouvait lire une table exclue de la liste d'autorisation, **même au sein d'une transaction `READ ONLY`**. Lorsqu'une requête possède une liste de tables autorisées non vide, la politique F# refuse les fonctions natives ou personnalisées non prouvées et n'admet qu'un ensemble limité de fonctions intégrées à `pg_catalog`. Elle qualifie explicitement ces appels avec `pg_catalog` afin d'empêcher la substitution via `search_path` ; les fonctions courantes comme `LOWER` et `COUNT` restent utilisables. Cette protection est distincte de l'interdiction d'écriture et ne remplace pas les rôles de base de données à privilèges minimaux.
+
+Un autre test RED sur PostgreSQL 16 a démontré le **détournement d'opérateur** : si un schéma modifiable précède `pg_catalog` dans le `search_path` d'une connexion, l'opérateur entier `=` peut être remplacé par une fonction lisant une table interdite, malgré `READ ONLY` et la politique sur les fonctions. Dans **la même transaction de requête**, le Host place désormais temporairement `pg_catalog` en tête du chemin tout en conservant l'ordre de recherche des autres schémas. Le retour arrière restaure le chemin initial ; cette restauration a aussi été vérifiée avec une connexion mutualisée. La sécurité de tous les opérateurs ou types personnalisés n'est pas démontrée : les droits du compte et de création de schémas doivent rester minimaux.
+
+Cette protection concerne **uniquement les requêtes PostgreSQL** à ce stade. Elle ne confère aucun droit DML／DDL et ne prouve pas de protection équivalente pour les cinq autres moteurs. Elle n'isole pas tous les effets externes, notamment les verrous consultatifs : conservez des droits minimaux et des limites d'exécution.
