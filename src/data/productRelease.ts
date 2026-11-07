@@ -3,7 +3,15 @@ export const productRelease = {
   version: "3.1.0",
   tag: "v3.1.0",
   sourceRef: "051ad8d9b19199dfaa3cc339c9e4cc342128aa4c",
-  historicalTags: ["v3.0.0", "v2.0.6", "v2.0.5", "v2.0.4", "v2.0.3", "v2.0.2", "v2.0.1"],
+  historicalTags: [
+    "v3.0.0",
+    "v2.0.6",
+    "v2.0.5",
+    "v2.0.4",
+    "v2.0.3",
+    "v2.0.2",
+    "v2.0.1",
+  ],
   sources: {
     compilerResources:
       "backend/src/Modules/HsSqlAgent.SqlCore/RewriteResourceBudget.fs",
@@ -16,11 +24,13 @@ export const productRelease = {
     webhookApprovals:
       "backend/src/Modules/HsSqlAgent.Approvals.Webhook/README.md",
     dmlTool: "backend/src/Modules/HsSqlAgent.Server/Tools/SqlAgentTool.Dml.cs",
-    queryTool: "backend/src/Modules/HsSqlAgent.Server/Tools/SqlAgentTool.Query.cs",
+    queryTool:
+      "backend/src/Modules/HsSqlAgent.Server/Tools/SqlAgentTool.Query.cs",
     ddlTool: "backend/src/Modules/HsSqlAgent.Server/Tools/SqlAgentTool.Ddl.cs",
     ddlCompiler: "backend/src/Modules/HsSqlAgent.SqlCore/RewriteDdlCompiler.fs",
     ddlPreview: "backend/src/Modules/HsSqlAgent.SqlCore/RewriteDdlPreview.fs",
-    ddlAnalyzer: "backend/src/Modules/HsSqlAgent.SqlCore/RewriteSchemaAnalyzer.fs",
+    ddlAnalyzer:
+      "backend/src/Modules/HsSqlAgent.SqlCore/RewriteSchemaAnalyzer.fs",
     mcpToolResults:
       "backend/src/Modules/HsSqlAgent.Server/Models/McpToolResults.cs",
     mcpBuiltInCatalog: "backend/src/Common/Models/McpBuiltInTools.cs",
