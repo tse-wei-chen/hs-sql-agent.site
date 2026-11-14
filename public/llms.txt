@@ -2,7 +2,7 @@
 
 > hs-sql-agent provides governed SQL access for AI agents through MCP, with fail-closed typed SQL compilation, scoped access policies, approval-gated DML, explainable compiler decisions, deployment diagnostics, and support for PostgreSQL, MySQL, SQL Server, Oracle, SQLite, and Firebird.
 
-Current documented release: **3.0.0**. Product behavior is pinned to immutable product commit `c40681699e4b3172c843dd567c5aee21f2f2afad` by `src/data/productRelease.ts`.
+Current documented product version: **3.1.0**. The published product release is pinned to immutable commit `c077f5703f2c0c8e6446a6e6017f3d375523976b` by `src/data/productRelease.ts`; the documentation site is promoted separately.
 
 The documentation site is localized in English, Traditional Chinese, Simplified Chinese, Japanese, Korean, French, and German. Prefer stable unversioned documentation URLs for the current release.
 
@@ -23,7 +23,7 @@ The documentation site is localized in English, Traditional Chinese, Simplified 
 
 ## Built-in MCP tools
 
-The built-in surface is intentionally limited to exactly five names:
+The 3.1.0 release surface is intentionally limited to exactly five built-in MCP tools:
 
 - `get_schemas`
 - `get_tables`
@@ -39,7 +39,7 @@ Metadata discovery is structured. Table and column results can include authorize
 
 `execute_dml_sql` returns an explicit `Status` of `committed`, `pending`, `rejected`, or `failed`. It also exposes `Provider`, `Committed`, `StatementCount`, `AffectedRows`, `ApprovalWaitDurationMs`, `ApprovalDecision`, `ApprovalRequestId`, `ApprovalExternalReference`, `ReturnedRows`, `Message`, and `Error`. `pending` and `rejected` are approval states rather than execution errors; `Error` is populated only when `Status` is `failed`.
 
-DML remains opt-in for newly issued MCP keys. The default posture selects the four read/query tools and excludes `execute_dml_sql`.
+DML remains opt-in for newly issued MCP keys. The default posture selects the four read/query tools and excludes `execute_dml_sql`. **DDL execution is not released in 3.1.0:** `execute_ddl_sql` is not part of the released MCP tool surface. Internal DDL parsing, compilation and schema analysis do not authorize schema-changing execution.
 
 Published Custom Tools can extend a database's tool collection but are not additional built-in tools.
 
@@ -76,7 +76,7 @@ Doctor `Warning` items deserve review but do not block readiness; Doctor `Error`
 - [Database dialects](https://sql-agent.net/docs/sql-compiler/database-dialects)
 - [Safe DML](https://sql-agent.net/docs/sql-compiler/safe-dml)
 
-3.0.0 does not bypass or weaken the typed SQL pipeline. SQL still passes parse, bind, authorization, policy validation, target-capability proof, compilation, and provider execution boundaries.
+3.1.0 does not bypass or weaken the typed SQL pipeline. SQL still passes parse, bind, authorization, policy validation, target-capability proof, compilation, and provider execution boundaries.
 
 For `UPDATE` and `DELETE`, approval binds exact row-set evidence and revalidates before mutation. `INSERT ... VALUES` binds immutable payload evidence. Multi-statement DML remains one server-owned atomic transaction; client-supplied transaction-control SQL is rejected.
 
@@ -109,14 +109,14 @@ An asynchronous provider may return `Pending`. Durable completion remains server
 
 ## Source of truth
 
-- [Pinned 3.0.0 product source](https://github.com/tse-wei-chen/hs-sql-agent/tree/c40681699e4b3172c843dd567c5aee21f2f2afad)
+- [Pinned 3.1.0 product source](https://github.com/tse-wei-chen/hs-sql-agent/tree/c077f5703f2c0c8e6446a6e6017f3d375523976b)
 - [Product repository](https://github.com/tse-wei-chen/hs-sql-agent)
 - [Documentation repository](https://github.com/tse-wei-chen/hs-sql-agent.site)
 - [Content source policy](https://github.com/tse-wei-chen/hs-sql-agent.site/blob/main/CONTENT_SOURCES.md)
 
-## Current 3.0.0 overlay source
+## Current 3.1.0 documentation lineage
 
-Only behavior changed by this release is duplicated into the current overlay. Unchanged pages are inherited from the immediate parent release.
+All documentation pages in 3.1.0 are inherited unchanged from the immediately preceding documentation release. Internal compiler development does not itself expand the public MCP tool contract.
 
 - [Admin API Reference](https://sql-agent.net/docs/reference/api-reference)
 - [System-to-System API Key integration](https://sql-agent.net/docs/integration/management-api-keys)
