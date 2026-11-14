@@ -81,18 +81,18 @@ src/components/docs/mdx/
 
 Use those shared components instead of embedding one-off page-specific HTML/JSX whenever a reusable documentation pattern exists.
 
-The production site remains at **3.0.0** until its maintainer explicitly promotes the documentation release. Product **v3.1.0** is published, and `productRelease.ts` pins the immutable commit behind its release tag. Because there is no new 3.1.0-specific public documentation, `docsVersions.ts` inherits every page from the immutable **3.0.0** documentation set without duplicating content. The version history starts at 2.0.2; later releases can overlay only pages that really changed.
+The production site remains at **3.0.0** until its maintainer explicitly promotes the documentation release. Product **v3.1.0** is published, and `productRelease.ts` pins the immutable commit behind its release tag. Because there is no new 3.1.0-specific public documentation, `docsVersions.ts` inherits every page from the immutable **3.0.0** documentation set without duplicating content. The maintained documentation history starts at 3.0.0; the previously inherited v2 pages were materialized into that baseline before the v2 source trees were retired. Later releases overlay only pages that really changed.
 
 The public routes deliberately separate stable latest URLs from immutable version URLs:
 
 ```text
 /docs/*                          -> current English documentation set
-/docs/2.0.2/*                    -> fixed English 2.0.2 documentation set
+/docs/3.0.0/*                    -> fixed English 3.0.0 documentation set
 /<locale>/docs/*                 -> current non-default locale set
-/<locale>/docs/2.0.2/*           -> fixed non-default locale set
+/<locale>/docs/3.0.0/*           -> fixed non-default locale set
 ```
 
-When the current version advances, `/docs/*` moves to the new effective set while `/docs/2.0.2/*` remains fixed.
+When the current version advances, `/docs/*` moves to the new effective set while `/docs/3.0.0/*` remains fixed. Retired 2.x documentation URLs permanently redirect to the matching current slug.
 
 The documentation is organized by product responsibility rather than by historical GitHub Wiki page names:
 
@@ -115,18 +115,18 @@ Locale and source version are structural and come from the content path. Do **no
 Translations intentionally share the same slug inside the same version:
 
 ```text
-src/content/en/docs/2.0.2/sql-compiler/safe-dml.mdx
-src/content/zh-hant/docs/2.0.2/sql-compiler/safe-dml.mdx
+src/content/en/docs/3.0.0/sql-compiler/safe-dml.mdx
+src/content/zh-hant/docs/3.0.0/sql-compiler/safe-dml.mdx
 ```
 
-which is available through both the current alias and immutable version route while 2.0.2 is current:
+which is available through both the current alias and immutable version route while 3.0.0 is current:
 
 ```text
 /docs/sql-compiler/safe-dml
-/docs/2.0.2/sql-compiler/safe-dml
+/docs/3.0.0/sql-compiler/safe-dml
 
 /zh-hant/docs/sql-compiler/safe-dml
-/zh-hant/docs/2.0.2/sql-compiler/safe-dml
+/zh-hant/docs/3.0.0/sql-compiler/safe-dml
 ```
 
 Language switching preserves the selected documentation version. If a translation does not exist, the user falls back to the target-language index for that version instead of a 404.
