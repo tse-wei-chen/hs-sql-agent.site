@@ -206,6 +206,31 @@ async function checkLatestCopy(path) {
 
 for (const path of latestCopyPaths) await checkLatestCopy(path);
 
+// The 3.1.0 release contract does not expose DDL execution, even if the
+// pinned development source contains an internal, opt-in DDL implementation.
+if (version === "3.1.0") {
+  const llms = await readFile(join(root, "public/llms.txt"), "utf8");
+  const toolSection = llms.split("## Built-in MCP tools\n")[1]?.split("\n## ")[0] ?? "";
+  const actualTools = [...toolSection.matchAll(/^- `([^`]+)`$/gm)].map(
+    match => match[1]
+  );
+  const releasedTools = [
+    "get_schemas",
+    "get_tables",
+    "get_columns",
+    "execute_query_sql",
+    "execute_dml_sql",
+  ];
+  if (
+    actualTools.join("|") !== releasedTools.join("|") ||
+    !toolSection.includes("All five built-ins")
+  ) {
+    errors.push(
+      "3.1.0 MCP documentation must advertise only the five released tools; DDL execution is not released."
+    );
+  }
+}
+
 const fetchedSources = new Map();
 for (const { key, path } of sourceEntries) {
   const sourceUrl = `https://raw.githubusercontent.com/${repository}/${sourceRef}/${path}`;

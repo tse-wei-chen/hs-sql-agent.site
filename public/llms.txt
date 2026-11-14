@@ -23,16 +23,15 @@ The documentation site is localized in English, Traditional Chinese, Simplified 
 
 ## Built-in MCP tools
 
-The built-in surface is intentionally limited to exactly six names:
+The 3.1.0 release surface is intentionally limited to exactly five built-in MCP tools:
 
 - `get_schemas`
 - `get_tables`
 - `get_columns`
 - `execute_query_sql`
 - `execute_dml_sql`
-- `execute_ddl_sql`
 
-All six built-ins expose MCP structured results with inferred output schemas. Read/query tools return typed success/error payloads instead of requiring clients to parse presentation text.
+All five built-ins expose MCP structured results with inferred output schemas. Read/query tools return typed success/error payloads instead of requiring clients to parse presentation text.
 
 `execute_query_sql` returns `Success`, `Provider`, `RowCount`, `DurationMs`, `Rows`, and `Error`.
 
@@ -40,7 +39,7 @@ Metadata discovery is structured. Table and column results can include authorize
 
 `execute_dml_sql` returns an explicit `Status` of `committed`, `pending`, `rejected`, or `failed`. It also exposes `Provider`, `Committed`, `StatementCount`, `AffectedRows`, `ApprovalWaitDurationMs`, `ApprovalDecision`, `ApprovalRequestId`, `ApprovalExternalReference`, `ReturnedRows`, `Message`, and `Error`. `pending` and `rejected` are approval states rather than execution errors; `Error` is populated only when `Status` is `failed`.
 
-DML remains opt-in for newly issued MCP keys. The default posture selects the four read/query tools and excludes `execute_dml_sql` and `execute_ddl_sql`. DDL uses its own opt-in approval, physical schema proof and provider-specific transaction/implicit-commit rules; it is not a universal executable SQL grammar.
+DML remains opt-in for newly issued MCP keys. The default posture selects the four read/query tools and excludes `execute_dml_sql`. **DDL execution is not released in 3.1.0:** `execute_ddl_sql` is not part of the released MCP tool surface. Internal DDL parsing, compilation and schema analysis do not authorize schema-changing execution.
 
 Published Custom Tools can extend a database's tool collection but are not additional built-in tools.
 

@@ -26,9 +26,6 @@ export const productRelease = {
     dmlTool: "backend/src/Modules/HsSqlAgent.Server/Tools/SqlAgentTool.Dml.cs",
     queryTool:
       "backend/src/Modules/HsSqlAgent.Server/Tools/SqlAgentTool.Query.cs",
-    ddlTool: "backend/src/Modules/HsSqlAgent.Server/Tools/SqlAgentTool.Ddl.cs",
-    ddlCompiler: "backend/src/Modules/HsSqlAgent.SqlCore/RewriteDdlCompiler.fs",
-    ddlPreview: "backend/src/Modules/HsSqlAgent.SqlCore/RewriteDdlPreview.fs",
     ddlAnalyzer:
       "backend/src/Modules/HsSqlAgent.SqlCore/RewriteSchemaAnalyzer.fs",
     mcpToolResults:
