@@ -24,8 +24,11 @@ for (const locale of locales) {
   const versions = (await readdir(docsRoot, { withFileTypes: true }))
     .filter(entry => entry.isDirectory())
     .map(entry => entry.name);
-  if (versions.length !== 1 || versions[0] !== baselineVersion) {
-    throw new Error(`${locale}: only the standalone 3.0.0 source baseline may be present; found ${versions.join(", ")}`);
+  if (
+    !versions.includes(baselineVersion) ||
+    versions.some(version => Number(version.split(".")[0]) < 3)
+  ) {
+    throw new Error(`${locale}: standalone 3.0.0 baseline required; pre-v3 sources forbidden; found ${versions.join(", ")}`);
   }
 
   const paths = (await listDocs(join(docsRoot, baselineVersion)))
