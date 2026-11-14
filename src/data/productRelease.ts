@@ -1,18 +1,20 @@
 export const productRelease = {
   repository: "tse-wei-chen/hs-sql-agent",
-  version: "3.0.0",
-  tag: "v3.0.0",
-  sourceRef: "c40681699e4b3172c843dd567c5aee21f2f2afad",
-  historicalTags: ["v2.0.6", "v2.0.5", "v2.0.4", "v2.0.3", "v2.0.2", "v2.0.1"],
+  version: "3.1.0",
+  tag: "v3.1.0",
+  sourceRef: "051ad8d9b19199dfaa3cc339c9e4cc342128aa4c",
+  historicalTags: [
+    "v3.0.0",
+    "v2.0.6",
+    "v2.0.5",
+    "v2.0.4",
+    "v2.0.3",
+    "v2.0.2",
+    "v2.0.1",
+  ],
   sources: {
     compilerResources:
       "backend/src/Modules/HsSqlAgent.SqlCore/RewriteResourceBudget.fs",
-    compilerQuality: "docs/sqlcore-quality-gates.md",
-    targetCutover: "docs/v3-target-fence-cutover.md",
-    targetFence: "docs/dml-target-execution-fence.md",
-    compatibility: "docs/v3-compatibility-contract.md",
-    secretProtection: "docs/secret-protection-upgrade.md",
-    migration: "docs/v3-migration.md",
     version: "backend/Directory.Build.props",
     overview: "README.md",
     serverEmbedding: "backend/src/Modules/HsSqlAgent.Server/README.md",
@@ -22,6 +24,13 @@ export const productRelease = {
     webhookApprovals:
       "backend/src/Modules/HsSqlAgent.Approvals.Webhook/README.md",
     dmlTool: "backend/src/Modules/HsSqlAgent.Server/Tools/SqlAgentTool.Dml.cs",
+    queryTool:
+      "backend/src/Modules/HsSqlAgent.Server/Tools/SqlAgentTool.Query.cs",
+    ddlTool: "backend/src/Modules/HsSqlAgent.Server/Tools/SqlAgentTool.Ddl.cs",
+    ddlCompiler: "backend/src/Modules/HsSqlAgent.SqlCore/RewriteDdlCompiler.fs",
+    ddlPreview: "backend/src/Modules/HsSqlAgent.SqlCore/RewriteDdlPreview.fs",
+    ddlAnalyzer:
+      "backend/src/Modules/HsSqlAgent.SqlCore/RewriteSchemaAnalyzer.fs",
     mcpToolResults:
       "backend/src/Modules/HsSqlAgent.Server/Models/McpToolResults.cs",
     mcpBuiltInCatalog: "backend/src/Common/Models/McpBuiltInTools.cs",

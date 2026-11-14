@@ -1,0 +1,101 @@
+---
+title: SQL 執行模型
+description: 說明 hs-sql-agent 如何把不可信 SQL 轉換成經過驗證、符合目標資料庫的語句後再執行。
+sidebar:
+  group: SQL Compiler
+  order: 40
+---
+
+## 有界編譯與結構描述證據
+
+輸入超過 4,194,304 個 UTF-16 單位、131,072 個非 End 詞法 token、8,192 層括號分組或 65,536 個 AST 節點時，編譯會拒絕。迭代式 AST 走訪與有界渲染在六種供應者上維持參數順序及無法證明安全即拒絕的原則，不保證任意深度的 SQL 都可接受。
+
+資源上限包含每階段 8,000,000 工作單位、每次編譯 32,000,000 工作單位、每階段 30 秒、每次編譯 90 秒，以及每階段累計 536,870,912 位元組的受控記憶體配置。這些是編譯限制，不是資料庫查詢逾時或程序記憶體上限；超限會回傳具型別的資源診斷。
+
+可選的不可變 schema snapshot 解析資料表、欄位名稱及可證明的型別家族，包含具順序的 CTE／衍生查詢投影，並將摘要繫結至計畫指紋。這是有限範圍的證明，並非完整資料庫型別檢查器。帶有 schema 證據的 DML 需要即時 freshness verifier；證據缺失或結構已變更時拒絕執行。預設不擷取快照；`AddHsSqlAgentNativeDmlSchemaFreshness()` 提供需明確啟用的原生支援。
+
+hs-sql-agent 不會把 AI 產生的 SQL 直接當成可信任指令執行。真正執行前，SQL 會先經過解析、驗證、功能支援檢查、存取政策檢查，以及針對目標資料庫的編譯。
+
+## 查詢執行流程
+
+查詢大致會依照以下順序處理：
+
+1. 驗證 MCP 金鑰，並套用該金鑰限定的資料庫、資料表、工具與執行權限範圍。
+2. 把支援的 SQL 解析成結構化定義 / AST。
+3. 驗證語句與輸入 SQL 的語意是否位於支援範圍內。
+4. 檢查目標資料庫能否安全表達維持這些語意所需的功能。
+5. 為設定的資料庫編譯並產生對應 SQL。
+6. 在設定的執行限制內執行 SQL。
+
+SQL 編譯器明確區分「驗證輸入 SQL 語意」與「確認目標資料庫支援能力」兩個階段。不支援的語法，或無法確認能安全維持相同語意的功能，會直接拒絕，不會偷偷替換成表面相似的結構。
+
+## 為什麼採用「失敗即拒絕」（fail-closed）？
+
+跨資料庫 SQL 有很多「看起來相同、實際含義不同」的情況，例如 NULL 行為、型別規則、運算子語意、分頁、識別項、函式與 DML 行為。
+
+對 AI 開放的 SQL 執行入口若採用「盡力改寫」，可能讓語法仍然正確，卻在背景改變原意。因此 hs-sql-agent 寧可明確拒絕，也不會默默降低語意保證。
+
+## 依資料庫產生 SQL
+
+MCP 的公開介面是統一的，但最後產生的 SQL 會依資料庫而異。目前支援的資料庫包括：
+
+- PostgreSQL
+- MySQL
+- SQL Server
+- Oracle
+- SQLite
+- Firebird
+
+支援範圍是刻意限定的。某個資料庫出現在支援清單中，不代表該產品提供的所有 SQL 語法都可以使用。只有當某項功能的語意能被內部表示並驗證時，編譯器才會把它納入支援範圍。
+
+## GROUPS 視窗框架
+
+PostgreSQL 11 以上與 SQLite 3.28 以上版本可以編譯 `SUM(amount) OVER (ORDER BY grp GROUPS BETWEEN 1 PRECEDING AND CURRENT ROW)` 這類視窗框架。`GROUPS` 以排序鍵相同的資料列群組為單位，不同於逐列計算的 `ROWS`，也不同於依排序值範圍計算的 `RANGE`。視窗內必須明確指定 `ORDER BY`。不合法的框架邊界、明確宣告的過舊資料庫版本都會遭到拒絕，也不會悄悄改用其他框架類型。MySQL、SQL Server、Oracle、Firebird 暫不開放此能力。實際執行前仍須由 Host 驗證資料庫版本。
+
+## EXCLUDE：視窗框架的資料列排除規則
+
+PostgreSQL 11 以上與 SQLite 3.28 以上版本，可在 `ROWS`、`RANGE` 或 `GROUPS` 框架之後指定四種排除模式。`EXCLUDE CURRENT ROW` 只排除目前資料列；`EXCLUDE GROUP` 排除目前資料列及排序鍵相同的所有同儕資料列；`EXCLUDE TIES` 保留目前資料列，但排除其他排序鍵相同的資料列；`EXCLUDE NO OTHERS` 則不排除任何資料列。例如：`SUM(amount) OVER (ORDER BY grp GROUPS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW EXCLUDE TIES)`。即使使用 `ROWS` 框架，排除規則仍會考慮排序鍵相同的同儕資料列。F# Compiler 與 `WindowFrameDefinition.Exclusion` 會保留原始語意，不會暗中改寫。明確宣告的過舊版本與另外四種資料庫提供者都會遭到拒絕。Host 在執行前仍需確認實際資料庫版本。
+
+## SQL Server 的 RANGE 框架位移限制
+
+SQL Server 的 T-SQL 語法不允許在 `RANGE` 視窗框架中使用數值型 `PRECEDING` 或 `FOLLOWING` 位移。例如，即使指定 PostgreSQL 或 SQLite 作為目標資料庫，`RANGE BETWEEN 1 PRECEDING AND CURRENT ROW` 仍會因**來源 SQL Server 語法不合法**而遭到拒絕。合法的 `ROWS` 位移及 `RANGE BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW` 保持支援；PostgreSQL 和 SQLite 原生的數值型 `RANGE` 語意亦不受影響。編譯器會分別驗證來源方言與目標資料庫能力，不會把目標資料庫支援某種語法，誤當成來源語法合法的證據。
+
+## MySQL 與 SQL Server 目標端的條件 COUNT
+
+來源為 PostgreSQL 的 `SELECT COUNT(*) FILTER (WHERE status = 1) FROM orders`，現在可安全編譯到 MySQL 或 SQL Server。MySQL 會使用 `COUNT(CASE WHEN ... THEN 1 END)`，SQL Server 則使用 `COUNT_BIG(CASE WHEN ... THEN 1 END)`，保留 64 位元的計數範圍。也支援直接欄位的 `COUNT(欄位)`，並保留 NULL 不計入、沒有符合條件時回傳零，以及視窗框架內的條件計數語意。
+
+**這不代表全面支援 FILTER**：只有未加限定名稱的 `COUNT(*)`、直接本地欄位計數，以及非視窗聚合的 `COUNT(DISTINCT 直接欄位)`，搭配可證明的簡單欄位／常數條件才會放行。`SUM`、運算式參數、子查詢、可能變動的函式與外層參照仍會拒絕。直接以 MySQL／SQL Server 方言輸入的 `FILTER` SQL 仍屬無效來源語法；此功能只對合法來源方言（例如 PostgreSQL）進行受限轉換。SqlCore 不會執行 SQL 或授予資料庫權限。
+
+## 條件式 DISTINCT COUNT：只計算符合條件的不重複值
+
+合法 PostgreSQL 來源的 `COUNT(DISTINCT amount) FILTER (WHERE status = 1)`，現在能編譯成 MySQL 的 `COUNT(DISTINCT CASE WHEN status = 1 THEN amount END)`，或 SQL Server 的 `COUNT_BIG(DISTINCT CASE WHEN status = 1 THEN amount END)`。同一個值只計算一次；NULL、條件為假或結果未知的資料列不計入，沒有符合條件的值時回傳零。這項能力已使用 PostgreSQL 16、MySQL 8.4 與 SQL Server 2022 的實際資料庫測試，驗證整體與分組的整數計數。
+
+只允許一個直接本地欄位作為 DISTINCT 參數，且過濾條件必須可有界證明。運算式參數、多個 DISTINCT 參數、子查詢、volatile 函式及外層參照仍會拒絕。**不支援搭配 `OVER (...)` 的 DISTINCT 視窗聚合**，因為 MySQL 與 SQL Server 均未提供這種語法。以 MySQL／SQL Server 為來源的 `FILTER` 依舊無效；整數測試亦不能推論字串定序或跨資料庫型別轉換必然等價。此功能不涉及 SQL 執行或資料庫權限。
+
+## SQL Server／Oracle 的 LAG、LEAD：忽略 NULL
+
+SQL Server 2022 CU4（16.0.4035.4）以上與 Oracle 12.1 以上現在可保留 `LAG(amount) IGNORE NULLS OVER (PARTITION BY grp ORDER BY id)`，以及對應的 `LEAD` 用法。`IGNORE NULLS` 在尋找上一個或下一個值時略過 NULL；明確指定 `RESPECT NULLS` 則保留原生的 NULL 參與方式。修飾詞必須放在**函式呼叫與 OVER 之間**，而非寫在視窗框架內。F# 將其表示為具型別的視窗 NULL 處理模式，不會在編譯時省略或猜測語意。
+
+SQL Server 2022 RTM 已支援明確的 `RESPECT NULLS`；但 Microsoft 曾修正 LAG／LEAD `IGNORE NULLS` 的結果錯誤，因此後者必須具備 CU4 版本證據。只有 `16.0` 的版本設定不代表已安裝 CU4。
+
+來源與目標都必須明確提供 `ServerVersion` 能力設定；實際執行前仍須由 Host 核實資料庫版本。PostgreSQL、MySQL、SQLite、Firebird 不允許這些明確修飾詞；用於不支援的視窗函式、重複或錯誤修飾詞、缺少 `OVER` 都會拒絕。沒有修飾詞的原有 `LAG/LEAD` 不變。`WindowSpec.NullTreatment` 與 `WindowDefinition.NullTreatment` 使用相同的驗證管線，並以真實 SQL Server／Oracle 資料列比較確認跳過 NULL 的結果。Compiler 不會據此執行 SQL 或授權資料庫存取。
+
+## SQL Server／Oracle 的 FIRST_VALUE、LAST_VALUE：明確處理 NULL
+
+SQL Server 2022 以上與 Oracle 12.1 以上支援在 `FIRST_VALUE`、`LAST_VALUE` 函式後、`OVER` 前明確指定 `IGNORE NULLS` 或 `RESPECT NULLS`。例如 `LAST_VALUE(amount) IGNORE NULLS OVER (PARTITION BY grp ORDER BY id ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING)` 使用**整個分區**作為視窗範圍，而非通常截止於目前資料列的預設範圍。`IGNORE NULLS` 選取範圍內第一個／最後一個非 NULL 值；`RESPECT NULLS` 保留 NULL 的影響。
+
+來源與目標都必須提供相符的明確 `ServerVersion` 設定（SQL Server 16.0 以上或 Oracle 12.1 以上）。SQL Server 2022 CU4 的正確性限制**只適用於 LAG／LEAD 的 IGNORE NULLS**，不應錯套到 FIRST／LAST；兩者具有獨立的能力證明。其餘四種資料庫、不適用的視窗函式及錯誤修飾詞仍會拒絕。C# 結構化 DTO 共用 F# 的型別驗證與原生 SQL 輸出；Compiler 不會因此授權或執行 SQL。
+
+SQL Server 與 Oracle 之間的跨資料庫轉換仍會拒絕：目前未證明兩者的預設 NULL 排序與視窗範圍具有相同語意。
+
+## PostgreSQL 查詢的唯讀交易防護（3.1）
+
+PostgreSQL 的 `SELECT` 仍可能透過 `VOLATILE` 或自訂函式修改實體資料。現在 Host 會在完成 `execute_query_sql` 的編譯及授權後，使用**同一個已驗證連線與明確設定為 `READ ONLY` 的 PostgreSQL 交易**執行已編譯指令；讀取結果後即回滾。F# SqlCore 仍不連接資料庫。
+
+PostgreSQL 16 實體測試證實，修正前已授權的 `SELECT` 曾可透過自訂函式更新資料列。回歸測試另外涵蓋 32 種多語句攻擊、5 種未授權資料表存取、序列副作用、合法參數化字串與正常的 OR／CTE 查詢。遭拒請求不得回傳資料列或改變資料庫狀態。
+
+另一項 PostgreSQL 16 實體 RED 測試發現，即使交易已設定 `READ ONLY`，`pg_catalog.query_to_xml` 仍能透過函式內的 SQL 讀取資料表白名單以外的內容。因此，當 Query 啟用非空資料表白名單時，F# 政策會拒絕未取得安全證明的自訂／原生函式，只允許受限的 `pg_catalog` 內建函式。獲准函式會明確限定至 `pg_catalog`，避免 `search_path` 讓同名自訂函式攔截；`LOWER`、`COUNT` 等常用安全函式仍可使用。這是獨立於唯讀交易的防護，實體資料庫帳號仍必須遵守最小權限。
+
+另一項 PostgreSQL 16 實體 RED 測試證實**運算子名稱也可能被攔截**：當連線的 `search_path` 將可寫入的 schema 放在 `pg_catalog` 前面，自訂的整數 `=` 運算子便可能呼叫暗中讀取未授權資料表的函式；`READ ONLY` 交易與既有函式政策都無法單獨擋下。Host 現在會在**同一筆 Query 交易內**暫時把 `pg_catalog` 放在搜尋路徑第一位，保留後續 schema 的資料表解析順序，並於回滾時還原原本的連線設定；連線池還原行為也已實測。這不代表所有自訂運算子與型別都安全，資料庫帳號及 schema 建立權限仍須遵守最小權限原則。
+
+這項防護**僅適用 PostgreSQL 查詢執行**，不會授予 DML／DDL 權限，也不代表其他五種資料庫已有同等保護。唯讀交易並非可隔離諮詢鎖及所有外部副作用的沙箱；資料庫帳號仍應採最小權限並設定執行限制。

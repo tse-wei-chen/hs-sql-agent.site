@@ -1,0 +1,335 @@
+---
+title: Safe DML
+description: Approve one or more mutations, revalidate exact evidence, and commit the approved transaction atomically.
+sidebar:
+  group: SQL Compiler
+  order: 50
+---
+
+## Admission, uncertainty and target evidence
+
+When selective predicates are required, provably always-true `UPDATE`/`DELETE` filters such as `WHERE 1=1` are denied. Human approval still binds the exact plan and row-set evidence.
+
+Custom challenge stores must atomically implement `TryPromoteAsync` for both single and batch operations. Redis and durable resume use versioned envelopes; incompatible challenges need fresh preview and consent. See the [upgrade guide](/docs/reference/upgrade-guide).
+
+`dml.commit_outcome_unknown` and `dml.rollback_outcome_unknown` are distinct non-retryable outcomes. Preserve approval and target evidence for independent reconciliation. Neither absent witnesses nor missing Redis keys prove rollback; never automatically replay an uncertain mutation. An audit persistence failure after a known commit must not be reported as a failed mutation.
+
+`AddHsSqlAgentTargetExecutionFence()` is opt-in and requires target provisioning plus separate proof that old workers lost DML authority. Enrolled commits execute two additional rollback-only readiness transactions on the actual connection and two independent post-commit Admission/Witness reads. Oracle uses READ COMMITTED only for the witness unique-conflict diagnostic; other readiness phases use SERIALIZABLE. Contradictory proof yields an unknown outcome. This does not provide fleet-wide enrollment or automatic live-worker reconciliation.
+
+DML uses a stricter execution path than queries because approval must still describe the **same mutation evidence** when the server reaches commit.
+
+## One tool, single or multi-statement
+
+`execute_dml_sql` accepts one or more supported `UPDATE`, `DELETE`, or `INSERT ... VALUES` statements. Multiple statements are separated by semicolons. A bounded SQLite `INSERT ... SELECT` is also accepted, but **only as one statement**, never as part of a batch.
+
+There is no separate batch-DML tool. A multi-statement request is parsed as one batch, approved once, executed in its original order, and committed atomically inside one server-owned transaction.
+
+Transaction-control SQL such as `BEGIN`, `COMMIT`, and `ROLLBACK` is not accepted from the client. The server owns transaction boundaries.
+
+## What approval binds
+
+For `UPDATE` and `DELETE`, approval binds to the exact primary-key row set observed during preview. Every statement is revalidated immediately before its mutation inside the commit transaction.
+
+For `INSERT ... VALUES`, approval binds to the immutable literal payload and exact compiled command.
+
+### SQLite single-statement source-row approval (G9/M09, develop only)
+
+A narrowly scoped `INSERT ... SELECT` is available **only for SQLite**. Its one direct source and its insert target must be real, explicitly qualified `main` tables (the same or two distinct tables), with independently attested native schemas where distinct. Explicit unique target columns, direct source projections, a `WHERE column = non-NULL literal` predicate, a positive finite row limit and `AddHsSqlAgentNativeDmlSchemaFreshness()` remain mandatory.
+
+Preview binds **all projected source values**, never invented generated target IDs. Commit reserves SQLite's writer, checks live source/target schemas and source rows in the same transaction, and executes the compiled INSERT once. SQLite **3.35+** may additionally use `RETURNING` with distinct, unqualified, direct target column names. Those rows are **actual post-mutation results**, returned only after successful commit; they are not source preview rows. Wildcards, expressions and aliases in RETURNING, CTE, JOIN, UPSERT, attached databases, unproven atomic batch forms and other providers remain denied. DML approval and permissions are unchanged.
+
+If an earlier statement changes the row set that a later statement was approved against, the entire batch fails closed and rolls back.
+
+## Approval providers
+
+MCP Elicitation remains the default first-party provider. Hosts can also use the official `HsSqlAgent.Approvals.Webhook` adapter or implement `IDmlApprovalProvider` with `HsSqlAgent.Server`.
+
+Approval providers receive transport-neutral evidence, not SQL execution primitives. They do not receive the database connection, transaction, validated execution plan, or commit authority.
+
+## Durable pending approvals
+
+A provider may return `Pending` for an asynchronous workflow. When the Admin Store capability is available, hs-sql-agent persists protected resume intent and approval fingerprints.
+
+When a later completion arrives, hs-sql-agent reloads current authorization and database configuration, reparses and previews the DML, compares the approved evidence, and creates a fresh short-lived execution challenge. Changed authorization, database configuration, policy, plan, row set, or affected-row evidence makes the request stale instead of committing it.
+
+The completion path therefore resumes **intent**, not an old database session.
+
+## SQL Server: composite INT keys in CTE-based mutations
+
+An explicitly opted-in SQL Server UPDATE or DELETE may read a physical source through one to three linear, nonrecursive CTEs when the source has a verified **two-column, non-null INT primary key or unique index**. Both key columns must be projected unchanged and in physical index order through each CTE. The final mutation must match both distinct target INT columns using mandatory `AND` and ordinary `=` predicates. A real SQL Server catalog check, a bounded row-set preview, approval binding and a same-transaction metadata recheck are required before execution. A parsed query or virtual catalog is not execution evidence.
+
+Missing or reordered keys, OR-only conditions, casts, nullable or computed keys, filtered/disabled indexes and multiplying joins remain unsupported. This does not expand other providers or authorize arbitrary multi-column joins.
+
+### Bounded two-branch CTE diamond (G9/M06, develop only)
+
+SQL Server CTE `UPDATE`/`DELETE` now has one independently proven **three-node fork/rejoin shape**: two direct, unfiltered projections from the **same physical UNIQUE source** can be joined in a third CTE on the **complete ordered two-column key** using ordinary `INNER JOIN … ON … AND …` equalities. The final CTE projects that key directly, and the target must match both columns.
+
+This is not unrestricted CTE DAG support. F# static cardinality, F# sealed execution admission and Host live index discovery remain independent, followed by Preview→Approval→same-transaction `IsCurrent`. A different physical table, missing/duplicate key equality, `OR`, `LEFT JOIN`, filtering, `CAST`, calculated keys, extra CTE branches or ambiguous aliases are rejected. Other five databases and MCP defaults are unchanged.
+
+### Two-level Derived Table physical-key lineage (G9/M06, develop only)
+
+SQL Server CTE `UPDATE`/`DELETE` can now follow the **same complete, ordered physical UNIQUE key** through **two** non-lateral, direct-column derived SELECT projections before the existing 1–3 CTE hops. For example, `FROM (SELECT mid.x AS x, mid.y AS y FROM (SELECT s.k1 AS x, s.k2 AS y FROM dbo.Source AS s) AS mid) AS d` may feed `SELECT d.x AS a, d.y AS b`. This extends the single-level case below; it is **not** general multi-branch CTE DAG support.
+
+F# cardinality, F# mutation admission and Host physical-index discovery independently verify the key lineage. Real UNIQUE metadata, matching exact types/collation, mandatory target equalities, Preview→independent Approval→Commit and transaction-held `IsCurrent` remain required. A third derived level, additional sources, JOIN, WHERE, DISTINCT, grouping, ordering, pagination, computed/cast keys, ambiguous aliases or missing/reordered key components are rejected. The other five providers, four default read-only tools and DML disabled-by-default are unchanged.
+
+### Single-level Derived Table key-preserving lineage (G9/M06, develop only)
+
+SQL Server CTE `UPDATE`/`DELETE` now accepts one **non-lateral derived SELECT directly over a single physical source table** before the existing bounded 1–3 CTE projections. Both derived and CTE stages may directly rename every ordered unique-key column, such as `FROM (SELECT s.k1 AS x, s.k2 AS y FROM dbo.Source AS s) AS d`, followed by `SELECT d.x AS a, d.y AS b`. The F# mutation cardinality analyzer and Host proof discovery independently verify every direct-column rename; the Host still requires the complete real `sys.*` UNIQUE index and existing source/target key types, null comparison and collation equality. An alias or virtual Catalog does not authorize DML.
+
+This is **not general derived-table or multi-branch CTE DAG support**. The derived layer disallows JOIN, WHERE, DISTINCT, GROUP/HAVING, aggregate, ORDER, LIMIT/TOP/OFFSET, UNION, nested derived/CTE, LATERAL, CAST/computed expressions, duplicate aliases or lost key components. Existing Preview→independent Approval→Commit, exact row-set identity and transaction-held `IsCurrent` remain mandatory, including index revocation denial. SQL Server 2022 real tests cover 1–3 CTE hops, composite integer/decimal/UUID/text keys, UPDATE/DELETE and safe approval; other five providers, default MCP tools and DML-off settings do not change.
+
+
+### Exact linguistic collation and UNIQUE comparison (G9/M05, develop only)
+
+SQL Server's physical CTE UPDATE/DELETE proof now supports bounded built-in `VARCHAR(n)` and `NVARCHAR(n)` under four **independently identified comparison contracts**: `Latin1_General_100_BIN2` (binary, existing), `Latin1_General_100_CI_AS` (case-insensitive/accent-sensitive), `Latin1_General_100_CI_AI` (case/accent-insensitive), and `Latin1_General_100_CS_AS` (case/accent-sensitive). The source UNIQUE index, target comparison column and any separately attested physical JOIN table must match **the exact native type, bounded length and actual column collation at every key ordinal**. A typed Text snapshot alone grants no permission; F# closes the equality classes into distinct key cases and checks actual `sys.columns`/`sys.indexes` evidence.
+
+Real SQL Server 2022 tests compare whether inserting case- or accent-variant duplicates violates the UNIQUE index with whether ordinary `=` matches the same values. UPDATE/DELETE with 1–3 CTE steps, complete AND key relationships, mixed text/UUID/numeric keys, independent Preview→Approval→Commit, and transaction-held `IsCurrent` still apply. Nullable source UNIQUE remains conditional on `ANSI_NULLS ON`. A new **v9 ProofIdentity** invalidates older approvals. Different collations (including supported-but-mismatched classes), explicit `COLLATE` overrides, implicit VARCHAR/NVARCHAR conversion, unproven CS_AI, _SC and _UTF8, CHAR/MAX, filtered/disabled indexes and incomplete equality stay fail-closed. No new MCP tools, privileges or capability grants to the other five databases.
+
+
+### Nullable SQL Server UNIQUE keys with ordinary equality (G9/M05, develop only)
+
+A SQL Server source key can now contain a nullable column **only when an actual enabled, unfiltered physical UNIQUE index covers the entire ordered 1–2-column tuple**. The bounded CTE `UPDATE`/`DELETE` proof must retain mandatory ordinary `AND`/`=` predicates against the target and a live session with `ANSI_NULLS ON` (checked through `@@OPTIONS`). A NULL source component makes ordinary equality UNKNOWN, so **it never joins a target row**. This is not NULL-safe comparison or an exception for arbitrary nullable table scans. The target-side composite proof still requires nonnullable keys, and the non-joined `VerifyLive` API cannot certify nullable source keys.
+
+The closed F# null-semantics proof is bound to the original complete UNIQUE index, built-in exact physical types, actual source nullability, immutable metadata digest and ProofIdentity **v8**. The real commit connection and transaction recheck `ANSI_NULLS ON` along with index/schema identity using held locks. Filtered UNIQUE indexes (including `WHERE key IS NOT NULL`), disabled or nonunique indexes, `OR`, `COALESCE`, computed keys, casts, NULL-safe operators and a virtual Catalog never grant authority. Live SQL Server 2022 tests cover nullable BIGINT, DECIMAL, UUID and BIN2 VARCHAR composite keys, 1–3 CTE hops, UPDATE/DELETE, Preview→Approval→Commit, source NULL nonmatches and invalidation after index revocation. Other five providers and the default MCP tool permissions remain unchanged.
+
+
+### Exact BIN2 VARCHAR/NVARCHAR physical keys (G9/M04, develop only)
+
+SQL Server CTE `UPDATE`/`DELETE` live uniqueness assurance now supports built-in bounded `VARCHAR(n)` and `NVARCHAR(n)` **only under the exact `Latin1_General_100_BIN2` collation**. The source UNIQUE index key, target comparison column and any independently attested second physical JOIN key must agree at **every key ordinal** on the native SQL type, maximum length and physical collation. `NVARCHAR` length is checked using `sys.columns.max_length` in bytes before converting to the declared character count. This is not a blanket text-equality permission: `VARCHAR(MAX)`, `NVARCHAR(MAX)`, `CHAR`, `NCHAR`, differing lengths, Unicode-to-non-Unicode conversions, other binary or case-insensitive collations, user-defined aliases and nullable source keys remain denied.
+
+The Host labels native strings with the existing `SqlSchemaValueKind.Text` family, but **that snapshot alone never authorizes DML**. The closed F# physical KeyTuple verifies live `sys.columns` length/collation, built-in `sys.types` identity, the complete enabled/unfiltered UNIQUE index and ordinary mandatory key equality in the bounded CTE/JOIN graph. Preview→independent Approval→Commit still rechecks the same physical metadata under transaction-held locks, and proof identity v7 makes older pending approvals invalid. Real SQL Server 2022 tests cover mixed text/UUID/numeric keys, UPDATE/DELETE, 1–3 CTE hops, self and second-table JOINs, approved commit and revoked indexes; negative cases enforce collation, length and cast boundaries. The other five databases, default MCP tools and permissions are unchanged.
+
+
+### Additional non-key columns in the CTE projection (G8 / M03)
+
+Each of the one to three CTEs may also project **direct non-key source columns** alongside the required one- or two-column INT key (up to 32 direct columns per hop). For example, `SELECT k1 AS a, payload AS extra, k2 AS b` may be followed by `SELECT a, extra, b`. Keys must retain their relative physical index order, appear exactly once at every hop and be matched with mandatory `AND`/`=` predicates. Duplicate or transformed keys, ambiguous aliases, computed expressions, multi-source or multiplying JOINs still fail closed. Physical unique-index checks, preview, approval and transaction-time revalidation are unchanged; this does not authorize general JOINs or affect other databases.
+
+### Singleton-derived JOIN safety proof (G8 / M07, limited subset)
+
+SQL Server may now use **one nonmultiplying JOIN per CTE hop** when the joined source is an uncorrelated derived `SELECT 1 AS marker` with **no FROM, WHERE, UNION, grouping or other rows**. A `CROSS JOIN (SELECT 1 AS marker) AS one` preserves the row count; `INNER JOIN` and `LEFT JOIN` with literal-equality `ON 1 = 1` cannot increase it. The physical INT unique-key tuple, direct key projection, bounded preview, approval and same-transaction live proof are still required. **This earlier singleton/self-JOIN proof alone does not authorize joins against different physical tables; the separate dual-live-index proof below establishes the newly allowed subset, APPLY, correlated queries, multi-row derived sources or general JOIN cardinality.**
+
+A separate, equally narrow form permits an **INNER or LEFT self-JOIN of the same physical source table** under two distinct aliases, but only when the ON predicate contains ordinary AND-connected equality for **every component of its live-verified unique INT key**. The second alias then contributes at most one row per source row. Missing keys, OR-only matches, computed/cast keys and joins to another table still fail closed.
+
+### Distinct physical-table JOIN with two live unique-key proofs (M07)
+
+A SQL Server CTE may now use one **INNER** or **LEFT JOIN** against a second, different physical table. Both sources require an independently live-verified, enabled, unfiltered, nonnullable unique `INT`/`BIGINT` key tuple of one or two columns. Every source key must be matched by an ordinary, mandatory `AND`/`=` comparison to the corresponding second-table key. The physical types must match exactly per ordinal; a virtual catalog, implicit cast, partial-key equality or filtered index cannot establish uniqueness. Both index identities participate in plan/approval evidence and are rechecked on the actual commit transaction, including post-preview index revocation. This does not authorize a third physical source, many-to-many joins, `RIGHT`/`FULL JOIN`, cross-provider lowering or general arbitrary JOINs.
+
+### Key-correlated EXISTS / NOT EXISTS filters (M07, bounded phase)
+
+SQL Server CTE-based UPDATE/DELETE can use an **EXISTS** (semi-join) or **NOT EXISTS** (anti-join) in the first CTE's WHERE clause when it reads the **same already live-attested physical source table** under a different alias. The subquery must project a literal, perform no extra joins, grouping, ordering or set operations, and correlate **every 1–2 INT/BIGINT unique-key component** by mandatory ordinary `AND` / `=` predicates. Additional direct inner-column comparisons to literals may narrow the rows. These predicates can only filter, never multiply cardinality; the existing source-index attestation, bounded preview, approval identity and same-transaction metadata recheck remain mandatory. This does **not** permit arbitrary nested queries, another unverified table, JOIN multiplication, or general SQL Server EXISTS/anti-join execution authorization.
+
+### Exact TINYINT and SMALLINT physical keys (G9 / M04, develop only)
+
+The SQL Server CTE UPDATE/DELETE live proof now accepts built-in `TINYINT` (unsigned 8-bit) and `SMALLINT` (signed 16-bit) alongside `INT` and `BIGINT`. For a one- or two-column physical unique key, each corresponding source, target and independently joined key must have **the same actual SQL Server type at its index ordinal**. A wider integer, implicit cast, user-defined alias type or virtual catalog is not proof. The existing bounded CTE lineage, nonmultiplying JOIN checks, row preview, separate approval, immutable fingerprint and same-transaction index recheck remain mandatory. SQL Server 2022 tests cover update/delete, mixed key types and index revocation. This change does not enable decimal, UUID, nullable unique keys, arbitrary JOINs or any additional database provider.
+
+
+### Exact UNIQUEIDENTIFIER physical key proof (G9/M04, develop only)
+
+The SQL Server CTE `UPDATE`/`DELETE` proof now supports the **built-in 128-bit `UNIQUEIDENTIFIER` key**. This is a distinct portable `Uuid` schema value kind, **not** a number, text string or binary key. The Host reads actual `sys.tables`, `sys.columns`, `sys.types` metadata to build bounded typed source, target and optionally independently attested JOIN-key snapshots. The closed F# key algebra independently checks each unique-index ordinal and the source/target snapshot's actual type family. `UNIQUEIDENTIFIER` cannot be equated to `INT`, `DECIMAL`, `VARCHAR` or `BINARY(16)` by implicit conversion to obtain an execution proof.
+
+One- or two-component keys may mix `UNIQUEIDENTIFIER` with exactly matched integer or decimal components; 1–3 bounded CTE hops, nonmultiplying self/physical JOINs, preview, independent approval and same-transaction `IsCurrent` re-attestation still apply. ProofIdentity advances to v6, invalidating pending older approvals. SQL Server 2022 live tests cover UUID UPDATE/DELETE, primary and UNIQUE keys, Host auto-discovery, cross-table JOIN, post-preview index revocation and mismatched-family denial. This grants no new MCP tool, default DML selection, generic JOIN capability or permissions for the other five providers.
+
+### Exact DECIMAL / NUMERIC physical key proof (G9 / M04, develop only)
+
+The SQL Server CTE UPDATE/DELETE live proof now also supports built-in `DECIMAL(p,s)` and `NUMERIC(p,s)`, where `1 ≤ p ≤ 38` and `0 ≤ s ≤ p`. These two SQL Server names are synonyms, but their **physical precision and scale must match at each ordered unique-key component** across source, target and any separately verified physical JOIN source. A `DECIMAL(12,2)` key does not prove a match to `DECIMAL(13,2)`, `DECIMAL(12,3)` or an integer key; SQL implicit conversion is not proof.
+
+The Host reads actual `sys.columns` and `sys.types` metadata and verifies every column of the original UNIQUE index **without discarding unsupported alias-type columns**: a unique `(a,b)` index never establishes uniqueness for `a` alone. The sealed F# physical key-kind model includes the exact precision/scale. Existing 1–3 bounded CTE hops, nonmultiplying JOIN predicates, rowset preview, independent approval, versioned proof identity and same-transaction re-attestation are unchanged. SQL Server 2022 live tests cover fractional values, mixed integer/decimal keys, dual-physical JOINs, index revocation and precision/scale mismatch. UUID/text keys, nullable uniqueness, arbitrary joins and the other five providers remain unsupported in this proof.
+
+
+## Fail-closed rules
+
+A mutation is not committed when approval is rejected, expires, becomes stale, has a mismatched fingerprint, loses authorization, violates current policy, or cannot reproduce the approved row-set evidence.
+
+See [MCP Tools Reference](/docs/mcp/tools-reference), [Configuration](/docs/operations/configuration), and [ASP.NET Core integration](/docs/integration/aspnet-core).
+
+### Direct payload through a bounded CTE diamond (G9/M06, develop only)
+
+Two independent CTE branches and the merge may retain **extra directly selected payload** around the original, ordered two-column UNIQUE key. Each projection must have at most 32 unambiguous, input-unique direct columns. The merge can select direct fields from the left branch only. Payload is **never proof of uniqueness**.
+
+SQL Server still requires the exact two-key INNER JOIN, both target equalities, independent F# cardinality and admission proofs, real Host UNIQUE-index verification, Preview, Approval and transaction-held IsCurrent. Computed/duplicated payload, alias shadowing, CAST, a right-branch payload in the merge, missing keys or another physical source fail closed; no other database or MCP default is affected.
+
+### Correlated semi-/anti-join filters inside the CTE diamond (M07, develop only)
+
+A SQL Server three-CTE diamond may filter either direct physical-source branch with `EXISTS` or `NOT EXISTS` over the **same verified physical table**. The correlated subquery must compare **both original UNIQUE-key columns** using ordinary `AND`-connected equality; an additional direct inner-column-to-literal equality may select the rows. The final merge still uses the complete two-key `INNER JOIN`, and the DML target still compares both keys. The filter changes which rows qualify, never the one-row-per-target proof.
+
+F# cardinality, independent F# execution admission, Host physical index discovery, preview/approval row-set identity and transaction-held `IsCurrent` remain mandatory. An unrelated subquery table, partial key, `OR`, computed key, extra JOIN, unproven scalar subquery or ambiguous alias fails closed. This does not enable unrestricted CTE DAGs, multi-source writes or new database-provider capabilities.
+
+### M08: two independently verified native DML sources (develop only)
+
+SQL Server native `UPDATE ... FROM` and `DELETE ... FROM` may now read a direct, key-preserving CTE **and one distinct physical source table** in the same `FROM`. A complete two-component equality must match target→CTE, and another complete two-component equality must match CTE→the second table. Both source tables require separate, real enabled/unfiltered UNIQUE indexes with exact ordered key types and collation. The second source is not authorized by the first source's index.
+
+```sql
+WITH seed AS (SELECT s.k1 AS a, s.k2 AS b FROM dbo.Source AS s)
+UPDATE dbo.Target SET label = 'changed'
+FROM seed, dbo.Other AS j
+WHERE dbo.Target.k1 = seed.a AND dbo.Target.k2 = seed.b
+  AND seed.a = j.j1 AND seed.b = j.j2;
+```
+
+The F# sealed mutation gate, static cardinality, Host physical index attestation, row-set Preview→Approval and same-transaction `IsCurrent` all remain required. Missing/reversed/computed/OR keys, an unverified or third physical source, weakened index, implicit coercion or cross-provider lowering fail closed. This is the first bounded multi-source mutation shape, **not general arbitrary multi-source DML**; defaults remain four read-only tools with DML disabled.
+
+### M09: SQLite INSERT SELECT from a second physical table (develop only)
+
+SQLite may insert **directly selected rows from one distinct `main` source table** into an explicitly named `main` target table, subject to the same single-statement approval workflow. Each table has an **independent live schema and DDL/index/trigger attestation**; approval binds the complete pair, the compiled INSERT and preview SELECT, the full multiset of projected values, the affected-row cap and the security policy. Commit reserves the SQLite writer, rechecks both physical schemas and all projected values inside the same transaction, then inserts exactly once.
+
+Example: `INSERT INTO main.users (name) SELECT name FROM main.other_users WHERE id = 1`. The source and target must both be actual `main` tables; explicit, unique target columns map to direct unaliased source columns and the sole WHERE is `column = non-NULL literal`. CTE, JOIN, aggregates, expressions, paging, RETURNING wildcards, expressions and aliases, conflict/upsert, attached schemas, unproven multi-statement sources, other providers and unapproved source drift remain blocked. Default four read-only tools and DML disabled are unchanged.
+
+
+SQLite 3.35+ example: `INSERT INTO main.users (name) SELECT name FROM main.other_users WHERE id = 1 RETURNING id, name`. The Preview approves the selected `name` and row count; only a committed mutation returns the inserted `id` and `name`. A source-row change cancels the operation and returns no rows.
+
+### M09: PostgreSQL physical-source INSERT SELECT (develop only)
+
+PostgreSQL supports bounded, single-statement `INSERT INTO schema.target (columns) SELECT direct_columns FROM schema.source WHERE column = non-NULL literal`. **The source may now be the same physical table as the target**, or one distinct physical table in the **same non-system schema**. Only regular permanent tables are eligible. Direct, unique target columns and projections, a finite positive row limit, source-read and target-write authorization, `AddHsSqlAgentNativeDmlSchemaFreshness()` and separate DML approval remain mandatory. CTEs, JOINs, expressions, ON CONFLICT, partitioned/inherited tables, RLS, user triggers, rewrite rules, unqualified tables and other providers remain denied.
+
+Preview binds **all selected source values**, row count, policy and compiled commands; it does not invent generated target IDs. Commit uses a PostgreSQL SERIALIZABLE transaction and obtains the source's **SHARE ROW EXCLUSIVE NOWAIT lock before the first catalog SELECT**. For the same physical table, it captures and rechecks **one real table definition**, holding **one source lock** through mutation; for distinct tables, it independently attests both, and separately protects the target from DDL. Source/index/definition drift, a changed row set or competing source writes cause denial or rollback, with no RETURNING rows. Native direct-column `RETURNING` exposes the actual inserted values only after confirmed commit.
+
+Same-table example: `INSERT INTO app.users (name) SELECT name FROM app.users WHERE id = 1 RETURNING id, name`. Separate-table example: `INSERT INTO app.users (name) SELECT name FROM app.import_users WHERE id = 1 RETURNING id, name`. The database role must be allowed to acquire the necessary PostgreSQL lock. No MCP tool or public API was added. Four read-only tools remain selected by default; DML stays disabled.
+
+### M09: MySQL 8.4 InnoDB source-row INSERT SELECT (develop only)
+
+MySQL **8.4 InnoDB only** adds a narrowly bounded, single-statement `INSERT INTO db.target (name) SELECT name FROM db.source WHERE id = 1`, where source and target are **one real InnoDB base table used as both source and target, or two different real base tables in the same non-system database**. Preview approves the complete selected source values and row count; commit rechecks each participating real table definition and the entire source multiset, then inserts exactly once. Approval is one-time, source and target grants are separate, and native schema freshness is required (`AddHsSqlAgentNativeDmlSchemaFreshness()`).
+
+MySQL requires an explicit **SERIALIZABLE InnoDB transaction** for commit and a source locking read before mutation. Transaction-held metadata locks prevent competing DDL. `LOCK TABLES` is deliberately forbidden because it would implicitly commit. The current narrow proof also requires the runtime account's *global TRIGGER metadata visibility* before it can establish the absence of triggers; both tables must have no triggers or foreign keys, and neither may use a nontransactional engine (such as MyISAM). MySQL does **not** support `RETURNING` here. CTE, JOIN, UPSERT, calculated projections, multi-statement batch and non-MySQL providers remain denied.
+
+Example: `INSERT INTO app.users (name) SELECT name FROM app.import_users WHERE id = 1`. This is **an opt-in DML capability**, not a new MCP tool; the default four read-only tools remain selected while DML remains off.
+
+The proof additionally binds the real InnoDB `TABLE_ID` and MySQL `@@server_uuid`: replacing a table with the same name, definition and source rows still invalidates an older approval. Reading `INNODB_TABLES` requires the `PROCESS` privilege, so both global `PROCESS` and `TRIGGER` visibility are strict opt-in requirements; unavailable metadata is denied.
+
+#### Same-table source: one physical identity (develop only)
+
+For the additional bounded `INSERT INTO app.users (name) SELECT name FROM app.users WHERE id = 1` shape, source and target are **one actual InnoDB table**, not two synthetic catalog entries. Preview and commit attest **one** real `TABLE_ID`, `@@server_uuid`, table DDL and selected source-row multiset. The explicit SERIALIZABLE transaction pins the same source once with a locking read and transaction-held metadata lock before live schema revalidation; index/source drift, identical-DDL recreation, concurrent writes, weaker isolation and replay deny the mutation. No `RETURNING`, CTE, JOIN, UPSERT or additional MCP tool.
+
+### M09: Bounded conjunctive INSERT SELECT source filters (develop only)
+
+**Historical scope:** The AND-only conditions below describe the initial M09 rollout. The bounded IN/OR extension at the end of this page supersedes that limitation for these four native INSERT SELECT providers only; unrelated CTE/JOIN OR safety rules remain unchanged.
+
+For existing **SQLite, PostgreSQL and MySQL 8.4 InnoDB** native source-row approval, the source `WHERE` may contain **one to four** direct `column = non-NULL literal` comparisons joined only by `AND`. Example: `INSERT INTO app.users (name) SELECT name FROM app.import_users WHERE id = 1 AND name = 'Carol'`. The source and target identity, native provider/version gates, maximum affected rows and approval/transaction requirements above still apply. The exact selected source-row multiset and native physical catalog are revalidated before commit; this does not authorize any other SQL shape.
+
+Five or more terms, `OR`, `NOT`, functions, computed predicates, NULL comparisons, subqueries, JOINs, CTEs, UPSERT and unproven providers still fail closed. PostgreSQL/SQLite retain their individually proven RETURNING rules; MySQL RETURNING remains unsupported. No new MCP tool or API; DML stays disabled by default.
+
+### M09: SQL Server 2022 two-table native INSERT SELECT approval (develop only)
+
+SQL Server 2022 now supports the narrow, single-statement `INSERT INTO dbo.target (name) SELECT name FROM dbo.source WHERE id = 1` approval path for **two distinct permanent physical tables in the same database**. Source selection is restricted to 1–4 direct `column = non-NULL literal` conditions joined by `AND`, direct projected and target columns, and a positive finite row cap. The separate source-READ and target-INSERT grants (plus target SELECT for the explicit table-lock read), native SqlCore compiler, physical catalog identity, approved source-row multiset, one-time challenge and live schema freshness verifier are mandatory.
+
+Commit acquires **transaction-held exclusive table locks on both source and target before reading their live catalog**, protects against source writers and DDL, and rechecks the full selected source values immediately before the one native INSERT. It may block concurrent DML; this opt-in safety tradeoff is intentional. Missing `VIEW DEFINITION`, unproven actual table/constraint metadata, triggers, foreign keys, temporal/ledger/graph tables, schema drift, source data drift or a competing lock cause refusal or rollback. SQL Server `OUTPUT` wildcard/alias/expression/`INTO`, CTE, JOIN, UPSERT, computed projections and unproven providers remain outside this Host execution proof. No new MCP tools; four read-only tools remain selected and DML disabled by default.
+
+### M09: SQL Server 2022 same-physical-table INSERT SELECT (develop only)
+
+The additional bounded `INSERT INTO dbo.users (name) SELECT name FROM dbo.users WHERE id = 1` now permits **one existing ordinary permanent table serving as both source and target**. Preview attests **one** real SQL Server object ID and complete table/index/constraint digest, not a fabricated target-plus-source pair. Only direct target/source columns and 1–4 `AND`-joined `column = non-NULL literal` terms with a finite positive affected-row cap are eligible. The runtime must have SELECT and INSERT on this table and `VIEW DEFINITION`, and native schema freshness plus separate one-time DML approval remain required.
+
+Commit starts a SERIALIZABLE transaction and acquires **one transaction-held TABLOCKX/HOLDLOCK table lock before its first catalog read**. With this lock held, it reattests the actual table identity, DDL and the entire approved projected source-row multiset, then performs one native INSERT and validates affected-row parity before commit. A generated target ID is never invented in Preview. Changed source values, indexes, identical-DDL table recreation, competing writers, excessive matched rows and replay deny or roll back. Because the same table is exclusively locked, concurrent writes may block. `OUTPUT` wildcard/alias/expression/`INTO`, CTE, JOIN, UPSERT, computed projections, side-effecting tables and unproven dialects stay denied; no extra MCP tool or change to default four read-only tools / disabled DML.
+
+### M09: SQL Server 2022 native OUTPUT INSERTED for approved INSERT SELECT (develop only)
+
+The already proven one- or two-physical-table `INSERT SELECT` can return `OUTPUT INSERTED.id` or `OUTPUT INSERTED.id, INSERTED.name` after successful commit. Preview approves only the physical source rows and never invents IDENTITY target values. The SERIALIZABLE transaction holds its native exclusive table lock(s), revalidates the whole source multiset and schema, executes exactly one native INSERT, checks affected-row parity, then returns actual target rows after commit. Only 1–32 unique direct target columns are allowed; wildcard, aliases, duplicate columns, expressions, `OUTPUT INTO` and opposite row images stay denied. Live no-trigger metadata and physical catalog proof are mandatory. Source drift, replay, row caps and unsafe tables still fail closed. No new MCP tool; four read-only defaults and DML-off remain.
+
+### M09: bounded IN/OR source-row predicates (develop only)
+
+**SQLite, PostgreSQL, MySQL 8.4 InnoDB and SQL Server 2022** support source `WHERE` predicates such as `id IN (1,2)`, `id = 1 OR id = 2`, and `(id = 1 OR id = 2) AND name IN ('Carol','Dave')` on already physically attested native INSERT SELECT. The closed Host proof permits **at most four total non-NULL comparison literals**, counting all direct `column = literal` and `column IN (literal, ...)` terms together, and at most seven Boolean-tree nodes. Parenthesized `AND` and `OR` may combine these terms, but each atomic predicate must use a direct unqualified column. This extension supersedes the earlier M09 AND-only restriction without changing unrelated CTE/JOIN OR restrictions.
+
+`OR 1=1`, `NOT`/`NOT IN`, NULL IN members, IN subqueries, expressions, five or more literal values, arbitrary OR, CTE, JOIN and cross-provider DML remain denied. Source and target still require real physical Catalog proof, independent permission, finite positive affected-row cap, one-time approval and transaction-held locks. Preview binds **all selected source values**; Commit rechecks the live schema and complete projected source-row multiset before one native INSERT, enforcing exact affected-row parity. PostgreSQL/SQLite RETURNING and SQL Server OUTPUT INSERTED return actual target values only after commit; MySQL does not support RETURNING. No additional MCP tool or public API; default four read-only tools and disabled DML remain unchanged.
+
+### M09: bounded BETWEEN native source filters (develop only)
+
+The physically attested native `INSERT SELECT` source filter now also accepts `column BETWEEN lower AND upper` with **two direct non-NULL literal boundaries**. For example, `WHERE id BETWEEN 1 AND 2`, `WHERE id BETWEEN 1 AND 2 AND name IN ('Carol','Dave')`, or `WHERE id BETWEEN 1 AND 1 OR id = 2`. **SQLite, PostgreSQL, MySQL 8.4 InnoDB, and SQL Server 2022** reuse the same typed F# parser and existing Host physical source proof. Each BETWEEN consumes two of the **four total literal operands** shared with `=` and `IN`, and counts as one of the seven allowed Boolean AST nodes; additional `AND` / `OR` operators also consume node budget. Both endpoints must be non-NULL direct literals; the left side must be a direct unqualified column.
+
+`NOT BETWEEN`, NULL or computed endpoints, column-to-column ranges, literal-only tautologies, five or more total literal operands, subqueries, JOIN, CTE and unproven source shapes remain fail-closed. Full selected source values, finite positive row cap, independent permissions and physical Catalog identity, transaction-held locks, one-time approval, same-transaction revalidation and actual affected-row parity remain mandatory. SQLite/PostgreSQL RETURNING and SQL Server OUTPUT INSERTED return genuine target rows **only after commit**; MySQL RETURNING stays disabled. No new MCP tool, driver or public API; four read-only tools remain selected and DML disabled by default.
+
+### M09: SQLite native INSERT SELECT inside an atomic DML transaction (develop only)
+
+The existing typed **atomic DML transaction** already accepts ordered INSERT VALUES, UPDATE and DELETE statements under one aggregate approval; do not add another MCP batch tool. It now also accepts **exactly one** physically proven SQLite `INSERT SELECT` among **2–16 statements**, alongside those existing DML operations. Example:
+
+```sql
+INSERT INTO main.users (name)
+  SELECT name FROM main.import_users WHERE id IN (1, 2)
+  RETURNING id, name;
+INSERT INTO main.users (name) VALUES ('Manual');
+```
+
+Every child is independently compiled, authorized and previewed against a real SQLite `main` table and strict native Catalog. The one-time aggregate challenge binds child order, full row-set fingerprints and a **total** affected-row cap (not just each child's limit). During commit, SQLite reserves its writer in one transaction; before each child it rechecks the live schema and approved source row multiset **after preceding mutations**. If an earlier child changes a later source row set, or a later INSERT violates a constraint, **every child rolls back**. Native RETURNING rows and generated IDs are visible only after all children commit, never during Preview or following a failed batch. Single-statement `INSERT SELECT` remains supported separately; multiple source SELECT inserts per batch, other databases, unproven schemas, JOIN/CTE/UPSERT and unbounded source expressions remain forbidden in this atomic scope. No new MCP tool, driver or public API; default four read-only tools selected and DML disabled.
+
+### M09: bounded null checks on native INSERT SELECT source rows (develop only)
+
+The four physically verified native providers — **SQLite, PostgreSQL, MySQL 8.4 InnoDB, and SQL Server 2022** — additionally accept a direct unqualified source-column `IS NULL` or `IS NOT NULL` predicate. A nullable column can therefore select rows with or without a value, e.g. `WHERE note IS NULL`, `WHERE note IS NOT NULL`, or `WHERE (note IS NULL OR id = 1) AND name IS NOT NULL`. These are typed AST predicates, not arbitrary textual source filters.
+
+Each null check uses **one of four total predicate-budget units**; `column = non-NULL literal` uses one, each `IN` member uses one, and each `BETWEEN` endpoint uses one. The **seven-node** Boolean AST limit remains. Functions/computed operands, literal-only tests such as `NULL IS NULL`, unconstrained `OR 1=1`, general `NOT`, JOIN/CTE, or unproven providers are still refused. A null check can match many rows, so the **positive finite affected-row cap** is still essential. Both physical tables, independent permissions, live schema proof, approved complete projected source-row multiset, transaction-held locks, commit-time revalidation, exact affected-row parity, and one-time approval remain mandatory. Generated target IDs/RETURNING/OUTPUT are only exposed after commit; MySQL has no RETURNING. No new MCP tool, driver, or public API. The four read-only defaults stay selected and DML stays off.
+
+### M10: SQL Server native MERGE target-key HOLDLOCK (develop only)
+
+The existing closed F# SQL Server **single-source-row** `MERGE` compiler now renders `MERGE INTO dbo.target WITH (HOLDLOCK) AS t USING (VALUES (...)) AS s (...) ON ...`. Only one explicit VALUES row, direct source/target values, an exact match over the entire metadata-assured PRIMARY/UNIQUE key, and the already modeled matched UPDATE/DELETE and unmatched INSERT actions are eligible. The target hint uses SQL Server native serializable/key-range locking, including when the source key does not yet match a target row; the actual transaction still belongs to the execution caller.
+
+Real SQL Server 2022 tests resolve a physical PRIMARY or composite UNIQUE key using native metadata, check exact UPDATE/INSERT/DELETE and tuple isolation, and verify a competing insert is blocked on an absent key while the MERGE transaction is held. Missing/nonunique keys cannot mint compiler assurance. **This is a SqlCore compiler capability, not a new Host execution permission**: the typed Host Upsert/MERGE approval path remains closed until separate live row-set and mutation approval semantics are implemented. Other providers, multirow/query MERGE, cross-provider lowering and arbitrary MERGE actions stay rejected. No new MCP tool or public API; the four default read-only tools remain selected and DML remains off.
+
+### M10: SQLite single-row `ON CONFLICT (PRIMARY KEY) DO NOTHING` Host approval (develop only)
+
+The typed Host can preview and commit one native SQLite `INSERT ... VALUES (...) ON CONFLICT (id) DO NOTHING` when `id` is the table's **only enforced primary/unique key**, is explicitly included as a non-null exact 64-bit integer literal, the policy's maximum affected rows is **1**, and the built-in physical-schema verifier is installed. This is an exception to the usual INSERT VALUES payload-only approval: the Host reads the actual primary-key conflict before approval. The preview reports **1 inserted row** if absent, or **0 affected rows** if present and skipped. Both paths are fingerprinted.
+
+Commit consumes the one-time challenge, rechecks the physical schema and target key inside SQLite's write transaction, executes the same parameterized F#-compiled mutation, checks the actual affected count, and rolls back if the conflict outcome changed after approval. A new conflict, a removed conflict, or a changed index/schema requires a fresh preview. Unsupported shapes—`DO UPDATE`, omitted conflict target, more than one VALUES row, `RETURNING`, non-PK/compound/secondary UNIQUE keys, cross-provider SQL and atomic batches—remain rejected. This does not enable SQL Server MERGE or generic Upsert, add MCP tools, or change the default four selected read-only tools / disabled DML.
+
+**Trigger safety:** tables with SQLite INSERT/UPDATE/DELETE triggers are excluded from this one-row approval: trigger side effects are not included in SQLite's top-level affected-row count. The Host requires its built-in SQLite provider, not an unverified provider adapter.
+
+### M10: SQLite one-column UNIQUE conflict approval (develop only)
+
+SQLite's existing single-row `ON CONFLICT (id) DO NOTHING` Preview/Approval/Commit now also accepts a **sole physically enforced simple UNIQUE key**, even when `id` is not the PRIMARY KEY. It must be the **only** enforced unique constraint or index, match the one explicit conflict column, and receive a non-NULL exact 64-bit integer literal. A unique column constraint or an ordinary nonpartial unique index can qualify after the built-in provider checks the real database. Preview binds **1 row to insert** or **0 rows to skip**, and commit rechecks schema and key presence inside SQLite's write transaction. Dropping/replacing the index invalidates the approval; no changed-conflict execution is allowed.
+
+**Still rejected:** multiple or partial/expression UNIQUE keys, composite keys, non-unique indexes, conflict UPDATE, omitted conflict targets, multirow INSERT, RETURNING, triggers, cross-provider execution and atomic batches. This is not general UPSERT and does not change the four default read-only MCP tools or DML-off default.
+
+### M10: Native PostgreSQL single-row `ON CONFLICT DO NOTHING` approval (develop only)
+
+The typed Host can preview, approve and commit one PostgreSQL `INSERT ... VALUES (...) ON CONFLICT (id) DO NOTHING` with an explicit, non-NULL exact 64-bit integer literal. The actual `id` column must be NOT NULL, INT2/INT4/INT8 and backed by the **sole simple immediately enforced (NOT DEFERRABLE) PRIMARY/UNIQUE key** on the real permanent table. The built-in PostgreSQL provider verifies the physical index and table, including the full column/index/constraint digest; triggers, rewrite rules, partitioning, inheritance and row-level security are rejected. Preview reports **1 pending insert or 0 skipped rows** and binds that outcome to a one-use approval. At Commit, a transaction-held `SHARE ROW EXCLUSIVE NOWAIT` table lock excludes concurrent writers while checking schema and key presence; index revocation or changed conflict state cancels the approved write. This strong lock limits write concurrency deliberately.
+
+**Not supported:** DO UPDATE, RETURNING, multiple rows, missing conflict target, more than one UNIQUE key, partial/expression/composite unique keys, NULL/text/UUID keys, untrusted providers, cross-dialect execution, triggers or atomic batches. No new MCP tool or general Upsert, and the default four selected read-only tools / disabled DML are unchanged.
+
+### M11: PostgreSQL one-row conflict UPDATE with Before/After approval (develop only)
+
+The typed Host now supports the **strictly bounded** native PostgreSQL `INSERT INTO users (id, name) VALUES (7, 'new') ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name`. The only authorized target is a permanent plain table with exactly two physical columns: a NOT NULL BIGINT single-column PRIMARY/UNIQUE key and a NOT NULL TEXT value. There must be **one immediate (NOT DEFERRABLE) simple unique key**, no extra indexes or columns, defaults, CHECK/foreign keys, user triggers, rewrite rules, partitioning, inheritance or row-level security. An actual built-in PostgreSQL provider captures all definitions and the unique key; a virtual catalog cannot authorize execution.
+
+Preview reports **one affected row** and shows `INSERT` with a null before-value or `UPDATE` with the actual old value and proposed after-value. Both the old physical row (including `name`) and exact new payload are bound to one-use approval. Commit takes a transaction-held `SHARE ROW EXCLUSIVE NOWAIT` lock, rechecks the full catalog fingerprint and old row, then runs the F# compiled mutation atomically; changed values, a newly appearing conflict or index revocation cancel the write. This strong table lock deliberately limits concurrent writes.
+
+**Still blocked:** generic UPSERT, updating the key, arbitrary SET expressions, UPDATE WHERE predicates, multiple assignments/rows, RETURNING, NULL or nontext values, extra table effects, cross-provider execution and DML atomic batches. The four default read-only MCP tools and disabled DML default remain unchanged.
+
+### M12: PostgreSQL multi-column conflict UPDATE approval (develop only)
+
+The existing typed Host `ON CONFLICT DO UPDATE` approval now handles **2–4 updated `TEXT NOT NULL` columns** (the earlier one-column form remains supported), together with exactly one `BIGINT NOT NULL` physical primary/unique key. For example: `INSERT INTO users (id, name, city) VALUES (7, 'new-name', 'new-city') ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name, city = EXCLUDED.city`. Every value column in the explicit single-row INSERT must have a one-to-one `SET column = EXCLUDED.column` assignment; omitted, duplicate, reordered-to-a-different-value, computed or key-changing assignments are denied. The physical permanent ordinary table must have **exactly the key and the updated columns**, one immediate, sole simple unique key, and no defaults, additional indexes, CHECK/foreign keys, triggers, rewrite rules, inheritance, partitions or row-level security.
+
+Preview shows one `INSERT` or `UPDATE` action with `__before_name`/`__after_name`, `__before_city`/`__after_city` (and similarly for each approved value field). The approval seals the entire old row, all exact new values, schema and compiled SQL. Commit holds a `SHARE ROW EXCLUSIVE NOWAIT` table lock, verifies the complete physical catalog and old values again, and atomically runs the approved compiled mutation. A change to **any** old field, a new conflict or schema/index drift cancels the whole operation. This table lock reduces writer concurrency. Five or more updated fields, partial updates, expressions, `RETURNING`, multi-row input and DML batches remain unsupported. No MCP tools, default four read-only selections or DML-off defaults change.
+
+### M13: PostgreSQL type-safe, NULL-aware conflict UPDATE approval (develop only)
+
+The bounded one-row PostgreSQL `ON CONFLICT DO UPDATE` Host approval now accepts **1–4 proposed value columns** whose real physical types are `TEXT`, `SMALLINT`, `INTEGER` or `BIGINT`, each either nullable or `NOT NULL`. Example: `INSERT INTO users (id, name, visits, balance) VALUES (7, NULL, 2147483647, 42) ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name, visits = EXCLUDED.visits, balance = EXCLUDED.balance`. The Host checks every literal against the exact physical column type: quoted strings only to `TEXT`; exact signed integers only to an integer type **within that type's range**; SQL `NULL` only to a physically nullable column. No implicit string-to-integer conversion, fractional rounding or value expressions. An ordinary permanent table must contain exactly the physical `BIGINT NOT NULL` key and these fields, with one immediate sole enforced primary/unique key and no extra index, defaults, CHECK/foreign keys, triggers, rules, inheritance, partitions or row-level security.
+
+Preview shows `INSERT` or `UPDATE` and every field's previous and proposed values, including true `NULL`. The one-use approval seals the complete old row, proposed literals and full schema fingerprint. Commit keeps the PostgreSQL `SHARE ROW EXCLUSIVE NOWAIT` table lock while rechecking all old values and the physical column types/nullability, then atomically executes the compiled SQL. A NULL-to-value/value-to-NULL change after Preview, an emerging conflict or schema drift rejects the whole approval. This deliberately strong lock limits concurrent writes. Date/time, floating-point, NUMERIC, UUID, expressions, partial/multi-row UPSERT and DML batches remain unsupported. **After deploying M13, request a fresh Preview for unfinished M12 approvals** because the internal binding version changes. Default four read-only tools selected, DML unchecked.
+
+#### M13 Host safety fence: integer source spelling and quoted column identity
+
+For a native PostgreSQL conflict UPDATE approval, an integer value must originate from an explicit **plain base-10 integer token** such as `42` or `-12`. Even when F# accurately normalizes `1e10`, `4.2e1` or `42.0` to an integral numeric value, those lexical forms do **not** qualify for Host execution approval; a fresh statement with a plain integer token is required. To prevent before/after row fingerprints from confusing PostgreSQL's case-sensitive quoted columns, a key and value column such as `id` and `"ID"` are not permitted in the same approved shape. Case-folded clashes with synthetic preview labels such as `"__ACTION"` also fail closed. These restrictions do not change the SQL compiler's general parsing or the broader M13 `TEXT`/`SMALLINT`/`INTEGER`/`BIGINT`/SQL NULL feature scope.
+
+### G9: PostgreSQL conflict UPDATE with bounded direct RETURNING (develop only)
+
+The existing native one-row `ON CONFLICT (id) DO UPDATE SET column = EXCLUDED.column` Host approval now permits **1–5 distinct, unqualified direct target columns** in `RETURNING`, for example `INSERT INTO users(id,name,amount) VALUES(7,'new',42) ON CONFLICT(id) DO UPDATE SET name=EXCLUDED.name, amount=EXCLUDED.amount RETURNING id,name,amount`. Every returned name must belong to the physically proven key and 1–4 approved value columns; `RETURNING *`, expressions, aliases, repeated, qualified, system or unrelated columns remain denied. This does not widen the allowed INSERT/SET expressions, native types, unique-key or physical-table restrictions.
+
+The single approval still seals the exact SQL, full old row and proposed values. Commit revalidates under the same PostgreSQL `SHARE ROW EXCLUSIVE NOWAIT` table lock; after a confirmed commit the already supported structured result returns the actual affected row (including SQL NULL values), never a fabricated preview row. A changed conflict, old-row value or index cancels without releasing returned data. No new MCP tool, no change to the four default selected read-only tools or DML disabled default. DML atomic batches containing native conflict updates remain unsupported.
+
+### G9: PostgreSQL DO NOTHING with key-only RETURNING (develop only)
+
+The existing single-row PostgreSQL `INSERT INTO users(id,name) VALUES(7,'new') ON CONFLICT(id) DO NOTHING` Host approval now permits **`RETURNING id` only**, where `id` is the same unqualified physical key as the explicit conflict target. The real permanent table must still have one sole, simple, immediately enforced NOT NULL INT2/INT4/INT8 PRIMARY/UNIQUE key; full schema, index and trigger/row-security restrictions still apply. Non-key columns, wildcards, aliases, expressions, duplicate, qualified or system fields remain denied. SQLite DO NOTHING RETURNING remains unsupported.
+
+Preview seals the key's current conflict state to a one-use approval. Commit holds `SHARE ROW EXCLUSIVE NOWAIT`, rechecks the physical key and schema, and publishes the **actual inserted key** through the existing structured result only after confirmed commit. A conflict skip produces **zero returned rows**; a new conflict, changed key state or index drift cancels without writing or disclosing a result. The strong lock still reduces parallel writer throughput. No new MCP tool, no conflict DML atomic batches and no changes to the default four read-only tools or DML-off setting.
+
+### G9: SQL Server 2022 MERGE matched DELETE with live Host approval (develop only)
+
+The existing SQL Server MERGE Compiler's `WITH (HOLDLOCK)` does not by itself authorize an execution. The typed Host now admits **only** one source key literal and an exact physical INT primary-key match with a **single `WHEN MATCHED THEN DELETE` action**, for example `MERGE INTO dbo.inventory AS t USING (VALUES(7)) AS s(id) ON t.id=s.id WHEN MATCHED THEN DELETE;`. The target must be a permanent ordinary `dbo` table, with a sole simple enforced non-null native INT primary key, no triggers, foreign keys, CHECK/default side effects, row-level security or unsupported schema features. The built-in SQL Server provider verifies the complete physical schema and unique-key inventory. An arbitrary `MERGE` is **not supported**.
+
+Preview reads the matched key (0 or 1 rows) and seals the exact compiled SQL, physical key, target, policy and schema fingerprint into a one-use approval. Commit acquires a transaction-held serializable `TABLOCKX/HOLDLOCK`, revalidates the catalog and matching row-set and executes the F#-compiled `MERGE` only on an exact match; a key appearing or disappearing cancels rather than silently deleting a different row. Missing keys produce zero affected rows. This exclusive table lock intentionally limits concurrent writers. `WHEN MATCHED UPDATE`, `WHEN NOT MATCHED INSERT`, combined actions, multi-source/composite keys, implicit type conversions and atomic MERGE batches stay denied. No new MCP tool; four read-only tools remain selected by default and DML remains off.
+
+### G9: SQL Server 2022 MERGE matched UPDATE with before/after approval (develop only)
+
+After the matched DELETE capability, typed Host approval also supports an exactly bounded **matched UPDATE**: one `dbo` ordinary permanent target, one source `VALUES` row with an exact native INT key and 1–3 distinct native INT payload columns, and a single `ON t.id=s.id WHEN MATCHED THEN UPDATE SET quantity=s.quantity` branch. Each updated nonkey field must be a direct same-named source column and an actual non-null, non-identity INT column. Example: `MERGE INTO dbo.inventory AS t USING (VALUES(7,25,4)) AS s(id,quantity,status) ON t.id=s.id WHEN MATCHED THEN UPDATE SET quantity=s.quantity,status=s.status;`. It does **not** support generic MERGE.
+
+The built-in SQL Server 2022 Host independently proves the sole enforced simple INT primary key, all update fields, and the full physical schema/index/side-effect restrictions. Preview shows the actual existing **before** value and immutable proposed **after** value for each field (zero rows when unmatched), sealing the full old-value row fingerprint plus actor, policy, exact compiled SQL and schema into a one-time approval. Commit holds a serializable `TABLOCKX/HOLDLOCK`, reattests schema and compares **every old field value** before executing; changed rows, revoked key/index or a mismatched affected-row count cancel without silently overwriting concurrent updates. The exclusive table lock reduces concurrent write capacity. Expressions, casts, NULL payloads, implicit conversions, updating the primary key, INSERT/DELETE mixed branches and atomic MERGE batches remain denied. No new MCP tool: the four read-only tools remain selected by default and DML is off.
+
+### G9: SQL Server 2022 MERGE insert only when the key is absent (develop only)
+
+The native Typed Host now admits one **`WHEN NOT MATCHED THEN INSERT`-only** SQL Server 2022 MERGE for an ordinary permanent `dbo` table and one literal `VALUES` source row: `MERGE INTO dbo.inventory AS t USING (VALUES(7,25,4)) AS s(id,quantity,status) ON t.id=s.id WHEN NOT MATCHED THEN INSERT(id,quantity,status) VALUES(s.id,s.quantity,s.status);` The source must contain exactly one non-null native INT primary key and 1–3 distinct non-null native INT payload columns. Explicit INSERT columns must cover **every physical target column** exactly once, each mapped directly to its same-named source field; reordered columns are accepted, omitted columns or implicit defaults are not. The primary key must be the table's sole enforced simple UNIQUE key, and physical catalog proof rejects triggers, foreign keys, CHECK/default side effects and unsupported indexes or table types. This is **not generic MERGE support**.
+
+Preview verifies the actual physical key and displays the proposed inserted row only when no target row matches (otherwise zero affected rows). The existing actor/policy-bound, one-use approval seals the key, all source values, compiled SQL, exact target match, and full physical schema digest. Commit first acquires a transaction-held SQL Server `SERIALIZABLE` `TABLOCKX/HOLDLOCK`, reattests the schema and matching key and executes MERGE only if the approved absence/presence still holds. A competing insert/delete or index revocation cancels, rather than inserting with stale permission. This exclusive table lock reduces concurrent write throughput. Mixed MATCHED DELETE/UPDATE, additional match predicates, expressions, casts, NULL/implicit conversions, composite keys and atomic MERGE batches stay rejected. No new MCP tool; four read-only tools remain selected and DML off by default.
