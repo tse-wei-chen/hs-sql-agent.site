@@ -116,7 +116,7 @@ An asynchronous provider may return `Pending`. Durable completion remains server
 
 ## Current 3.1.0 documentation lineage
 
-All documentation pages in 3.1.0 are inherited unchanged from the 3.0.0 documentation set. Internal compiler development does not itself expand the public MCP tool contract.
+All documentation pages in 3.1.0 are inherited unchanged from the immediately preceding documentation release. Internal compiler development does not itself expand the public MCP tool contract.
 
 - [Admin API Reference](https://sql-agent.net/docs/reference/api-reference)
 - [System-to-System API Key integration](https://sql-agent.net/docs/integration/management-api-keys)
