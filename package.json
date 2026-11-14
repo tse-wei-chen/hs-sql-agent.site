@@ -16,6 +16,7 @@
     "astro": "astro",
     "content:check": "node scripts/check-content-source-truth.mjs",
     "content:version-neutral": "node scripts/check-doc-version-neutrality.mjs",
+    "content:v3-baseline": "node scripts/check-doc-v3-baseline.mjs",
     "visual:check": "node scripts/check-doc-visual-animation.mjs",
     "seo:check": "node scripts/check-seo-output.mjs && node scripts/check-search-intent-pages.mjs",
     "format:check": "prettier --check .",

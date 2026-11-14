@@ -1,35 +1,25 @@
 # Documentation content
 
-Only canonical technical documentation belongs under `src/content`.
-
-Documentation is stored by locale and source version:
-
-```text
-src/content/<locale>/docs/<version>/<slug>.mdx
-```
-
-Documentation is **MDX-first**. Most explanatory text should still use ordinary Markdown syntax; use the shared components under `src/components/docs/mdx/` for reusable documentation patterns such as cards, callouts, steps, flows, badges, and reference surfaces.
-
-Do not embed product/marketing pages here. Product pages are Astro UI and live outside the documentation content collection.
+Only canonical technical documentation belongs under `src/content`, using MDX and the shared components in `src/components/docs/mdx/`.
 
 ## Version model
 
-The currently published baseline is **2.0.2**, pinned to product tag `v2.0.2` through `src/data/productRelease.ts`. Earlier product versions are not published as documentation trees by this site.
+Versioned source paths follow `src/content/<locale>/docs/<version>/<slug>.mdx`.
 
-Future versions should contain only pages that changed in that version. Effective content is resolved through `src/data/docsVersions.ts`, where each version may inherit from a parent, remove inherited pages, or redirect old slugs.
+**3.0.0 is the standalone documentation baseline.** Its 31 effective pages per locale were materialized from the previously inherited v2 documentation chain without changing their content. The old `2.x` source trees and published routes are retired; only documentation from major version 3 onward is retained.
 
-The public `/docs/*` routes always resolve the configured current version. Immutable `/docs/<version>/*` routes resolve a fixed version.
+**3.1.0 inherits 3.0.0** because that release does not introduce a separate public documentation overlay. Future releases should contain only pages with verified changes. Effective documentation is resolved through `src/data/docsVersions.ts`, using parent inheritance, removals and redirects.
+
+The public `/docs/*` routes always resolve the configured current version. Immutable `/docs/<version>/*` routes are retained only for documented versions (3.0.0 onward). Former 2.x URLs redirect to the current slug through `public/_redirects`.
 
 ## Content rules
 
-- Locale and version come from the path; do not duplicate them in frontmatter.
-- Keep the same slug across translations of the same page/version.
-- Use semantic frontmatter for title, description, draft state, and sidebar ordering; do not store visual theme choices in frontmatter.
-- Prefer shared MDX components over one-off HTML/JSX.
-- Keep normal prose as Markdown when a component does not improve comprehension.
-- Version-specific behavior must be checked against the matching immutable hs-sql-agent tag, not product `main`, historical Wiki content, previous site copy, or another translation.
-- Review the product tag-to-tag diff before creating a new docs version; a version-number replacement is not a semantic audit.
-- When a page is unchanged in a new version, inherit it instead of copying the file.
-- Keep historical from/to version numbers in upgrade guides explicit.
+- Keep the same slug across all seven locales.
+- Preserve source locale and version in the file path, not in frontmatter.
+- Write ordinary Markdown prose where shared MDX UI adds no value.
+- Verify version-specific claims against the matching immutable hs-sql-agent release tag.
+- Audit the previous and next product tags before adding an override; don't perform blind version string replacements.
+- Explicit version transitions belong in upgrade guides. Historical upgrade facts may mention pre-v3 versions.
+- Keep the full 3.0.0 baseline immutable in meaning; subsequent versions inherit it and override only changed pages.
 
-See the repository-level `CONTENT_SOURCES.md` for the source hierarchy and release audit procedure.
+See `CONTENT_SOURCES.md` for the release audit and documentation source hierarchy.

@@ -107,6 +107,9 @@ jobs:
       - name: Check evergreen docs are version-neutral
         run: pnpm run content:version-neutral
 
+      - name: Check retained v3 documentation baseline
+        run: pnpm run content:v3-baseline
+
       - name: Check doc SVG animation contract
         run: pnpm run visual:check
 

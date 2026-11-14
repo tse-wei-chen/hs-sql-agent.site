@@ -113,7 +113,7 @@ export function sortDocs(
 
 /**
  * routeVersion = null means the stable latest alias (/docs/<slug>).
- * A concrete version produces an immutable versioned URL (/docs/2.0.2/<slug>).
+ * A concrete version produces an immutable versioned URL (/docs/3.0.0/<slug>).
  */
 export function getDocsRouteUrl(
   locale: string,
