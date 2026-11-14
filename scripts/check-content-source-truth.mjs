@@ -271,9 +271,9 @@ for (const historicalTag of historicalTags) {
   }
 }
 
-if (currentDocsCount === 0) {
-  errors.push(`No current documentation overlay was found under */docs/${version}/.`);
-}
+// Zero overlay documents is valid when the current version inherits all pages
+// from its immediate predecessor. The docsVersions parent check above enforces
+// that an inherited current version cannot be orphaned.
 
 if (errors.length > 0) {
   process.stderr.write(

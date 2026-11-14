@@ -81,7 +81,7 @@ src/components/docs/mdx/
 
 Use those shared components instead of embedding one-off page-specific HTML/JSX whenever a reusable documentation pattern exists.
 
-The published production-site baseline remains **3.0.0** until the maintainer releases 3.1.0 and explicitly promotes the website. On this **staging feature branch only**, `productRelease.ts` is pinned to a verified **3.1.0 release-candidate commit** (not an existing release tag); `docsVersions.ts` preserves historical 3.0.0 and uses it as the parent of 3.1.0. The version history starts at 2.0.2. Documentation versions are declared in `src/data/docsVersions.ts`; future versions may inherit unchanged pages from a parent while explicitly removing or redirecting slugs.
+The production site remains at **3.0.0** until its maintainer explicitly promotes the documentation release. Product **v3.1.0** is published, and `productRelease.ts` pins the immutable commit behind its release tag. Because there is no new 3.1.0-specific public documentation, `docsVersions.ts` inherits every page from the immutable **3.0.0** documentation set without duplicating content. The version history starts at 2.0.2; later releases can overlay only pages that really changed.
 
 The public routes deliberately separate stable latest URLs from immutable version URLs:
 
