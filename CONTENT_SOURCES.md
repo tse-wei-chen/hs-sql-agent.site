@@ -8,16 +8,16 @@ The historical `3.0.0` documentation remains immutable and inherits from `2.0.6`
 
 ### Current candidate proof sources
 
-- F# DQL/DML/DDL compiler and schema impact: `backend/src/Modules/HsSqlAgent.SqlCore/RewriteDdlCompiler.fs`, `RewriteDdlPreview.fs`, `RewriteSchemaAnalyzer.fs`, `RewriteResourceBudget.fs`.
-- Host Query, DML and opt-in DDL tool boundaries: `backend/src/Modules/HsSqlAgent.Server/Tools/SqlAgentTool.Query.cs`, `SqlAgentTool.Dml.cs`, `SqlAgentTool.Ddl.cs`.
-- Capability and permission contracts: `backend/src/Common/Models/McpBuiltInTools.cs`, Server/Hosting README and first-party code/tests.
+- F# bounded DQL/DML compilation: `backend/src/Modules/HsSqlAgent.SqlCore/RewriteResourceBudget.fs`; DDL schema analysis is internal, not an executable 3.1.0 release feature: `RewriteSchemaAnalyzer.fs`.
+- Host Query and DML tool boundaries: `backend/src/Modules/HsSqlAgent.Server/Tools/SqlAgentTool.Query.cs`, `SqlAgentTool.Dml.cs`.
+- Capability and permission contracts: `backend/src/Common/Models/McpBuiltInTools.cs`, Server/Hosting README and first-party code/tests. Internal DDL tool/compiler code in the pinned candidate must **not** be advertised as released 3.1.0 MCP functionality.
 - The previous `docs/*.md` paths no longer exist in product `develop`. Release source checks intentionally use existing code and contract files, **not** fabricated legacy documentation paths.
 
 ### Promotion gate
 
 1. Verify the final released `v3.1.0` tag exists and the product implementation matches the documented provider/version/operation subset.
 2. Run site `pnpm run content:check`, `content:version-neutral`, `visual:check`, `lint`, and `build` on the final release candidate.
-3. Audit six MCP built-ins with four read-only defaults, DML/DDL opt-in, approval/outcome semantics, and all seven locale overlays before any `develop → main` promotion.
+3. Audit the five released MCP built-ins with four read-only defaults and DML opt-in; verify that DDL execution is **not** advertised as available in 3.1.0, and check approval/outcome semantics and all seven locale overlays before any `develop → main` promotion.
 4. Never mutate historical 3.0.0 content to advertise v3.1.0 features.
 
 ## Historical 3.0.0 source audit
