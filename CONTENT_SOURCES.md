@@ -1,12 +1,12 @@
 # Content sources of truth
 
-## 3.1.0 release candidate — staging only
+## 3.1.0 release source — documentation promotion pending
 
-This `develop` release candidate documents **hs-sql-agent 3.1.0** and pins its source to immutable product commit `051ad8d9b19199dfaa3cc339c9e4cc342128aa4c` via `src/data/productRelease.ts`. The product release tag `v3.1.0` is **not published yet**. Do not merge this documentation candidate to site `main` or deploy until the maintainer publishes the corresponding product version and verifies the final tag's source against the pinned candidate. Repin the manifest to the final immutable tag/commit before site promotion if the product HEAD changes.
+The product **v3.1.0** release has been published. This site `develop` branch pins its immutable release commit `c077f5703f2c0c8e6446a6e6017f3d375523976b` in `src/data/productRelease.ts`. The site production branch (`main`) remains on its previously published documentation until the maintainer explicitly merges the `develop → main` release PR. Do not assume a product tag automatically authorizes a site deployment.
 
-The historical `3.0.0` documentation remains immutable and inherits from `2.0.6`; `3.1.0` inherits from **3.0.0**. The two seven-locale SQL Compiler pages previously amended under `3.0.0` have been moved to the new `3.1.0` overlay and the published 3.0.0 versions restored.
+The historical `3.0.0` documentation remains immutable and inherits from `2.0.6`. **3.1.0 inherits every 3.0.0 page as-is in all seven locales, with no new documentation overlay.** Internal compiler work, unexposed DDL implementation and additional safety tests do not automatically create a new public SQL feature contract.
 
-### Current candidate proof sources
+### Release source references
 
 - F# bounded DQL/DML compilation: `backend/src/Modules/HsSqlAgent.SqlCore/RewriteResourceBudget.fs`; DDL schema analysis is internal, not an executable 3.1.0 release feature: `RewriteSchemaAnalyzer.fs`.
 - Host Query and DML tool boundaries: `backend/src/Modules/HsSqlAgent.Server/Tools/SqlAgentTool.Query.cs`, `SqlAgentTool.Dml.cs`.
@@ -15,16 +15,16 @@ The historical `3.0.0` documentation remains immutable and inherits from `2.0.6`
 
 ### Promotion gate
 
-1. Verify the final released `v3.1.0` tag exists and the product implementation matches the documented provider/version/operation subset.
-2. Run site `pnpm run content:check`, `content:version-neutral`, `visual:check`, `lint`, and `build` on the final release candidate.
-3. Audit the five released MCP built-ins with four read-only defaults and DML opt-in; verify that DDL execution is **not** advertised as available in 3.1.0, and check approval/outcome semantics and all seven locale overlays before any `develop → main` promotion.
+1. Verify the released `v3.1.0` tag resolves to the exact pinned source commit and that 3.0.0's inherited public documentation remains applicable.
+2. Run site `pnpm run content:check`, `content:version-neutral`, `visual:check`, `lint`, and `build` on the release branch.
+3. Audit the five publicly selectable MCP built-ins (four read/query defaults, DML opt-in), verify DDL execution is **not** advertised as released in 3.1.0, and confirm all seven locales inherit 3.0.0 without unintended changes before any `develop → main` promotion.
 4. Never mutate historical 3.0.0 content to advertise v3.1.0 features.
 
 ## Historical 3.0.0 source audit
 
 The published **hs-sql-agent v3.0.0** historical baseline was pinned to immutable product commit `c40681699e4b3172c843dd567c5aee21f2f2afad`; its immediate documentation parent is `2.0.6`. This paragraph describes historical release provenance, not the current 3.1.0 candidate manifest.
 
-The historical 3.0.0 audit below captures its original release preparation. The 3.1.0 staging source and release gate are stated above.
+The historical 3.0.0 audit below captures its original release preparation. The 3.1.0 release source and separate website promotion gate are stated above.
 
 ## Audit: 2.0.6 → 3.0.0
 
@@ -36,7 +36,7 @@ The historical 3.0.0 audit below captures its original release preparation. The 
 | Schema snapshots, type proof, iterative traversal and resource limits | `docs/sqlcore-quality-gates.md`, SqlCore lexer/binder/resource budget and tests |
 | Modular registration consistency and required protection options | Server and Hosting READMEs plus integration tests |
 
-Only pages changed by 3.0.0 were copied to its historical overlay; other historical slugs inherit from 2.0.6. The 3.1.0 overlay now inherits from 3.0.0. Marketing and `llms.txt` describe the latest product. Version-to-version prose belongs in upgrade pages.
+Only pages changed by 3.0.0 were copied to its historical overlay; other historical slugs inherit from 2.0.6. The 3.1.0 documentation set has **zero new overlay pages** and inherits directly from 3.0.0. Marketing and `llms.txt` describe the latest documented product. Version-to-version prose belongs in upgrade pages.
 
 ## Claim policy
 
