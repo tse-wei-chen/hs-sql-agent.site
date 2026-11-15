@@ -4,7 +4,7 @@
 
 The product **v3.1.0** release has been published. This site `develop` branch pins its immutable release commit `c077f5703f2c0c8e6446a6e6017f3d375523976b` in `src/data/productRelease.ts`. The site production branch (`main`) remains on its previously published documentation until the maintainer explicitly merges the `develop → main` release PR. Do not assume a product tag automatically authorizes a site deployment.
 
-The historical `3.0.0` documentation remains immutable and inherits from `2.0.6`. **3.1.0 inherits every 3.0.0 page as-is in all seven locales, with no new documentation overlay.** Internal compiler work, unexposed DDL implementation and additional safety tests do not automatically create a new public SQL feature contract.
+The historical `3.0.0` documentation is retained as a standalone 31-page-per-locale baseline, preserving the effective content previously inherited through `2.0.6`. **3.1.0 inherits every 3.0.0 page as-is in all seven locales, with no new documentation overlay.** Internal compiler work, unexposed DDL implementation and additional safety tests do not automatically create a new public SQL feature contract.
 
 ### Release source references
 
@@ -22,7 +22,7 @@ The historical `3.0.0` documentation remains immutable and inherits from `2.0.6`
 
 ## Historical 3.0.0 source audit
 
-The published **hs-sql-agent v3.0.0** historical baseline was pinned to immutable product commit `c40681699e4b3172c843dd567c5aee21f2f2afad`; its immediate documentation parent is `2.0.6`. This paragraph describes historical release provenance, not the current 3.1.0 candidate manifest.
+The published **hs-sql-agent v3.0.0** historical baseline was pinned to immutable product commit `c40681699e4b3172c843dd567c5aee21f2f2afad`; its original documentation overlay inherited from `2.0.6`; the archived v2 source chain has since been materialized into the standalone 3.0.0 baseline. This paragraph describes historical release provenance, not the current 3.1.0 candidate manifest.
 
 The historical 3.0.0 audit below captures its original release preparation. The 3.1.0 release source and separate website promotion gate are stated above.
 
@@ -36,7 +36,7 @@ The historical 3.0.0 audit below captures its original release preparation. The 
 | Schema snapshots, type proof, iterative traversal and resource limits | `docs/sqlcore-quality-gates.md`, SqlCore lexer/binder/resource budget and tests |
 | Modular registration consistency and required protection options | Server and Hosting READMEs plus integration tests |
 
-Only pages changed by 3.0.0 were copied to its historical overlay; other historical slugs inherit from 2.0.6. The 3.1.0 documentation set has **zero new overlay pages** and inherits directly from 3.0.0. Marketing and `llms.txt` describe the latest documented product. Version-to-version prose belongs in upgrade pages.
+Originally, only pages changed by 3.0.0 existed in its overlay; unchanged pages were inherited from 2.0.6. Those inherited pages now live directly in the complete 3.0.0 baseline without semantic edits. The 3.1.0 documentation set has **zero new overlay pages** and inherits directly from 3.0.0. Marketing and `llms.txt` describe the latest documented product. Version-to-version prose belongs in upgrade pages.
 
 ## Claim policy
 

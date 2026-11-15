@@ -21,33 +21,23 @@ The site is organized by user journey and product capability so URLs can remain 
 
 Migration is source-driven. Content may be rewritten, split, merged, or presented through reusable MDX components, but factual behavior must be traceable to the matching immutable hs-sql-agent release tag.
 
-The currently published baseline is **2.0.2**, and its runtime claims must be supported by product tag `v2.0.2`. Do not silently import behavior from product `main`, because `main` can contain post-release or unreleased changes.
+The retained documentation baseline is **3.0.0**. For public contract claims, use the matching immutable product release tag; never import unverified behavior from product `main`. Earlier versions may still be mentioned as historical upgrade context.
 
 If a legacy Wiki page cannot be retrieved reliably, do not invent its details. Migrate the parts that can be verified from the product repository first, then fill remaining sections when authoritative source material is available. See `CONTENT_SOURCES.md` for the claim/source hierarchy.
 
 ## Documentation version rule
 
-This site's published documentation history starts at **2.0.2**. Earlier product releases are intentionally not published as version trees here.
-
-The current baseline lives under:
+This site's maintained documentation history starts at **3.0.0**. The old v2 chain was consolidated into a standalone baseline, with 31 pages in each of the seven locales:
 
 ```text
-src/content/<locale>/docs/2.0.2/
+src/content/<locale>/docs/3.0.0/
 ```
 
-Future versions are deltas, not full copies. Version metadata and parent relationships live in `src/data/docsVersions.ts`. If `2.1.0` inherits from `2.0.2`, only pages that changed in 2.1.0 should be added under `docs/2.1.0/`; every other page resolves from the parent baseline.
+Subsequent versions are deltas, not full copies. `src/data/docsVersions.ts` tracks the parent release, removed slugs, and redirects. `3.1.0` currently inherits unchanged `3.0.0` pages.
 
-A version manifest may declare:
+Public `/docs/*` URLs resolve to the current version; only v3 onward uses versioned documentation URLs. Retired v2 URLs 301-redirect to their current slug via the Cloudflare static-assets `public/_redirects` file.
 
-- `parent`: the version to inherit from;
-- `removed`: inherited slugs that must not reappear through fallback;
-- `redirects`: old slugs that moved to a new slug in that version.
-
-Do not put `version` or inheritance metadata in individual MDX frontmatter.
-
-Public `/docs/*` URLs always represent the configured current version. `/docs/<version>/*` URLs are immutable version-specific routes. This separation lets external links target latest documentation while preserving stable historical documentation once a newer version becomes current.
-
-A version bump is not a text replacement. Before publishing a new documentation version, compare the previous and new product tags and audit the changed public surfaces. Only then update the affected semantics and propagate them across locales. Historical from/to versions in upgrade guides must remain explicit.
+Historical versions in upgrade guides must stay accurate (for example, 2.0.6 → 3.0.0); deleting an obsolete docs tree does not erase migration facts or product Git history.
 
 ## MDX and theme boundary
 

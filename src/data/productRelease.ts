@@ -3,15 +3,7 @@ export const productRelease = {
   version: "3.1.0",
   tag: "v3.1.0",
   sourceRef: "c077f5703f2c0c8e6446a6e6017f3d375523976b",
-  historicalTags: [
-    "v3.0.0",
-    "v2.0.6",
-    "v2.0.5",
-    "v2.0.4",
-    "v2.0.3",
-    "v2.0.2",
-    "v2.0.1",
-  ],
+  historicalTags: ["v3.0.0"],
   sources: {
     compilerResources:
       "backend/src/Modules/HsSqlAgent.SqlCore/RewriteResourceBudget.fs",
