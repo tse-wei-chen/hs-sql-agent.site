@@ -8,7 +8,7 @@ Versioned source paths follow `src/content/<locale>/docs/<version>/<slug>.mdx`.
 
 **3.0.0 is the standalone documentation baseline.** Its 31 effective pages per locale were materialized from the previously inherited v2 documentation chain without changing their content. The old `2.x` source trees and published routes are retired; only documentation from major version 3 onward is retained.
 
-**3.1.0 inherits 3.0.0** because that release does not introduce a separate public documentation overlay. Future releases should contain only pages with verified changes. Effective documentation is resolved through `src/data/docsVersions.ts`, using parent inheritance, removals and redirects.
+**3.1.0 inherits 3.0.0 except two release-verified SQL Compiler overrides in all seven locales:** `sql-compiler/sql-support` and `sql-compiler/safe-dml`. They document published atomic DML batch and narrowly attested SQLite source-insert behavior without advertising unreleased features. Future releases should contain only pages with verified changes. Effective documentation is resolved through `src/data/docsVersions.ts`, using parent inheritance, removals and redirects.
 
 The public `/docs/*` routes always resolve the configured current version. Immutable `/docs/<version>/*` routes are retained only for documented versions (3.0.0 onward). Former 2.x URLs redirect to the current slug through `public/_redirects`.
 
