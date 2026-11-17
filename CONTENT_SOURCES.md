@@ -4,7 +4,7 @@
 
 The product **v3.1.0** release has been published. This site `develop` branch pins its immutable release commit `c077f5703f2c0c8e6446a6e6017f3d375523976b` in `src/data/productRelease.ts`. The site production branch (`main`) remains on its previously published documentation until the maintainer explicitly merges the `develop → main` release PR. Do not assume a product tag automatically authorizes a site deployment.
 
-The historical `3.0.0` documentation is retained as a standalone 31-page-per-locale baseline, preserving the effective content previously inherited through `2.0.6`. **3.1.0 inherits every 3.0.0 page as-is in all seven locales, with no new documentation overlay.** Internal compiler work, unexposed DDL implementation and additional safety tests do not automatically create a new public SQL feature contract.
+The historical `3.0.0` documentation is retained as a standalone 31-page-per-locale baseline, preserving the effective content previously inherited through `2.0.6`. **3.1.0 inherits the unchanged 3.0.0 baseline and overrides exactly two SQL Compiler pages per locale:** `sql-compiler/sql-support` and `sql-compiler/safe-dml`. Both are grounded in the published `v3.1.0` Host: up to 16 approved DML statements share one server-owned atomic transaction, while a strictly limited SQLite `INSERT ... SELECT` may be included with native schema attestation. Neither DDL execution nor U2–U8's unpublished development work is promoted by these overrides. All seven locale overrides must remain in sync.
 
 ### Release source references
 
@@ -17,7 +17,7 @@ The historical `3.0.0` documentation is retained as a standalone 31-page-per-loc
 
 1. Verify the released `v3.1.0` tag resolves to the exact pinned source commit and that 3.0.0's inherited public documentation remains applicable.
 2. Run site `pnpm run content:check`, `content:version-neutral`, `visual:check`, `lint`, and `build` on the release branch.
-3. Audit the five publicly selectable MCP built-ins (four read/query defaults, DML opt-in), verify DDL execution is **not** advertised as released in 3.1.0, and confirm all seven locales inherit 3.0.0 without unintended changes before any `develop → main` promotion.
+3. Audit the five publicly selectable MCP built-ins (four read/query defaults, DML opt-in), verify DDL execution is **not** advertised as released in 3.1.0, and confirm all seven locales inherit the unchanged 3.0.0 pages except the two verified and synchronized 3.1.0 SQL Compiler overrides before any `develop → main` promotion.
 4. Never mutate historical 3.0.0 content to advertise v3.1.0 features.
 
 ## Historical 3.0.0 source audit
@@ -36,7 +36,7 @@ The historical 3.0.0 audit below captures its original release preparation. The 
 | Schema snapshots, type proof, iterative traversal and resource limits | `docs/sqlcore-quality-gates.md`, SqlCore lexer/binder/resource budget and tests |
 | Modular registration consistency and required protection options | Server and Hosting READMEs plus integration tests |
 
-Originally, only pages changed by 3.0.0 existed in its overlay; unchanged pages were inherited from 2.0.6. Those inherited pages now live directly in the complete 3.0.0 baseline without semantic edits. The 3.1.0 documentation set has **zero new overlay pages** and inherits directly from 3.0.0. Marketing and `llms.txt` describe the latest documented product. Version-to-version prose belongs in upgrade pages.
+Originally, only pages changed by 3.0.0 existed in its overlay; unchanged pages were inherited from 2.0.6. Those inherited pages now live directly in the complete 3.0.0 baseline without semantic edits. The 3.1.0 documentation set inherits 3.0.0 and now has **two release-verified SQL Compiler overlays per locale** (14 files). Marketing and `llms.txt` describe the latest documented product. Version-to-version prose belongs in upgrade pages.
 
 ## Claim policy
 
